@@ -35,7 +35,7 @@ interface VerificationLog {
 }
 
 export default function CertificationHistoryPage() {
-  const mainClass = useMainContentClass("flex-1 p-8");
+  const mainClass = useMainContentClass("p-6 min-h-screen");
   const router = useRouter();
   const [logs, setLogs] = useState<VerificationLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -229,7 +229,7 @@ export default function CertificationHistoryPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen">
         <Sidebar />
         <main className={mainClass}>
           <div className="flex items-center justify-center h-[80vh]">
@@ -249,76 +249,55 @@ export default function CertificationHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen">
       <Sidebar />
       <main className={mainClass}>
-        {/* Header */}
-        <div className="relative mb-6 sm:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-gray-700 to-gray-500 p-4 sm:p-8 text-white shadow-xl">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 pointer-events-none"></div>
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24 pointer-events-none"></div>
-          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-1 sm:mb-2">
-                <FileText className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-xl sm:text-3xl font-bold">Verification History</h1>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Verification History</h1>
+                </div>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Complete audit trail of all certification verification actions
+                </p>
               </div>
-              <p className="text-gray-100 text-sm sm:text-base max-w-2xl">
-                Complete audit trail of all certification verification actions
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => router.push("/admin/certifications/pending")}
-                variant="outline"
-                className="bg-white/10 border-white/30 text-white hover:bg-white/20 h-9 text-xs sm:text-sm"
-              >
-                <Shield className="h-4 w-4 mr-2" />
-                Pending Review
-              </Button>
-              <Button
-                onClick={exportToCSV}
-                variant="outline"
-                className="bg-white/10 border-white/30 text-white hover:bg-white/20 h-9 text-xs sm:text-sm"
-                disabled={filteredLogs.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => router.push("/admin/certifications/pending")}
+                  className="bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50 h-10 rounded-xl"
+                >
+                  <Shield className="h-4 w-4 mr-2 text-[#00BAF1]" />
+                  Pending Review
+                </Button>
+                <Button
+                  onClick={exportToCSV}
+                  className="bg-[#00BAF1] hover:bg-[#0098C7] text-white h-10 rounded-xl"
+                  disabled={filteredLogs.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5 text-gray-600" />
-                Search & Filters
-              </CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                {showFilters ? "Hide" : "Show"} Filters
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
+          {/* Filters */}
+          <div className="flex flex-col gap-4 mb-8">
             <div className="flex flex-col md:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1">
+              <div className="flex-1 relative group">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-[#00BAF1] transition-colors" />
                 <Input
                   placeholder="Search by certification, worker, or reviewer..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full"
+                  className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
                 />
               </div>
 
-              {/* Action Filter */}
               <select
                 value={actionFilter}
                 onChange={(e) =>
@@ -326,130 +305,142 @@ export default function CertificationHistoryPage() {
                     e.target.value as "all" | "APPROVED" | "REJECTED",
                   )
                 }
-                className="px-4 py-2 border rounded-lg bg-white"
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
               >
                 <option value="all">All Actions</option>
                 <option value="APPROVED">Approved Only</option>
                 <option value="REJECTED">Rejected Only</option>
               </select>
 
-              {/* Clear Filters */}
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className={`h-12 px-6 rounded-xl border-2 transition-all font-medium ${showFilters
+                    ? "border-[#00BAF1] bg-sky-50 text-[#00BAF1]"
+                    : "border-gray-200 text-gray-700 hover:border-[#00BAF1]"
+                  }`}
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                {showFilters ? "Hide" : "Show"} Dates
+              </Button>
+
               {(searchTerm || actionFilter !== "all" || dateFrom || dateTo) && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={handleClearFilters}
-                  className="gap-2"
+                  className="h-12 px-4 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4 w-4 mr-2" />
                   Clear
                 </Button>
               )}
             </div>
 
-            {/* Date Range Filters */}
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 animate-in fade-in slide-in-from-top-2">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
                     From Date
                   </label>
                   <Input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-11 border-gray-200 rounded-lg focus:ring-2 focus:ring-sky-200"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
                     To Date
                   </label>
                   <Input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
+                    className="h-11 border-gray-200 rounded-lg focus:ring-2 focus:ring-sky-200"
                   />
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* History Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Verification Records ({filteredLogs.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredLogs.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 font-medium">
-                  No verification records found
-                </p>
-                <p className="text-sm text-gray-500 mt-2">
-                  {logs.length === 0
-                    ? "No certifications have been reviewed yet"
-                    : "Try adjusting your filters"}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredLogs.map((log, index) => (
-                  <Card
-                    key={index}
-                    className="border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer"
-                    onClick={() =>
-                      router.push(`/admin/certifications/${log.cert_id}`)
-                    }
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                            <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
-                              {log.certification_name}
-                            </h3>
-                            <div className="w-fit">
-                              {getActionBadge(log.action)}
+          {/* History Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Verification Records ({filteredLogs.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filteredLogs.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 font-medium">
+                    No verification records found
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {logs.length === 0
+                      ? "No certifications have been reviewed yet"
+                      : "Try adjusting your filters"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredLogs.map((log, index) => (
+                    <Card
+                      key={index}
+                      className="border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer"
+                      onClick={() =>
+                        router.push(`/admin/certifications/${log.cert_id}`)
+                      }
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                              <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
+                                {log.certification_name}
+                              </h3>
+                              <div className="w-fit">
+                                {getActionBadge(log.action)}
+                              </div>
                             </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-gray-600">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-gray-400" />
+                                <span>Worker: {log.worker_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Shield className="h-4 w-4 text-gray-400" />
+                                <span>By: {log.reviewed_by_name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-gray-400" />
+                                <span>{formatDate(log.reviewed_at)}</span>
+                              </div>
+                            </div>
+                            {log.reason && (
+                              <p className="text-sm text-gray-500 mt-2 italic">
+                                "{log.reason}"
+                              </p>
+                            )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-sm text-gray-600">
-                            <div className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-gray-400" />
-                              <span>Worker: {log.worker_name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Shield className="h-4 w-4 text-gray-400" />
-                              <span>By: {log.reviewed_by_name}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-gray-400" />
-                              <span>{formatDate(log.reviewed_at)}</span>
-                            </div>
-                          </div>
-                          {log.reason && (
-                            <p className="text-sm text-gray-500 mt-2 italic">
-                              "{log.reason}"
-                            </p>
-                          )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
 
-            <AdminPagination
-              currentPage={page}
-              totalPages={totalPages}
-              totalItems={totalRecords}
-              itemsPerPage={15}
-              itemLabel="records"
-              onPageChange={setPage}
-            />
-          </CardContent>
-        </Card>
+              <AdminPagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={totalRecords}
+                itemsPerPage={15}
+                itemLabel="records"
+                onPageChange={setPage}
+              />
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
   );

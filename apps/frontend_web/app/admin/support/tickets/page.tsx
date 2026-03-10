@@ -10,22 +10,23 @@ import { Badge } from "@/components/ui/badge";
 import {
   Ticket,
   Search,
-  Filter,
-  Clock,
-  AlertCircle,
-  CheckCircle2,
-  MessageSquare,
-  User,
-  ChevronRight,
-  ChevronLeft,
+  Download,
   Calendar,
+  Loader2,
   Inbox,
   PlayCircle,
   PauseCircle,
+  CheckCircle2,
   XCircle,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  User,
+  TrendingUp,
+  MessageSquare
 } from "lucide-react";
-import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { toast } from "sonner";
 
 interface TicketData {
@@ -137,7 +138,7 @@ export default function SupportTicketsPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [totalTickets, setTotalTickets] = useState(0);
 
   // Stats
   const [stats, setStats] = useState({
@@ -186,7 +187,7 @@ export default function SupportTicketsPage() {
         const ticketsArray = data.tickets || [];
         setTickets(ticketsArray);
         setTotalPages(data.total_pages || 1);
-        setTotal(data.total || 0);
+        setTotalTickets(data.total || 0);
 
         // Calculate stats
         const openCount = ticketsArray.filter(
@@ -205,14 +206,14 @@ export default function SupportTicketsPage() {
         const avgResponseTime =
           resolvedWithTimes.length > 0
             ? Math.round(
-                (resolvedWithTimes.reduce((sum, t) => {
-                  const created = new Date(t.created_at).getTime();
-                  const replied = new Date(t.last_reply_at).getTime();
-                  return sum + Math.max(0, (replied - created) / 3600000);
-                }, 0) /
-                  resolvedWithTimes.length) *
-                  10,
-              ) / 10
+              (resolvedWithTimes.reduce((sum, t) => {
+                const created = new Date(t.created_at).getTime();
+                const replied = new Date(t.last_reply_at).getTime();
+                return sum + Math.max(0, (replied - created) / 3600000);
+              }, 0) /
+                resolvedWithTimes.length) *
+              10,
+            ) / 10
             : 0;
 
         setStats({
@@ -276,564 +277,458 @@ export default function SupportTicketsPage() {
     fetchTickets();
   };
 
+  const handleExport = () => {
+    const headers = [
+      "ID",
+      "Subject",
+      "User",
+      "Type",
+      "Category",
+      "Priority",
+      "Status",
+      "Last Reply",
+    ];
+    const rows = tickets.map((t) => [
+      t.id,
+      t.subject,
+      t.user_name,
+      t.ticket_type === "agency" ? "Agency" : "Individual",
+      t.category,
+      t.priority,
+      t.status,
+      t.last_reply_at,
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tickets_export_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-[1600px] mx-auto space-y-8">
-          {/* Modern Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="text-center sm:text-left">
-                  <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                      <Ticket className="h-6 w-6 sm:h-8 sm:w-8" />
-                    </div>
-                    <h1 className="text-2xl sm:text-4xl font-bold">
-                      Support Tickets
-                    </h1>
-                  </div>
-                  <p className="text-blue-100 text-sm sm:text-lg">
-                    Manage customer support tickets and inquiries
-                  </p>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <Ticket className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Support Tickets</h1>
                 </div>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Manage customer support tickets and inquiries
+                </p>
               </div>
+              <Button
+                onClick={handleExport}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Export Tickets
+              </Button>
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-red-50 to-red-100/50">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div
-                    className={`p-2 sm:p-3 rounded-lg ${stats.open > 50 ? "bg-red-600" : "bg-red-500"}`}
-                  >
-                    <Inbox className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-sm font-medium text-gray-600 uppercase tracking-wider">
-                      Open
-                    </p>
-                    <p
-                      className={`text-xl sm:text-3xl font-black ${stats.open > 50 ? "text-red-700" : "text-gray-900"}`}
-                    >
-                      {stats.open}
-                    </p>
-                  </div>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Inbox className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                 </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Open Tickets</p>
+                <p className="text-xl font-bold text-gray-900">{stats.open}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-purple-50 to-purple-100/50">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="p-2 sm:p-3 bg-purple-600 rounded-lg">
-                    <PlayCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-sm font-medium text-gray-600 uppercase tracking-wider">
-                      Active
-                    </p>
-                    <p className="text-xl sm:text-3xl font-black text-gray-900">
-                      {stats.in_progress}
-                    </p>
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><PlayCircle className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <MessageSquare className="h-4 w-4 text-[#00BAF1]" />
                 </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Active</p>
+                <p className="text-xl font-bold text-gray-900">{stats.in_progress}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-green-50 to-green-100/50">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="p-2 sm:p-3 bg-green-600 rounded-lg">
-                    <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-sm font-medium text-gray-600 uppercase tracking-wider">
-                      Resolved
-                    </p>
-                    <p className="text-xl sm:text-3xl font-black text-gray-900">
-                      {stats.resolved_today}
-                    </p>
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><CheckCircle2 className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
                 </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Resolved Today</p>
+                <p className="text-xl font-bold text-gray-900">{stats.resolved_today}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-50 to-blue-100/50">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div
-                    className={`p-2 sm:p-3 rounded-lg ${stats.avg_response_time < 4 ? "bg-green-600" : stats.avg_response_time < 8 ? "bg-yellow-600" : "bg-red-600"}`}
-                  >
-                    <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-sm font-medium text-gray-600 uppercase tracking-wider">
-                      Response
-                    </p>
-                    <p className="text-xl sm:text-3xl font-black text-gray-900">
-                      {stats.avg_response_time}h
-                    </p>
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
                 </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Response Time</p>
+                <p className="text-xl font-bold text-gray-900">{stats.avg_response_time}h</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Filters */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                {/* Search */}
-                <form onSubmit={handleSearch} className="flex gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                      type="text"
-                      placeholder="Search tickets by subject or description..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 h-10"
-                    />
-                  </div>
-                  <Button type="submit" className="h-10 px-6 text-white">
-                    Search
-                  </Button>
-                </form>
-
-                {/* Status Tabs */}
-                <div className="flex overflow-x-auto pb-1 gap-2 custom-scrollbar -mx-1 px-1">
-                  {[
-                    "all",
-                    "open",
-                    "in_progress",
-                    "waiting_user",
-                    "resolved",
-                    "closed",
-                  ].map((status) => (
-                    <Button
-                      key={status}
-                      variant={statusFilter === status ? "default" : "outline"}
-                      size="sm"
-                      className={`whitespace-nowrap rounded-xl h-9 px-4 font-bold ${statusFilter === status ? "bg-blue-600 text-white shadow-md shadow-blue-100" : "text-gray-600 hover:bg-blue-50 hover:text-blue-600 border-2"}`}
-                      onClick={() => {
-                        setStatusFilter(status);
-                        setCurrentPage(1);
-                      }}
-                    >
-                      {status === "all"
-                        ? "All"
-                        : STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-                            ?.label || status}
-                    </Button>
-                  ))}
-                </div>
-
-                {/* Additional Filters */}
-                <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3">
-                  <select
-                    value={ticketTypeFilter}
-                    onChange={(e) => {
-                      setTicketTypeFilter(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="px-3 py-2.5 border-2 border-gray-100 rounded-xl text-xs sm:text-sm bg-gray-50/50 font-medium text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="individual">Individual</option>
-                    <option value="agency">Agency</option>
-                  </select>
-
-                  <select
-                    value={priorityFilter}
-                    onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="px-3 py-2.5 border-2 border-gray-100 rounded-xl text-xs sm:text-sm bg-gray-50/50 font-medium text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                  >
-                    <option value="all">All Priorities</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="px-3 py-2.5 border-2 border-gray-100 rounded-xl text-xs sm:text-sm bg-gray-50/50 font-medium text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                  >
-                    <option value="all">All Categories</option>
-                    <option value="account">Account</option>
-                    <option value="payment">Payment</option>
-                    <option value="technical">Technical</option>
-                    <option value="feature_request">Features</option>
-                    <option value="bug_report">Bugs</option>
-                    <option value="general">General</option>
-                    <option value="kyc">KYC</option>
-                    <option value="employees">Employees</option>
-                    <option value="jobs">Jobs</option>
-                  </select>
-
-                  <select
-                    value={assignedFilter}
-                    onChange={(e) => setAssignedFilter(e.target.value)}
-                    className="px-3 py-2.5 border-2 border-gray-100 rounded-xl text-xs sm:text-sm bg-gray-50/50 font-medium text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                  >
-                    <option value="all">All Staff</option>
-                    <option value="unassigned">Unassigned</option>
-                    <option value="me">Me</option>
-                    <option value="others">Others</option>
-                  </select>
-
-                  <select
-                    value={dateRange}
-                    onChange={(e) => setDateRange(e.target.value)}
-                    className="col-span-2 md:col-span-1 px-3 py-2.5 border-2 border-gray-100 rounded-xl text-xs sm:text-sm bg-gray-50/50 font-medium text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-                  >
-                    <option value="last_7_days">Last 7 Days</option>
-                    <option value="last_30_days">Last 30 Days</option>
-                    <option value="custom">Custom Range</option>
-                  </select>
-                </div>
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative group">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-sky-500 transition-colors" />
+                <Input
+                  placeholder="Search tickets by subject, user, or category..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Status</option>
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key}>{config.label}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Bulk Actions */}
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={ticketTypeFilter}
+                onChange={(e) => {
+                  setTicketTypeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none text-sm"
+              >
+                <option value="all">All Types</option>
+                <option value="individual">Individual</option>
+                <option value="agency">Agency</option>
+              </select>
+
+              <select
+                value={priorityFilter}
+                onChange={(e) => {
+                  setPriorityFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none text-sm"
+              >
+                <option value="all">All Priorities</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none text-sm"
+              >
+                <option value="all">All Categories</option>
+                {Object.entries(CATEGORY_CONFIG).map(([key]) => (
+                  <option key={key} value={key}>{key.replace("_", " ")}</option>
+                ))}
+              </select>
+
+              <select
+                value={assignedFilter}
+                onChange={(e) => {
+                  setAssignedFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-4 py-2 border-2 border-gray-200 rounded-xl bg-white hover:border-sky-500 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none text-sm"
+              >
+                <option value="all">All Staff</option>
+                <option value="unassigned">Unassigned</option>
+                <option value="me">Me</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Bulk Actions Bar */}
           {selectedTickets.length > 0 && (
-            <Card className="border-0 shadow-lg bg-blue-50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">
-                    {selectedTickets.length} ticket(s) selected
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleBulkAssign}
-                    >
-                      Bulk Assign
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleBulkClose}
-                    >
-                      Bulk Close
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setSelectedTickets([])}
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-3 shadow-sm">
+              <span className="text-sm font-medium text-blue-900 ml-2">
+                {selectedTickets.length} ticket(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBulkAssign}
+                  className="rounded-lg"
+                >
+                  Bulk Assign
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBulkClose}
+                  className="rounded-lg"
+                >
+                  Bulk Close
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedTickets([])}
+                  className="rounded-lg"
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
           )}
 
-          {/* Tickets Table / Cards */}
-          <Card className="border-0 shadow-lg overflow-hidden">
-            <CardContent className="p-0">
-              {/* Desktop Table View */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-6 py-4 text-left w-12">
-                        <input
-                          type="checkbox"
-                          className="rounded-md border-gray-300 text-blue-600 focus:ring-blue-500"
-                          checked={
-                            selectedTickets.length === tickets.length &&
-                            tickets.length > 0
-                          }
-                          onChange={(e) =>
-                            setSelectedTickets(
-                              e.target.checked ? tickets.map((t) => t.id) : [],
-                            )
-                          }
-                        />
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        ID
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Type
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Subject
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        User / Agency
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Category
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Priority
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Last Reply
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-black text-gray-500 uppercase tracking-widest leading-none">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <RefreshCw className="h-8 w-8 text-blue-500 animate-spin" />
-                            <p className="text-gray-500 font-medium tracking-tight">
-                              Syncing tickets...
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : tickets.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="px-6 py-20 text-center">
-                          <div className="max-w-md mx-auto flex flex-col items-center gap-3">
-                            <div className="p-4 bg-gray-100 rounded-full">
-                              <Inbox className="h-8 w-8 text-gray-400" />
-                            </div>
-                            <p className="text-lg font-bold text-gray-900 leading-tight">
-                              No tickets match your filters
-                            </p>
-                            <p className="text-sm text-gray-500 leading-relaxed font-medium">
-                              Try broadening your search criteria or resetting
-                              filters to find what you're looking for.
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      tickets.map((ticket) => (
-                        <tr
-                          key={ticket.id}
-                          className="hover:bg-blue-50/30 cursor-pointer transition-colors group"
-                          onClick={() =>
-                            router.push(`/admin/support/tickets/${ticket.id}`)
-                          }
-                        >
-                          <td className="px-6 py-4">
+          {/* Tickets List */}
+          <Card>
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">Tickets List</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Overview of all tickets (Page {currentPage} of {totalPages})
+              </p>
+            </div>
+            <CardContent>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="h-10 w-10 text-[#00BAF1] animate-spin" />
+                  <p className="text-gray-500 font-medium">Fetching tickets...</p>
+                </div>
+              ) : tickets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+                  <div className="p-4 bg-gray-50 rounded-full">
+                    <Inbox className="h-10 w-10 text-gray-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">No tickets found</h3>
+                    <p className="text-gray-500 max-w-sm mx-auto">
+                      We couldn't find any tickets matching your current filters. Try adjusting your search or filters.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50/50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-6 py-4 text-left w-12">
                             <input
                               type="checkbox"
-                              className="rounded-md border-gray-300 text-blue-600 focus:ring-blue-500"
-                              checked={selectedTickets.includes(ticket.id)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                toggleSelectTicket(ticket.id);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
+                              className="rounded-md border-gray-300 text-[#00BAF1] focus:ring-[#00BAF1]"
+                              checked={
+                                selectedTickets.length === tickets.length &&
+                                tickets.length > 0
+                              }
+                              onChange={(e) =>
+                                setSelectedTickets(
+                                  e.target.checked ? tickets.map((t) => t.id) : [],
+                                )
+                              }
                             />
-                          </td>
-                          <td className="px-6 py-4 text-sm font-black text-gray-400">
-                            #{ticket.id}
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-bold px-2 py-0.5`}
-                            >
-                              {ticket.ticket_type === "agency"
-                                ? "Agency"
-                                : "User"}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-gray-900 max-xs truncate group-hover:text-blue-600 transition-colors">
-                                {ticket.subject}
-                              </p>
-                              {ticket.reply_count > 0 && (
-                                <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                                  {ticket.reply_count}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
-                                {ticket.user_name}
-                              </span>
-                              {ticket.ticket_type === "agency" &&
-                                ticket.agency_name && (
-                                  <span className="text-[10px] text-blue-600 font-bold tracking-tight">
-                                    {ticket.agency_name}
-                                  </span>
-                                )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              className={`${CATEGORY_CONFIG[ticket.category]?.color || "bg-gray-100"} border-0 font-bold px-2 py-0.5`}
-                            >
-                              {ticket.category.replace("_", " ")}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-bold px-2 py-0.5`}
-                            >
-                              {PRIORITY_CONFIG[ticket.priority].label}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              className={`${STATUS_CONFIG[ticket.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit`}
-                            >
-                              {(() => {
-                                const Icon = STATUS_CONFIG[ticket.status].icon;
-                                return <Icon className="h-3 w-3" />;
-                              })()}
-                              {STATUS_CONFIG[ticket.status].label}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-xs font-bold text-gray-500 tracking-tight">
-                            {getTimeAgo(ticket.last_reply_at)}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="h-8 w-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:scale-110">
-                              <ChevronRight className="h-4 w-4" />
-                            </div>
-                          </td>
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            ID
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Subject
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            User / Agency
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Category
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Priority
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Status
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Last Reply
+                          </th>
+                          <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                            Action
+                          </th>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="lg:hidden divide-y divide-gray-100">
-                {loading ? (
-                  <div className="p-12 text-center">
-                    <RefreshCw className="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3" />
-                    <p className="text-sm font-bold text-gray-500 tracking-tight">
-                      Loading ticket database...
-                    </p>
-                  </div>
-                ) : tickets.length === 0 ? (
-                  <div className="p-12 text-center">
-                    <Inbox className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-base font-bold text-gray-900 mb-1">
-                      No tickets found
-                    </p>
-                    <p className="text-xs text-gray-500 font-medium">
-                      Try different filter settings
-                    </p>
-                  </div>
-                ) : (
-                  tickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="p-4 bg-white active:bg-blue-50 transition-colors"
-                      onClick={() =>
-                        router.push(`/admin/support/tickets/${ticket.id}`)
-                      }
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase leading-none">
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {tickets.map((ticket) => (
+                          <tr
+                            key={ticket.id}
+                            className="hover:bg-gray-50 transition-colors group"
+                          >
+                            <td className="px-6 py-4">
+                              <input
+                                type="checkbox"
+                                className="rounded-md border-gray-300 text-[#00BAF1] focus:ring-[#00BAF1]"
+                                checked={selectedTickets.includes(ticket.id)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectTicket(ticket.id);
+                                }}
+                              />
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-500">
                               #{ticket.id}
-                            </span>
-                            <Badge
-                              className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-4 uppercase`}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors line-clamp-1">
+                                  {ticket.subject}
+                                </span>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge
+                                    className={`${ticket.ticket_type === "agency" ? TICKET_TYPE_CONFIG.agency.color : TICKET_TYPE_CONFIG.individual.color} border-0 font-bold text-[10px] px-1.5 py-0 shadow-none`}
+                                  >
+                                    {ticket.ticket_type === "agency" ? "Agency" : "User"}
+                                  </Badge>
+                                  {ticket.reply_count > 0 && (
+                                    <span className="text-[10px] text-gray-400 font-medium">
+                                      {ticket.reply_count} replies
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-sm font-bold text-gray-900 truncate tracking-tight">
+                                  {ticket.user_name}
+                                </span>
+                                {ticket.ticket_type === "agency" &&
+                                  ticket.agency_name && (
+                                    <span className="text-[10px] text-[#00BAF1] font-bold tracking-tight">
+                                      {ticket.agency_name}
+                                    </span>
+                                  )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge
+                                className={`${CATEGORY_CONFIG[ticket.category]?.color || "bg-gray-100 text-gray-600"} border-0 font-bold px-2 py-0.5 shadow-none`}
+                              >
+                                {ticket.category.replace("_", " ")}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge
+                                className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-bold px-2 py-0.5 shadow-none`}
+                              >
+                                {PRIORITY_CONFIG[ticket.priority].label}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge
+                                className={`${STATUS_CONFIG[ticket.status].color} border-0 font-bold px-2 py-0.5 flex items-center gap-1.5 w-fit shadow-none`}
+                              >
+                                {(() => {
+                                  const Icon = STATUS_CONFIG[ticket.status].icon;
+                                  return <Icon className="h-3 w-3" />;
+                                })()}
+                                {STATUS_CONFIG[ticket.status].label}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 text-xs font-bold text-gray-500 tracking-tight">
+                              {getTimeAgo(ticket.last_reply_at)}
+                            </td>
+                            <td className="px-6 py-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  router.push(`/admin/support/tickets/${ticket.id}`)
+                                }
+                                className="rounded-lg hover:border-[#00BAF1] hover:text-[#00BAF1]"
+                              >
+                                View
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col items-center gap-4 py-8 border-t border-gray-100">
+                      <p className="text-sm text-gray-500">
+                        Showing <span className="font-semibold text-gray-700">{tickets.length}</span> of <span className="font-semibold text-gray-700">{totalTickets}</span> tickets
+                      </p>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => setCurrentPage(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                          if (totalPages > 7) {
+                            if (p !== 1 && p !== totalPages && Math.abs(p - currentPage) > 1) {
+                              if (p === 2 || p === totalPages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                              return null;
+                            }
+                          }
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => setCurrentPage(p)}
+                              className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === currentPage ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
                             >
-                              {ticket.ticket_type === "agency"
-                                ? "Agency"
-                                : "User"}
-                            </Badge>
-                          </div>
-                          <h3 className="text-sm font-bold text-gray-900 leading-tight truncate">
-                            {ticket.subject}
-                          </h3>
-                        </div>
-                        <input
-                          type="checkbox"
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1"
-                          checked={selectedTickets.includes(ticket.id)}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            toggleSelectTicket(ticket.id);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
+                              {p}
+                            </button>
+                          );
+                        })}
 
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
-                        <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                          <User className="h-3 w-3 text-gray-400" />
-                          <span className="text-[11px] font-bold text-gray-700 leading-none truncate max-w-[100px]">
-                            {ticket.user_name}
-                          </span>
-                        </div>
-                        <Badge
-                          className={`${STATUS_CONFIG[ticket.status].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 flex items-center gap-1 uppercase tracking-wider`}
+                        <button
+                          onClick={() => setCurrentPage(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
                         >
-                          {(() => {
-                            const Icon = STATUS_CONFIG[ticket.status].icon;
-                            return <Icon className="h-2.5 w-2.5" />;
-                          })()}
-                          {STATUS_CONFIG[ticket.status].label}
-                        </Badge>
-                        <Badge
-                          className={`${PRIORITY_CONFIG[ticket.priority].color} border-0 font-black text-[9px] px-1.5 py-0 leading-none h-5 uppercase tracking-wider`}
-                        >
-                          {PRIORITY_CONFIG[ticket.priority].label}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 tracking-tight">
-                            <Clock className="h-3 w-3" />
-                            {getTimeAgo(ticket.last_reply_at)}
-                          </div>
-                          {ticket.reply_count > 0 && (
-                            <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 tracking-tight">
-                              <MessageSquare className="h-3 w-3" />
-                              {ticket.reply_count}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 text-blue-600 text-[11px] font-black uppercase tracking-widest leading-none">
-                          View Details
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </div>
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
-
-          <AdminPagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={total}
-            itemsPerPage={15}
-            itemLabel="tickets"
-            onPageChange={setCurrentPage}
-          />
         </div>
       </main>
     </div>
   );
 }
+
+

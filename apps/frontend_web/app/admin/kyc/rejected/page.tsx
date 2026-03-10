@@ -222,142 +222,125 @@ export default function RejectedKYCPage() {
     <div className="min-h-screen">
       <Sidebar />
       <main className={mainClass}>
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                Rejected KYC Records
-              </h1>
-              <p className="text-muted-foreground text-sm sm:text-base">
-                KYC submissions that were rejected and require resubmission
-              </p>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <XCircle className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Rejected KYC Records</h1>
+                </div>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  KYC submissions that were rejected and require resubmission
+                </p>
+              </div>
+              <Button className="bg-[#00BAF1] hover:bg-[#0098C7] text-white self-start sm:self-auto text-sm">
+                <FileText className="mr-2 h-4 w-4" />
+                Export Records
+              </Button>
             </div>
-            <Button className="text-white self-start sm:self-auto text-sm">
-              <FileText className="mr-2 h-4 w-4" />
-              Export Rejected Records
-            </Button>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Rejected
-                </CardTitle>
-                <XCircle className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{rejectedKYC.length}</div>
-                <p className="text-xs text-muted-foreground">Need attention</p>
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-2.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg">
+                    <XCircle className="h-5 w-5 text-[#00BAF1]" />
+                  </div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Rejected</p>
+                <p className="text-xl font-bold text-gray-900">{rejectedKYC.length}</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Can Resubmit
-                </CardTitle>
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-2.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-[#00BAF1]" />
+                  </div>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Can Resubmit</p>
+                <p className="text-xl font-bold text-gray-900">
                   {
                     rejectedKYC.filter(
                       (r) => r.resubmissionAllowed && !r.hasResubmitted,
                     ).length
                   }
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Awaiting resubmission
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Resubmitted
-                </CardTitle>
-                <FileText className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-2.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg">
+                    <FileText className="h-5 w-5 text-[#00BAF1]" />
+                  </div>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Resubmitted</p>
+                <p className="text-xl font-bold text-gray-900">
                   {rejectedKYC.filter((r) => r.hasResubmitted).length}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Under new review
                 </p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Permanently Rejected
-                </CardTitle>
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {rejectedKYC.filter((r) => !r.resubmissionAllowed).length}
+
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-2.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-[#00BAF1]" />
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">Cannot resubmit</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Final Rejection</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {rejectedKYC.filter((r) => !r.resubmissionAllowed).length}
+                </p>
               </CardContent>
             </Card>
           </div>
 
           {/* Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Search & Filter</CardTitle>
-              <CardDescription>
-                Find rejected KYC records by user name, email, type, or
-                resubmission status
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search rejected records..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-8"
-                    />
-                  </div>
-                </div>
-                <select
-                  value={typeFilter}
-                  onChange={(e) =>
-                    setTypeFilter(e.target.value as "all" | "worker" | "client")
-                  }
-                  className="px-3 py-2 border rounded-md bg-white"
-                >
-                  <option value="all">All Types</option>
-                  <option value="worker">Workers</option>
-                  <option value="client">Clients</option>
-                </select>
-                <select
-                  value={resubmissionFilter}
-                  onChange={(e) =>
-                    setResubmissionFilter(
-                      e.target.value as
-                      | "all"
-                      | "allowed"
-                      | "not_allowed"
-                      | "resubmitted",
-                    )
-                  }
-                  className="px-3 py-2 border rounded-md bg-white"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="allowed">Can Resubmit</option>
-                  <option value="not_allowed">Cannot Resubmit</option>
-                  <option value="resubmitted">Already Resubmitted</option>
-                </select>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex-1 relative group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-[#00BAF1] transition-colors" />
+              <Input
+                placeholder="Search by name, email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+              />
+            </div>
+            <select
+              value={typeFilter}
+              onChange={(e) =>
+                setTypeFilter(e.target.value as "all" | "worker" | "client")
+              }
+              className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+            >
+              <option value="all">All Types</option>
+              <option value="worker">Workers</option>
+              <option value="client">Clients</option>
+            </select>
+            <select
+              value={resubmissionFilter}
+              onChange={(e) =>
+                setResubmissionFilter(
+                  e.target.value as "all" | "allowed" | "not_allowed" | "resubmitted"
+                )
+              }
+              className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+            >
+              <option value="all">All Statuses</option>
+              <option value="allowed">Can Resubmit</option>
+              <option value="not_allowed">Cannot Resubmit</option>
+              <option value="resubmitted">Already Resubmitted</option>
+            </select>
+          </div>
 
           {/* Rejected Records List */}
           <div className="space-y-4">
