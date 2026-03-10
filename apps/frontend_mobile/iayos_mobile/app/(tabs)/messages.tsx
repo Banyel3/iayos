@@ -71,6 +71,10 @@ export default function MessagesTabScreen() {
     isRefetching,
   } = useConversations(activeFilter);
 
+  // Use dedicated datasets for stable tab badge counts.
+  const { data: allConversationsData } = useConversations("all");
+  const { data: archivedConversationsData } = useConversations("archived");
+
   // Search functionality
   const { conversations: searchResults } = useConversationSearch(searchQuery);
 
@@ -255,14 +259,15 @@ export default function MessagesTabScreen() {
       {/* Filters */}
       {!searchQuery.trim() && (
         <View style={styles.filtersContainer}>
-          {renderFilterButton("all", "All", conversationsData?.total)}
+          {renderFilterButton("all", "All", allConversationsData?.total)}
           {renderFilterButton(
             "unread",
             "Unread",
-            conversationsData?.conversations.filter((c) => c.unread_count > 0)
-              .length
+            allConversationsData?.conversations.filter(
+              (c) => c.unread_count > 0,
+            ).length,
           )}
-          {renderFilterButton("archived", "Archived")}
+          {renderFilterButton("archived", "Archived", archivedConversationsData?.total)}
           {renderFilterButton("upcoming", "Upcoming")}
         </View>
       )}
