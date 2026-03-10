@@ -327,10 +327,13 @@ export default function CreateJobScreen() {
     isError: categoriesLoadError,
     error: categoriesError,
   } = useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories", workerId || "all"],
     queryFn: async () => {
+      const categoriesUrl = workerId
+        ? `${ENDPOINTS.GET_CATEGORIES}?worker_id=${workerId}`
+        : ENDPOINTS.GET_CATEGORIES;
       const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES,
+        categoriesUrl,
       );
       return response.categories || [];
     },
@@ -624,14 +627,23 @@ export default function CreateJobScreen() {
     return Number.isFinite(parsed) ? parsed : null;
   }, []);
 
-  // Filter categories (search only)
-  // Categories available in slot modal: all for both invite jobs and standard listing
+  // Filter categories by selected worker skills first (direct-hire), then search.
   const filteredCategories = React.useMemo(() => {
     if (!categories || !Array.isArray(categories)) {
       return [];
     }
 
     let list = categories;
+
+    if (workerId && workerDetailsData?.skills?.length) {
+      const workerSkillIds = new Set(
+        workerDetailsData.skills
+          .map((skill) => getWorkerSkillSpecializationId(skill))
+          .filter((id): id is number => id !== null),
+      );
+
+      list = list.filter((cat) => workerSkillIds.has(cat.id));
+    }
 
     if (categorySearch.trim()) {
       const search = categorySearch.toLowerCase();

@@ -242,8 +242,10 @@ export default function JobsScreen() {
 
   const applications = applicationsData?.applications || [];
 
-  // Show all applications regardless of status
-  const filteredApplications = applications;
+  // Applied tab should only show pending applications.
+  const filteredApplications = applications.filter(
+    (app) => app.application_status === "PENDING",
+  );
 
   if (__DEV__) {
     // DEBUG: Log job data to see what's being received
