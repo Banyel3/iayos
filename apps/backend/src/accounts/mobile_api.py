@@ -37,12 +37,17 @@ from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token
 from .profile_metrics_service import get_profile_metrics
 from django.conf import settings
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime as dt_datetime
 from zoneinfo import ZoneInfo
 
 MINIMUM_CHECKOUT_HOURS = 2
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
+
+
+def _get_ph_current_time():
+    """Return current wall-clock time in Philippines regardless of Django TZ config."""
+    return dt_datetime.now(PH_TIMEZONE).time()
 
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
@@ -7285,13 +7290,20 @@ def worker_check_in(request, job_id: int):
             return Response({"error": f"Job must be in progress. Current status: {job.status}"}, status=400)
         
         # Validate time constraints: 6 AM - 8 PM
-        now = timezone.now()
-        now_ph = timezone.localtime(now, PH_TIMEZONE)
-        current_time = now_ph.time()
+        current_time = _get_ph_current_time()
         start_time = dt_time(6, 0, 0)   # 6 AM
         end_time = dt_time(20, 0, 0)    # 8 PM
         
         if current_time < start_time or current_time > end_time:
+            _log_mobile(
+                "worker_check_in_blocked_time_window",
+                account_id=getattr(request.auth, "accountID", None),
+                job_id=job_id,
+                current_time=current_time.strftime("%H:%M:%S"),
+                window_start="06:00:00",
+                window_end="20:00:00",
+                utc_now=timezone.now().strftime("%Y-%m-%d %H:%M:%S%z"),
+            )
             return Response({
                 "error": "Check-in is only allowed between 6:00 AM and 8:00 PM",
                 "current_time": current_time.strftime("%H:%M"),
@@ -7400,13 +7412,20 @@ def worker_check_out(request, job_id: int):
             return Response({"error": "This is not a daily-rate job"}, status=400)
         
         # Validate time constraints: 6 AM - 8 PM
-        now = timezone.now()
-        now_ph = timezone.localtime(now, PH_TIMEZONE)
-        current_time = now_ph.time()
+        current_time = _get_ph_current_time()
         start_time = dt_time(6, 0, 0)   # 6 AM
         end_time = dt_time(20, 0, 0)    # 8 PM
         
         if current_time < start_time or current_time > end_time:
+            _log_mobile(
+                "worker_check_out_blocked_time_window",
+                account_id=getattr(request.auth, "accountID", None),
+                job_id=job_id,
+                current_time=current_time.strftime("%H:%M:%S"),
+                window_start="06:00:00",
+                window_end="20:00:00",
+                utc_now=timezone.now().strftime("%Y-%m-%d %H:%M:%S%z"),
+            )
             return Response({
                 "error": "Check-out is only allowed between 6:00 AM and 8:00 PM",
                 "current_time": current_time.strftime("%H:%M"),
