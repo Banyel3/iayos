@@ -1921,7 +1921,15 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
         categories_qs = Specializations.objects.all()
 
         if worker_id:
-            worker = WorkerProfile.objects.filter(profileID__profileID=worker_id).first()
+            # Support multiple worker_id formats sent by mobile/web flows:
+            # 1) WorkerProfile.id (auto PK)
+            # 2) Profile.profileID (legacy/public profile id)
+            # 3) Accounts.accountID (account id)
+            worker = WorkerProfile.objects.filter(
+                Q(id=worker_id)
+                | Q(profileID__profileID=worker_id)
+                | Q(profileID__accountFK__accountID=worker_id)
+            ).first()
             if not worker:
                 return {
                     'success': False,
