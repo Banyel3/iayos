@@ -148,6 +148,66 @@ def should_auto_archive(conversation: Conversation) -> bool:
         )
 
         return assigned_worker_account_ids.issubset(worker_reviewer_ids) and assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
+
+    is_agency_job = bool(getattr(job, 'assignedAgencyFK_id', None) or getattr(job, 'assignedEmployeeID_id', None))
+    if is_agency_job:
+        from accounts.models import JobEmployeeAssignment
+
+        client_account = getattr(getattr(job.clientID, 'profileID', None), 'accountFK', None)
+        if not client_account:
+            return False
+
+        assigned_employee_ids = set(
+            JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            ).values_list('employee_id', flat=True)
+        )
+
+        if not assigned_employee_ids and getattr(job, 'assignedEmployeeID_id', None):
+            assigned_employee_ids.add(job.assignedEmployeeID_id)
+
+        client_reviewed_employee_ids = set(
+            JobReview.objects.filter(
+                jobID=job,
+                reviewerID=client_account,
+                reviewerType=JobReview.ReviewerType.CLIENT,
+                revieweeEmployeeID__isnull=False,
+            ).values_list('revieweeEmployeeID_id', flat=True)
+        )
+
+        all_employees_reviewed_by_client = (
+            assigned_employee_ids.issubset(client_reviewed_employee_ids)
+            if assigned_employee_ids
+            else True
+        )
+
+        client_reviewed_agency = JobReview.objects.filter(
+            jobID=job,
+            reviewerID=client_account,
+            reviewerType=JobReview.ReviewerType.CLIENT,
+            revieweeAgencyID__isnull=False,
+        ).exists()
+
+        agency_account = None
+        if getattr(job, 'assignedAgencyFK', None) and getattr(job.assignedAgencyFK, 'accountFK', None):
+            agency_account = job.assignedAgencyFK.accountFK
+        elif getattr(job, 'assignedEmployeeID', None) and getattr(job.assignedEmployeeID, 'agency', None):
+            agency_account = job.assignedEmployeeID.agency
+
+        if agency_account:
+            counterpart_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerID=agency_account,
+                reviewerType__in=[JobReview.ReviewerType.AGENCY, JobReview.ReviewerType.WORKER],
+            ).exists()
+        else:
+            counterpart_reviewed = JobReview.objects.filter(
+                jobID=job,
+                reviewerType__in=[JobReview.ReviewerType.AGENCY, JobReview.ReviewerType.WORKER],
+            ).exists()
+
+        return all_employees_reviewed_by_client and client_reviewed_agency and counterpart_reviewed
     
     # Check if both sides have reviewed using current JobReview schema
     client_reviewed = JobReview.objects.filter(

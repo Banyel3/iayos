@@ -308,11 +308,8 @@ export default function ChatScreen() {
 
       // Counterparty is client
       if (conversation.is_team_job) {
-        // For worker view in team jobs, use per-worker flag from backend.
-        // all_team_workers_reviewed is an aggregate client-side metric.
-        return conversation.my_role === "WORKER"
-          ? !!conversation.job.clientReviewed
-          : !!conversation.all_team_workers_reviewed;
+        // Team closure must use aggregate client review completion for all workers.
+        return !!conversation.all_team_workers_reviewed;
       }
       if (conversation.is_agency_job) {
         return clientHasReviewedAgencyFlow;
@@ -325,11 +322,7 @@ export default function ChatScreen() {
     conversation &&
     (() => {
       if (conversation.is_team_job) {
-        // CLIENT view: needs aggregate completion for all team workers.
-        // WORKER view: needs only this worker's review from the client.
-        return conversation.my_role === "CLIENT"
-          ? !!conversation.all_team_workers_reviewed
-          : !!conversation.job.clientReviewed;
+        return !!conversation.all_team_workers_reviewed;
       }
 
       if (conversation.is_agency_job) {
@@ -345,19 +338,17 @@ export default function ChatScreen() {
   const clientHasFullyReviewed = clientHasReviewed;
   const isConversationArchived = !!conversation?.is_archived;
   const computedConversationClosed =
-    conversation?.is_team_job && conversation?.my_role === "WORKER"
-      ? false
-      : (conversation?.job?.clientMarkedComplete &&
-          viewerHasReviewed &&
-          counterpartyHasReviewed &&
-          !hasApprovedBackjob &&
-          !hasActiveNegotiation) ||
-        // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
-        (conversation?.job?.status === "COMPLETED" &&
-          viewerHasReviewed &&
-          counterpartyHasReviewed &&
-          !hasApprovedBackjob &&
-          !hasActiveNegotiation);
+    (conversation?.job?.clientMarkedComplete &&
+      viewerHasReviewed &&
+      counterpartyHasReviewed &&
+      !hasApprovedBackjob &&
+      !hasActiveNegotiation) ||
+    // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
+    (conversation?.job?.status === "COMPLETED" &&
+      viewerHasReviewed &&
+      counterpartyHasReviewed &&
+      !hasApprovedBackjob &&
+      !hasActiveNegotiation);
   const isConversationClosed = isConversationArchived || computedConversationClosed;
 
   // Force review: user must review before leaving conversation after payment/completion
