@@ -5187,22 +5187,43 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
 
                 # Use actual assigned workers for this started team run.
                 # This avoids blocking completion when jobs started with partial teams.
-                expected_worker_count = JobWorkerAssignment.objects.filter(
+                assigned_worker_account_ids = set(JobWorkerAssignment.objects.filter(
                     jobID=job,
                     assignment_status__in=['ACTIVE', 'COMPLETED']
-                ).values('workerID').distinct().count()
+                ).values_list('workerID__profileID__accountFK_id', flat=True).distinct())
 
-                # Count client reviews (one per worker)
-                client_reviews = JobReview.objects.filter(jobID=job, reviewerType="CLIENT").count()
-                worker_reviews = JobReview.objects.filter(jobID=job, reviewerType="WORKER").count()
-                total_workers = expected_worker_count
-                
-                if total_workers > 0 and client_reviews >= total_workers and worker_reviews >= total_workers and job.workerMarkedComplete and job.clientMarkedComplete:
+                # Workers -> client: each assigned worker account must submit one review.
+                worker_reviewer_ids = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerType="WORKER"
+                ).values_list('reviewerID_id', flat=True).distinct())
+
+                # Client -> workers: client must review each assigned worker account.
+                client_reviewed_worker_ids = set(JobReview.objects.filter(
+                    jobID=job,
+                    reviewerType="CLIENT",
+                    revieweeID__isnull=False
+                ).values_list('revieweeID_id', flat=True).distinct())
+
+                all_workers_reviewed_client = assigned_worker_account_ids.issubset(worker_reviewer_ids)
+                client_reviewed_all_workers = assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
+                total_workers = len(assigned_worker_account_ids)
+
+                if total_workers > 0 and all_workers_reviewed_client and client_reviewed_all_workers and job.workerMarkedComplete and job.clientMarkedComplete:
                     job.status = "COMPLETED"
                     job.completedAt = timezone.now()
                     job.save()
                     job_completed = True
                     print(f"🎉 All team reviews submitted! Job {job_id} marked as COMPLETED.")
+                elif total_workers > 0:
+                    missing_worker_reviews = sorted(list(assigned_worker_account_ids - worker_reviewer_ids))
+                    missing_client_reviews = sorted(list(assigned_worker_account_ids - client_reviewed_worker_ids))
+                    print(
+                        f"⚠️ Team job {job_id} not completed after review submit. "
+                        f"Missing worker->client reviews for account IDs: {missing_worker_reviews}; "
+                        f"missing client->worker reviews for account IDs: {missing_client_reviews}; "
+                        f"workerMarkedComplete={job.workerMarkedComplete}, clientMarkedComplete={job.clientMarkedComplete}"
+                    )
             elif total_reviews >= 2 and job.workerMarkedComplete and job.clientMarkedComplete:
                 # Regular job: Both reviews exist and both parties marked complete
                 job.status = "COMPLETED"
