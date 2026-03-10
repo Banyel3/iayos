@@ -22,8 +22,11 @@ import {
   Square,
   AlertCircle,
   Users,
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -301,193 +304,162 @@ export default function WorkersPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-5 md:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <UserCheck className="h-6 w-6 md:h-8 md:w-8" />
-                    <h1 className="text-2xl md:text-4xl font-bold">Workers Management</h1>
-                  </div>
-                  <p className="text-blue-100 text-sm md:text-lg">
-                    Manage all service providers in the platform
-                  </p>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <UserCheck className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Workers Management</h1>
                 </div>
-                <Button
-                  onClick={handleExport}
-                  className="bg-white hover:bg-white/30 border-0 backdrop-blur-sm w-fit"
-                >
-                  <Download className="mr-2 h-5 w-5" />
-                  Export Workers
-                </Button>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Manage all service providers in the platform
+                </p>
               </div>
+              <Button
+                onClick={handleExport}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Export Workers
+              </Button>
             </div>
           </div>
 
-          {/* Modern Summary Cards with gradients */}
-          <div className="grid grid-cols-4 md:grid-cols-4 gap-3 md:gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-blue-100 rounded-xl mx-auto md:mx-0">
-                    <UserCheck className="h-4 w-4 md:h-6 md:w-6 text-blue-600" />
-                  </div>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Users className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Total Workers
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-gray-900">
-                  {totalWorkers}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Registered workers</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Workers</p>
+                <p className="text-xl font-bold text-gray-900">{totalWorkers}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-emerald-100 rounded-xl mx-auto md:mx-0">
-                    <UserCheck className="h-4 w-4 md:h-6 md:w-6 text-emerald-600" />
-                  </div>
-                  <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse absolute top-3 right-3 md:static"></div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><UserCheck className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Active Now
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-emerald-600">
-                  {activeWorkers}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Ready to work</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Active Now</p>
+                <p className="text-xl font-bold text-gray-900">{activeWorkers}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-yellow-100 rounded-xl mx-auto md:mx-0">
-                    <Star className="h-4 w-4 md:h-6 md:w-6 text-yellow-600" />
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Star className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Verified
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-yellow-600">
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Verified Workers</p>
+                <p className="text-xl font-bold text-gray-900">
                   {workers.filter((w) => w.is_verified).length}
                 </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Email verified</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-3 md:p-6 flex flex-col items-center justify-center md:items-start md:justify-start h-full text-center md:text-left">
-                <div className="flex items-center justify-between w-full mb-2 md:mb-4">
-                  <div className="p-2 md:p-3 bg-purple-100 rounded-xl mx-auto md:mx-0">
-                    <Briefcase className="h-4 w-4 md:h-6 md:w-6 text-purple-600" />
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Briefcase className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-[10px] md:text-sm font-medium text-gray-600 mb-1">
-                  Total Jobs:
-                </p>
-                <p className="text-lg md:text-3xl font-bold text-purple-600">
-                  {totalCompletedJobs}
-                </p>
-                <p className="text-[10px] md:text-xs text-gray-500 mt-1 hidden md:block">Completed jobs</p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Jobs Done</p>
+                <p className="text-xl font-bold text-gray-900">{totalCompletedJobs}</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Modern Filters Card */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative group">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                  <Input
-                    placeholder="Search workers by name, email, or skills..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
-                  />
-                </div>
-                <div className="flex flex-row flex-wrap md:flex-nowrap gap-4">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) =>
-                      setStatusFilter(
-                        e.target.value as "all" | "active" | "inactive",
-                      )
-                    }
-                    className="flex-1 md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                  <select
-                    value={verificationFilter}
-                    onChange={(e) => setVerificationFilter(e.target.value as any)}
-                    className="flex-1 md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                  >
-                    <option value="all">Verification</option>
-                    <option value="verified">Verified</option>
-                    <option value="pending">Pending</option>
-                    <option value="unverified">Unverified</option>
-                  </select>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="w-full md:w-auto md:flex-none px-4 md:px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700"
-                  >
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="top_rated">Top Rated</option>
-                    <option value="most_jobs">Most Jobs</option>
-                  </select>
-                </div>
-              </div>
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex-1 relative group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+              <Input
+                placeholder="Search workers by name, email, or skills..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(
+                  e.target.value as "all" | "active" | "inactive",
+                )
+              }
+              className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <select
+              value={verificationFilter}
+              onChange={(e) => setVerificationFilter(e.target.value as any)}
+              className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+            >
+              <option value="all">Verification</option>
+              <option value="verified">Verified</option>
+              <option value="pending">Pending</option>
+              <option value="unverified">Unverified</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="top_rated">Top Rated</option>
+              <option value="most_jobs">Most Jobs</option>
+            </select>
+          </div>
 
-              {/* Bulk Actions Bar */}
-              {selectedWorkers.size > 0 && (
-                <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md p-3 mt-4">
-                  <span className="text-sm font-medium text-blue-900">
-                    {selectedWorkers.size} worker(s) selected
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleBulkAction("suspend")}
-                      disabled={bulkActionLoading}
-                    >
-                      Suspend Selected
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleBulkAction("activate")}
-                      disabled={bulkActionLoading}
-                    >
-                      Activate Selected
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedWorkers(new Set());
-                        setSelectAll(false);
-                      }}
-                    >
-                      Clear Selection
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Bulk Actions Bar */}
+          {selectedWorkers.size > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 shadow-sm">
+              <span className="text-sm font-medium text-blue-900 ml-2">
+                {selectedWorkers.size} worker(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBulkAction("suspend")}
+                  disabled={bulkActionLoading}
+                  className="rounded-lg"
+                >
+                  Suspend Selected
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleBulkAction("activate")}
+                  disabled={bulkActionLoading}
+                  className="rounded-lg"
+                >
+                  Activate Selected
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedWorkers(new Set());
+                    setSelectAll(false);
+                  }}
+                  className="rounded-lg"
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Workers Table */}
           <Card>
@@ -655,8 +627,8 @@ export default function WorkersPage() {
                             </td>
                             <td className="px-4 py-2 text-sm space-x-2">
                               <Button
-                                variant="outline"
                                 size="sm"
+                                className="bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all"
                                 onClick={() =>
                                   router.push(
                                     `/admin/users/workers/${worker.id}`,
@@ -672,14 +644,45 @@ export default function WorkersPage() {
                     </table>
                   </div>
 
-                  <AdminPagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={totalWorkers}
-                    itemsPerPage={15}
-                    itemLabel="workers"
-                    onPageChange={setCurrentPage}
-                  />
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pt-4">
+                      <button
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                        // Simple pagination: only show a few pages if there are many
+                        if (totalPages > 7) {
+                          if (p !== 1 && p !== totalPages && Math.abs(p - currentPage) > 1) {
+                            if (p === 2 || p === totalPages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                            return null;
+                          }
+                        }
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => setCurrentPage(p)}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === currentPage ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </CardContent>
@@ -687,40 +690,41 @@ export default function WorkersPage() {
         </div>
       </main>
 
-      {/* Bulk Action Confirmation Modal */}
+      {/* Bulk Action Modal */}
       {showBulkActionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Confirm Bulk{" "}
-                  {bulkAction === "suspend" ? "Suspension" : "Activation"}
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  You are about to {bulkAction} {selectedWorkers.size}{" "}
-                  worker(s). This action will affect their account status.
-                </p>
-
-                {bulkAction === "suspend" && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reason for Suspension (Optional)
-                    </label>
-                    <textarea
-                      value={bulkActionReason}
-                      onChange={(e) => setBulkActionReason(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={3}
-                      placeholder="Enter reason for suspension..."
-                    />
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center mb-4">
+              <AlertCircle className="h-6 w-6 text-yellow-600 mr-2" />
+              <h2 className="text-xl font-semibold">
+                {bulkAction === "suspend" ? "Suspend" : "Activate"} Workers
+              </h2>
             </div>
-
-            <div className="flex justify-end gap-3">
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to {bulkAction} {selectedWorkers.size}{" "}
+              worker(s)?
+            </p>
+            {bulkAction === "suspend" && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason (optional)
+                </label>
+                <textarea
+                  value={bulkActionReason}
+                  onChange={(e) => setBulkActionReason(e.target.value)}
+                  className="w-full border rounded-md p-2"
+                  rows={3}
+                  placeholder="Enter reason for suspension..."
+                />
+              </div>
+            )}
+            {bulkActionLoading && (
+              <div className="mb-4 flex items-center text-blue-600">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Processing...
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -734,16 +738,11 @@ export default function WorkersPage() {
               <Button
                 onClick={executeBulkAction}
                 disabled={bulkActionLoading}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
+                className={
+                  bulkAction === "suspend" ? "bg-red-600 hover:bg-red-700" : ""
+                }
               >
-                {bulkActionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  `Confirm ${bulkAction === "suspend" ? "Suspension" : "Activation"}`
-                )}
+                {bulkAction === "suspend" ? "Suspend" : "Activate"}
               </Button>
             </div>
           </div>

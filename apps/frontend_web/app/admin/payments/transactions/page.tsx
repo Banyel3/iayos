@@ -10,18 +10,20 @@ import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowLeft,
+  Building2,
   Search,
   TrendingUp,
   Clock,
   RefreshCcw,
   Download,
+  ChevronLeft,
   ChevronRight,
   Wallet,
   CreditCard,
   Banknote,
   Unlock,
   Loader2,
+  Calendar,
 } from "lucide-react";
 
 // Backend returns this structure from get_transactions_list_optimized()
@@ -133,13 +135,13 @@ export default function TransactionsPage() {
       const data = await response.json();
       setStatistics(
         data.stats ||
-          data || {
-            total_transactions: 0,
-            total_revenue: 0,
-            escrow_held: 0,
-            refunded_amount: 0,
-            platform_fees: 0,
-          },
+        data || {
+          total_transactions: 0,
+          total_revenue: 0,
+          escrow_held: 0,
+          refunded_amount: 0,
+          platform_fees: 0,
+        },
       );
     } catch (error) {
       console.error("Error:", error);
@@ -167,25 +169,25 @@ export default function TransactionsPage() {
       case "completed":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200">
-            ✓ Completed
+            Completed
           </Badge>
         );
       case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-            ⏳ Pending
+            Pending
           </Badge>
         );
       case "failed":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200">
-            ✗ Failed
+            Failed
           </Badge>
         );
       case "refunded":
         return (
           <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-            ↩ Refunded
+            Refunded
           </Badge>
         );
       default:
@@ -202,50 +204,50 @@ export default function TransactionsPage() {
       case "ESCROW":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-            🔒 Escrow
+            Escrow
           </Badge>
         );
       case "PAYMENT":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-            💳 Payment
+            Payment
           </Badge>
         );
       case "EARNING":
         return (
           <Badge className="bg-green-100 text-green-700 border-green-200">
-            💰 Earning
+            Earning
           </Badge>
         );
       case "PENDING_EARNING":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-            ⏳ Pending Earning
+            Pending Earning
           </Badge>
         );
       case "WITHDRAWAL":
         return (
           <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-            📤 Withdrawal
+            Withdrawal
           </Badge>
         );
       case "DEPOSIT":
         return (
           <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
-            📥 Deposit
+            Deposit
           </Badge>
         );
       case "REFUND":
         return (
           <Badge className="bg-orange-100 text-orange-700 border-orange-200">
-            ↩ Refund
+            Refund
           </Badge>
         );
       case "PLATFORM_FEE":
       case "FEE":
         return (
           <Badge className="bg-gray-100 text-gray-700 border-gray-200">
-            🏢 Platform Fee
+            Platform Fee
           </Badge>
         );
       default:
@@ -361,188 +363,152 @@ export default function TransactionsPage() {
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-7xl mx-auto space-y-8">
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
           {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex items-center gap-3 mb-1 sm:mb-2">
-                <Banknote className="h-6 w-6 sm:h-8 sm:w-8" />
-                <h1 className="text-2xl sm:text-4xl font-bold">Transactions</h1>
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <Banknote className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Transactions</h1>
+                </div>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Monitor all payment transactions and financial flows
+                </p>
               </div>
-              <p className="text-blue-100 text-sm sm:text-lg">
-                Monitor all payment transactions and financial flows
-              </p>
+              <Button
+                onClick={exportToCSV}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Export CSV
+              </Button>
             </div>
           </div>
 
           {/* Statistics Cards */}
           {statistics && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-blue-100 rounded-xl">
-                      <Banknote className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
-                    </div>
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-5">
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Banknote className="h-5 w-5 text-[#00BAF1]" /></div>
+                    <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
-                    {statistics?.total_transactions?.toLocaleString() ?? "0"}
-                  </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
-                    Total Transactions
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Total Txns</p>
+                  <p className="text-xl font-bold text-gray-900">{statistics?.total_transactions?.toLocaleString() ?? "0"}</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-green-100 rounded-xl">
-                      <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-                    </div>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><TrendingUp className="h-5 w-5 text-[#00BAF1]" /></div>
+                    <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
-                    ₱{statistics?.total_revenue?.toLocaleString() ?? "0"}
-                  </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
-                    Total Revenue
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Total Revenue</p>
+                  <p className="text-xl font-bold text-gray-900">₱{statistics?.total_revenue?.toLocaleString() ?? "0"}</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-yellow-100 rounded-xl">
-                      <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
-                    </div>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
+                    <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
-                    ₱{statistics?.escrow_held?.toLocaleString() ?? "0"}
-                  </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
-                    Escrow Held
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Escrow Held</p>
+                  <p className="text-xl font-bold text-gray-900">₱{statistics?.escrow_held?.toLocaleString() ?? "0"}</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-orange-100 rounded-xl">
-                      <RefreshCcw className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
-                    </div>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><RefreshCcw className="h-5 w-5 text-[#00BAF1]" /></div>
+                    <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
-                    ₱{statistics?.refunded_amount?.toLocaleString() ?? "0"}
-                  </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
-                    Refunded
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Refunded</p>
+                  <p className="text-xl font-bold text-gray-900">₱{statistics?.refunded_amount?.toLocaleString() ?? "0"}</p>
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-lg overflow-hidden">
-                <CardContent className="p-4 sm:p-6 relative">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 sm:p-3 bg-purple-100 rounded-xl">
-                      <Wallet className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
-                    </div>
+              <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+                <CardContent className="py-1.5 px-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Wallet className="h-5 w-5 text-[#00BAF1]" /></div>
+                    <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full opacity-50"></div>
                   </div>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 mt-2 sm:mt-4 text-ellipsis overflow-hidden">
-                    {statistics?.pending_count?.toLocaleString() ?? "0"}
-                  </p>
-                  <p className="text-[10px] sm:text-sm text-gray-600 mt-1">
-                    Pending
-                  </p>
+                  <p className="text-xs font-medium text-gray-500 mb-0.5">Pending</p>
+                  <p className="text-xl font-bold text-gray-900">{statistics?.pending_count?.toLocaleString() ?? "0"}</p>
                 </CardContent>
               </Card>
             </div>
           )}
 
           {/* Filters */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Search */}
-                <div className="relative group lg:col-span-2">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                  <Input
-                    type="text"
-                    placeholder="Search transactions..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && fetchTransactions()}
-                    className="pl-12 h-11 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
-                  />
-                </div>
-
-                {/* Status Filter */}
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
-                >
-                  <option value="all">All Status</option>
-                  <option value="completed">Completed</option>
-                  <option value="pending">Pending</option>
-                  <option value="failed">Failed</option>
-                  <option value="refunded">Refunded</option>
-                </select>
-
-                {/* Payment Method Filter */}
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="pl-4 pr-10 h-11 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 outline-none text-sm"
-                >
-                  <option value="all">All Types</option>
-                  <option value="ESCROW">Escrow</option>
-                  <option value="EARNING">Earning</option>
-                  <option value="PENDING_EARNING">Pending Earning</option>
-                  <option value="WITHDRAWAL">Withdrawal</option>
-                  <option value="DEPOSIT">Deposit</option>
-                </select>
-
-                {/* Export Button */}
-                <Button
-                  onClick={exportToCSV}
-                  className="h-11 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export CSV
-                </Button>
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative group">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-[#00BAF1] transition-colors" />
+                <Input
+                  placeholder="Search transactions..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && fetchTransactions()}
+                  className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-[#00BAF1]/20 rounded-xl bg-white shadow-sm"
+                />
               </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-[#00BAF1]/20 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Status</option>
+                <option value="completed">Completed</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="refunded">Refunded</option>
+              </select>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-[#00BAF1]/20 transition-all font-medium text-gray-700 shadow-sm outline-none"
+              >
+                <option value="all">All Types</option>
+                <option value="ESCROW">Escrow</option>
+                <option value="EARNING">Earning</option>
+                <option value="PENDING_EARNING">Pending Earning</option>
+                <option value="WITHDRAWAL">Withdrawal</option>
+                <option value="DEPOSIT">Deposit</option>
+              </select>
+            </div>
 
-              {/* Date Range */}
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <div>
-                  <label className="text-[11px] sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2 block">
-                    From Date
-                  </label>
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="h-10 sm:h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl text-xs sm:text-sm px-2"
-                  />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="relative group">
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  <Calendar className="h-5 w-5" />
                 </div>
-                <div>
-                  <label className="text-[11px] sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2 block">
-                    To Date
-                  </label>
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="h-10 sm:h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl text-xs sm:text-sm px-2"
-                  />
-                </div>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-[#00BAF1]/20 rounded-xl bg-white shadow-sm"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <div className="relative group">
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-[#00BAF1]/20 rounded-xl bg-white shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Transactions Table */}
           {/* Transactions List */}
@@ -677,7 +643,7 @@ export default function TransactionsPage() {
                                       `/admin/payments/transactions/${transaction.id}`,
                                     );
                                   }}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                  className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white"
                                 >
                                   View
                                   <ChevronRight className="h-4 w-4 ml-1" />
@@ -788,7 +754,7 @@ export default function TransactionsPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-8 text-xs text-blue-600 hover:bg-blue-50"
+                          className="h-8 text-xs text-[#00BAF1] hover:bg-[#00BAF1]/10"
                         >
                           View Details →
                         </Button>
@@ -800,14 +766,44 @@ export default function TransactionsPage() {
             </CardContent>
           </Card>
 
-          <AdminPagination
-            currentPage={pagination.page}
-            totalPages={pagination.pages}
-            totalItems={pagination.total}
-            itemsPerPage={15}
-            itemLabel="transactions"
-            onPageChange={(p) => setPagination((prev) => ({ ...prev, page: p }))}
-          />
+          {/* Pagination */}
+          {pagination.pages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <button
+                onClick={() => setPagination((prev) => ({ ...prev, page: pagination.page - 1 }))}
+                disabled={pagination.page === 1}
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${pagination.page === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((p) => {
+                if (pagination.pages > 7) {
+                  if (p !== 1 && p !== pagination.pages && Math.abs(p - pagination.page) > 1) {
+                    if (p === 2 || p === pagination.pages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                    return null;
+                  }
+                }
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPagination((prev) => ({ ...prev, page: p }))}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === pagination.page ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setPagination((prev) => ({ ...prev, page: pagination.page + 1 }))}
+                disabled={pagination.page === pagination.pages}
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${pagination.page === pagination.pages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>

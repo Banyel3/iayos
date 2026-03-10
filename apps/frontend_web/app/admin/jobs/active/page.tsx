@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sidebar, useMainContentClass, AdminPagination } from "../../components";
+import { Sidebar, useMainContentClass } from "../../components";
 import { API_BASE } from "@/lib/api/config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Banknote,
   Search,
@@ -17,11 +16,13 @@ import {
   Calendar,
   Activity,
   TrendingUp,
-  Zap,
   Users,
   ChevronRight,
+  ChevronLeft,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Category {
   id: number;
@@ -54,22 +55,29 @@ interface ActiveJob {
 }
 
 export default function ActiveJobsPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<ActiveJob[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const mainClass = useMainContentClass("p-8 min-h-screen");
+  const [totalJobs, setTotalJobs] = useState(0);
 
-  useEffect(() => {
-    fetchActiveJobs();
-  }, [page]);
+  const mainClass = useMainContentClass("p-8 min-h-screen");
 
   const fetchActiveJobs = async () => {
     try {
-      setIsLoading(true);
+      setLoading(true);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        page_size: "15",
+        status: "IN_PROGRESS",
+      });
+
+      if (searchTerm) params.append("search", searchTerm);
+
       const response = await fetch(
-        `${API_BASE}/api/adminpanel/jobs/listings?page=${page}&page_size=15&status=IN_PROGRESS`,
+        `${API_BASE}/api/adminpanel/jobs/listings?${params.toString()}`,
         {
           credentials: "include",
         },
@@ -78,54 +86,71 @@ export default function ActiveJobsPage() {
       if (data.success) {
         setJobs(data.jobs);
         setTotalPages(data.total_pages);
+        setTotalJobs(data.total || data.jobs.length);
       }
     } catch (error) {
       console.error("Error fetching active jobs:", error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const filteredJobs = jobs.filter((job) => {
-    const matchesSearch =
-      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (job.category?.name || "")
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  useEffect(() => {
+    fetchActiveJobs();
+  }, [page]);
 
-  const getUrgencyBadge = (urgency: string) => {
-    switch (urgency.toUpperCase()) {
-      case "HIGH":
-        return (
-          <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-            🔴 High Priority
-          </Badge>
-        );
-      case "MEDIUM":
-        return (
-          <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
-            🟡 Medium
-          </Badge>
-        );
-      case "LOW":
-        return (
-          <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">
-            🟢 Low
-          </Badge>
-        );
-      default:
-        return null;
-    }
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (page === 1) {
+        fetchActiveJobs();
+      } else {
+        setPage(1);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleExport = () => {
+    const headers = [
+      "ID",
+      "Title",
+      "Client",
+      "Worker",
+      "Budget",
+      "Location",
+      "Started Date",
+    ];
+    const rows = jobs.map((job) => [
+      job.id,
+      job.title,
+      job.client.name,
+      job.worker?.name || "N/A",
+      `₱${(job.budget || 0).toLocaleString()}`,
+      job.location,
+      new Date(job.created_at).toLocaleDateString(),
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `active_jobs_export_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const totalBudget = jobs.reduce((sum, job) => sum + job.budget, 0);
   const assignedWorkers = jobs.filter((job) => job.worker).length;
   const avgBudget = jobs.length > 0 ? Math.round(totalBudget / jobs.length) : 0;
 
-  if (isLoading) {
+  if (loading && jobs.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <Sidebar />
@@ -134,7 +159,7 @@ export default function ActiveJobsPage() {
             <div className="text-center">
               <div className="relative">
                 <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
-                <Activity className="h-6 w-6 text-blue-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                <Activity className="h-6 w-6 text-[#00BAF1] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
               </div>
               <p className="mt-6 text-lg font-medium text-gray-700">
                 Loading active jobs...
@@ -153,121 +178,93 @@ export default function ActiveJobsPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <Sidebar />
       <main className={mainClass}>
-        <div className="max-w-7xl mx-auto space-y-8">
-          {/* Header with gradient */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 p-4 sm:p-8 text-white shadow-xl">
-            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
-            <div className="relative">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="relative">
-                  <Activity className="h-6 w-6 sm:h-8 sm:w-8" />
-                  <div className="absolute -top-1 -right-1 h-3 w-3 bg-yellow-400 rounded-full animate-pulse"></div>
+        <div className="max-w-7xl mx-auto space-y-8 pt-10">
+          {/* Header */}
+          <div className="pb-6 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Active Jobs</h1>
                 </div>
-                <h1 className="text-2xl sm:text-4xl font-bold">Active Jobs</h1>
+                <p className="text-gray-500 text-sm sm:text-base">
+                  Jobs currently in progress with assigned workers
+                </p>
               </div>
-              <p className="text-blue-100 text-sm sm:text-lg">
-                Jobs currently in progress with assigned workers
-              </p>
+              <Button
+                onClick={handleExport}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                Export Active Jobs
+              </Button>
             </div>
           </div>
 
-          {/* Modern Summary Cards */}
+          {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-xl">
-                    <Activity className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Activity className="h-5 w-5 text-[#00BAF1]" /></div>
+                  <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
-                  Active Now
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-gray-900">
-                  {jobs.length}
-                </p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Active Now</p>
+                <p className="text-xl font-bold text-gray-900">{totalJobs}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-purple-100 rounded-xl">
-                    <Banknote className="h-6 w-6 text-purple-600" />
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Banknote className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
-                  Total Budget
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-purple-600">
-                  ₱{(totalBudget ?? 0).toLocaleString()}
-                </p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Total Budget</p>
+                <p className="text-xl font-bold text-gray-900">₱{(totalBudget ?? 0).toLocaleString()}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-blue-100 rounded-xl">
-                    <Users className="h-6 w-6 text-blue-600" />
-                  </div>
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Users className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
-                  Workers Assigned
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-blue-600">
-                  {assignedWorkers}
-                </p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Workers Assigned</p>
+                <p className="text-xl font-bold text-gray-900">{assignedWorkers}</p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group">
-              <CardContent className="relative p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 bg-orange-100 rounded-xl">
-                    <Clock className="h-6 w-6 text-orange-600" />
-                  </div>
-                  <TrendingUp className="h-5 w-5 text-orange-600" />
+            <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <CardContent className="py-1.5 px-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
                 </div>
-                <p className="text-sm font-medium text-gray-600 mb-1">
-                  Avg Budget
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-orange-600">
-                  ₱{avgBudget.toLocaleString()}
-                </p>
+                <p className="text-xs font-medium text-gray-500 mb-0.5">Avg Budget</p>
+                <p className="text-xl font-bold text-gray-900">₱{avgBudget.toLocaleString()}</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Modern Filters Card */}
-          <Card className="border-0 shadow-lg">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative group">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                  <Input
-                    placeholder="Search by title, description, or category..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-12 h-12 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  className="h-12 px-6 border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 rounded-xl font-medium"
-                >
-                  <Download className="h-5 w-5 mr-2" />
-                  Export
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-4 mb-8">
+            <div className="flex-1 relative group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+              <Input
+                placeholder="Search active jobs by title, description, or category..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+              />
+            </div>
+          </div>
 
-          {/* Modern Job Cards */}
+          {/* Active Job Cards */}
           <div className="space-y-4">
-            {filteredJobs.map((job) => (
+            {loading && jobs.length > 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              </div>
+            ) : jobs.map((job) => (
               <Card
                 key={job.id}
                 className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
@@ -275,106 +272,98 @@ export default function ActiveJobsPage() {
                 <CardContent className="relative p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
                     <div className="flex-1 space-y-4">
+                      {/* Title and Badges */}
                       <div className="space-y-3">
                         <div className="flex items-start gap-3 flex-wrap">
-                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                          <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
                             {job.title}
                           </h3>
-                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 border font-medium">
+                          <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200">
                             ⚡ In Progress
-                          </Badge>
-                          {getUrgencyBadge(job.urgency)}
+                          </span>
+                          {job.urgency && (
+                            <span
+                              className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${job.urgency === "HIGH"
+                                ? "bg-red-100 text-red-700"
+                                : job.urgency === "MEDIUM"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : "bg-green-100 text-green-700"
+                                }`}
+                            >
+                              {job.urgency}
+                            </span>
+                          )}
                         </div>
                         <p className="text-gray-600 leading-relaxed line-clamp-2">
                           {job.description}
                         </p>
                       </div>
 
+                      {/* Info Grid */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                          <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <Banknote className="h-4 w-4 text-emerald-600" />
+                          <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                            <Banknote className="h-4 w-4 text-[#00BAF1]" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 font-medium">
-                              Budget
-                            </p>
-                            <p className="font-bold text-gray-900">
-                              ₱{job.budget.toLocaleString()}
-                            </p>
+                            <p className="text-xs text-gray-500 font-medium">Budget</p>
+                            <p className="font-bold text-gray-900">₱{job.budget.toLocaleString()}</p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                          <div className="p-1.5 bg-blue-100 rounded-lg">
-                            <MapPin className="h-4 w-4 text-blue-600" />
+                          <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                            <MapPin className="h-4 w-4 text-[#00BAF1]" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 font-medium">
-                              Location
-                            </p>
-                            <p className="font-semibold text-gray-900 truncate">
-                              {job.location}
-                            </p>
+                            <p className="text-xs text-gray-500 font-medium">Location</p>
+                            <p className="font-semibold text-gray-900 truncate">{job.location}</p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                          <div className="p-1.5 bg-purple-100 rounded-lg">
-                            <Clock className="h-4 w-4 text-purple-600" />
+                          <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                            <Clock className="h-4 w-4 text-[#00BAF1]" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 font-medium">
-                              Started
-                            </p>
+                            <p className="text-xs text-gray-500 font-medium">Started</p>
                             <p className="font-semibold text-gray-900">
-                              {new Date(job.created_at).toLocaleDateString(
-                                "en-US",
-                                { month: "short", day: "numeric" },
-                              )}
+                              {new Date(job.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                          <div className="p-1.5 bg-orange-100 rounded-lg">
-                            <Calendar className="h-4 w-4 text-orange-600" />
+                          <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                            <Calendar className="h-4 w-4 text-[#00BAF1]" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 font-medium">
-                              Duration
-                            </p>
+                            <p className="text-xs text-gray-500 font-medium">Duration</p>
                             <p className="font-semibold text-gray-900">
-                              {Math.ceil(
-                                (new Date().getTime() -
-                                  new Date(job.created_at).getTime()) /
-                                (1000 * 60 * 60 * 24),
-                              )}{" "}
-                              days
+                              {Math.ceil((new Date().getTime() - new Date(job.created_at).getTime()) / (1000 * 60 * 60 * 24))} days
                             </p>
                           </div>
                         </div>
                       </div>
 
+                      {/* Client / Worker Info */}
                       <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">Client:</span>
                           <Link
                             href={`/admin/users/clients/${job.client.id}`}
-                            className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                            className="text-sm font-semibold text-gray-700 hover:text-[#00BAF1] hover:underline flex items-center gap-1"
                           >
                             {job.client.name}
                             <ChevronRight className="h-3 w-3" />
                           </Link>
                         </div>
                         {job.worker && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500">
-                              → Worker:
-                            </span>
+                          <div className="flex items-center gap-2 border-l border-gray-100 pl-6">
+                            <span className="text-sm text-gray-500">Worker:</span>
                             <Link
                               href={`/admin/users/workers/${job.worker?.id}`}
-                              className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
+                              className="text-sm font-semibold text-gray-700 hover:text-[#00BAF1] hover:underline flex items-center gap-1"
                             >
                               {job.worker.name}
                               <ChevronRight className="h-3 w-3" />
@@ -382,28 +371,25 @@ export default function ActiveJobsPage() {
                           </div>
                         )}
                         {job.category && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-500">
-                              Category:
-                            </span>
-                            <Badge variant="secondary" className="font-medium">
+                          <div className="flex items-center gap-2 ml-auto">
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
                               {job.category.name}
-                            </Badge>
+                            </span>
                           </div>
                         )}
                       </div>
                     </div>
 
+                    {/* Action Buttons */}
                     <div className="flex md:flex-col gap-2 sm:gap-3">
-                      <Link href={`/admin/jobs/listings/${job.id}`}>
-                        <Button
-                          size="sm"
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Details
-                        </Button>
-                      </Link>
+                      <Button
+                        size="sm"
+                        className="w-full bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all"
+                        onClick={() => router.push(`/admin/jobs/listings/${job.id}`)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -411,30 +397,61 @@ export default function ActiveJobsPage() {
             ))}
           </div>
 
-          {filteredJobs.length === 0 && (
+          {/* Empty State */}
+          {jobs.length === 0 && (
             <Card className="border-0 shadow-lg">
               <CardContent className="p-16 text-center">
                 <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-full mb-6">
-                  <Clock className="h-10 w-10 text-gray-400" />
+                  <Activity className="h-10 w-10 text-gray-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  No active jobs
+                  No active jobs found
                 </h3>
                 <p className="text-gray-500 max-w-md mx-auto">
-                  There are currently no jobs in progress. Active jobs will
-                  appear here.
+                  There are no jobs currently in progress matching your search.
                 </p>
               </CardContent>
             </Card>
           )}
 
-          <AdminPagination
-            currentPage={page}
-            totalPages={totalPages}
-            itemsPerPage={15}
-            itemLabel="jobs"
-            onPageChange={setPage}
-          />
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-8">
+              <button
+                onClick={() => setPage(page - 1)}
+                disabled={page === 1}
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${page === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                if (totalPages > 7) {
+                  if (p !== 1 && p !== totalPages && Math.abs(p - page) > 1) {
+                    if (p === 2 || p === totalPages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                    return null;
+                  }
+                }
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === page ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setPage(page + 1)}
+                disabled={page === totalPages}
+                className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${page === totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>
