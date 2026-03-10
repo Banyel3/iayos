@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated worker calendar modal layout to respect safe-area insets and prevent date detail cards from being clipped off-screen on smaller devices
 - Changed date tap behavior in worker calendar to open a dedicated job-details popup modal instead of rendering details under the calendar
+- **Client -> Agency Hiring & Review Flow Stability**
+  - Removed the hardblock requiring 2+ workers for agency-hire creation; clients can now submit agency jobs with exactly 1 selected worker.
+  - Refactored agency conversation review/closure checks to be role-aware (CLIENT vs AGENCY), preventing asymmetric close behavior and ensuring closure only after both sides complete required reviews.
+  - **Impact**: Single-worker agency hires are now supported, and agency job conversations close consistently for both client and agency after the correct review milestones.
 - Updated profile performance cards to use live `/api/mobile/profile/metrics` values for worker ratings and completed jobs
 - **Impact**: Worker profile stats now refresh from backend metrics instead of stale cached values, and calendar job details remain fully visible
 

@@ -874,12 +874,12 @@ export default function CreateJobScreen() {
         );
         return;
       }
-      // Agency jobs require at least 2 total workers
+      // Agency jobs require at least 1 total worker
       const totalWorkers = skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
-      if (totalWorkers < 2) {
+      if (totalWorkers < 1) {
         Alert.alert(
           "Error",
-          "Agency jobs require at least 2 workers total. For single worker jobs, post directly without an agency.",
+          "Agency jobs require at least 1 worker total.",
         );
         return;
       }
