@@ -368,6 +368,7 @@ export default function ChatScreen() {
   // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
   const clientHasFullyReviewed = clientHasReviewed;
+  const isServerMarkedClosed = conversation?.status === "COMPLETED";
   const isConversationArchived = !!conversation?.is_archived;
   const computedConversationClosed =
     (conversation?.job?.clientMarkedComplete &&
@@ -381,7 +382,8 @@ export default function ChatScreen() {
       counterpartyHasReviewed &&
       !hasApprovedBackjob &&
       !hasActiveNegotiation);
-  const isConversationClosed = isConversationArchived || computedConversationClosed;
+  const isConversationClosed =
+    isServerMarkedClosed || isConversationArchived || computedConversationClosed;
 
   // Force review: user must review before leaving conversation after payment/completion
   const needsReview = !!(
