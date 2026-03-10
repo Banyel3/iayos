@@ -276,7 +276,8 @@ export default function ChatScreen() {
     conversation?.is_agency_job &&
     // Use API aggregate first; fallback to split flags for safety.
     (conversation?.job?.clientReviewed ||
-      (hasAgencyEmployeeReviewsCompleted && !!conversation?.job?.agencyReviewed))
+      (hasAgencyEmployeeReviewsCompleted &&
+        !!conversation?.job?.agencyReviewed))
   );
 
   const viewerHasReviewed = !!(
@@ -361,6 +362,22 @@ export default function ChatScreen() {
     !hasApprovedBackjob &&
     !viewerHasReviewed
   );
+
+  const openReviewModalSafely = (
+    mode: "submit" | "view" | "edit" = "submit",
+  ) => {
+    // Guard against stale UI windows right after submit/refetch.
+    if (mode === "submit" && (isConversationClosed || reviewStatusSyncing)) {
+      Alert.alert(
+        "Already Reviewed",
+        "Your review is already recorded. Refreshing conversation status.",
+      );
+      return;
+    }
+
+    setReviewModalMode(mode);
+    setShowReviewModal(true);
+  };
 
   // Block hardware back button when review is needed - REMOVED to allow users to exit freely
 
@@ -1351,6 +1368,7 @@ export default function ChatScreen() {
               refetch();
             } else {
               // All workers reviewed
+              setReviewStatusSyncing(true);
               setShowReviewModal(false);
               refetch();
               Alert.alert(
@@ -1370,6 +1388,8 @@ export default function ChatScreen() {
               setRatingPunctuality(0);
               setRatingProfessionalism(0);
               setReviewComment("");
+              setReviewStatusSyncing(true);
+              setShowReviewModal(false);
               refetch();
               Alert.alert(
                 "Already Rated",
@@ -1412,9 +1432,33 @@ export default function ChatScreen() {
             setRatingPunctuality(0);
             setRatingProfessionalism(0);
             setReviewComment("");
+            setReviewStatusSyncing(true);
             setShowReviewModal(false);
             // Refresh conversation to update review status
             refetch();
+          },
+          onError: (error: unknown) => {
+            const errorMessage = getErrorMessage(
+              error,
+              "Failed to submit review",
+            );
+            if (errorMessage.toLowerCase().includes("already reviewed")) {
+              setRatingQuality(0);
+              setRatingCommunication(0);
+              setRatingPunctuality(0);
+              setRatingProfessionalism(0);
+              setReviewComment("");
+              setReviewStatusSyncing(true);
+              setShowReviewModal(false);
+              refetch();
+              Alert.alert(
+                "Already Reviewed",
+                "Your review is already recorded. Refreshing conversation status.",
+              );
+              return;
+            }
+
+            Alert.alert("Error", errorMessage);
           },
         },
       );
@@ -2224,7 +2268,9 @@ export default function ChatScreen() {
             {/* Buttons Column - stacked vertically, right-aligned */}
             <View style={{ marginLeft: 12, alignItems: "stretch", gap: 6 }}>
               {/* Rate/View Reviews Button */}
-              {conversation.job.clientMarkedComplete && (
+              {conversation.job.clientMarkedComplete &&
+                !isConversationClosed &&
+                !reviewStatusSyncing && (
                 <TouchableOpacity
                   style={{
                     backgroundColor: "#FFFFFF",
@@ -2243,8 +2289,7 @@ export default function ChatScreen() {
                         ? clientHasReviewed
                         : conversation.job.workerReviewed;
 
-                    setReviewModalMode(hasReviewed ? "view" : "submit");
-                    setShowReviewModal(true);
+                    openReviewModalSafely(hasReviewed ? "view" : "submit");
                   }}
                 >
                   <Ionicons name="star" size={16} color="#FBC02D" />
@@ -4664,7 +4709,8 @@ export default function ChatScreen() {
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
           {(conversation.job.clientMarkedComplete ||
             conversation.job.status === "COMPLETED") &&
-            !isConversationClosed && (
+            !isConversationClosed &&
+            !reviewStatusSyncing && (
               <>
                 {/* Check if current user already reviewed */}
                 {(conversation.my_role === "CLIENT" && clientHasReviewed) ||
@@ -4685,8 +4731,7 @@ export default function ChatScreen() {
                       },
                     ]}
                     onPress={() => {
-                      setReviewModalMode("submit");
-                      setShowReviewModal(true);
+                      openReviewModalSafely("submit");
                     }}
                   >
                     <Ionicons name="star" size={20} color="#EF6C00" />
@@ -4709,8 +4754,7 @@ export default function ChatScreen() {
                       },
                     ]}
                     onPress={() => {
-                      setReviewModalMode("submit");
-                      setShowReviewModal(true);
+                      openReviewModalSafely("submit");
                     }}
                   >
                     <Ionicons name="star-outline" size={20} color="#1565C0" />

@@ -12,15 +12,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
-import {
-  Colors,
-  Typography,
-  Spacing,
-  BorderRadius,
-} from "@/constants/theme";
+import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest, fetchJson, getAbsoluteMediaUrl } from "@/lib/api/config";
+import {
+  ENDPOINTS,
+  apiRequest,
+  fetchJson,
+  getAbsoluteMediaUrl,
+} from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import type { Worker } from "@/lib/hooks/useWorkers";
 
@@ -54,7 +54,7 @@ export default function InviteWorkersScreen() {
     queryKey: ["invited-workers", jobId],
     queryFn: async () => {
       const response = await apiRequest(
-        ENDPOINTS.INVITED_WORKERS(parseInt(jobId))
+        ENDPOINTS.INVITED_WORKERS(parseInt(jobId)),
       );
       const data = await response.json();
       return data as { success: boolean; invited_worker_ids: number[] };
@@ -78,7 +78,8 @@ export default function InviteWorkersScreen() {
     queryFn: async () => {
       const buildParams = (includeCategory: boolean) => {
         const params = new URLSearchParams();
-        if (includeCategory && categoryId) params.append("category", categoryId);
+        if (includeCategory && categoryId)
+          params.append("category", categoryId);
         params.append("limit", "50");
 
         // Use client location if available
@@ -141,9 +142,13 @@ export default function InviteWorkersScreen() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ worker_id: workerId }),
-        }
+        },
       );
-      const data = (await response.json()) as { success?: boolean; message?: string; error?: string };
+      const data = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error || "Failed to invite worker");
       }
@@ -160,19 +165,15 @@ export default function InviteWorkersScreen() {
 
   const handleInvite = useCallback(
     (workerId: number, workerName: string) => {
-      Alert.alert(
-        "Invite Worker",
-        `Send a job invitation to ${workerName}?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Invite",
-            onPress: () => inviteMutation.mutate(workerId),
-          },
-        ]
-      );
+      Alert.alert("Invite Worker", `Send a job invitation to ${workerName}?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Invite",
+          onPress: () => inviteMutation.mutate(workerId),
+        },
+      ]);
     },
-    [inviteMutation]
+    [inviteMutation],
   );
 
   const renderWorker = useCallback(
@@ -206,7 +207,9 @@ export default function InviteWorkersScreen() {
                     </Text>
                   </>
                 ) : (
-                  <Text style={[styles.ratingText, { color: Colors.textSecondary }]}>
+                  <Text
+                    style={[styles.ratingText, { color: Colors.textSecondary }]}
+                  >
                     New
                   </Text>
                 )}
@@ -228,10 +231,7 @@ export default function InviteWorkersScreen() {
                 )}
               </View>
               {item.categories.length > 0 && (
-                <Text
-                  style={styles.categoriesText}
-                  numberOfLines={1}
-                >
+                <Text style={styles.categoriesText} numberOfLines={1}>
                   {item.categories.join(", ")}
                 </Text>
               )}
@@ -272,7 +272,7 @@ export default function InviteWorkersScreen() {
         </View>
       );
     },
-    [allInvitedIds, handleInvite, inviteMutation]
+    [allInvitedIds, handleInvite, inviteMutation],
   );
 
   return (

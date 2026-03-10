@@ -51,8 +51,12 @@ export default function SkillsScreen() {
   );
   const [editingSkill, setEditingSkill] = useState<WorkerSkill | null>(null);
   const [experienceYears, setExperienceYears] = useState("0");
-  const [addSkillType, setAddSkillType] = useState<"PRIMARY" | "SECONDARY">("SECONDARY");
-  const [editSkillType, setEditSkillType] = useState<"PRIMARY" | "SECONDARY">("SECONDARY");
+  const [addSkillType, setAddSkillType] = useState<"PRIMARY" | "SECONDARY">(
+    "SECONDARY",
+  );
+  const [editSkillType, setEditSkillType] = useState<"PRIMARY" | "SECONDARY">(
+    "SECONDARY",
+  );
 
   // Queries
   const { data: availableSkills = [], isLoading: availableLoading } =
@@ -193,7 +197,10 @@ export default function SkillsScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
-          <Pressable onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
+          <Pressable
+            onPress={() => safeGoBack(router, "/(tabs)/profile")}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </Pressable>
           <Text style={styles.headerTitle}>My Skills</Text>
@@ -211,7 +218,10 @@ export default function SkillsScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => safeGoBack(router, "/(tabs)/profile")} style={styles.backButton}>
+        <Pressable
+          onPress={() => safeGoBack(router, "/(tabs)/profile")}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>My Skills</Text>
@@ -365,7 +375,7 @@ export default function SkillsScreen() {
                           style={[
                             styles.skillOption,
                             selectedSkill?.id === skill.id &&
-                            styles.skillOptionSelected,
+                              styles.skillOptionSelected,
                           ]}
                           onPress={() => setSelectedSkill(skill)}
                         >
@@ -413,19 +423,25 @@ export default function SkillsScreen() {
                           Tap outside or press Done to close keyboard
                         </Text>
 
-                        <Text style={[styles.modalLabel, { marginTop: Spacing.md }]}>Skill Type</Text>
+                        <Text
+                          style={[styles.modalLabel, { marginTop: Spacing.md }]}
+                        >
+                          Skill Type
+                        </Text>
                         <View style={styles.skillTypeRow}>
                           <Pressable
                             style={[
                               styles.skillTypeChip,
-                              addSkillType === "PRIMARY" && styles.skillTypeChipActive,
+                              addSkillType === "PRIMARY" &&
+                                styles.skillTypeChipActive,
                             ]}
                             onPress={() => setAddSkillType("PRIMARY")}
                           >
                             <Text
                               style={[
                                 styles.skillTypeChipText,
-                                addSkillType === "PRIMARY" && styles.skillTypeChipTextActive,
+                                addSkillType === "PRIMARY" &&
+                                  styles.skillTypeChipTextActive,
                               ]}
                             >
                               Primary
@@ -434,14 +450,16 @@ export default function SkillsScreen() {
                           <Pressable
                             style={[
                               styles.skillTypeChip,
-                              addSkillType === "SECONDARY" && styles.skillTypeChipActive,
+                              addSkillType === "SECONDARY" &&
+                                styles.skillTypeChipActive,
                             ]}
                             onPress={() => setAddSkillType("SECONDARY")}
                           >
                             <Text
                               style={[
                                 styles.skillTypeChipText,
-                                addSkillType === "SECONDARY" && styles.skillTypeChipTextActive,
+                                addSkillType === "SECONDARY" &&
+                                  styles.skillTypeChipTextActive,
                               ]}
                             >
                               Secondary
@@ -455,7 +473,7 @@ export default function SkillsScreen() {
                       style={[
                         styles.modalButton,
                         (!selectedSkill || addSkill.isPending) &&
-                        styles.modalButtonDisabled,
+                          styles.modalButtonDisabled,
                       ]}
                       onPress={handleAddSkill}
                       disabled={!selectedSkill || addSkill.isPending}
@@ -530,19 +548,25 @@ export default function SkillsScreen() {
                         Tap outside or press Done to close keyboard
                       </Text>
 
-                      <Text style={[styles.modalLabel, { marginTop: Spacing.md }]}>Skill Type</Text>
+                      <Text
+                        style={[styles.modalLabel, { marginTop: Spacing.md }]}
+                      >
+                        Skill Type
+                      </Text>
                       <View style={styles.skillTypeRow}>
                         <Pressable
                           style={[
                             styles.skillTypeChip,
-                            editSkillType === "PRIMARY" && styles.skillTypeChipActive,
+                            editSkillType === "PRIMARY" &&
+                              styles.skillTypeChipActive,
                           ]}
                           onPress={() => setEditSkillType("PRIMARY")}
                         >
                           <Text
                             style={[
                               styles.skillTypeChipText,
-                              editSkillType === "PRIMARY" && styles.skillTypeChipTextActive,
+                              editSkillType === "PRIMARY" &&
+                                styles.skillTypeChipTextActive,
                             ]}
                           >
                             Primary
@@ -551,14 +575,16 @@ export default function SkillsScreen() {
                         <Pressable
                           style={[
                             styles.skillTypeChip,
-                            editSkillType === "SECONDARY" && styles.skillTypeChipActive,
+                            editSkillType === "SECONDARY" &&
+                              styles.skillTypeChipActive,
                           ]}
                           onPress={() => setEditSkillType("SECONDARY")}
                         >
                           <Text
                             style={[
                               styles.skillTypeChipText,
-                              editSkillType === "SECONDARY" && styles.skillTypeChipTextActive,
+                              editSkillType === "SECONDARY" &&
+                                styles.skillTypeChipTextActive,
                             ]}
                           >
                             Secondary
