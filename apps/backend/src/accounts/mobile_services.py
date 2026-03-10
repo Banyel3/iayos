@@ -1912,12 +1912,34 @@ def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 2
         }
 
 
-def get_job_categories_mobile() -> Dict[str, Any]:
+def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]:
     """
-    Get all job categories/specializations for mobile
+    Get job categories/specializations for mobile.
+    If worker_id is provided, return only categories mapped to that worker's skills.
     """
     try:
-        categories = Specializations.objects.all().order_by('specializationName')
+        categories_qs = Specializations.objects.all()
+
+        if worker_id:
+            worker = WorkerProfile.objects.filter(profileID__profileID=worker_id).first()
+            if not worker:
+                return {
+                    'success': False,
+                    'error': 'Worker not found'
+                }
+
+            from .models import workerSpecialization
+
+            worker_skill_spec_ids = list(
+                workerSpecialization.objects.filter(workerID=worker)
+                .values_list('specializationID__specializationID', flat=True)
+            )
+
+            categories_qs = categories_qs.filter(
+                specializationID__in=worker_skill_spec_ids
+            )
+
+        categories = categories_qs.order_by('specializationName')
 
         category_list = [
             {

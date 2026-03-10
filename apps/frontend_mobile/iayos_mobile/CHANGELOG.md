@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Daily Check-in Time Window + Direct-Hire Category/Tab Consistency**
+  - Fixed DAILY single-job attendance time-window validation to use Philippine time for 6:00 AM to 8:00 PM checks, preventing false "outside allowed hours" errors during valid morning check-ins.
+  - Updated direct-hire category loading to scope categories by selected worker skills, so clients only see valid categories for that worker.
+  - Updated worker Applications tab behavior to show pending applications only, so accepted jobs no longer appear in both Applied and In Progress.
+  - **Impact**: Workers can check in at valid PH times, clients see skill-valid direct-hire categories, and accepted requests appear only in In Progress.
+
 - Updated worker calendar modal layout to respect safe-area insets and prevent date detail cards from being clipped off-screen on smaller devices
 - Changed date tap behavior in worker calendar to open a dedicated job-details popup modal instead of rendering details under the calendar
 - **Client -> Agency Hiring & Review Flow Stability**

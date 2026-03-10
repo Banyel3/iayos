@@ -38,9 +38,11 @@ from .profile_metrics_service import get_profile_metrics
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 MINIMUM_CHECKOUT_HOURS = 2
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
 
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
@@ -66,7 +68,7 @@ def _is_testing_mode_enabled() -> bool:
 
 
 def _get_effective_work_date(job):
-    base_date = timezone.now().date()
+    base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
     if not _is_testing_mode_enabled():
         return base_date
 
@@ -1270,14 +1272,14 @@ def mobile_my_jobs(
 
 
 @mobile_router.get("/jobs/categories")
-def mobile_job_categories(request):
+def mobile_job_categories(request, worker_id: Optional[int] = None):
     """
     Get all job categories/specializations for mobile
     """
     from .mobile_services import get_job_categories_mobile
 
     try:
-        result = get_job_categories_mobile()
+        result = get_job_categories_mobile(worker_id=worker_id)
 
         if result['success']:
             return result['data']
@@ -2908,9 +2910,11 @@ def mobile_get_my_applications(request):
                 status=403
             )
         
-        # Get all applications for this worker
+        # Applied tab should only show pending actions.
+        # Accepted applications should appear in IN_PROGRESS jobs.
         applications = JobApplication.objects.filter(
-            workerID=worker_profile
+            workerID=worker_profile,
+            status=JobApplication.ApplicationStatus.PENDING,
         ).select_related('jobID', 'jobID__clientID__profileID__accountFK', 'applied_skill_slot').order_by('-createdAt')
         
         # Format the response
@@ -7282,7 +7286,8 @@ def worker_check_in(request, job_id: int):
         
         # Validate time constraints: 6 AM - 8 PM
         now = timezone.now()
-        current_time = now.time()
+        now_ph = timezone.localtime(now, PH_TIMEZONE)
+        current_time = now_ph.time()
         start_time = dt_time(6, 0, 0)   # 6 AM
         end_time = dt_time(20, 0, 0)    # 8 PM
         
@@ -7396,7 +7401,8 @@ def worker_check_out(request, job_id: int):
         
         # Validate time constraints: 6 AM - 8 PM
         now = timezone.now()
-        current_time = now.time()
+        now_ph = timezone.localtime(now, PH_TIMEZONE)
+        current_time = now_ph.time()
         start_time = dt_time(6, 0, 0)   # 6 AM
         end_time = dt_time(20, 0, 0)    # 8 PM
         
