@@ -97,7 +97,8 @@ def should_auto_archive(conversation: Conversation) -> bool:
     
     A conversation should be archived when:
     - Job status is COMPLETED
-    - Both client and worker have reviewed each other
+    - For team jobs: all assigned workers reviewed the client and the client reviewed all assigned workers
+    - For non-team jobs: both sides have reviewed each other
     
     Args:
         conversation: The Conversation instance to check
@@ -110,6 +111,43 @@ def should_auto_archive(conversation: Conversation) -> bool:
     job = conversation.relatedJobPosting
     if not job or job.status != 'COMPLETED':
         return False
+
+    if getattr(job, 'is_team_job', False):
+        from accounts.models import JobWorkerAssignment
+
+        assigned_worker_account_ids = set(
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            )
+            .values_list('workerID__profileID__accountFK_id', flat=True)
+            .distinct()
+        )
+
+        # No assigned workers means team review completeness cannot be verified.
+        if not assigned_worker_account_ids:
+            return False
+
+        worker_reviewer_ids = set(
+            JobReview.objects.filter(
+                jobID=job,
+                reviewerType=JobReview.ReviewerType.WORKER,
+            )
+            .values_list('reviewerID_id', flat=True)
+            .distinct()
+        )
+
+        client_reviewed_worker_ids = set(
+            JobReview.objects.filter(
+                jobID=job,
+                reviewerType=JobReview.ReviewerType.CLIENT,
+                revieweeID__isnull=False,
+            )
+            .values_list('revieweeID_id', flat=True)
+            .distinct()
+        )
+
+        return assigned_worker_account_ids.issubset(worker_reviewer_ids) and assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
     
     # Check if both sides have reviewed using current JobReview schema
     client_reviewed = JobReview.objects.filter(
