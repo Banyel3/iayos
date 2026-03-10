@@ -106,7 +106,17 @@ export default function JobsScreen() {
 
   // Set default tab based on user type
   useEffect(() => {
-    if (tab && ["open", "pending", "requests", "applications", "inProgress", "past"].includes(tab)) {
+    if (
+      tab &&
+      [
+        "open",
+        "pending",
+        "requests",
+        "applications",
+        "inProgress",
+        "past",
+      ].includes(tab)
+    ) {
       setActiveTab(tab as TabType);
       return;
     }
@@ -141,7 +151,7 @@ export default function JobsScreen() {
     queryFn: async () => {
       const response = await fetchJson<{ backjobs: any[]; total: number }>(
         `${ENDPOINTS.MY_BACKJOBS}?status=UNDER_REVIEW`,
-        { method: "GET" }
+        { method: "GET" },
       );
       return response;
     },
@@ -202,18 +212,24 @@ export default function JobsScreen() {
   const pastJobsList = pastJobsData?.jobs || [];
 
   const jobs =
-    activeTab === "inProgress" ? inProgressJobsList
-      : activeTab === "past" ? pastJobsList
+    activeTab === "inProgress"
+      ? inProgressJobsList
+      : activeTab === "past"
+        ? pastJobsList
         : activeJobs;
 
   const isLoading =
-    activeTab === "inProgress" ? inProgressLoading
-      : activeTab === "past" ? pastLoading
+    activeTab === "inProgress"
+      ? inProgressLoading
+      : activeTab === "past"
+        ? pastLoading
         : activeJobsLoading;
 
   const error =
-    activeTab === "inProgress" ? inProgressError
-      : activeTab === "past" ? pastError
+    activeTab === "inProgress"
+      ? inProgressError
+      : activeTab === "past"
+        ? pastError
         : activeJobsError;
 
   const refetch = async () => {
@@ -242,14 +258,35 @@ export default function JobsScreen() {
 
   const applications = applicationsData?.applications || [];
 
-  // Applied tab should only show pending applications that haven't moved forward
-  // (i.e. job not yet IN_PROGRESS, COMPLETED, or CANCELLED — those belong in other tabs).
+  // Exclude anything already represented in In Progress/Past lists to avoid cross-tab duplication.
+  const inProgressJobIds = new Set(inProgressJobsList.map((job) => job.job_id));
+  const pastJobIds = new Set(pastJobsList.map((job) => job.job_id));
+
+  const normalizeJobStatus = (status?: string) =>
+    String(status || "")
+      .trim()
+      .toUpperCase();
+
+  const isApplicationPastOrMovedForward = (app: MyApplication) => {
+    const normalized = normalizeJobStatus(app.job_status);
+    return [
+      "IN_PROGRESS",
+      "COMPLETED",
+      "CANCELLED",
+      "CANCELLED_BY_CLIENT",
+      "CANCELLED_BY_WORKER",
+      "EXPIRED",
+      "CLOSED",
+    ].includes(normalized);
+  };
+
+  // Applied tab should only contain truly pending applications.
   const filteredApplications = applications.filter(
     (app) =>
       app.application_status === "PENDING" &&
-      app.job_status !== "IN_PROGRESS" &&
-      app.job_status !== "COMPLETED" &&
-      app.job_status !== "CANCELLED",
+      !inProgressJobIds.has(app.job_id) &&
+      !pastJobIds.has(app.job_id) &&
+      !isApplicationPastOrMovedForward(app),
   );
 
   if (__DEV__) {
@@ -309,7 +346,7 @@ export default function JobsScreen() {
 
       // Case 2: INVITE type job requests that already have an assignee (worker or agency)
       const hasAssignee = Boolean(
-        job.assigned_worker_id || job.assigned_agency_id
+        job.assigned_worker_id || job.assigned_agency_id,
       );
 
       if (!(job.job_type === "INVITE" && hasAssignee)) {
@@ -336,7 +373,7 @@ export default function JobsScreen() {
         console.log(`     assigned_worker_id: ${job.assigned_worker_id}`);
         console.log(`     my profile id: ${user?.profile_data?.id}`);
         console.log(
-          `     invite_status: "${job.invite_status}" (expected: "PENDING")`
+          `     invite_status: "${job.invite_status}" (expected: "PENDING")`,
         );
         console.log(`     status: "${job.status}"`);
       }
@@ -356,7 +393,7 @@ export default function JobsScreen() {
         console.log(`     ✓ isPendingInvite: ${isPendingInvite}`);
         console.log(`     ✓ isActive: ${isActive}`);
         console.log(
-          `     → WILL SHOW: ${isInviteType && isAssignedToMe && isPendingInvite}`
+          `     → WILL SHOW: ${isInviteType && isAssignedToMe && isPendingInvite}`,
         );
       }
 
@@ -381,8 +418,10 @@ export default function JobsScreen() {
       if (tabName === "open") {
         if (isClient) {
           if (job.is_team_job) {
-            const full = job.total_workers_needed && job.total_workers_assigned
-              && job.total_workers_assigned >= job.total_workers_needed;
+            const full =
+              job.total_workers_needed &&
+              job.total_workers_assigned &&
+              job.total_workers_assigned >= job.total_workers_needed;
             if (full) return false;
           }
           return job.job_type === "LISTING" && !job.assigned_worker_id;
@@ -392,11 +431,15 @@ export default function JobsScreen() {
       if (tabName === "pending") {
         if (!isClient) return false;
         if (job.is_team_job && job.status === "ACTIVE") {
-          const full = job.total_workers_needed && job.total_workers_assigned
-            && job.total_workers_assigned >= job.total_workers_needed;
+          const full =
+            job.total_workers_needed &&
+            job.total_workers_assigned &&
+            job.total_workers_assigned >= job.total_workers_needed;
           if (full) return true;
         }
-        const hasAssignee = Boolean(job.assigned_worker_id || job.assigned_agency_id);
+        const hasAssignee = Boolean(
+          job.assigned_worker_id || job.assigned_agency_id,
+        );
         if (!(job.job_type === "INVITE" && hasAssignee)) return false;
         if (job.invite_status) return job.invite_status === "PENDING";
         return job.status === "ACTIVE";
@@ -404,9 +447,11 @@ export default function JobsScreen() {
       if (tabName === "requests") {
         if (!isWorker) return false;
         const isInviteType = job.job_type === "INVITE";
-        const isAssignedToMe = job.assigned_worker_id === user?.profile_data?.id;
-        const isPendingInvite = job.invite_status === "PENDING"
-          || (job.invite_status === null && job.status === "ACTIVE");
+        const isAssignedToMe =
+          job.assigned_worker_id === user?.profile_data?.id;
+        const isPendingInvite =
+          job.invite_status === "PENDING" ||
+          (job.invite_status === null && job.status === "ACTIVE");
         return isInviteType && isAssignedToMe && isPendingInvite;
       }
       return true;
@@ -440,7 +485,7 @@ export default function JobsScreen() {
     onError: (error: any) => {
       Alert.alert(
         "Error",
-        error.message || "Failed to delete job. Please try again."
+        error.message || "Failed to delete job. Please try again.",
       );
     },
   });
@@ -448,13 +493,13 @@ export default function JobsScreen() {
   const handleDeleteJob = (
     jobId: number,
     status: string,
-    jobType: "INVITE" | "LISTING"
+    jobType: "INVITE" | "LISTING",
   ) => {
     // Prevent deletion of in-progress or completed jobs
     if (status === "IN_PROGRESS" || status === "COMPLETED") {
       Alert.alert(
         "Cannot Delete",
-        "You cannot delete jobs that are in progress or completed"
+        "You cannot delete jobs that are in progress or completed",
       );
       return;
     }
@@ -478,7 +523,7 @@ export default function JobsScreen() {
           style: "destructive",
           onPress: () => deleteJobMutation.mutate(jobId),
         },
-      ]
+      ],
     );
   };
 
@@ -587,13 +632,16 @@ export default function JobsScreen() {
           </View>
 
           {/* Application Count (for client posts to show how many workers applied) */}
-          {isClient && job.application_count !== null && job.application_count !== undefined && job.application_count > 0 && (
-            <View style={styles.applicationCountContainer}>
-              <Text style={styles.applicationCountText}>
-                {job.application_count} applied
-              </Text>
-            </View>
-          )}
+          {isClient &&
+            job.application_count !== null &&
+            job.application_count !== undefined &&
+            job.application_count > 0 && (
+              <View style={styles.applicationCountContainer}>
+                <Text style={styles.applicationCountText}>
+                  {job.application_count} applied
+                </Text>
+              </View>
+            )}
 
           {/* Delete Button (only for clients on non-in-progress/completed jobs) */}
           {isClient &&
@@ -840,7 +888,10 @@ export default function JobsScreen() {
                 style={styles.postJobButton}
                 onPress={() => {
                   if (!user?.kycVerified) {
-                    Alert.alert("Verification Required", "Please complete KYC verification to post a job.");
+                    Alert.alert(
+                      "Verification Required",
+                      "Please complete KYC verification to post a job.",
+                    );
                     return;
                   }
                   setShowJobTypeModal(true);
@@ -865,8 +916,24 @@ export default function JobsScreen() {
               testID="jobs-tab-open"
             >
               <View style={styles.tabInner}>
-                {!activeJobsLoading && openCount > 0 && <Text style={[styles.tabCount, activeTab === "open" && styles.tabTextActive]}>{openCount}</Text>}
-                <Text style={[styles.tabText, activeTab === "open" && styles.tabTextActive]}>Open</Text>
+                {!activeJobsLoading && openCount > 0 && (
+                  <Text
+                    style={[
+                      styles.tabCount,
+                      activeTab === "open" && styles.tabTextActive,
+                    ]}
+                  >
+                    {openCount}
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "open" && styles.tabTextActive,
+                  ]}
+                >
+                  Open
+                </Text>
               </View>
             </TouchableOpacity>
           )}
@@ -879,8 +946,24 @@ export default function JobsScreen() {
               testID="jobs-tab-pending"
             >
               <View style={styles.tabInner}>
-                {!activeJobsLoading && pendingCount > 0 && <Text style={[styles.tabCount, activeTab === "pending" && styles.tabTextActive]}>{pendingCount}</Text>}
-                <Text style={[styles.tabText, activeTab === "pending" && styles.tabTextActive]}>Pending</Text>
+                {!activeJobsLoading && pendingCount > 0 && (
+                  <Text
+                    style={[
+                      styles.tabCount,
+                      activeTab === "pending" && styles.tabTextActive,
+                    ]}
+                  >
+                    {pendingCount}
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "pending" && styles.tabTextActive,
+                  ]}
+                >
+                  Pending
+                </Text>
               </View>
             </TouchableOpacity>
           )}
@@ -893,22 +976,57 @@ export default function JobsScreen() {
               testID="jobs-tab-requests"
             >
               <View style={styles.tabInner}>
-                {!activeJobsLoading && requestsCount > 0 && <Text style={[styles.tabCount, activeTab === "requests" && styles.tabTextActive]}>{requestsCount}</Text>}
-                <Text style={[styles.tabText, activeTab === "requests" && styles.tabTextActive]}>Requests</Text>
+                {!activeJobsLoading && requestsCount > 0 && (
+                  <Text
+                    style={[
+                      styles.tabCount,
+                      activeTab === "requests" && styles.tabTextActive,
+                    ]}
+                  >
+                    {requestsCount}
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "requests" && styles.tabTextActive,
+                  ]}
+                >
+                  Requests
+                </Text>
               </View>
             </TouchableOpacity>
           )}
 
           {isWorker && (
             <TouchableOpacity
-              style={[styles.tab, activeTab === "applications" && styles.tabActive]}
+              style={[
+                styles.tab,
+                activeTab === "applications" && styles.tabActive,
+              ]}
               onPress={() => setActiveTab("applications")}
               activeOpacity={0.7}
               testID="jobs-tab-applications"
             >
               <View style={styles.tabInner}>
-                {!applicationsLoading && applicationsCount > 0 && <Text style={[styles.tabCount, activeTab === "applications" && styles.tabTextActive]}>{applicationsCount}</Text>}
-                <Text style={[styles.tabText, activeTab === "applications" && styles.tabTextActive]}>Applied</Text>
+                {!applicationsLoading && applicationsCount > 0 && (
+                  <Text
+                    style={[
+                      styles.tabCount,
+                      activeTab === "applications" && styles.tabTextActive,
+                    ]}
+                  >
+                    {applicationsCount}
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === "applications" && styles.tabTextActive,
+                  ]}
+                >
+                  Applied
+                </Text>
               </View>
             </TouchableOpacity>
           )}
@@ -920,8 +1038,24 @@ export default function JobsScreen() {
             testID="jobs-tab-in-progress"
           >
             <View style={styles.tabInner}>
-              {!inProgressLoading && inProgressCount > 0 && <Text style={[styles.tabCount, activeTab === "inProgress" && styles.tabTextActive]}>{inProgressCount}</Text>}
-              <Text style={[styles.tabText, activeTab === "inProgress" && styles.tabTextActive]}>In Progress</Text>
+              {!inProgressLoading && inProgressCount > 0 && (
+                <Text
+                  style={[
+                    styles.tabCount,
+                    activeTab === "inProgress" && styles.tabTextActive,
+                  ]}
+                >
+                  {inProgressCount}
+                </Text>
+              )}
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "inProgress" && styles.tabTextActive,
+                ]}
+              >
+                In Progress
+              </Text>
             </View>
           </TouchableOpacity>
 
@@ -932,7 +1066,14 @@ export default function JobsScreen() {
             testID="jobs-tab-past"
           >
             <View style={styles.tabInner}>
-              <Text style={[styles.tabText, activeTab === "past" && styles.tabTextActive]}>Past</Text>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "past" && styles.tabTextActive,
+                ]}
+              >
+                Past
+              </Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -953,7 +1094,9 @@ export default function JobsScreen() {
                 size={64}
                 color={Colors.textSecondary}
               />
-              <Text style={styles.emptyStateText}>No applications available yet.</Text>
+              <Text style={styles.emptyStateText}>
+                No applications available yet.
+              </Text>
             </View>
           ) : filteredApplications.length === 0 ? (
             <View style={styles.emptyState}>
@@ -1088,76 +1231,78 @@ export default function JobsScreen() {
             </View>
           )
         ) : // Regular Jobs List
-          isLoading ? (
-            <View style={styles.listContainer}>
-              {[1, 2, 3, 4].map((i) => (
-                <JobCardSkeleton key={i} />
-              ))}
-            </View>
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <Ionicons
-                name="briefcase-outline"
-                size={64}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.emptyStateText}>No jobs available yet.</Text>
-            </View>
-          ) : filteredJobs.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons
-                name="briefcase-outline"
-                size={64}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.emptyStateText}>
-                {activeTab === "open"
-                  ? "No open job posts yet"
-                  : activeTab === "pending"
-                    ? "No pending job requests"
-                    : activeTab === "requests"
-                      ? "No job invitations yet"
-                      : activeTab === "inProgress"
-                        ? "No jobs in progress"
-                        : "No completed jobs yet"}
-              </Text>
-              {activeTab === "open" && isClient && (
-                <TouchableOpacity
-                  style={styles.createJobButton}
-                  onPress={() => {
-                    if (!user?.kycVerified) {
-                      Alert.alert("Verification Required", "Please complete KYC verification to post a job.");
-                      return;
-                    }
-                    setShowJobTypeModal(true);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add-circle" size={20} color={Colors.white} />
-                  <Text style={styles.createJobButtonText}>Post a Job</Text>
-                </TouchableOpacity>
-              )}
-              {activeTab === "pending" && isClient && (
-                <TouchableOpacity
-                  style={styles.createJobButton}
-                  onPress={() => router.push("/(tabs)/" as any)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="search" size={20} color={Colors.white} />
-                  <Text style={styles.createJobButtonText}>Browse Workers</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            <View style={styles.jobsList}>
-              {filteredJobs.map((job) => renderJobCard(job))}
-            </View>
-          )
-        }
-      </ScrollView >
+        isLoading ? (
+          <View style={styles.listContainer}>
+            {[1, 2, 3, 4].map((i) => (
+              <JobCardSkeleton key={i} />
+            ))}
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Ionicons
+              name="briefcase-outline"
+              size={64}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.emptyStateText}>No jobs available yet.</Text>
+          </View>
+        ) : filteredJobs.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons
+              name="briefcase-outline"
+              size={64}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.emptyStateText}>
+              {activeTab === "open"
+                ? "No open job posts yet"
+                : activeTab === "pending"
+                  ? "No pending job requests"
+                  : activeTab === "requests"
+                    ? "No job invitations yet"
+                    : activeTab === "inProgress"
+                      ? "No jobs in progress"
+                      : "No completed jobs yet"}
+            </Text>
+            {activeTab === "open" && isClient && (
+              <TouchableOpacity
+                style={styles.createJobButton}
+                onPress={() => {
+                  if (!user?.kycVerified) {
+                    Alert.alert(
+                      "Verification Required",
+                      "Please complete KYC verification to post a job.",
+                    );
+                    return;
+                  }
+                  setShowJobTypeModal(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle" size={20} color={Colors.white} />
+                <Text style={styles.createJobButtonText}>Post a Job</Text>
+              </TouchableOpacity>
+            )}
+            {activeTab === "pending" && isClient && (
+              <TouchableOpacity
+                style={styles.createJobButton}
+                onPress={() => router.push("/(tabs)/" as any)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="search" size={20} color={Colors.white} />
+                <Text style={styles.createJobButtonText}>Browse Workers</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.jobsList}>
+            {filteredJobs.map((job) => renderJobCard(job))}
+          </View>
+        )}
+      </ScrollView>
 
       {/* Job Type Selector Modal */}
-      < Modal
+      <Modal
         visible={showJobTypeModal}
         transparent
         animationType="fade"
@@ -1292,9 +1437,9 @@ export default function JobsScreen() {
             </View>
           </View>
         </View>
-      </Modal >
+      </Modal>
       <CalendarFAB />
-    </SafeAreaView >
+    </SafeAreaView>
   );
 }
 
