@@ -1187,51 +1187,134 @@ def mobile_my_jobs(
         for idx, job in enumerate(jobs):
             print(f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'")
 
-            # Backward-compatibility self-heal for older team jobs:
-            # If all required team reviews are already present but status was never transitioned,
-            # auto-mark the job as COMPLETED when listing jobs.
-            if (
-                job.is_team_job
-                and job.status in ['ACTIVE', 'IN_PROGRESS']
-                and job.workerMarkedComplete
-                and job.clientMarkedComplete
-            ):
-                try:
-                    from .models import JobWorkerAssignment, JobReview
+            # Backward-compatibility self-heal for legacy jobs:
+            # If reviews/completion indicate the job should be closed, finalize job + conversation state.
+            try:
+                from .models import JobWorkerAssignment, JobReview, JobEmployeeAssignment
+                from profiles.models import Conversation
+                from profiles.conversation_service import should_auto_archive, archive_conversation
 
-                    assigned_worker_account_ids = set(
-                        JobWorkerAssignment.objects.filter(
-                            jobID=job,
-                            assignment_status__in=['ACTIVE', 'COMPLETED']
-                        ).values_list('workerID__profileID__accountFK_id', flat=True).distinct()
-                    )
+                should_mark_completed = False
 
-                    if assigned_worker_account_ids:
-                        worker_reviewer_ids = set(
-                            JobReview.objects.filter(
+                if (
+                    job.status in ['ACTIVE', 'IN_PROGRESS']
+                    and job.workerMarkedComplete
+                    and job.clientMarkedComplete
+                ):
+                    if job.is_team_job:
+                        assigned_worker_account_ids = set(
+                            JobWorkerAssignment.objects.filter(
                                 jobID=job,
-                                reviewerType='WORKER'
-                            ).values_list('reviewerID_id', flat=True).distinct()
+                                assignment_status__in=['ACTIVE', 'COMPLETED']
+                            ).values_list('workerID__profileID__accountFK_id', flat=True).distinct()
                         )
-                        client_reviewed_worker_ids = set(
-                            JobReview.objects.filter(
+
+                        if assigned_worker_account_ids:
+                            worker_reviewer_ids = set(
+                                JobReview.objects.filter(
+                                    jobID=job,
+                                    reviewerType='WORKER'
+                                ).values_list('reviewerID_id', flat=True).distinct()
+                            )
+                            client_reviewed_worker_ids = set(
+                                JobReview.objects.filter(
+                                    jobID=job,
+                                    reviewerType='CLIENT',
+                                    revieweeID__isnull=False
+                                ).values_list('revieweeID_id', flat=True).distinct()
+                            )
+
+                            should_mark_completed = (
+                                assigned_worker_account_ids.issubset(worker_reviewer_ids)
+                                and assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
+                            )
+                    else:
+                        is_agency_job = bool(getattr(job, 'assignedAgencyFK', None) or getattr(job, 'assignedEmployeeID', None))
+                        if is_agency_job:
+                            client_account = job.clientID.profileID.accountFK
+
+                            assigned_employee_ids = set(
+                                JobEmployeeAssignment.objects.filter(
+                                    job=job,
+                                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                                ).values_list('employee_id', flat=True)
+                            )
+                            legacy_assigned_employee = getattr(job, 'assignedEmployeeID', None)
+                            if not assigned_employee_ids and legacy_assigned_employee is not None:
+                                assigned_employee_ids.add(legacy_assigned_employee.employeeID)
+
+                            client_reviewed_employee_ids = set(
+                                JobReview.objects.filter(
+                                    jobID=job,
+                                    reviewerID=client_account,
+                                    reviewerType='CLIENT',
+                                    revieweeEmployeeID__isnull=False,
+                                ).values_list('revieweeEmployeeID_id', flat=True)
+                            )
+
+                            all_employees_reviewed = (
+                                assigned_employee_ids.issubset(client_reviewed_employee_ids)
+                                if assigned_employee_ids
+                                else True
+                            )
+
+                            client_reviewed_agency = JobReview.objects.filter(
                                 jobID=job,
+                                reviewerID=client_account,
                                 reviewerType='CLIENT',
-                                revieweeID__isnull=False
-                            ).values_list('revieweeID_id', flat=True).distinct()
-                        )
+                                revieweeAgencyID__isnull=False,
+                            ).exists()
 
-                        if (
-                            assigned_worker_account_ids.issubset(worker_reviewer_ids)
-                            and assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
-                        ):
-                            job.status = 'COMPLETED'
-                            if not job.completedAt:
-                                job.completedAt = timezone.now()
-                            job.save(update_fields=['status', 'completedAt'])
-                            print(f"      ✅ [AUTO-HEAL] Team job #{job.jobID} status updated to COMPLETED")
-                except Exception as heal_err:
-                    print(f"      ⚠️ [AUTO-HEAL] Skipped for job #{job.jobID}: {heal_err}")
+                            agency_account = None
+                            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+                                agency_account = job.assignedAgencyFK.accountFK
+                            elif job.assignedEmployeeID and getattr(job.assignedEmployeeID, 'agency', None):
+                                agency_account = job.assignedEmployeeID.agency
+
+                            if agency_account:
+                                counterpart_reviewed = JobReview.objects.filter(
+                                    jobID=job,
+                                    reviewerID=agency_account,
+                                    reviewerType__in=['AGENCY', 'WORKER']
+                                ).exists()
+                            else:
+                                counterpart_reviewed = JobReview.objects.filter(
+                                    jobID=job,
+                                    reviewerType__in=['AGENCY', 'WORKER']
+                                ).exists()
+
+                            should_mark_completed = (
+                                all_employees_reviewed and client_reviewed_agency and counterpart_reviewed
+                            )
+                        else:
+                            total_reviews = JobReview.objects.filter(jobID=job).count()
+                            should_mark_completed = total_reviews >= 2
+
+                if should_mark_completed:
+                    job.status = 'COMPLETED'
+                    if not job.completedAt:
+                        job.completedAt = timezone.now()
+                    job.save(update_fields=['status', 'completedAt'])
+                    print(f"      ✅ [AUTO-HEAL] Job #{job.jobID} status updated to COMPLETED")
+
+                # Conversation compatibility heal for all completed jobs.
+                if job.status == 'COMPLETED':
+                    conv = Conversation.objects.filter(relatedJobPosting=job).first()
+                    if conv:
+                        fields_to_update = []
+                        if conv.status != Conversation.ConversationStatus.COMPLETED:
+                            conv.status = Conversation.ConversationStatus.COMPLETED
+                            fields_to_update.append('status')
+                        if fields_to_update:
+                            conv.save(update_fields=fields_to_update)
+                            print(f"      ✅ [AUTO-HEAL] Conversation #{conv.conversationID} marked COMPLETED")
+
+                        if should_auto_archive(conv):
+                            archive_result = archive_conversation(conv)
+                            print(f"      📦 [AUTO-HEAL] {archive_result.get('message', 'Conversation auto-archived')}")
+
+            except Exception as heal_err:
+                print(f"      ⚠️ [AUTO-HEAL] Skipped for job #{job.jobID}: {heal_err}")
 
             assigned_agency = getattr(job, 'assignedAgencyFK', None)
 
