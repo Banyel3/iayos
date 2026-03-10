@@ -1049,12 +1049,14 @@ def get_conversations(request, filter: str = "all"):
                     employee_review_exists = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=client_account,
+                        reviewerType="CLIENT",
                         revieweeEmployeeID__isnull=False
                     ).exists()
 
                     agency_review_exists = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=client_account,
+                        reviewerType="CLIENT",
                         revieweeAgencyID__isnull=False
                     ).exists()
 
@@ -1544,6 +1546,7 @@ def get_conversation_messages(request, conversation_id: int):
             reviewed_employee_ids = set(JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account,
+                reviewerType="CLIENT",
                 revieweeEmployeeID__isnull=False
             ).values_list('revieweeEmployeeID', flat=True))
             
@@ -1570,6 +1573,7 @@ def get_conversation_messages(request, conversation_id: int):
             agency_review_exists = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account,
+                reviewerType="CLIENT",
                 revieweeAgencyID__isnull=False
             ).exists()
             
@@ -1676,11 +1680,21 @@ def get_conversation_messages(request, conversation_id: int):
             reviewed_employees_count = max(0, total_employees_required - len(employees_pending_review))
             pending_employees_count = len(employees_pending_review)
 
-            if not client_reviewed:
+            # Backward compatibility: never emit next-review action for already-completed records.
+            is_closed_for_reviews = (
+                job.status == 'COMPLETED'
+                or conversation.status == Conversation.ConversationStatus.COMPLETED
+                or (worker_reviewed and client_reviewed)
+            )
+
+            if not is_closed_for_reviews and not client_reviewed:
                 if pending_employees_count > 0:
                     agency_next_review_action = "EMPLOYEE"
                 elif not agency_review_exists:
                     agency_next_review_action = "AGENCY"
+
+            if employee_review_exists and agency_review_exists:
+                agency_next_review_action = None
 
             agency_review_progress = {
                 "employees_required": total_employees_required,
