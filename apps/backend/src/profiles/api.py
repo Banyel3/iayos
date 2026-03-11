@@ -1681,11 +1681,7 @@ def get_conversation_messages(request, conversation_id: int):
             pending_employees_count = len(employees_pending_review)
 
             # Backward compatibility: never emit next-review action for already-completed records.
-            is_closed_for_reviews = (
-                job.status == 'COMPLETED'
-                or conversation.status == Conversation.ConversationStatus.COMPLETED
-                or (worker_reviewed and client_reviewed)
-            )
+            is_closed_for_reviews = worker_reviewed and client_reviewed
 
             if not is_closed_for_reviews and not client_reviewed:
                 if pending_employees_count > 0:
@@ -1720,7 +1716,12 @@ def get_conversation_messages(request, conversation_id: int):
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Job heal skipped: {heal_err}")
 
-        if job.status == 'COMPLETED' and conversation.status != Conversation.ConversationStatus.COMPLETED:
+        if (
+            job.status == 'COMPLETED'
+            and worker_reviewed
+            and client_reviewed
+            and conversation.status != Conversation.ConversationStatus.COMPLETED
+        ):
             try:
                 conversation.status = Conversation.ConversationStatus.COMPLETED
                 conversation.save(update_fields=['status'])
@@ -1728,7 +1729,7 @@ def get_conversation_messages(request, conversation_id: int):
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Conversation status heal skipped: {heal_err}")
 
-        if job.status == 'COMPLETED':
+        if job.status == 'COMPLETED' and worker_reviewed and client_reviewed:
             try:
                 from profiles.conversation_service import should_auto_archive, archive_conversation
                 if should_auto_archive(conversation):

@@ -4913,9 +4913,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     all_employees_reviewed = job.assignedEmployeeID.employeeID in reviewed_employees
                 
                 job_completed = False
+                agency_side_review_exists = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=agency_account_fk,
+                    reviewerType__in=["AGENCY", "WORKER"]
+                ).exists()
                 pending_employee_reviews = []
                 
-                if all_employees_reviewed:
+                if all_employees_reviewed and agency_side_review_exists and job.workerMarkedComplete and job.clientMarkedComplete:
                     # All reviews submitted - mark job complete
                     job.status = "COMPLETED"
                     job.completedAt = timezone.now()
@@ -4923,6 +4928,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     job_completed = True
                     print(f"🎉 All reviews submitted! Agency job {job_id} marked as COMPLETED.")
                     message = "Agency review submitted! Thank you for your feedback."
+                elif all_employees_reviewed and not agency_side_review_exists:
+                    message = "Agency review submitted! Waiting for the agency to submit their review before this job can be closed."
                 else:
                     # Still have employees to review
                     unreviewed = set(assigned_employees) - set(reviewed_employees)
@@ -4958,6 +4965,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     "reviewer_type": "CLIENT",
                     "review_target": "AGENCY",
                     "needs_agency_review": False,
+                    "agency_review_received": agency_side_review_exists,
                     "pending_employee_reviews": pending_employee_reviews,
                     "job_completed": job_completed
                 }

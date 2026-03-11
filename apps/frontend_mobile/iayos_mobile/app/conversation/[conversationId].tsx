@@ -293,7 +293,7 @@ export default function ChatScreen() {
 
   const agencyNextReviewAction =
     conversation?.is_agency_job && conversation?.my_role === "CLIENT"
-      ? conversation?.job?.next_review_action ?? null
+      ? (conversation?.job?.next_review_action ?? null)
       : null;
 
   const effectiveAgencyReviewStep: "EMPLOYEE" | "AGENCY" =
@@ -368,7 +368,9 @@ export default function ChatScreen() {
   // For team jobs: clientReviewed becomes true after reviewing just 1 worker,
   // so we must use all_team_workers_reviewed to prevent premature conversation closure
   const clientHasFullyReviewed = clientHasReviewed;
-  const normalizedConversationStatus = (conversation?.status || "").toUpperCase();
+  const normalizedConversationStatus = (
+    conversation?.status || ""
+  ).toUpperCase();
   const normalizedJobStatus = (conversation?.job?.status || "").toUpperCase();
   const isJobCompleted = normalizedJobStatus === "COMPLETED";
   const isJobInProgress = normalizedJobStatus === "IN_PROGRESS";
@@ -387,26 +389,30 @@ export default function ChatScreen() {
       !hasApprovedBackjob &&
       !hasActiveNegotiation);
   const isConversationClosed =
-    isServerMarkedClosed || isConversationArchived || computedConversationClosed;
+    isServerMarkedClosed ||
+    isConversationArchived ||
+    computedConversationClosed;
 
-  // Force review: user must review before leaving conversation after payment/completion
-  const needsReview = !!(
+  // User can submit a review once completion/payment requirements are met.
+  // Do not depend on conversation closed flags here because those can be stale.
+  const canSubmitReview = !!(
     conversation?.job &&
     !reviewStatusSyncing &&
     (conversation.my_role !== "CLIENT" ||
       conversation.job.remainingPaymentPaid) &&
-    (conversation.job.clientMarkedComplete ||
-      isJobCompleted) &&
-    !isConversationClosed &&
+    (conversation.job.clientMarkedComplete || isJobCompleted) &&
     !hasApprovedBackjob &&
     !viewerHasReviewed
   );
+
+  // Force review before exiting when user is currently expected to review.
+  const needsReview = canSubmitReview;
 
   const openReviewModalSafely = (
     mode: "submit" | "view" | "edit" = "submit",
   ) => {
     // Guard against stale UI windows right after submit/refetch.
-    if (mode === "submit" && (isConversationClosed || reviewStatusSyncing)) {
+    if (mode === "submit" && (viewerHasReviewed || reviewStatusSyncing)) {
       Alert.alert(
         "Already Reviewed",
         "Your review is already recorded. Refreshing conversation status.",
@@ -418,7 +424,34 @@ export default function ChatScreen() {
     setShowReviewModal(true);
   };
 
-  // Block hardware back button when review is needed - REMOVED to allow users to exit freely
+  // Block Android hardware back when review is required.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const onBackPress = () => {
+      if (!needsReview) return false;
+
+      Alert.alert(
+        "Review Required",
+        "Please leave a review before exiting this conversation.",
+        [
+          {
+            text: "Leave Review",
+            onPress: () => openReviewModalSafely("submit"),
+          },
+        ],
+        { cancelable: false },
+      );
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onBackPress,
+    );
+
+    return () => subscription.remove();
+  }, [needsReview, reviewStatusSyncing]);
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -2363,64 +2396,64 @@ export default function ChatScreen() {
               {conversation.job.clientMarkedComplete &&
                 !isConversationClosed &&
                 !reviewStatusSyncing && (
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 8,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    borderWidth: 1,
-                    borderColor: "#FBC02D",
-                  }}
-                  onPress={() => {
-                    const hasReviewed =
-                      conversation.my_role === "CLIENT"
-                        ? clientHasReviewed
-                        : conversation.job.workerReviewed;
-
-                    if (
-                      !hasReviewed &&
-                      conversation.my_role === "CLIENT" &&
-                      conversation.is_agency_job
-                    ) {
-                      setReviewStep(effectiveAgencyReviewStep);
-                    }
-
-                    openReviewModalSafely(hasReviewed ? "view" : "submit");
-                  }}
-                >
-                  <Ionicons name="star" size={16} color="#FBC02D" />
-                  <Text
+                  <TouchableOpacity
                     style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: "#FBC02D",
+                      backgroundColor: "#FFFFFF",
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 8,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      borderWidth: 1,
+                      borderColor: "#FBC02D",
                     }}
-                  >
-                    {(() => {
+                    onPress={() => {
                       const hasReviewed =
                         conversation.my_role === "CLIENT"
                           ? clientHasReviewed
                           : conversation.job.workerReviewed;
 
-                      if (hasReviewed) {
-                        return "View Reviews";
+                      if (
+                        !hasReviewed &&
+                        conversation.my_role === "CLIENT" &&
+                        conversation.is_agency_job
+                      ) {
+                        setReviewStep(effectiveAgencyReviewStep);
                       }
 
-                      return conversation.my_role === "CLIENT"
-                        ? conversation.is_agency_job
-                          ? effectiveAgencyReviewStep === "EMPLOYEE"
-                            ? "Rate Employee"
-                            : "Rate Agency"
-                          : "Rate Worker"
-                        : "Rate Client";
-                    })()}
-                  </Text>
-                </TouchableOpacity>
-              )}
+                      openReviewModalSafely(hasReviewed ? "view" : "submit");
+                    }}
+                  >
+                    <Ionicons name="star" size={16} color="#FBC02D" />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: "700",
+                        color: "#FBC02D",
+                      }}
+                    >
+                      {(() => {
+                        const hasReviewed =
+                          conversation.my_role === "CLIENT"
+                            ? clientHasReviewed
+                            : conversation.job.workerReviewed;
+
+                        if (hasReviewed) {
+                          return "View Reviews";
+                        }
+
+                        return conversation.my_role === "CLIENT"
+                          ? conversation.is_agency_job
+                            ? effectiveAgencyReviewStep === "EMPLOYEE"
+                              ? "Rate Employee"
+                              : "Rate Agency"
+                            : "Rate Worker"
+                          : "Rate Client";
+                      })()}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
               {/* View Receipt Button */}
               {isJobCompleted && (
@@ -2471,174 +2504,266 @@ export default function ChatScreen() {
           </View>
 
           {/* Action Buttons (replaces role banner) */}
-          {isJobInProgress &&
-            !conversation.job.clientMarkedComplete && (
-              <View style={styles.actionButtonsContainer}>
-                {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
-                {/* NOTE: DAILY jobs use Daily Attendance section for per-day arrival tracking */}
-                {conversation.is_team_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.team_worker_assignments &&
-                  conversation.team_worker_assignments.length > 0 && (
-                    <View style={styles.teamArrivalSection}>
-                      <View style={styles.teamArrivalHeader}>
-                        <Text style={styles.teamArrivalTitle}>
-                          Worker Arrivals
-                        </Text>
-                        <Text style={styles.teamArrivalProgress}>
-                          {
-                            conversation.team_worker_assignments.filter(
-                              (a) => a.client_confirmed_arrival,
-                            ).length
-                          }
-                          /{conversation.team_worker_assignments.length} arrived
-                        </Text>
-                      </View>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.teamWorkersScrollView}
-                        contentContainerStyle={styles.teamWorkersScrollContent}
-                      >
-                        {conversation.team_worker_assignments.map(
-                          (assignment) => (
-                            <View
-                              key={assignment.assignment_id}
-                              style={[
-                                styles.teamWorkerCardCompact,
-                                assignment.client_confirmed_arrival &&
-                                  styles.teamWorkerCardConfirmed,
-                              ]}
-                            >
-                              <View style={styles.teamWorkerInfoCompact}>
-                                {assignment.avatar ? (
-                                  <Image
-                                    source={{ uri: assignment.avatar }}
-                                    style={styles.teamWorkerAvatarCompact}
+          {isJobInProgress && !conversation.job.clientMarkedComplete && (
+            <View style={styles.actionButtonsContainer}>
+              {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
+              {/* NOTE: DAILY jobs use Daily Attendance section for per-day arrival tracking */}
+              {conversation.is_team_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "CLIENT" &&
+                conversation.team_worker_assignments &&
+                conversation.team_worker_assignments.length > 0 && (
+                  <View style={styles.teamArrivalSection}>
+                    <View style={styles.teamArrivalHeader}>
+                      <Text style={styles.teamArrivalTitle}>
+                        Worker Arrivals
+                      </Text>
+                      <Text style={styles.teamArrivalProgress}>
+                        {
+                          conversation.team_worker_assignments.filter(
+                            (a) => a.client_confirmed_arrival,
+                          ).length
+                        }
+                        /{conversation.team_worker_assignments.length} arrived
+                      </Text>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.teamWorkersScrollView}
+                      contentContainerStyle={styles.teamWorkersScrollContent}
+                    >
+                      {conversation.team_worker_assignments.map(
+                        (assignment) => (
+                          <View
+                            key={assignment.assignment_id}
+                            style={[
+                              styles.teamWorkerCardCompact,
+                              assignment.client_confirmed_arrival &&
+                                styles.teamWorkerCardConfirmed,
+                            ]}
+                          >
+                            <View style={styles.teamWorkerInfoCompact}>
+                              {assignment.avatar ? (
+                                <Image
+                                  source={{ uri: assignment.avatar }}
+                                  style={styles.teamWorkerAvatarCompact}
+                                />
+                              ) : (
+                                <View
+                                  style={[
+                                    styles.teamWorkerAvatarCompact,
+                                    styles.teamWorkerAvatarPlaceholder,
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name="person"
+                                    size={16}
+                                    color={Colors.textSecondary}
+                                  />
+                                </View>
+                              )}
+                              <View style={styles.teamWorkerDetailsCompact}>
+                                <Text
+                                  style={styles.teamWorkerNameCompact}
+                                  numberOfLines={1}
+                                >
+                                  {assignment.name.split(" ")[0]}
+                                </Text>
+                                <Text
+                                  style={styles.teamWorkerSkillCompact}
+                                  numberOfLines={1}
+                                >
+                                  {assignment.skill}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {assignment.client_confirmed_arrival ? (
+                              <View style={styles.arrivedBadgeCompact}>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={14}
+                                  color={Colors.success}
+                                />
+                                <Text style={styles.arrivedTextCompact}>
+                                  {assignment.client_confirmed_arrival_at &&
+                                    format(
+                                      new Date(
+                                        assignment.client_confirmed_arrival_at,
+                                      ),
+                                      "h:mm a",
+                                    )}
+                                </Text>
+                              </View>
+                            ) : (
+                              <TouchableOpacity
+                                style={styles.confirmArrivalButtonCompact}
+                                onPress={() =>
+                                  handleConfirmTeamWorkerArrival(
+                                    assignment.assignment_id,
+                                    assignment.name,
+                                  )
+                                }
+                                disabled={
+                                  confirmTeamWorkerArrivalMutation.isPending
+                                }
+                              >
+                                {confirmTeamWorkerArrivalMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
                                   />
                                 ) : (
-                                  <View
-                                    style={[
-                                      styles.teamWorkerAvatarCompact,
-                                      styles.teamWorkerAvatarPlaceholder,
-                                    ]}
+                                  <Text
+                                    style={
+                                      styles.confirmArrivalButtonTextCompact
+                                    }
                                   >
-                                    <Ionicons
-                                      name="person"
-                                      size={16}
-                                      color={Colors.textSecondary}
-                                    />
-                                  </View>
+                                    Confirm
+                                  </Text>
                                 )}
-                                <View style={styles.teamWorkerDetailsCompact}>
-                                  <Text
-                                    style={styles.teamWorkerNameCompact}
-                                    numberOfLines={1}
-                                  >
-                                    {assignment.name.split(" ")[0]}
-                                  </Text>
-                                  <Text
-                                    style={styles.teamWorkerSkillCompact}
-                                    numberOfLines={1}
-                                  >
-                                    {assignment.skill}
-                                  </Text>
-                                </View>
-                              </View>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ),
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
 
-                              {assignment.client_confirmed_arrival ? (
-                                <View style={styles.arrivedBadgeCompact}>
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={14}
-                                    color={Colors.success}
-                                  />
-                                  <Text style={styles.arrivedTextCompact}>
-                                    {assignment.client_confirmed_arrival_at &&
-                                      format(
-                                        new Date(
-                                          assignment.client_confirmed_arrival_at,
-                                        ),
-                                        "h:mm a",
-                                      )}
-                                  </Text>
-                                </View>
+              {/* DAILY JOB: Attendance Tracking Section */}
+              {conversation.job?.payment_model === "DAILY" && (
+                <View style={styles.dailyAttendanceSection}>
+                  <View style={styles.teamArrivalHeader}>
+                    <Text style={styles.teamArrivalTitle}>
+                      📅 Daily Attendance
+                    </Text>
+                    <Text style={styles.teamArrivalProgress}>
+                      {format(
+                        new Date(
+                          conversation.effective_work_date || new Date(),
+                        ),
+                        "MMM d, yyyy",
+                      )}
+                    </Text>
+                  </View>
+
+                  {/* Worker View: Check-in/Check-out buttons */}
+                  {conversation.my_role === "WORKER" && (
+                    <View style={styles.dailyWorkerActions}>
+                      {(() => {
+                        const todayAttendance = myWorkerAttendanceToday;
+
+                        // No attendance yet - show check-in button
+                        if (!todayAttendance || !todayAttendance.time_in) {
+                          return (
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                styles.checkInButton,
+                              ]}
+                              onPress={() =>
+                                workerCheckInMutation.mutate(
+                                  conversation.job.id,
+                                )
+                              }
+                              disabled={workerCheckInMutation.isPending}
+                            >
+                              {workerCheckInMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
                               ) : (
+                                <>
+                                  <Ionicons
+                                    name="log-in-outline"
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.actionButtonText}>
+                                    Check In
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        }
+
+                        // Checked in but not out - show check-out button
+                        if (
+                          todayAttendance.time_in &&
+                          !todayAttendance.time_out
+                        ) {
+                          return (
+                            <View style={styles.dailyStatusContainer}>
+                              <View style={styles.checkedInBadge}>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={16}
+                                  color={Colors.success}
+                                />
+                                <Text style={styles.checkedInText}>
+                                  Checked in at{" "}
+                                  {format(
+                                    new Date(todayAttendance.time_in),
+                                    "h:mm a",
+                                  )}
+                                </Text>
+                              </View>
+                              {canUndoCheckIn && (
                                 <TouchableOpacity
-                                  style={styles.confirmArrivalButtonCompact}
+                                  style={styles.undoCheckInButton}
                                   onPress={() =>
-                                    handleConfirmTeamWorkerArrival(
-                                      assignment.assignment_id,
-                                      assignment.name,
+                                    workerCancelCheckInMutation.mutate(
+                                      conversation.job.id,
                                     )
                                   }
                                   disabled={
-                                    confirmTeamWorkerArrivalMutation.isPending
+                                    workerCancelCheckInMutation.isPending
                                   }
                                 >
-                                  {confirmTeamWorkerArrivalMutation.isPending ? (
+                                  {workerCancelCheckInMutation.isPending ? (
                                     <ActivityIndicator
                                       size="small"
                                       color={Colors.white}
                                     />
                                   ) : (
-                                    <Text
-                                      style={
-                                        styles.confirmArrivalButtonTextCompact
-                                      }
-                                    >
-                                      Confirm
+                                    <Text style={styles.undoCheckInButtonText}>
+                                      Undo Check-In (
+                                      {10 - checkInElapsedSeconds}s)
                                     </Text>
                                   )}
                                 </TouchableOpacity>
                               )}
-                            </View>
-                          ),
-                        )}
-                      </ScrollView>
-                    </View>
-                  )}
-
-                {/* DAILY JOB: Attendance Tracking Section */}
-                {conversation.job?.payment_model === "DAILY" && (
-                  <View style={styles.dailyAttendanceSection}>
-                    <View style={styles.teamArrivalHeader}>
-                      <Text style={styles.teamArrivalTitle}>
-                        📅 Daily Attendance
-                      </Text>
-                      <Text style={styles.teamArrivalProgress}>
-                        {format(
-                          new Date(
-                            conversation.effective_work_date || new Date(),
-                          ),
-                          "MMM d, yyyy",
-                        )}
-                      </Text>
-                    </View>
-
-                    {/* Worker View: Check-in/Check-out buttons */}
-                    {conversation.my_role === "WORKER" && (
-                      <View style={styles.dailyWorkerActions}>
-                        {(() => {
-                          const todayAttendance = myWorkerAttendanceToday;
-
-                          // No attendance yet - show check-in button
-                          if (!todayAttendance || !todayAttendance.time_in) {
-                            return (
                               <TouchableOpacity
                                 style={[
                                   styles.actionButton,
-                                  styles.checkInButton,
+                                  styles.checkOutButton,
                                 ]}
                                 onPress={() =>
-                                  workerCheckInMutation.mutate(
-                                    conversation.job.id,
+                                  Alert.alert(
+                                    "Check Out",
+                                    "Checkout is only allowed after at least 2 hours from check-in.",
+                                    [
+                                      {
+                                        text: "Cancel",
+                                        style: "cancel",
+                                      },
+                                      {
+                                        text: "Check Out",
+                                        onPress: () =>
+                                          workerCheckOutMutation.mutate(
+                                            conversation.job.id,
+                                          ),
+                                      },
+                                    ],
                                   )
                                 }
-                                disabled={workerCheckInMutation.isPending}
+                                disabled={workerCheckOutMutation.isPending}
                               >
-                                {workerCheckInMutation.isPending ? (
+                                {workerCheckOutMutation.isPending ? (
                                   <ActivityIndicator
                                     size="small"
                                     color={Colors.white}
@@ -2646,94 +2771,125 @@ export default function ChatScreen() {
                                 ) : (
                                   <>
                                     <Ionicons
-                                      name="log-in-outline"
+                                      name="log-out-outline"
                                       size={20}
                                       color={Colors.white}
                                     />
                                     <Text style={styles.actionButtonText}>
-                                      Check In
+                                      Check Out
                                     </Text>
                                   </>
                                 )}
                               </TouchableOpacity>
-                            );
-                          }
+                            </View>
+                          );
+                        }
 
-                          // Checked in but not out - show check-out button
-                          if (
-                            todayAttendance.time_in &&
-                            !todayAttendance.time_out
-                          ) {
-                            return (
-                              <View style={styles.dailyStatusContainer}>
-                                <View style={styles.checkedInBadge}>
+                        // Checked out - show status
+                        if (todayAttendance.time_out) {
+                          return (
+                            <View style={styles.dailyStatusContainer}>
+                              <View style={styles.checkedInBadge}>
+                                <Ionicons
+                                  name="checkmark-done-circle"
+                                  size={16}
+                                  color={Colors.success}
+                                />
+                                <Text style={styles.checkedInText}>
+                                  {format(
+                                    new Date(todayAttendance.time_in),
+                                    "h:mm a",
+                                  )}{" "}
+                                  -{" "}
+                                  {format(
+                                    new Date(todayAttendance.time_out),
+                                    "h:mm a",
+                                  )}
+                                </Text>
+                              </View>
+                              {todayAttendance.client_confirmed ? (
+                                <View style={styles.paymentProcessedBadge}>
                                   <Ionicons
-                                    name="checkmark-circle"
-                                    size={16}
+                                    name="wallet"
+                                    size={14}
                                     color={Colors.success}
                                   />
-                                  <Text style={styles.checkedInText}>
-                                    Checked in at{" "}
-                                    {format(
-                                      new Date(todayAttendance.time_in),
-                                      "h:mm a",
-                                    )}
+                                  <Text style={styles.paymentProcessedText}>
+                                    ₱
+                                    {Number(
+                                      todayAttendance.amount_earned,
+                                    ).toLocaleString()}{" "}
+                                    paid
                                   </Text>
                                 </View>
-                                {canUndoCheckIn && (
-                                  <TouchableOpacity
-                                    style={styles.undoCheckInButton}
-                                    onPress={() =>
-                                      workerCancelCheckInMutation.mutate(
-                                        conversation.job.id,
-                                      )
-                                    }
-                                    disabled={
-                                      workerCancelCheckInMutation.isPending
-                                    }
-                                  >
-                                    {workerCancelCheckInMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Text
-                                        style={styles.undoCheckInButtonText}
-                                      >
-                                        Undo Check-In (
-                                        {10 - checkInElapsedSeconds}s)
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                )}
+                              ) : (
+                                <Text style={styles.awaitingConfirmText}>
+                                  Awaiting client confirmation...
+                                </Text>
+                              )}
+                            </View>
+                          );
+                        }
+
+                        return null;
+                      })()}
+                    </View>
+                  )}
+
+                  {/* Worker View: Skip Day Request */}
+                  {conversation.my_role === "WORKER" && !hasCheckedInToday && (
+                    <View style={styles.skipDayContainer}>
+                      {hasNoWorkMarkedToday ? (
+                        <View style={styles.skipDayStatusApproved}>
+                          <Text style={styles.skipDayStatusTitle}>
+                            No work already recorded
+                          </Text>
+                          <Text style={styles.skipDayStatusText}>
+                            Client already marked today as no-work/absent.
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          <View style={styles.skipDayWarningCard}>
+                            <Text style={styles.skipDayWarningText}>
+                              Client approval is not guaranteed. If your
+                              skip-day request is rejected, repeated abuse may
+                              lead to reports and possible admin action.
+                            </Text>
+                          </View>
+                          {(() => {
+                            const todaySkipRequest =
+                              conversation.daily_skip_requests_today?.[0];
+                            const requestToday =
+                              conversation.effective_work_date ||
+                              new Date().toISOString().split("T")[0];
+
+                            if (!todaySkipRequest) {
+                              return (
                                 <TouchableOpacity
-                                  style={[
-                                    styles.actionButton,
-                                    styles.checkOutButton,
-                                  ]}
+                                  style={styles.skipDayButton}
                                   onPress={() =>
                                     Alert.alert(
-                                      "Check Out",
-                                      "Checkout is only allowed after at least 2 hours from check-in.",
+                                      "Request Skip Day",
+                                      "Send a skip-day request to the client for today?",
                                       [
+                                        { text: "Cancel", style: "cancel" },
                                         {
-                                          text: "Cancel",
-                                          style: "cancel",
-                                        },
-                                        {
-                                          text: "Check Out",
+                                          text: "Request",
                                           onPress: () =>
-                                            workerCheckOutMutation.mutate(
-                                              conversation.job.id,
-                                            ),
+                                            requestDailySkipDayMutation.mutate({
+                                              jobId: conversation.job.id,
+                                              request_date: requestToday,
+                                            }),
                                         },
                                       ],
                                     )
                                   }
-                                  disabled={workerCheckOutMutation.isPending}
+                                  disabled={
+                                    requestDailySkipDayMutation.isPending
+                                  }
                                 >
-                                  {workerCheckOutMutation.isPending ? (
+                                  {requestDailySkipDayMutation.isPending ? (
                                     <ActivityIndicator
                                       size="small"
                                       color={Colors.white}
@@ -2741,807 +2897,614 @@ export default function ChatScreen() {
                                   ) : (
                                     <>
                                       <Ionicons
-                                        name="log-out-outline"
-                                        size={20}
+                                        name="calendar-outline"
+                                        size={16}
                                         color={Colors.white}
                                       />
-                                      <Text style={styles.actionButtonText}>
-                                        Check Out
+                                      <Text style={styles.skipDayButtonText}>
+                                        Request Skip Day
                                       </Text>
                                     </>
                                   )}
                                 </TouchableOpacity>
-                              </View>
-                            );
-                          }
+                              );
+                            }
 
-                          // Checked out - show status
-                          if (todayAttendance.time_out) {
-                            return (
-                              <View style={styles.dailyStatusContainer}>
-                                <View style={styles.checkedInBadge}>
-                                  <Ionicons
-                                    name="checkmark-done-circle"
-                                    size={16}
-                                    color={Colors.success}
-                                  />
-                                  <Text style={styles.checkedInText}>
-                                    {format(
-                                      new Date(todayAttendance.time_in),
-                                      "h:mm a",
-                                    )}{" "}
-                                    -{" "}
-                                    {format(
-                                      new Date(todayAttendance.time_out),
-                                      "h:mm a",
-                                    )}
+                            if (todaySkipRequest.status === "PENDING") {
+                              if (todaySkipRequest.my_worker_requested) {
+                                return (
+                                  <View style={styles.skipDayStatusPending}>
+                                    <Text style={styles.skipDayStatusTitle}>
+                                      Skip request sent
+                                    </Text>
+                                    <Text style={styles.skipDayStatusText}>
+                                      {todaySkipRequest.requires_all_team_workers
+                                        ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} workers requested`
+                                        : "Waiting for client approval"}
+                                    </Text>
+                                  </View>
+                                );
+                              }
+
+                              return (
+                                <TouchableOpacity
+                                  style={styles.skipDayButton}
+                                  onPress={() =>
+                                    requestDailySkipDayMutation.mutate({
+                                      jobId: conversation.job.id,
+                                      request_date: requestToday,
+                                    })
+                                  }
+                                  disabled={
+                                    requestDailySkipDayMutation.isPending
+                                  }
+                                >
+                                  {requestDailySkipDayMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
+                                  ) : (
+                                    <>
+                                      <Ionicons
+                                        name="people-outline"
+                                        size={16}
+                                        color={Colors.white}
+                                      />
+                                      <Text style={styles.skipDayButtonText}>
+                                        Join Skip Request
+                                      </Text>
+                                    </>
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            }
+
+                            if (todaySkipRequest.status === "APPROVED") {
+                              return (
+                                <View style={styles.skipDayStatusApproved}>
+                                  <Text style={styles.skipDayStatusTitle}>
+                                    Skip day approved
+                                  </Text>
+                                  <Text style={styles.skipDayStatusText}>
+                                    Client approved today's skip request.
                                   </Text>
                                 </View>
-                                {todayAttendance.client_confirmed ? (
-                                  <View style={styles.paymentProcessedBadge}>
+                              );
+                            }
+
+                            if (todaySkipRequest.status === "REJECTED") {
+                              return (
+                                <View style={styles.skipDayStatusRejected}>
+                                  <Text style={styles.skipDayStatusTitle}>
+                                    Skip day rejected
+                                  </Text>
+                                  <Text style={styles.skipDayStatusText}>
+                                    {todaySkipRequest.client_rejection_reason ||
+                                      "Client declined the skip request."}
+                                  </Text>
+                                </View>
+                              );
+                            }
+
+                            return null;
+                          })()}
+                        </>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Client View: Skip Day Request Review */}
+                  {conversation.my_role === "CLIENT" &&
+                    (() => {
+                      const todaySkipRequest =
+                        conversation.daily_skip_requests_today?.[0];
+
+                      if (!todaySkipRequest) return null;
+
+                      const waitingForTeam =
+                        todaySkipRequest.requires_all_team_workers &&
+                        !todaySkipRequest.all_workers_requested;
+
+                      if (todaySkipRequest.status === "PENDING") {
+                        return (
+                          <View style={styles.clientSkipDayCard}>
+                            <Text style={styles.clientSkipDayTitle}>
+                              Skip Day Request
+                            </Text>
+                            <Text style={styles.clientSkipDayText}>
+                              {todaySkipRequest.requires_all_team_workers
+                                ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} team workers requested`
+                                : "Worker requested to skip today"}
+                            </Text>
+
+                            {waitingForTeam ? (
+                              <Text style={styles.clientSkipDayWaitingText}>
+                                Waiting for all ACTIVE team workers to request
+                              </Text>
+                            ) : (
+                              <View style={styles.clientSkipDayActions}>
+                                <TouchableOpacity
+                                  style={styles.clientSkipApproveButton}
+                                  onPress={() =>
+                                    Alert.alert(
+                                      "Approve Skip Day",
+                                      "Approve this skip-day request?",
+                                      [
+                                        {
+                                          text: "Cancel",
+                                          style: "cancel",
+                                        },
+                                        {
+                                          text: "Approve",
+                                          onPress: () =>
+                                            clientReviewDailySkipDayMutation.mutate(
+                                              {
+                                                jobId: conversation.job.id,
+                                                skipRequestId:
+                                                  todaySkipRequest.skip_request_id,
+                                                approve: true,
+                                              },
+                                            ),
+                                        },
+                                      ],
+                                    )
+                                  }
+                                  disabled={
+                                    clientReviewDailySkipDayMutation.isPending
+                                  }
+                                >
+                                  <Text style={styles.clientSkipApproveText}>
+                                    Approve
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={styles.clientSkipRejectButton}
+                                  onPress={() =>
+                                    Alert.alert(
+                                      "Reject Skip Day",
+                                      "Reject this skip-day request?",
+                                      [
+                                        {
+                                          text: "Cancel",
+                                          style: "cancel",
+                                        },
+                                        {
+                                          text: "Reject",
+                                          style: "destructive",
+                                          onPress: () =>
+                                            clientReviewDailySkipDayMutation.mutate(
+                                              {
+                                                jobId: conversation.job.id,
+                                                skipRequestId:
+                                                  todaySkipRequest.skip_request_id,
+                                                approve: false,
+                                                reason:
+                                                  "Client declined skip day request.",
+                                              },
+                                            ),
+                                        },
+                                      ],
+                                    )
+                                  }
+                                  disabled={
+                                    clientReviewDailySkipDayMutation.isPending
+                                  }
+                                >
+                                  <Text style={styles.clientSkipRejectText}>
+                                    Reject
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <View
+                          style={
+                            todaySkipRequest.status === "APPROVED"
+                              ? styles.skipDayStatusApproved
+                              : styles.skipDayStatusRejected
+                          }
+                        >
+                          <Text style={styles.skipDayStatusTitle}>
+                            {todaySkipRequest.status === "APPROVED"
+                              ? "Skip day approved"
+                              : "Skip day rejected"}
+                          </Text>
+                          {todaySkipRequest.status === "REJECTED" && (
+                            <Text style={styles.skipDayStatusText}>
+                              {todaySkipRequest.client_rejection_reason ||
+                                "Request was declined."}
+                            </Text>
+                          )}
+                        </View>
+                      );
+                    })()}
+
+                  {conversation.my_role === "CLIENT" &&
+                    isTestingModeEnabled &&
+                    conversation.job?.status === "IN_PROGRESS" &&
+                    (() => {
+                      const qaDayOffset = conversation.qa_day_offset || 0;
+                      const effectiveDate =
+                        conversation.effective_work_date ||
+                        new Date().toISOString().split("T")[0];
+
+                      return (
+                        <View style={styles.qaTestingCard}>
+                          <Text style={styles.qaTestingLabel}>
+                            QA TESTING ONLY
+                          </Text>
+                          <Text style={styles.qaTestingText}>
+                            Effective day: {effectiveDate} (offset +
+                            {qaDayOffset})
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.qaSkipNextDayButton}
+                            onPress={() =>
+                              Alert.alert(
+                                "[QA] Skip To Next Day",
+                                "Advance this DAILY job by 1 effective day for testing? This action is TESTING-only.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Advance +1 Day",
+                                    onPress: () =>
+                                      clientQASkipNextDayMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        reason:
+                                          "QA client-triggered fast-forward",
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={clientQASkipNextDayMutation.isPending}
+                          >
+                            {clientQASkipNextDayMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="play-forward"
+                                  size={16}
+                                  color={Colors.white}
+                                />
+                                <Text style={styles.qaSkipNextDayButtonText}>
+                                  [QA] Skip To Next Day
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })()}
+
+                  {/* Client View: Confirm attendance for each worker */}
+                  {conversation.my_role === "CLIENT" && (
+                    <>
+                      {!conversation.is_team_job &&
+                        !hasAnyCheckedInToday &&
+                        !hasAnyClientConfirmedToday && (
+                          <TouchableOpacity
+                            style={styles.noWorkQuickButton}
+                            onPress={() =>
+                              Alert.alert(
+                                "Mark No Work Today",
+                                "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Confirm",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      clientMarkNoWorkMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        workerId:
+                                          conversation.attendance_today?.[0]
+                                            ?.worker_id,
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={clientMarkNoWorkMutation.isPending}
+                          >
+                            {clientMarkNoWorkMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={16}
+                                  color={Colors.white}
+                                />
+                                <Text style={styles.noWorkQuickButtonText}>
+                                  Worker Didn't Work Today
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.teamWorkersScrollView}
+                        contentContainerStyle={styles.teamWorkersScrollContent}
+                      >
+                        {conversation.attendance_today &&
+                        conversation.attendance_today.length > 0 ? (
+                          conversation.attendance_today.map(
+                            (attendance: any) => (
+                              <View
+                                key={attendance.attendance_id}
+                                style={[
+                                  styles.teamWorkerCardCompact,
+                                  attendance.client_confirmed &&
+                                    styles.teamWorkerCardConfirmed,
+                                ]}
+                              >
+                                <View style={styles.teamWorkerInfoCompact}>
+                                  {attendance.worker_avatar ? (
+                                    <Image
+                                      source={{
+                                        uri: attendance.worker_avatar,
+                                      }}
+                                      style={styles.teamWorkerAvatarCompact}
+                                    />
+                                  ) : (
+                                    <View
+                                      style={[
+                                        styles.teamWorkerAvatarCompact,
+                                        styles.teamWorkerAvatarPlaceholder,
+                                      ]}
+                                    >
+                                      <Ionicons
+                                        name="person"
+                                        size={16}
+                                        color={Colors.textSecondary}
+                                      />
+                                    </View>
+                                  )}
+                                  <View style={styles.teamWorkerDetailsCompact}>
+                                    <Text
+                                      style={styles.teamWorkerNameCompact}
+                                      numberOfLines={1}
+                                    >
+                                      {attendance.worker_name?.split(" ")[0] ||
+                                        "Worker"}
+                                    </Text>
+                                    {attendance.time_in && (
+                                      <Text
+                                        style={styles.teamWorkerSkillCompact}
+                                      >
+                                        {format(
+                                          new Date(attendance.time_in),
+                                          "h:mm a",
+                                        )}
+                                        {attendance.time_out &&
+                                          ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
+                                      </Text>
+                                    )}
+                                  </View>
+                                </View>
+
+                                {attendance.client_confirmed ? (
+                                  <View style={styles.arrivedBadgeCompact}>
                                     <Ionicons
                                       name="wallet"
                                       size={14}
                                       color={Colors.success}
                                     />
-                                    <Text style={styles.paymentProcessedText}>
+                                    <Text style={styles.arrivedTextCompact}>
                                       ₱
                                       {Number(
-                                        todayAttendance.amount_earned,
-                                      ).toLocaleString()}{" "}
-                                      paid
+                                        attendance.amount_earned,
+                                      ).toLocaleString()}
                                     </Text>
                                   </View>
-                                ) : (
-                                  <Text style={styles.awaitingConfirmText}>
-                                    Awaiting client confirmation...
-                                  </Text>
-                                )}
-                              </View>
-                            );
-                          }
-
-                          return null;
-                        })()}
-                      </View>
-                    )}
-
-                    {/* Worker View: Skip Day Request */}
-                    {conversation.my_role === "WORKER" &&
-                      !hasCheckedInToday && (
-                        <View style={styles.skipDayContainer}>
-                          {hasNoWorkMarkedToday ? (
-                            <View style={styles.skipDayStatusApproved}>
-                              <Text style={styles.skipDayStatusTitle}>
-                                No work already recorded
-                              </Text>
-                              <Text style={styles.skipDayStatusText}>
-                                Client already marked today as no-work/absent.
-                              </Text>
-                            </View>
-                          ) : (
-                            <>
-                              <View style={styles.skipDayWarningCard}>
-                                <Text style={styles.skipDayWarningText}>
-                                  Client approval is not guaranteed. If your
-                                  skip-day request is rejected, repeated abuse
-                                  may lead to reports and possible admin action.
-                                </Text>
-                              </View>
-                              {(() => {
-                                const todaySkipRequest =
-                                  conversation.daily_skip_requests_today?.[0];
-                                const requestToday =
-                                  conversation.effective_work_date ||
-                                  new Date().toISOString().split("T")[0];
-
-                                if (!todaySkipRequest) {
-                                  return (
-                                    <TouchableOpacity
-                                      style={styles.skipDayButton}
-                                      onPress={() =>
-                                        Alert.alert(
-                                          "Request Skip Day",
-                                          "Send a skip-day request to the client for today?",
-                                          [
-                                            { text: "Cancel", style: "cancel" },
+                                ) : attendance.time_out ? (
+                                  // Employee has checked out - show Pay button
+                                  <TouchableOpacity
+                                    style={styles.confirmArrivalButtonCompact}
+                                    onPress={() =>
+                                      setCountdownConfig({
+                                        visible: true,
+                                        title: "Confirm Attendance",
+                                        message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
+                                        confirmLabel: "Confirm & Pay",
+                                        countdownSeconds: 7,
+                                        onConfirm: () => {
+                                          setCountdownConfig(null);
+                                          clientConfirmAttendanceMutation.mutate(
                                             {
-                                              text: "Request",
-                                              onPress: () =>
-                                                requestDailySkipDayMutation.mutate(
-                                                  {
-                                                    jobId: conversation.job.id,
-                                                    request_date: requestToday,
-                                                  },
-                                                ),
+                                              attendanceId:
+                                                attendance.attendance_id,
                                             },
-                                          ],
-                                        )
-                                      }
-                                      disabled={
-                                        requestDailySkipDayMutation.isPending
-                                      }
-                                    >
-                                      {requestDailySkipDayMutation.isPending ? (
-                                        <ActivityIndicator
-                                          size="small"
-                                          color={Colors.white}
-                                        />
-                                      ) : (
-                                        <>
-                                          <Ionicons
-                                            name="calendar-outline"
-                                            size={16}
-                                            color={Colors.white}
-                                          />
-                                          <Text
-                                            style={styles.skipDayButtonText}
-                                          >
-                                            Request Skip Day
-                                          </Text>
-                                        </>
-                                      )}
-                                    </TouchableOpacity>
-                                  );
-                                }
-
-                                if (todaySkipRequest.status === "PENDING") {
-                                  if (todaySkipRequest.my_worker_requested) {
-                                    return (
-                                      <View style={styles.skipDayStatusPending}>
-                                        <Text style={styles.skipDayStatusTitle}>
-                                          Skip request sent
-                                        </Text>
-                                        <Text style={styles.skipDayStatusText}>
-                                          {todaySkipRequest.requires_all_team_workers
-                                            ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} workers requested`
-                                            : "Waiting for client approval"}
-                                        </Text>
-                                      </View>
-                                    );
-                                  }
-
-                                  return (
-                                    <TouchableOpacity
-                                      style={styles.skipDayButton}
-                                      onPress={() =>
-                                        requestDailySkipDayMutation.mutate({
-                                          jobId: conversation.job.id,
-                                          request_date: requestToday,
-                                        })
-                                      }
-                                      disabled={
-                                        requestDailySkipDayMutation.isPending
-                                      }
-                                    >
-                                      {requestDailySkipDayMutation.isPending ? (
-                                        <ActivityIndicator
-                                          size="small"
-                                          color={Colors.white}
-                                        />
-                                      ) : (
-                                        <>
-                                          <Ionicons
-                                            name="people-outline"
-                                            size={16}
-                                            color={Colors.white}
-                                          />
-                                          <Text
-                                            style={styles.skipDayButtonText}
-                                          >
-                                            Join Skip Request
-                                          </Text>
-                                        </>
-                                      )}
-                                    </TouchableOpacity>
-                                  );
-                                }
-
-                                if (todaySkipRequest.status === "APPROVED") {
-                                  return (
-                                    <View style={styles.skipDayStatusApproved}>
-                                      <Text style={styles.skipDayStatusTitle}>
-                                        Skip day approved
-                                      </Text>
-                                      <Text style={styles.skipDayStatusText}>
-                                        Client approved today's skip request.
-                                      </Text>
-                                    </View>
-                                  );
-                                }
-
-                                if (todaySkipRequest.status === "REJECTED") {
-                                  return (
-                                    <View style={styles.skipDayStatusRejected}>
-                                      <Text style={styles.skipDayStatusTitle}>
-                                        Skip day rejected
-                                      </Text>
-                                      <Text style={styles.skipDayStatusText}>
-                                        {todaySkipRequest.client_rejection_reason ||
-                                          "Client declined the skip request."}
-                                      </Text>
-                                    </View>
-                                  );
-                                }
-
-                                return null;
-                              })()}
-                            </>
-                          )}
-                        </View>
-                      )}
-
-                    {/* Client View: Skip Day Request Review */}
-                    {conversation.my_role === "CLIENT" &&
-                      (() => {
-                        const todaySkipRequest =
-                          conversation.daily_skip_requests_today?.[0];
-
-                        if (!todaySkipRequest) return null;
-
-                        const waitingForTeam =
-                          todaySkipRequest.requires_all_team_workers &&
-                          !todaySkipRequest.all_workers_requested;
-
-                        if (todaySkipRequest.status === "PENDING") {
-                          return (
-                            <View style={styles.clientSkipDayCard}>
-                              <Text style={styles.clientSkipDayTitle}>
-                                Skip Day Request
-                              </Text>
-                              <Text style={styles.clientSkipDayText}>
-                                {todaySkipRequest.requires_all_team_workers
-                                  ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} team workers requested`
-                                  : "Worker requested to skip today"}
-                              </Text>
-
-                              {waitingForTeam ? (
-                                <Text style={styles.clientSkipDayWaitingText}>
-                                  Waiting for all ACTIVE team workers to request
-                                </Text>
-                              ) : (
-                                <View style={styles.clientSkipDayActions}>
-                                  <TouchableOpacity
-                                    style={styles.clientSkipApproveButton}
-                                    onPress={() =>
-                                      Alert.alert(
-                                        "Approve Skip Day",
-                                        "Approve this skip-day request?",
-                                        [
-                                          {
-                                            text: "Cancel",
-                                            style: "cancel",
-                                          },
-                                          {
-                                            text: "Approve",
-                                            onPress: () =>
-                                              clientReviewDailySkipDayMutation.mutate(
-                                                {
-                                                  jobId: conversation.job.id,
-                                                  skipRequestId:
-                                                    todaySkipRequest.skip_request_id,
-                                                  approve: true,
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
+                                          );
+                                        },
+                                        icon: "wallet",
+                                        iconColor: Colors.warning,
+                                      })
                                     }
                                     disabled={
-                                      clientReviewDailySkipDayMutation.isPending
+                                      clientConfirmAttendanceMutation.isPending
                                     }
                                   >
-                                    <Text style={styles.clientSkipApproveText}>
-                                      Approve
-                                    </Text>
-                                  </TouchableOpacity>
-
-                                  <TouchableOpacity
-                                    style={styles.clientSkipRejectButton}
-                                    onPress={() =>
-                                      Alert.alert(
-                                        "Reject Skip Day",
-                                        "Reject this skip-day request?",
-                                        [
-                                          {
-                                            text: "Cancel",
-                                            style: "cancel",
-                                          },
-                                          {
-                                            text: "Reject",
-                                            style: "destructive",
-                                            onPress: () =>
-                                              clientReviewDailySkipDayMutation.mutate(
-                                                {
-                                                  jobId: conversation.job.id,
-                                                  skipRequestId:
-                                                    todaySkipRequest.skip_request_id,
-                                                  approve: false,
-                                                  reason:
-                                                    "Client declined skip day request.",
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
-                                    }
-                                    disabled={
-                                      clientReviewDailySkipDayMutation.isPending
-                                    }
-                                  >
-                                    <Text style={styles.clientSkipRejectText}>
-                                      Reject
-                                    </Text>
-                                  </TouchableOpacity>
-                                </View>
-                              )}
-                            </View>
-                          );
-                        }
-
-                        return (
-                          <View
-                            style={
-                              todaySkipRequest.status === "APPROVED"
-                                ? styles.skipDayStatusApproved
-                                : styles.skipDayStatusRejected
-                            }
-                          >
-                            <Text style={styles.skipDayStatusTitle}>
-                              {todaySkipRequest.status === "APPROVED"
-                                ? "Skip day approved"
-                                : "Skip day rejected"}
-                            </Text>
-                            {todaySkipRequest.status === "REJECTED" && (
-                              <Text style={styles.skipDayStatusText}>
-                                {todaySkipRequest.client_rejection_reason ||
-                                  "Request was declined."}
-                              </Text>
-                            )}
-                          </View>
-                        );
-                      })()}
-
-                    {conversation.my_role === "CLIENT" &&
-                      isTestingModeEnabled &&
-                      conversation.job?.status === "IN_PROGRESS" &&
-                      (() => {
-                        const qaDayOffset = conversation.qa_day_offset || 0;
-                        const effectiveDate =
-                          conversation.effective_work_date ||
-                          new Date().toISOString().split("T")[0];
-
-                        return (
-                          <View style={styles.qaTestingCard}>
-                            <Text style={styles.qaTestingLabel}>
-                              QA TESTING ONLY
-                            </Text>
-                            <Text style={styles.qaTestingText}>
-                              Effective day: {effectiveDate} (offset +
-                              {qaDayOffset})
-                            </Text>
-                            <TouchableOpacity
-                              style={styles.qaSkipNextDayButton}
-                              onPress={() =>
-                                Alert.alert(
-                                  "[QA] Skip To Next Day",
-                                  "Advance this DAILY job by 1 effective day for testing? This action is TESTING-only.",
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    {
-                                      text: "Advance +1 Day",
-                                      onPress: () =>
-                                        clientQASkipNextDayMutation.mutate({
-                                          jobId: conversation.job.id,
-                                          reason:
-                                            "QA client-triggered fast-forward",
-                                        }),
-                                    },
-                                  ],
-                                )
-                              }
-                              disabled={clientQASkipNextDayMutation.isPending}
-                            >
-                              {clientQASkipNextDayMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="play-forward"
-                                    size={16}
-                                    color={Colors.white}
-                                  />
-                                  <Text style={styles.qaSkipNextDayButtonText}>
-                                    [QA] Skip To Next Day
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })()}
-
-                    {/* Client View: Confirm attendance for each worker */}
-                    {conversation.my_role === "CLIENT" && (
-                      <>
-                        {!conversation.is_team_job &&
-                          !hasAnyCheckedInToday &&
-                          !hasAnyClientConfirmedToday && (
-                            <TouchableOpacity
-                              style={styles.noWorkQuickButton}
-                              onPress={() =>
-                                Alert.alert(
-                                  "Mark No Work Today",
-                                  "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    {
-                                      text: "Confirm",
-                                      style: "destructive",
-                                      onPress: () =>
-                                        clientMarkNoWorkMutation.mutate({
-                                          jobId: conversation.job.id,
-                                          workerId:
-                                            conversation.attendance_today?.[0]
-                                              ?.worker_id,
-                                        }),
-                                    },
-                                  ],
-                                )
-                              }
-                              disabled={clientMarkNoWorkMutation.isPending}
-                            >
-                              {clientMarkNoWorkMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="close-circle-outline"
-                                    size={16}
-                                    color={Colors.white}
-                                  />
-                                  <Text style={styles.noWorkQuickButtonText}>
-                                    Worker Didn't Work Today
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          )}
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          style={styles.teamWorkersScrollView}
-                          contentContainerStyle={
-                            styles.teamWorkersScrollContent
-                          }
-                        >
-                          {conversation.attendance_today &&
-                          conversation.attendance_today.length > 0 ? (
-                            conversation.attendance_today.map(
-                              (attendance: any) => (
-                                <View
-                                  key={attendance.attendance_id}
-                                  style={[
-                                    styles.teamWorkerCardCompact,
-                                    attendance.client_confirmed &&
-                                      styles.teamWorkerCardConfirmed,
-                                  ]}
-                                >
-                                  <View style={styles.teamWorkerInfoCompact}>
-                                    {attendance.worker_avatar ? (
-                                      <Image
-                                        source={{
-                                          uri: attendance.worker_avatar,
-                                        }}
-                                        style={styles.teamWorkerAvatarCompact}
+                                    {clientConfirmAttendanceMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
                                       />
                                     ) : (
-                                      <View
-                                        style={[
-                                          styles.teamWorkerAvatarCompact,
-                                          styles.teamWorkerAvatarPlaceholder,
-                                        ]}
-                                      >
-                                        <Ionicons
-                                          name="person"
-                                          size={16}
-                                          color={Colors.textSecondary}
-                                        />
-                                      </View>
-                                    )}
-                                    <View
-                                      style={styles.teamWorkerDetailsCompact}
-                                    >
                                       <Text
-                                        style={styles.teamWorkerNameCompact}
-                                        numberOfLines={1}
+                                        style={
+                                          styles.confirmArrivalButtonTextCompact
+                                        }
                                       >
-                                        {attendance.worker_name?.split(
-                                          " ",
-                                        )[0] || "Worker"}
+                                        Pay
                                       </Text>
-                                      {attendance.time_in && (
-                                        <Text
-                                          style={styles.teamWorkerSkillCompact}
-                                        >
-                                          {format(
-                                            new Date(attendance.time_in),
-                                            "h:mm a",
-                                          )}
-                                          {attendance.time_out &&
-                                            ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
-                                        </Text>
-                                      )}
-                                    </View>
-                                  </View>
-
-                                  {attendance.client_confirmed ? (
-                                    <View style={styles.arrivedBadgeCompact}>
-                                      <Ionicons
-                                        name="wallet"
-                                        size={14}
-                                        color={Colors.success}
-                                      />
-                                      <Text style={styles.arrivedTextCompact}>
-                                        ₱
-                                        {Number(
-                                          attendance.amount_earned,
-                                        ).toLocaleString()}
-                                      </Text>
-                                    </View>
-                                  ) : attendance.time_out ? (
-                                    // Employee has checked out - show Pay button
-                                    <TouchableOpacity
-                                      style={styles.confirmArrivalButtonCompact}
-                                      onPress={() =>
-                                        setCountdownConfig({
-                                          visible: true,
-                                          title: "Confirm Attendance",
-                                          message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
-                                          confirmLabel: "Confirm & Pay",
-                                          countdownSeconds: 7,
-                                          onConfirm: () => {
-                                            setCountdownConfig(null);
-                                            clientConfirmAttendanceMutation.mutate(
-                                              {
-                                                attendanceId:
-                                                  attendance.attendance_id,
-                                              },
-                                            );
+                                    )}
+                                  </TouchableOpacity>
+                                ) : attendance.time_in ? (
+                                  // Employee is working - show Mark Checkout button
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.confirmArrivalButtonCompact,
+                                      { backgroundColor: Colors.warning },
+                                    ]}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Mark Checkout",
+                                        `Mark ${attendance.worker_name || "worker"} as done for today? (Minimum 2 hours after check-in)`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          {
+                                            text: "Mark Checkout",
+                                            onPress: () =>
+                                              clientMarkCheckoutMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  attendanceId:
+                                                    attendance.attendance_id,
+                                                },
+                                              ),
                                           },
-                                          icon: "wallet",
-                                          iconColor: Colors.warning,
-                                        })
-                                      }
-                                      disabled={
-                                        clientConfirmAttendanceMutation.isPending
-                                      }
-                                    >
-                                      {clientConfirmAttendanceMutation.isPending ? (
-                                        <ActivityIndicator
-                                          size="small"
-                                          color={Colors.white}
-                                        />
-                                      ) : (
-                                        <Text
-                                          style={
-                                            styles.confirmArrivalButtonTextCompact
-                                          }
-                                        >
-                                          Pay
-                                        </Text>
-                                      )}
-                                    </TouchableOpacity>
-                                  ) : attendance.time_in ? (
-                                    // Employee is working - show Mark Checkout button
-                                    <TouchableOpacity
-                                      style={[
-                                        styles.confirmArrivalButtonCompact,
-                                        { backgroundColor: Colors.warning },
-                                      ]}
-                                      onPress={() =>
-                                        Alert.alert(
-                                          "Mark Checkout",
-                                          `Mark ${attendance.worker_name || "worker"} as done for today? (Minimum 2 hours after check-in)`,
-                                          [
-                                            { text: "Cancel", style: "cancel" },
-                                            {
-                                              text: "Mark Checkout",
-                                              onPress: () =>
-                                                clientMarkCheckoutMutation.mutate(
-                                                  {
-                                                    jobId: conversation.job.id,
-                                                    attendanceId:
-                                                      attendance.attendance_id,
-                                                  },
-                                                ),
-                                            },
-                                          ],
-                                        )
-                                      }
-                                      disabled={
-                                        clientMarkCheckoutMutation.isPending
-                                      }
-                                    >
-                                      {clientMarkCheckoutMutation.isPending ? (
-                                        <ActivityIndicator
-                                          size="small"
-                                          color={Colors.white}
-                                        />
-                                      ) : (
-                                        <Text
-                                          style={
-                                            styles.confirmArrivalButtonTextCompact
-                                          }
-                                        >
-                                          Out
-                                        </Text>
-                                      )}
-                                    </TouchableOpacity>
-                                  ) : attendance.is_dispatched ? (
-                                    // Employee dispatched but not arrived - show Verify Arrival button
-                                    <TouchableOpacity
-                                      style={[
-                                        styles.confirmArrivalButtonCompact,
-                                        { backgroundColor: Colors.primary },
-                                      ]}
-                                      onPress={() =>
-                                        Alert.alert(
-                                          "Verify Arrival",
-                                          `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
-                                          [
-                                            { text: "Cancel", style: "cancel" },
-                                            {
-                                              text: "Verify",
-                                              onPress: () =>
-                                                clientVerifyArrivalMutation.mutate(
-                                                  {
-                                                    jobId: conversation.job.id,
-                                                    attendanceId:
-                                                      attendance.attendance_id,
-                                                  },
-                                                ),
-                                            },
-                                          ],
-                                        )
-                                      }
-                                      disabled={
-                                        clientVerifyArrivalMutation.isPending
-                                      }
-                                    >
-                                      {clientVerifyArrivalMutation.isPending ? (
-                                        <ActivityIndicator
-                                          size="small"
-                                          color={Colors.white}
-                                        />
-                                      ) : (
-                                        <Ionicons
-                                          name="car"
-                                          size={14}
-                                          color={Colors.white}
-                                        />
-                                      )}
-                                    </TouchableOpacity>
-                                  ) : (
-                                    <View style={styles.pendingBadge}>
-                                      <Ionicons
-                                        name="time-outline"
-                                        size={14}
-                                        color={Colors.warning}
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientMarkCheckoutMutation.isPending
+                                    }
+                                  >
+                                    {clientMarkCheckoutMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
                                       />
-                                      <Text style={styles.pendingText}>
-                                        Pending
+                                    ) : (
+                                      <Text
+                                        style={
+                                          styles.confirmArrivalButtonTextCompact
+                                        }
+                                      >
+                                        Out
                                       </Text>
-                                    </View>
-                                  )}
-                                </View>
-                              ),
-                            )
-                          ) : (
-                            <View style={styles.noAttendanceContainer}>
-                              <Ionicons
-                                name="calendar-outline"
-                                size={20}
-                                color={Colors.textSecondary}
-                              />
-                              <Text style={styles.noAttendanceText}>
-                                No attendance logged for today
-                              </Text>
-                            </View>
-                          )}
-                        </ScrollView>
-                      </>
-                    )}
-
-                    {/* Daily rate info */}
-                    <View style={styles.dailyRateInfo}>
-                      <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
-                      <Text style={styles.dailyRateAmount}>
-                        ₱{conversation.job.daily_rate?.toLocaleString() || "0"}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
-                {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
-                {conversation.is_team_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  !conversation.is_agency_job &&
-                  conversation.my_role === "WORKER" &&
-                  user &&
-                  (() => {
-                    // Find worker's own assignment
-                    const myAssignment =
-                      conversation.team_worker_assignments?.find(
-                        (a) => a.account_id === user.accountID,
-                      );
-
-                    if (!myAssignment) return null;
-
-                    // Check if arrival was confirmed
-                    if (!myAssignment.client_confirmed_arrival) {
-                      return (
-                        <View
-                          style={[styles.actionButton, styles.waitingButton]}
-                        >
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.waitingButtonText}>
-                            Waiting for client to confirm your arrival...
-                          </Text>
-                        </View>
-                      );
-                    }
-
-                    // Show mark complete button if not yet marked
-                    if (!myAssignment.worker_marked_complete) {
-                      return (
-                        <TouchableOpacity
-                          style={[
-                            styles.actionButton,
-                            styles.markCompleteButton,
-                          ]}
-                          onPress={() =>
-                            handleMarkTeamAssignmentComplete(
-                              myAssignment.assignment_id,
-                            )
-                          }
-                          disabled={
-                            markTeamAssignmentCompleteMutation.isPending
-                          }
-                        >
-                          {markTeamAssignmentCompleteMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.white}
+                                    )}
+                                  </TouchableOpacity>
+                                ) : attendance.is_dispatched ? (
+                                  // Employee dispatched but not arrived - show Verify Arrival button
+                                  <TouchableOpacity
+                                    style={[
+                                      styles.confirmArrivalButtonCompact,
+                                      { backgroundColor: Colors.primary },
+                                    ]}
+                                    onPress={() =>
+                                      Alert.alert(
+                                        "Verify Arrival",
+                                        `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
+                                        [
+                                          { text: "Cancel", style: "cancel" },
+                                          {
+                                            text: "Verify",
+                                            onPress: () =>
+                                              clientVerifyArrivalMutation.mutate(
+                                                {
+                                                  jobId: conversation.job.id,
+                                                  attendanceId:
+                                                    attendance.attendance_id,
+                                                },
+                                              ),
+                                          },
+                                        ],
+                                      )
+                                    }
+                                    disabled={
+                                      clientVerifyArrivalMutation.isPending
+                                    }
+                                  >
+                                    {clientVerifyArrivalMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Ionicons
+                                        name="car"
+                                        size={14}
+                                        color={Colors.white}
+                                      />
+                                    )}
+                                  </TouchableOpacity>
+                                ) : (
+                                  <View style={styles.pendingBadge}>
+                                    <Ionicons
+                                      name="time-outline"
+                                      size={14}
+                                      color={Colors.warning}
+                                    />
+                                    <Text style={styles.pendingText}>
+                                      Pending
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            ),
+                          )
+                        ) : (
+                          <View style={styles.noAttendanceContainer}>
+                            <Ionicons
+                              name="calendar-outline"
+                              size={20}
+                              color={Colors.textSecondary}
                             />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-done"
-                                size={20}
-                                color={Colors.white}
-                              />
-                              <Text style={styles.actionButtonText}>
-                                Mark My Assignment Complete
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    }
+                            <Text style={styles.noAttendanceText}>
+                              No attendance logged for today
+                            </Text>
+                          </View>
+                        )}
+                      </ScrollView>
+                    </>
+                  )}
 
-                    // Show waiting for client approval
+                  {/* Daily rate info */}
+                  <View style={styles.dailyRateInfo}>
+                    <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
+                    <Text style={styles.dailyRateAmount}>
+                      ₱{conversation.job.daily_rate?.toLocaleString() || "0"}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
+              {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
+              {conversation.is_team_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                !conversation.is_agency_job &&
+                conversation.my_role === "WORKER" &&
+                user &&
+                (() => {
+                  // Find worker's own assignment
+                  const myAssignment =
+                    conversation.team_worker_assignments?.find(
+                      (a) => a.account_id === user.accountID,
+                    );
+
+                  if (!myAssignment) return null;
+
+                  // Check if arrival was confirmed
+                  if (!myAssignment.client_confirmed_arrival) {
                     return (
                       <View style={[styles.actionButton, styles.waitingButton]}>
                         <Ionicons
@@ -3550,923 +3513,886 @@ export default function ChatScreen() {
                           color={Colors.textSecondary}
                         />
                         <Text style={styles.waitingButtonText}>
-                          ✓ Assignment complete. Waiting for client approval...
+                          Waiting for client to confirm your arrival...
                         </Text>
                       </View>
                     );
-                  })()}
+                  }
 
-                {/* TEAM JOB PHASE 3: Client Approves All Workers */}
-                {/* NOTE: DAILY jobs use Daily Attendance section above for per-day payment */}
-                {/* This section is for PROJECT jobs only (one-time lump-sum payment) */}
-                {conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.job.payment_model !== "DAILY" &&
-                  conversation.team_worker_assignments &&
-                  conversation.team_worker_assignments.length > 0 &&
-                  (() => {
-                    // For agency jobs: treat job-level workerMarkedComplete as all-complete
-                    // (agency marks complete as a unit; individual assignment flags may not be set)
-                    const allWorkersComplete =
-                      conversation.job.workerMarkedComplete ||
-                      conversation.team_worker_assignments.every(
-                        (a) => a.worker_marked_complete,
-                      );
-                    const allWorkersArrived =
-                      conversation.team_worker_assignments.every(
-                        (a) => a.client_confirmed_arrival,
-                      );
-                    const arrivedCount =
-                      conversation.team_worker_assignments.filter(
-                        (a) => a.client_confirmed_arrival,
-                      ).length;
-                    // For agency jobs: when agency marks complete at job level,
-                    // treat all assigned workers as having completed.
-                    const completedCount = conversation.job.workerMarkedComplete
-                      ? conversation.team_worker_assignments.length
-                      : conversation.team_worker_assignments.filter(
-                          (a) => a.worker_marked_complete,
-                        ).length;
-
-                    // Show waiting for arrivals if not all arrived
-                    if (!allWorkersArrived) {
-                      return (
-                        <View
-                          style={[styles.actionButton, styles.waitingButton]}
-                        >
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={Colors.textSecondary}
+                  // Show mark complete button if not yet marked
+                  if (!myAssignment.worker_marked_complete) {
+                    return (
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.markCompleteButton]}
+                        onPress={() =>
+                          handleMarkTeamAssignmentComplete(
+                            myAssignment.assignment_id,
+                          )
+                        }
+                        disabled={markTeamAssignmentCompleteMutation.isPending}
+                      >
+                        {markTeamAssignmentCompleteMutation.isPending ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={Colors.white}
                           />
-                          <Text style={styles.waitingButtonText}>
-                            Confirm all worker arrivals first ({arrivedCount} of{" "}
-                            {conversation.team_worker_assignments.length}{" "}
-                            arrived)
-                          </Text>
-                        </View>
-                      );
-                    }
-
-                    // Show progress if not all complete
-                    if (!allWorkersComplete) {
-                      return (
-                        <View
-                          style={[styles.actionButton, styles.waitingButton]}
-                        >
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.waitingButtonText}>
-                            {completedCount} of{" "}
-                            {conversation.team_worker_assignments.length}{" "}
-                            workers marked complete...
-                          </Text>
-                        </View>
-                      );
-                    }
-
-                    // Show approve button if all complete and not yet approved
-                    if (!conversation.job.clientMarkedComplete) {
-                      return (
-                        <TouchableOpacity
-                          style={[
-                            styles.actionButton,
-                            styles.approveCompletionButton,
-                          ]}
-                          onPress={handleApproveTeamJobCompletion}
-                          disabled={approveTeamJobCompletionMutation.isPending}
-                        >
-                          {approveTeamJobCompletionMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="checkmark-done"
+                              size={20}
                               color={Colors.white}
                             />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="wallet"
-                                size={20}
-                                color={Colors.white}
-                              />
-                              <Text style={styles.actionButtonText}>
-                                Approve & Pay Team (₱
-                                {(
-                                  conversation.job.budget * 0.5
-                                ).toLocaleString()}
-                                )
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    }
+                            <Text style={styles.actionButtonText}>
+                              Mark My Assignment Complete
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }
 
-                    return null;
-                  })()}
+                  // Show waiting for client approval
+                  return (
+                    <View style={[styles.actionButton, styles.waitingButton]}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.waitingButtonText}>
+                        ✓ Assignment complete. Waiting for client approval...
+                      </Text>
+                    </View>
+                  );
+                })()}
 
-                {/* ============================================================ */}
-                {/* MATERIALS PURCHASING WORKFLOW (Regular Jobs Only) */}
-                {/* Shows BEFORE "Confirm Worker Has Arrived" when materials are needed */}
-                {/* ============================================================ */}
-                {!conversation.is_team_job &&
-                  isJobInProgress &&
-                  conversation.job.materials_status &&
-                  conversation.job.materials_status !== "NONE" &&
-                  conversation.job.materials_status !== "APPROVED" &&
-                  !conversation.job.clientConfirmedWorkStarted && (
-                    <View style={styles.materialsSection}>
-                      <View style={styles.materialsSectionHeader}>
+              {/* TEAM JOB PHASE 3: Client Approves All Workers */}
+              {/* NOTE: DAILY jobs use Daily Attendance section above for per-day payment */}
+              {/* This section is for PROJECT jobs only (one-time lump-sum payment) */}
+              {conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job.payment_model !== "DAILY" &&
+                conversation.team_worker_assignments &&
+                conversation.team_worker_assignments.length > 0 &&
+                (() => {
+                  // For agency jobs: treat job-level workerMarkedComplete as all-complete
+                  // (agency marks complete as a unit; individual assignment flags may not be set)
+                  const allWorkersComplete =
+                    conversation.job.workerMarkedComplete ||
+                    conversation.team_worker_assignments.every(
+                      (a) => a.worker_marked_complete,
+                    );
+                  const allWorkersArrived =
+                    conversation.team_worker_assignments.every(
+                      (a) => a.client_confirmed_arrival,
+                    );
+                  const arrivedCount =
+                    conversation.team_worker_assignments.filter(
+                      (a) => a.client_confirmed_arrival,
+                    ).length;
+                  // For agency jobs: when agency marks complete at job level,
+                  // treat all assigned workers as having completed.
+                  const completedCount = conversation.job.workerMarkedComplete
+                    ? conversation.team_worker_assignments.length
+                    : conversation.team_worker_assignments.filter(
+                        (a) => a.worker_marked_complete,
+                      ).length;
+
+                  // Show waiting for arrivals if not all arrived
+                  if (!allWorkersArrived) {
+                    return (
+                      <View style={[styles.actionButton, styles.waitingButton]}>
                         <Ionicons
-                          name="cart"
+                          name="time-outline"
                           size={20}
-                          color={Colors.primary}
+                          color={Colors.textSecondary}
                         />
-                        <Text style={styles.materialsSectionTitle}>
-                          Materials Purchasing
+                        <Text style={styles.waitingButtonText}>
+                          Confirm all worker arrivals first ({arrivedCount} of{" "}
+                          {conversation.team_worker_assignments.length} arrived)
                         </Text>
                       </View>
+                    );
+                  }
 
-                      {/* Materials list */}
-                      {(conversation.job_materials || []).map(
-                        (mat: JobMaterialItem) => (
-                          <View key={mat.id} style={styles.materialItem}>
-                            <View style={styles.materialItemHeader}>
-                              <Text style={styles.materialItemName}>
-                                {mat.name}
-                                {mat.quantity > 1 ? ` (x${mat.quantity})` : ""}
-                              </Text>
-                              {mat.source === "FROM_PROFILE" ? (
-                                <View style={styles.materialBadgeOwn}>
-                                  <Text style={styles.materialBadgeOwnText}>
-                                    Own Material
-                                  </Text>
-                                </View>
-                              ) : mat.client_approved ? (
-                                <View style={styles.materialBadgeApproved}>
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={14}
-                                    color="#16a34a"
-                                  />
-                                  <Text
-                                    style={styles.materialBadgeApprovedText}
-                                  >
-                                    Approved
-                                  </Text>
-                                </View>
-                              ) : mat.client_rejected ? (
-                                <View style={styles.materialBadgeRejected}>
-                                  <Text
-                                    style={styles.materialBadgeRejectedText}
-                                  >
-                                    Rejected
-                                  </Text>
-                                </View>
-                              ) : mat.source === "PURCHASED" ? (
-                                <View style={styles.materialBadgePending}>
-                                  <Text style={styles.materialBadgePendingText}>
-                                    Awaiting Approval
-                                  </Text>
-                                </View>
-                              ) : (
-                                <View style={styles.materialBadgeToBuy}>
-                                  <Text style={styles.materialBadgeToBuyText}>
-                                    To Purchase
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
+                  // Show progress if not all complete
+                  if (!allWorkersComplete) {
+                    return (
+                      <View style={[styles.actionButton, styles.waitingButton]}>
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={Colors.textSecondary}
+                        />
+                        <Text style={styles.waitingButtonText}>
+                          {completedCount} of{" "}
+                          {conversation.team_worker_assignments.length} workers
+                          marked complete...
+                        </Text>
+                      </View>
+                    );
+                  }
 
-                            {/* Purchase price if set */}
-                            {mat.purchase_price != null && (
-                              <Text style={styles.materialPrice}>
-                                ₱{mat.purchase_price.toLocaleString()}
-                              </Text>
+                  // Show approve button if all complete and not yet approved
+                  if (!conversation.job.clientMarkedComplete) {
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton,
+                          styles.approveCompletionButton,
+                        ]}
+                        onPress={handleApproveTeamJobCompletion}
+                        disabled={approveTeamJobCompletionMutation.isPending}
+                      >
+                        {approveTeamJobCompletionMutation.isPending ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={Colors.white}
+                          />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="wallet"
+                              size={20}
+                              color={Colors.white}
+                            />
+                            <Text style={styles.actionButtonText}>
+                              Approve & Pay Team (₱
+                              {(conversation.job.budget * 0.5).toLocaleString()}
+                              )
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }
+
+                  return null;
+                })()}
+
+              {/* ============================================================ */}
+              {/* MATERIALS PURCHASING WORKFLOW (Regular Jobs Only) */}
+              {/* Shows BEFORE "Confirm Worker Has Arrived" when materials are needed */}
+              {/* ============================================================ */}
+              {!conversation.is_team_job &&
+                isJobInProgress &&
+                conversation.job.materials_status &&
+                conversation.job.materials_status !== "NONE" &&
+                conversation.job.materials_status !== "APPROVED" &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <View style={styles.materialsSection}>
+                    <View style={styles.materialsSectionHeader}>
+                      <Ionicons name="cart" size={20} color={Colors.primary} />
+                      <Text style={styles.materialsSectionTitle}>
+                        Materials Purchasing
+                      </Text>
+                    </View>
+
+                    {/* Materials list */}
+                    {(conversation.job_materials || []).map(
+                      (mat: JobMaterialItem) => (
+                        <View key={mat.id} style={styles.materialItem}>
+                          <View style={styles.materialItemHeader}>
+                            <Text style={styles.materialItemName}>
+                              {mat.name}
+                              {mat.quantity > 1 ? ` (x${mat.quantity})` : ""}
+                            </Text>
+                            {mat.source === "FROM_PROFILE" ? (
+                              <View style={styles.materialBadgeOwn}>
+                                <Text style={styles.materialBadgeOwnText}>
+                                  Own Material
+                                </Text>
+                              </View>
+                            ) : mat.client_approved ? (
+                              <View style={styles.materialBadgeApproved}>
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={14}
+                                  color="#16a34a"
+                                />
+                                <Text style={styles.materialBadgeApprovedText}>
+                                  Approved
+                                </Text>
+                              </View>
+                            ) : mat.client_rejected ? (
+                              <View style={styles.materialBadgeRejected}>
+                                <Text style={styles.materialBadgeRejectedText}>
+                                  Rejected
+                                </Text>
+                              </View>
+                            ) : mat.source === "PURCHASED" ? (
+                              <View style={styles.materialBadgePending}>
+                                <Text style={styles.materialBadgePendingText}>
+                                  Awaiting Approval
+                                </Text>
+                              </View>
+                            ) : (
+                              <View style={styles.materialBadgeToBuy}>
+                                <Text style={styles.materialBadgeToBuyText}>
+                                  To Purchase
+                                </Text>
+                              </View>
                             )}
+                          </View>
 
-                            {/* CLIENT: Approve/Reject purchased materials */}
-                            {conversation.my_role === "CLIENT" &&
-                              mat.source === "PURCHASED" &&
-                              !mat.client_approved &&
-                              !mat.client_rejected && (
-                                <View style={styles.materialActions}>
-                                  <TouchableOpacity
-                                    style={styles.materialApproveBtn}
-                                    onPress={() => {
-                                      Alert.alert(
-                                        "Approve Material",
-                                        `Approve ₱${mat.purchase_price?.toLocaleString()} for ${mat.name}? This will be added to the final payment.`,
-                                        [
-                                          {
-                                            text: "Cancel",
-                                            style: "cancel",
-                                          },
-                                          {
-                                            text: "Approve",
-                                            onPress: () =>
-                                              approveMaterialMutation.mutate({
-                                                jobId: conversation.job.id,
-                                                materialId: mat.id,
-                                              }),
-                                          },
-                                        ],
-                                      );
-                                    }}
-                                  >
-                                    <Ionicons
-                                      name="checkmark"
-                                      size={16}
-                                      color="#fff"
-                                    />
-                                    <Text style={styles.materialApproveBtnText}>
-                                      Approve
-                                    </Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={styles.materialRejectBtn}
-                                    onPress={() => {
-                                      Alert.alert(
-                                        "Reject Material",
-                                        `Reject the purchase of ${mat.name}?`,
-                                        [
-                                          {
-                                            text: "Cancel",
-                                            style: "cancel",
-                                          },
-                                          {
-                                            text: "Reject",
-                                            style: "destructive",
-                                            onPress: () =>
-                                              rejectMaterialMutation.mutate({
-                                                jobId: conversation.job.id,
-                                                materialId: mat.id,
-                                              }),
-                                          },
-                                        ],
-                                      );
-                                    }}
-                                  >
-                                    <Ionicons
-                                      name="close"
-                                      size={16}
-                                      color="#fff"
-                                    />
-                                    <Text style={styles.materialRejectBtnText}>
-                                      Reject
-                                    </Text>
-                                  </TouchableOpacity>
-                                </View>
-                              )}
+                          {/* Purchase price if set */}
+                          {mat.purchase_price != null && (
+                            <Text style={styles.materialPrice}>
+                              ₱{mat.purchase_price.toLocaleString()}
+                            </Text>
+                          )}
 
-                            {/* WORKER: Upload purchase proof for TO_PURCHASE items */}
-                            {conversation.my_role === "WORKER" &&
-                              mat.source === "TO_PURCHASE" && (
+                          {/* CLIENT: Approve/Reject purchased materials */}
+                          {conversation.my_role === "CLIENT" &&
+                            mat.source === "PURCHASED" &&
+                            !mat.client_approved &&
+                            !mat.client_rejected && (
+                              <View style={styles.materialActions}>
                                 <TouchableOpacity
-                                  style={styles.materialUploadBtn}
-                                  onPress={async () => {
-                                    // Pick an image for the receipt
-                                    const result =
-                                      await ImagePicker.launchImageLibraryAsync(
+                                  style={styles.materialApproveBtn}
+                                  onPress={() => {
+                                    Alert.alert(
+                                      "Approve Material",
+                                      `Approve ₱${mat.purchase_price?.toLocaleString()} for ${mat.name}? This will be added to the final payment.`,
+                                      [
                                         {
-                                          mediaTypes: "images",
-                                          allowsEditing: true,
-                                          quality: 0.7,
+                                          text: "Cancel",
+                                          style: "cancel",
                                         },
-                                      );
-                                    if (!result.canceled && result.assets[0]) {
-                                      setPriceModal({
-                                        visible: true,
-                                        matId: mat.id,
-                                        matName: mat.name,
-                                        imageUri: result.assets[0].uri,
-                                        jobId: conversation.job.id,
-                                      });
-                                      setPriceInputText("");
-                                    }
+                                        {
+                                          text: "Approve",
+                                          onPress: () =>
+                                            approveMaterialMutation.mutate({
+                                              jobId: conversation.job.id,
+                                              materialId: mat.id,
+                                            }),
+                                        },
+                                      ],
+                                    );
                                   }}
                                 >
                                   <Ionicons
-                                    name="receipt"
+                                    name="checkmark"
                                     size={16}
-                                    color={Colors.primary}
+                                    color="#fff"
                                   />
-                                  <Text style={styles.materialUploadBtnText}>
-                                    Upload Receipt & Price
+                                  <Text style={styles.materialApproveBtnText}>
+                                    Approve
                                   </Text>
                                 </TouchableOpacity>
-                              )}
-                          </View>
-                        ),
+                                <TouchableOpacity
+                                  style={styles.materialRejectBtn}
+                                  onPress={() => {
+                                    Alert.alert(
+                                      "Reject Material",
+                                      `Reject the purchase of ${mat.name}?`,
+                                      [
+                                        {
+                                          text: "Cancel",
+                                          style: "cancel",
+                                        },
+                                        {
+                                          text: "Reject",
+                                          style: "destructive",
+                                          onPress: () =>
+                                            rejectMaterialMutation.mutate({
+                                              jobId: conversation.job.id,
+                                              materialId: mat.id,
+                                            }),
+                                        },
+                                      ],
+                                    );
+                                  }}
+                                >
+                                  <Ionicons
+                                    name="close"
+                                    size={16}
+                                    color="#fff"
+                                  />
+                                  <Text style={styles.materialRejectBtnText}>
+                                    Reject
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+
+                          {/* WORKER: Upload purchase proof for TO_PURCHASE items */}
+                          {conversation.my_role === "WORKER" &&
+                            mat.source === "TO_PURCHASE" && (
+                              <TouchableOpacity
+                                style={styles.materialUploadBtn}
+                                onPress={async () => {
+                                  // Pick an image for the receipt
+                                  const result =
+                                    await ImagePicker.launchImageLibraryAsync({
+                                      mediaTypes: "images",
+                                      allowsEditing: true,
+                                      quality: 0.7,
+                                    });
+                                  if (!result.canceled && result.assets[0]) {
+                                    setPriceModal({
+                                      visible: true,
+                                      matId: mat.id,
+                                      matName: mat.name,
+                                      imageUri: result.assets[0].uri,
+                                      jobId: conversation.job.id,
+                                    });
+                                    setPriceInputText("");
+                                  }
+                                }}
+                              >
+                                <Ionicons
+                                  name="receipt"
+                                  size={16}
+                                  color={Colors.primary}
+                                />
+                                <Text style={styles.materialUploadBtnText}>
+                                  Upload Receipt & Price
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                        </View>
+                      ),
+                    )}
+
+                    {/* Materials cost summary */}
+                    {(conversation.job.materials_cost ?? 0) > 0 && (
+                      <View style={styles.materialsCostSummary}>
+                        <Text style={styles.materialsCostLabel}>
+                          Total Materials Cost:
+                        </Text>
+                        <Text style={styles.materialsCostValue}>
+                          ₱
+                          {(
+                            conversation.job.materials_cost ?? 0
+                          ).toLocaleString()}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* WORKER: Mark buying / Skip buttons */}
+                    {conversation.my_role === "WORKER" &&
+                      conversation.job.materials_status ===
+                        "PENDING_PURCHASE" && (
+                        <View style={styles.materialsActions}>
+                          <TouchableOpacity
+                            style={styles.materialsBuyingBtn}
+                            onPress={() =>
+                              markBuyingMutation.mutate({
+                                jobId: conversation.job.id,
+                              })
+                            }
+                            disabled={markBuyingMutation.isPending}
+                          >
+                            <Ionicons name="cart" size={18} color="#fff" />
+                            <Text style={styles.materialsBuyingBtnText}>
+                              Start Buying Materials
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
 
-                      {/* Materials cost summary */}
-                      {(conversation.job.materials_cost ?? 0) > 0 && (
-                        <View style={styles.materialsCostSummary}>
-                          <Text style={styles.materialsCostLabel}>
-                            Total Materials Cost:
+                    {/* Skip materials step (both roles) */}
+                    <TouchableOpacity
+                      style={styles.materialsSkipBtn}
+                      onPress={() => {
+                        Alert.alert(
+                          "Skip Materials Step",
+                          "Are you sure? This will skip the materials purchasing step and proceed to the arrival confirmation.",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Skip",
+                              onPress: () =>
+                                skipMaterialsMutation.mutate({
+                                  jobId: conversation.job.id,
+                                }),
+                            },
+                          ],
+                        );
+                      }}
+                      disabled={skipMaterialsMutation.isPending}
+                    >
+                      <Text style={styles.materialsSkipBtnText}>
+                        Skip Materials Step
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+              {/* Date Gate: Show locked banner for future scheduled jobs */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.preferred_start_date &&
+                new Date() <
+                  (() => {
+                    const d = new Date(conversation.job!.preferred_start_date!);
+                    d.setHours(0, 0, 0, 0);
+                    return d;
+                  })() && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text style={styles.waitingButtonText}>
+                        Job starts on{" "}
+                        {new Date(
+                          conversation.job.preferred_start_date,
+                        ).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}{" "}
+                        — action buttons will unlock on that date.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+              {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "CLIENT" &&
+                (!conversation.job?.preferred_start_date ||
+                  new Date() >=
+                    (() => {
+                      const d = new Date(
+                        conversation.job.preferred_start_date!,
+                      );
+                      d.setHours(0, 0, 0, 0);
+                      return d;
+                    })()) &&
+                !conversation.job.clientConfirmedWorkStarted &&
+                (conversation.job.materials_status === "NONE" ||
+                  conversation.job.materials_status === "APPROVED" ||
+                  !conversation.job.materials_status) && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      styles.confirmWorkStartedButton,
+                    ]}
+                    onPress={handleConfirmWorkStarted}
+                    disabled={confirmWorkStartedMutation.isPending}
+                  >
+                    {confirmWorkStartedMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Confirm Worker Has Arrived
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedComplete && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      Waiting for worker to complete job...
+                    </Text>
+                  </View>
+                )}
+
+              {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "WORKER" &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text
+                        style={styles.waitingButtonText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        Waiting for client to confirm you've arrived...
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+              {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "WORKER" &&
+                conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedComplete && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.markCompleteButton]}
+                    onPress={handleMarkComplete}
+                    disabled={markCompleteMutation.isPending}
+                  >
+                    {markCompleteMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-done"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Mark Job Complete
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {/* WORKER: Waiting for Client Approval (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "WORKER" &&
+                conversation.job.workerMarkedComplete &&
+                !conversation.job.clientMarkedComplete && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      Waiting for client to approve completion...
+                    </Text>
+                  </View>
+                )}
+
+              {/* CLIENT: Optional early pay-now while job is ongoing (Regular Jobs Only) */}
+              {/* Bug 6 fix: hide when worker has marked complete — show Approve & Pay instead */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "CLIENT" &&
+                !conversation.job.workerMarkedComplete &&
+                !conversation.job.clientMarkedComplete &&
+                !conversation.job.remainingPaymentPaid && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.waitingButton]}
+                    onPress={handlePayNow}
+                    disabled={createFinalPaymentMutation.isPending}
+                  >
+                    {createFinalPaymentMutation.isPending ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={Colors.textPrimary}
+                      />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="flash"
+                          size={20}
+                          color={Colors.textPrimary}
+                        />
+                        <Text
+                          style={[
+                            styles.waitingButtonText,
+                            { color: Colors.textPrimary },
+                          ]}
+                        >
+                          Pay Now (Optional)
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {/* Final payment already done, but completion still pending */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.job?.remainingPaymentPaid &&
+                !conversation.job.clientMarkedComplete && (
+                  <View style={[styles.actionButton, styles.completedAction]}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={Colors.success}
+                    />
+                    <Text
+                      style={[
+                        styles.actionButtonText,
+                        { color: Colors.success },
+                      ]}
+                    >
+                      Final payment completed. You can approve completion
+                      anytime.
+                    </Text>
+                  </View>
+                )}
+
+              {conversation.is_team_job &&
+                conversation.my_role === "WORKER" &&
+                conversation.job.remainingPaymentPaid && (
+                  <View style={[styles.actionButton, styles.completedAction]}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={Colors.success}
+                    />
+                    <Text
+                      style={[
+                        styles.actionButtonText,
+                        { color: Colors.success },
+                      ]}
+                    >
+                      Payment received! Please leave a review.
+                    </Text>
+                  </View>
+                )}
+
+              {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job.workerMarkedComplete &&
+                !conversation.job.clientMarkedComplete && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      styles.approveCompletionButton,
+                    ]}
+                    onPress={handleApproveCompletion}
+                    disabled={approveCompletionMutation.isPending}
+                  >
+                    {approveCompletionMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name={
+                            conversation.job.remainingPaymentPaid
+                              ? "checkmark-circle"
+                              : "wallet"
+                          }
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          {conversation.job.remainingPaymentPaid
+                            ? "Approve Completion"
+                            : "Approve & Pay Final Amount"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {/* ================================================================ */}
+              {/* AGENCY PROJECT JOB WORKFLOW (PROJECT payment_model only) */}
+              {/* ================================================================ */}
+              {/* Workflow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays */}
+
+              {/* AGENCY VIEW: Dispatch and Mark Complete buttons */}
+              {conversation.is_agency_job &&
+                conversation.my_role === "AGENCY" &&
+                conversation.job.payment_model !== "DAILY" &&
+                conversation.assigned_employees &&
+                conversation.assigned_employees.length > 0 &&
+                (() => {
+                  const isEmployeeComplete = (employee: any) =>
+                    employee.agencyMarkedComplete ||
+                    employee.employeeMarkedComplete ||
+                    employee.marked_complete ||
+                    employee.status === "COMPLETED";
+
+                  const allDispatched = conversation.assigned_employees.every(
+                    (e) => e.dispatched,
+                  );
+                  const allArrived = conversation.assigned_employees.every(
+                    (e) => e.clientConfirmedArrival,
+                  );
+                  const allComplete = conversation.assigned_employees.every(
+                    (e) => isEmployeeComplete(e),
+                  );
+
+                  // Show dispatch buttons for employees not yet dispatched
+                  const pendingDispatch =
+                    conversation.assigned_employees.filter(
+                      (e) => !e.dispatched,
+                    );
+
+                  // Show mark complete buttons for arrived employees not yet marked complete
+                  const pendingComplete =
+                    conversation.assigned_employees.filter(
+                      (e) => e.clientConfirmedArrival && !isEmployeeComplete(e),
+                    );
+
+                  return (
+                    <>
+                      {/* Dispatch section */}
+                      {pendingDispatch.length > 0 && (
+                        <View style={styles.employeeActionsSection}>
+                          <Text style={styles.actionSectionTitle}>
+                            Dispatch Employees ({pendingDispatch.length}{" "}
+                            pending)
                           </Text>
-                          <Text style={styles.materialsCostValue}>
-                            ₱
-                            {(
-                              conversation.job.materials_cost ?? 0
-                            ).toLocaleString()}
+                          {pendingDispatch.map((employee) => (
+                            <TouchableOpacity
+                              key={`dispatch-${employee.id}`}
+                              style={[
+                                styles.actionButton,
+                                styles.dispatchButton,
+                              ]}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Dispatch Employee",
+                                  `Mark ${employee.name} as on the way to the job site?`,
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Dispatch",
+                                      onPress: () =>
+                                        dispatchProjectEmployeeMutation.mutate({
+                                          jobId: conversation.job.id,
+                                          employeeId: employee.id,
+                                        }),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={
+                                dispatchProjectEmployeeMutation.isPending
+                              }
+                            >
+                              {dispatchProjectEmployeeMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="car"
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.actionButtonText}>
+                                    Dispatch {employee.name}
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Waiting for client to confirm arrivals */}
+                      {allDispatched && !allArrived && (
+                        <View
+                          style={[styles.actionButton, styles.waitingButton]}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            Waiting for client to confirm arrivals (
+                            {
+                              conversation.assigned_employees.filter(
+                                (e) => e.clientConfirmedArrival,
+                              ).length
+                            }{" "}
+                            of {conversation.assigned_employees.length})
                           </Text>
                         </View>
                       )}
 
-                      {/* WORKER: Mark buying / Skip buttons */}
-                      {conversation.my_role === "WORKER" &&
-                        conversation.job.materials_status ===
-                          "PENDING_PURCHASE" && (
-                          <View style={styles.materialsActions}>
+                      {/* Mark complete section */}
+                      {pendingComplete.length > 0 && (
+                        <View style={styles.employeeActionsSection}>
+                          <Text style={styles.actionSectionTitle}>
+                            Mark Work Complete ({pendingComplete.length} on
+                            site)
+                          </Text>
+                          {pendingComplete.map((employee) => (
                             <TouchableOpacity
-                              style={styles.materialsBuyingBtn}
-                              onPress={() =>
-                                markBuyingMutation.mutate({
-                                  jobId: conversation.job.id,
-                                })
-                              }
-                              disabled={markBuyingMutation.isPending}
-                            >
-                              <Ionicons name="cart" size={18} color="#fff" />
-                              <Text style={styles.materialsBuyingBtnText}>
-                                Start Buying Materials
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-
-                      {/* Skip materials step (both roles) */}
-                      <TouchableOpacity
-                        style={styles.materialsSkipBtn}
-                        onPress={() => {
-                          Alert.alert(
-                            "Skip Materials Step",
-                            "Are you sure? This will skip the materials purchasing step and proceed to the arrival confirmation.",
-                            [
-                              { text: "Cancel", style: "cancel" },
-                              {
-                                text: "Skip",
-                                onPress: () =>
-                                  skipMaterialsMutation.mutate({
-                                    jobId: conversation.job.id,
-                                  }),
-                              },
-                            ],
-                          );
-                        }}
-                        disabled={skipMaterialsMutation.isPending}
-                      >
-                        <Text style={styles.materialsSkipBtnText}>
-                          Skip Materials Step
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                {/* Date Gate: Show locked banner for future scheduled jobs */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.preferred_start_date &&
-                  new Date() <
-                    (() => {
-                      const d = new Date(
-                        conversation.job!.preferred_start_date!,
-                      );
-                      d.setHours(0, 0, 0, 0);
-                      return d;
-                    })() && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={20}
-                        color={Colors.textSecondary}
-                      />
-                      <View style={{ flex: 1, marginLeft: 4 }}>
-                        <Text style={styles.waitingButtonText}>
-                          Job starts on{" "}
-                          {new Date(
-                            conversation.job.preferred_start_date,
-                          ).toLocaleDateString(undefined, {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}{" "}
-                          — action buttons will unlock on that date.
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "CLIENT" &&
-                  (!conversation.job?.preferred_start_date ||
-                    new Date() >=
-                      (() => {
-                        const d = new Date(
-                          conversation.job.preferred_start_date!,
-                        );
-                        d.setHours(0, 0, 0, 0);
-                        return d;
-                      })()) &&
-                  !conversation.job.clientConfirmedWorkStarted &&
-                  (conversation.job.materials_status === "NONE" ||
-                    conversation.job.materials_status === "APPROVED" ||
-                    !conversation.job.materials_status) && (
-                    <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        styles.confirmWorkStartedButton,
-                      ]}
-                      onPress={handleConfirmWorkStarted}
-                      disabled={confirmWorkStartedMutation.isPending}
-                    >
-                      {confirmWorkStartedMutation.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={20}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.actionButtonText}>
-                            Confirm Worker Has Arrived
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.job.clientConfirmedWorkStarted &&
-                  !conversation.job.workerMarkedComplete && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
-                      <Ionicons
-                        name="time-outline"
-                        size={20}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for worker to complete job...
-                      </Text>
-                    </View>
-                  )}
-
-                {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "WORKER" &&
-                  !conversation.job.clientConfirmedWorkStarted && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
-                      <Ionicons
-                        name="time-outline"
-                        size={24}
-                        color={Colors.textSecondary}
-                      />
-                      <View style={{ flex: 1, marginLeft: 4 }}>
-                        <Text
-                          style={styles.waitingButtonText}
-                          numberOfLines={1}
-                          adjustsFontSizeToFit
-                        >
-                          Waiting for client to confirm you've arrived...
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "WORKER" &&
-                  conversation.job.clientConfirmedWorkStarted &&
-                  !conversation.job.workerMarkedComplete && (
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.markCompleteButton]}
-                      onPress={handleMarkComplete}
-                      disabled={markCompleteMutation.isPending}
-                    >
-                      {markCompleteMutation.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="checkmark-done"
-                            size={20}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.actionButtonText}>
-                            Mark Job Complete
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                {/* WORKER: Waiting for Client Approval (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "WORKER" &&
-                  conversation.job.workerMarkedComplete &&
-                  !conversation.job.clientMarkedComplete && (
-                    <View style={[styles.actionButton, styles.waitingButton]}>
-                      <Ionicons
-                        name="time-outline"
-                        size={20}
-                        color={Colors.textSecondary}
-                      />
-                      <Text style={styles.waitingButtonText}>
-                        Waiting for client to approve completion...
-                      </Text>
-                    </View>
-                  )}
-
-                {/* CLIENT: Optional early pay-now while job is ongoing (Regular Jobs Only) */}
-                {/* Bug 6 fix: hide when worker has marked complete — show Approve & Pay instead */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "CLIENT" &&
-                  !conversation.job.workerMarkedComplete &&
-                  !conversation.job.clientMarkedComplete &&
-                  !conversation.job.remainingPaymentPaid && (
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.waitingButton]}
-                      onPress={handlePayNow}
-                      disabled={createFinalPaymentMutation.isPending}
-                    >
-                      {createFinalPaymentMutation.isPending ? (
-                        <ActivityIndicator
-                          size="small"
-                          color={Colors.textPrimary}
-                        />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="flash"
-                            size={20}
-                            color={Colors.textPrimary}
-                          />
-                          <Text
-                            style={[
-                              styles.waitingButtonText,
-                              { color: Colors.textPrimary },
-                            ]}
-                          >
-                            Pay Now (Optional)
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                {/* Final payment already done, but completion still pending */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.job?.remainingPaymentPaid &&
-                  !conversation.job.clientMarkedComplete && (
-                    <View style={[styles.actionButton, styles.completedAction]}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={Colors.success}
-                      />
-                      <Text
-                        style={[
-                          styles.actionButtonText,
-                          { color: Colors.success },
-                        ]}
-                      >
-                        Final payment completed. You can approve completion
-                        anytime.
-                      </Text>
-                    </View>
-                  )}
-
-                {conversation.is_team_job &&
-                  conversation.my_role === "WORKER" &&
-                  conversation.job.remainingPaymentPaid && (
-                    <View style={[styles.actionButton, styles.completedAction]}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={Colors.success}
-                      />
-                      <Text
-                        style={[
-                          styles.actionButtonText,
-                          { color: Colors.success },
-                        ]}
-                      >
-                        Payment received! Please leave a review.
-                      </Text>
-                    </View>
-                  )}
-
-                {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.job?.payment_model !== "DAILY" &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.job.workerMarkedComplete &&
-                  !conversation.job.clientMarkedComplete && (
-                    <TouchableOpacity
-                      style={[
-                        styles.actionButton,
-                        styles.approveCompletionButton,
-                      ]}
-                      onPress={handleApproveCompletion}
-                      disabled={approveCompletionMutation.isPending}
-                    >
-                      {approveCompletionMutation.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name={
-                              conversation.job.remainingPaymentPaid
-                                ? "checkmark-circle"
-                                : "wallet"
-                            }
-                            size={20}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.actionButtonText}>
-                            {conversation.job.remainingPaymentPaid
-                              ? "Approve Completion"
-                              : "Approve & Pay Final Amount"}
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                {/* ================================================================ */}
-                {/* AGENCY PROJECT JOB WORKFLOW (PROJECT payment_model only) */}
-                {/* ================================================================ */}
-                {/* Workflow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays */}
-
-                {/* AGENCY VIEW: Dispatch and Mark Complete buttons */}
-                {conversation.is_agency_job &&
-                  conversation.my_role === "AGENCY" &&
-                  conversation.job.payment_model !== "DAILY" &&
-                  conversation.assigned_employees &&
-                  conversation.assigned_employees.length > 0 &&
-                  (() => {
-                    const isEmployeeComplete = (employee: any) =>
-                      employee.agencyMarkedComplete ||
-                      employee.employeeMarkedComplete ||
-                      employee.marked_complete ||
-                      employee.status === "COMPLETED";
-
-                    const allDispatched = conversation.assigned_employees.every(
-                      (e) => e.dispatched,
-                    );
-                    const allArrived = conversation.assigned_employees.every(
-                      (e) => e.clientConfirmedArrival,
-                    );
-                    const allComplete = conversation.assigned_employees.every(
-                      (e) => isEmployeeComplete(e),
-                    );
-
-                    // Show dispatch buttons for employees not yet dispatched
-                    const pendingDispatch =
-                      conversation.assigned_employees.filter(
-                        (e) => !e.dispatched,
-                      );
-
-                    // Show mark complete buttons for arrived employees not yet marked complete
-                    const pendingComplete =
-                      conversation.assigned_employees.filter(
-                        (e) =>
-                          e.clientConfirmedArrival && !isEmployeeComplete(e),
-                      );
-
-                    return (
-                      <>
-                        {/* Dispatch section */}
-                        {pendingDispatch.length > 0 && (
-                          <View style={styles.employeeActionsSection}>
-                            <Text style={styles.actionSectionTitle}>
-                              Dispatch Employees ({pendingDispatch.length}{" "}
-                              pending)
-                            </Text>
-                            {pendingDispatch.map((employee) => (
-                              <TouchableOpacity
-                                key={`dispatch-${employee.id}`}
-                                style={[
-                                  styles.actionButton,
-                                  styles.dispatchButton,
-                                ]}
-                                onPress={() =>
-                                  Alert.alert(
-                                    "Dispatch Employee",
-                                    `Mark ${employee.name} as on the way to the job site?`,
-                                    [
-                                      { text: "Cancel", style: "cancel" },
-                                      {
-                                        text: "Dispatch",
-                                        onPress: () =>
-                                          dispatchProjectEmployeeMutation.mutate(
-                                            {
-                                              jobId: conversation.job.id,
-                                              employeeId: employee.id,
-                                            },
-                                          ),
-                                      },
-                                    ],
-                                  )
-                                }
-                                disabled={
-                                  dispatchProjectEmployeeMutation.isPending
-                                }
-                              >
-                                {dispatchProjectEmployeeMutation.isPending ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color={Colors.white}
-                                  />
-                                ) : (
-                                  <>
-                                    <Ionicons
-                                      name="car"
-                                      size={20}
-                                      color={Colors.white}
-                                    />
-                                    <Text style={styles.actionButtonText}>
-                                      Dispatch {employee.name}
-                                    </Text>
-                                  </>
-                                )}
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-
-                        {/* Waiting for client to confirm arrivals */}
-                        {allDispatched && !allArrived && (
-                          <View
-                            style={[styles.actionButton, styles.waitingButton]}
-                          >
-                            <Ionicons
-                              name="time-outline"
-                              size={20}
-                              color={Colors.textSecondary}
-                            />
-                            <Text style={styles.waitingButtonText}>
-                              Waiting for client to confirm arrivals (
-                              {
-                                conversation.assigned_employees.filter(
-                                  (e) => e.clientConfirmedArrival,
-                                ).length
-                              }{" "}
-                              of {conversation.assigned_employees.length})
-                            </Text>
-                          </View>
-                        )}
-
-                        {/* Mark complete section */}
-                        {pendingComplete.length > 0 && (
-                          <View style={styles.employeeActionsSection}>
-                            <Text style={styles.actionSectionTitle}>
-                              Mark Work Complete ({pendingComplete.length} on
-                              site)
-                            </Text>
-                            {pendingComplete.map((employee) => (
-                              <TouchableOpacity
-                                key={`complete-${employee.id}`}
-                                style={[
-                                  styles.actionButton,
-                                  styles.markCompleteButton,
-                                ]}
-                                onPress={() =>
-                                  Alert.alert(
-                                    "Mark Complete",
-                                    `Mark ${employee.name}'s work as complete?`,
-                                    [
-                                      { text: "Cancel", style: "cancel" },
-                                      {
-                                        text: "Mark Complete",
-                                        onPress: () =>
-                                          agencyMarkProjectCompleteMutation.mutate(
-                                            {
-                                              jobId: conversation.job.id,
-                                              employeeId: employee.id,
-                                            },
-                                          ),
-                                      },
-                                    ],
-                                  )
-                                }
-                                disabled={
-                                  agencyMarkProjectCompleteMutation.isPending
-                                }
-                              >
-                                {agencyMarkProjectCompleteMutation.isPending ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color={Colors.white}
-                                  />
-                                ) : (
-                                  <>
-                                    <Ionicons
-                                      name="checkmark-done"
-                                      size={20}
-                                      color={Colors.white}
-                                    />
-                                    <Text style={styles.actionButtonText}>
-                                      Complete: {employee.name}
-                                    </Text>
-                                  </>
-                                )}
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-
-                        {/* All complete - waiting for client approval */}
-                        {allComplete &&
-                          !conversation.job.clientMarkedComplete && (
-                            <View
+                              key={`complete-${employee.id}`}
                               style={[
                                 styles.actionButton,
-                                styles.waitingButton,
+                                styles.markCompleteButton,
                               ]}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Mark Complete",
+                                  `Mark ${employee.name}'s work as complete?`,
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Mark Complete",
+                                      onPress: () =>
+                                        agencyMarkProjectCompleteMutation.mutate(
+                                          {
+                                            jobId: conversation.job.id,
+                                            employeeId: employee.id,
+                                          },
+                                        ),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={
+                                agencyMarkProjectCompleteMutation.isPending
+                              }
                             >
-                              <Ionicons
-                                name="time-outline"
-                                size={20}
-                                color={Colors.textSecondary}
-                              />
-                              <Text style={styles.waitingButtonText}>
-                                ✓ All employees complete. Waiting for client to
-                                approve & pay
-                              </Text>
-                            </View>
-                          )}
-                      </>
-                    );
-                  })()}
+                              {agencyMarkProjectCompleteMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="checkmark-done"
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.actionButtonText}>
+                                    Complete: {employee.name}
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
 
-                {/* CLIENT VIEW: Confirm arrivals and Approve & Pay */}
-                {conversation.is_agency_job &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.job.payment_model !== "DAILY" &&
-                  conversation.assigned_employees &&
-                  conversation.assigned_employees.length > 0 &&
-                  (() => {
-                    const isEmployeeComplete = (employee: any) =>
-                      employee.agencyMarkedComplete ||
-                      employee.employeeMarkedComplete ||
-                      employee.marked_complete ||
-                      employee.status === "COMPLETED";
-
-                    const allDispatched = conversation.assigned_employees.every(
-                      (e) => e.dispatched,
-                    );
-                    const allArrived = conversation.assigned_employees.every(
-                      (e) => e.clientConfirmedArrival,
-                    );
-                    const allComplete = conversation.assigned_employees.every(
-                      (e) => isEmployeeComplete(e),
-                    );
-
-                    // Employees dispatched but not arrived yet
-                    const pendingArrival =
-                      conversation.assigned_employees.filter(
-                        (e) => e.dispatched && !e.clientConfirmedArrival,
-                      );
-
-                    // Employees arrived but not yet marked complete by agency
-                    const onSiteWorking =
-                      conversation.assigned_employees.filter(
-                        (e) =>
-                          e.clientConfirmedArrival &&
-                          (e as any).status !== "COMPLETED" &&
-                          !isEmployeeComplete(e),
-                      );
-
-                    return (
-                      <>
-                        {/* Waiting for agency to dispatch */}
-                        {!allDispatched && (
+                      {/* All complete - waiting for client approval */}
+                      {allComplete &&
+                        !conversation.job.clientMarkedComplete && (
                           <View
                             style={[styles.actionButton, styles.waitingButton]}
                           >
@@ -4476,236 +4402,289 @@ export default function ChatScreen() {
                               color={Colors.textSecondary}
                             />
                             <Text style={styles.waitingButtonText}>
-                              Waiting for agency to dispatch employees (
-                              {
-                                conversation.assigned_employees.filter(
-                                  (e) => e.dispatched,
-                                ).length
-                              }{" "}
-                              of {conversation.assigned_employees.length}{" "}
-                              dispatched)
+                              ✓ All employees complete. Waiting for client to
+                              approve & pay
                             </Text>
                           </View>
                         )}
+                    </>
+                  );
+                })()}
 
-                        {/* Confirm arrivals section */}
-                        {pendingArrival.length > 0 && (
-                          <View style={styles.employeeActionsSection}>
-                            <Text style={styles.actionSectionTitle}>
-                              Confirm Arrivals ({pendingArrival.length} on the
-                              way)
-                            </Text>
-                            {pendingArrival.map((employee) => (
-                              <TouchableOpacity
-                                key={`arrival-${employee.id}`}
-                                style={[
-                                  styles.actionButton,
-                                  styles.confirmWorkStartedButton,
-                                ]}
-                                onPress={() =>
-                                  Alert.alert(
-                                    "Confirm Arrival",
-                                    `Has ${employee.name} arrived at the job site?`,
-                                    [
-                                      { text: "Cancel", style: "cancel" },
-                                      {
-                                        text: "Confirm",
-                                        onPress: () =>
-                                          confirmProjectArrivalMutation.mutate({
-                                            jobId: conversation.job.id,
-                                            employeeId: employee.id,
-                                          }),
-                                      },
-                                    ],
-                                  )
-                                }
-                                disabled={
-                                  confirmProjectArrivalMutation.isPending
-                                }
-                              >
-                                {confirmProjectArrivalMutation.isPending ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color={Colors.white}
-                                  />
-                                ) : (
-                                  <>
-                                    <Ionicons
-                                      name="checkmark-circle"
-                                      size={20}
-                                      color={Colors.white}
-                                    />
-                                    <Text style={styles.actionButtonText}>
-                                      Confirm: {employee.name} Arrived
-                                    </Text>
-                                  </>
-                                )}
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
+              {/* CLIENT VIEW: Confirm arrivals and Approve & Pay */}
+              {conversation.is_agency_job &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job.payment_model !== "DAILY" &&
+                conversation.assigned_employees &&
+                conversation.assigned_employees.length > 0 &&
+                (() => {
+                  const isEmployeeComplete = (employee: any) =>
+                    employee.agencyMarkedComplete ||
+                    employee.employeeMarkedComplete ||
+                    employee.marked_complete ||
+                    employee.status === "COMPLETED";
 
-                        {/* Workers on site, working */}
-                        {onSiteWorking.length > 0 && (
-                          <View
-                            style={[
-                              styles.actionButton,
-                              styles.waitingButton,
-                              {
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                              },
-                            ]}
-                          >
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                flex: 1,
-                              }}
-                            >
-                              <Ionicons
-                                name="time-outline"
-                                size={20}
-                                color={Colors.textSecondary}
-                              />
-                              <Text
-                                style={[
-                                  styles.waitingButtonText,
-                                  { marginLeft: 8 },
-                                ]}
-                              >
-                                {onSiteWorking.length} employee
-                                {onSiteWorking.length > 1 ? "s" : ""} working on
-                                site...
-                              </Text>
-                            </View>
+                  const allDispatched = conversation.assigned_employees.every(
+                    (e) => e.dispatched,
+                  );
+                  const allArrived = conversation.assigned_employees.every(
+                    (e) => e.clientConfirmedArrival,
+                  );
+                  const allComplete = conversation.assigned_employees.every(
+                    (e) => isEmployeeComplete(e),
+                  );
+
+                  // Employees dispatched but not arrived yet
+                  const pendingArrival = conversation.assigned_employees.filter(
+                    (e) => e.dispatched && !e.clientConfirmedArrival,
+                  );
+
+                  // Employees arrived but not yet marked complete by agency
+                  const onSiteWorking = conversation.assigned_employees.filter(
+                    (e) =>
+                      e.clientConfirmedArrival &&
+                      (e as any).status !== "COMPLETED" &&
+                      !isEmployeeComplete(e),
+                  );
+
+                  return (
+                    <>
+                      {/* Waiting for agency to dispatch */}
+                      {!allDispatched && (
+                        <View
+                          style={[styles.actionButton, styles.waitingButton]}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            Waiting for agency to dispatch employees (
+                            {
+                              conversation.assigned_employees.filter(
+                                (e) => e.dispatched,
+                              ).length
+                            }{" "}
+                            of {conversation.assigned_employees.length}{" "}
+                            dispatched)
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Confirm arrivals section */}
+                      {pendingArrival.length > 0 && (
+                        <View style={styles.employeeActionsSection}>
+                          <Text style={styles.actionSectionTitle}>
+                            Confirm Arrivals ({pendingArrival.length} on the
+                            way)
+                          </Text>
+                          {pendingArrival.map((employee) => (
                             <TouchableOpacity
-                              onPress={() => refetch()}
-                              style={{
-                                paddingHorizontal: 8,
-                                paddingVertical: 4,
-                                borderRadius: 8,
-                                backgroundColor: Colors.primary + "20",
-                              }}
+                              key={`arrival-${employee.id}`}
+                              style={[
+                                styles.actionButton,
+                                styles.confirmWorkStartedButton,
+                              ]}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Confirm Arrival",
+                                  `Has ${employee.name} arrived at the job site?`,
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Confirm",
+                                      onPress: () =>
+                                        confirmProjectArrivalMutation.mutate({
+                                          jobId: conversation.job.id,
+                                          employeeId: employee.id,
+                                        }),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={confirmProjectArrivalMutation.isPending}
                             >
-                              <Ionicons
-                                name="refresh"
-                                size={18}
-                                color={Colors.primary}
-                              />
-                            </TouchableOpacity>
-                          </View>
-                        )}
-
-                        {/* Single agency-level approve & pay button */}
-                        {allComplete &&
-                          !conversation.job.clientMarkedComplete && (
-                            <View style={styles.employeeActionsSection}>
-                              <Text style={styles.actionSectionTitle}>
-                                Approve & Pay Agency
-                              </Text>
-                              <TouchableOpacity
-                                style={[
-                                  styles.actionButton,
-                                  styles.approveCompletionButton,
-                                ]}
-                                onPress={handleApproveCompletion}
-                                disabled={
-                                  approveAgencyProjectJobMutation.isPending
-                                }
-                              >
-                                {approveAgencyProjectJobMutation.isPending ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color={Colors.white}
-                                  />
-                                ) : (
-                                  <>
-                                    <Ionicons
-                                      name="wallet"
-                                      size={20}
-                                      color={Colors.white}
-                                    />
-                                    <Text style={styles.actionButtonText}>
-                                      Approve & Pay Agency (₱
-                                      {(
-                                        conversation.job.budget * 0.5 +
-                                        (conversation.job.materials_cost ?? 0)
-                                      ).toLocaleString()}
-                                      )
-                                    </Text>
-                                  </>
-                                )}
-                              </TouchableOpacity>
-                            </View>
-                          )}
-
-                        {/* Show already-approved employees */}
-                        {conversation.assigned_employees.filter(
-                          (e) => e.clientApproved,
-                        ).length > 0 && (
-                          <View style={styles.employeeActionsSection}>
-                            {conversation.assigned_employees
-                              .filter((e) => e.clientApproved)
-                              .map((employee) => (
-                                <View
-                                  key={`approved-${employee.id}`}
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                  ]}
-                                >
+                              {confirmProjectArrivalMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
                                   <Ionicons
                                     name="checkmark-circle"
                                     size={20}
-                                    color="#22c55e"
+                                    color={Colors.white}
                                   />
-                                  <Text
-                                    style={[
-                                      styles.waitingButtonText,
-                                      { color: "#22c55e" },
-                                    ]}
-                                  >
-                                    ✓ {employee.name} — Approved & Paid
+                                  <Text style={styles.actionButtonText}>
+                                    Confirm: {employee.name} Arrived
                                   </Text>
-                                </View>
-                              ))}
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Workers on site, working */}
+                      {onSiteWorking.length > 0 && (
+                        <View
+                          style={[
+                            styles.actionButton,
+                            styles.waitingButton,
+                            {
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            },
+                          ]}
+                        >
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              flex: 1,
+                            }}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
+                            <Text
+                              style={[
+                                styles.waitingButtonText,
+                                { marginLeft: 8 },
+                              ]}
+                            >
+                              {onSiteWorking.length} employee
+                              {onSiteWorking.length > 1 ? "s" : ""} working on
+                              site...
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={() => refetch()}
+                            style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 8,
+                              backgroundColor: Colors.primary + "20",
+                            }}
+                          >
+                            <Ionicons
+                              name="refresh"
+                              size={18}
+                              color={Colors.primary}
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Single agency-level approve & pay button */}
+                      {allComplete &&
+                        !conversation.job.clientMarkedComplete && (
+                          <View style={styles.employeeActionsSection}>
+                            <Text style={styles.actionSectionTitle}>
+                              Approve & Pay Agency
+                            </Text>
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                styles.approveCompletionButton,
+                              ]}
+                              onPress={handleApproveCompletion}
+                              disabled={
+                                approveAgencyProjectJobMutation.isPending
+                              }
+                            >
+                              {approveAgencyProjectJobMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="wallet"
+                                    size={20}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.actionButtonText}>
+                                    Approve & Pay Agency (₱
+                                    {(
+                                      conversation.job.budget * 0.5 +
+                                      (conversation.job.materials_cost ?? 0)
+                                    ).toLocaleString()}
+                                    )
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
                           </View>
                         )}
-                      </>
-                    );
-                  })()}
 
-                {/* Status Messages (Regular Jobs Only) */}
+                      {/* Show already-approved employees */}
+                      {conversation.assigned_employees.filter(
+                        (e) => e.clientApproved,
+                      ).length > 0 && (
+                        <View style={styles.employeeActionsSection}>
+                          {conversation.assigned_employees
+                            .filter((e) => e.clientApproved)
+                            .map((employee) => (
+                              <View
+                                key={`approved-${employee.id}`}
+                                style={[
+                                  styles.actionButton,
+                                  styles.waitingButton,
+                                ]}
+                              >
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={20}
+                                  color="#22c55e"
+                                />
+                                <Text
+                                  style={[
+                                    styles.waitingButtonText,
+                                    { color: "#22c55e" },
+                                  ]}
+                                >
+                                  ✓ {employee.name} — Approved & Paid
+                                </Text>
+                              </View>
+                            ))}
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
 
-                {!conversation.is_team_job &&
-                  !conversation.is_agency_job &&
-                  conversation.my_role === "CLIENT" &&
-                  conversation.job.workerMarkedComplete &&
-                  !conversation.job.clientMarkedComplete && (
-                    <Text style={styles.statusMessage}>
-                      Worker marked job complete. Please review and approve.
-                    </Text>
-                  )}
+              {/* Status Messages (Regular Jobs Only) */}
 
-                {conversation.job.clientMarkedComplete &&
-                  !isConversationClosed && (
-                    <Text
-                      style={[styles.statusMessage, styles.completedMessage]}
-                    >
-                      ✓ Job completed and approved!
-                    </Text>
-                  )}
-              </View>
-            )}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job.workerMarkedComplete &&
+                !conversation.job.clientMarkedComplete && (
+                  <Text style={styles.statusMessage}>
+                    Worker marked job complete. Please review and approve.
+                  </Text>
+                )}
+
+              {conversation.job.clientMarkedComplete &&
+                !isConversationClosed && (
+                  <Text style={[styles.statusMessage, styles.completedMessage]}>
+                    ✓ Job completed and approved!
+                  </Text>
+                )}
+            </View>
+          )}
 
           {/* Backjob Banners - Request or Edit Feedback */}
           {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
           {conversation.my_role === "CLIENT" &&
-            (isJobCompleted ||
-              !!conversation.job.clientMarkedComplete) &&
+            (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed && (
               <TouchableOpacity
@@ -4811,10 +4790,7 @@ export default function ChatScreen() {
 
           {/* Review Section - Compact Banner that opens modal */}
           {/* NOTE: DAILY jobs never set clientMarkedComplete, so we also check status === "COMPLETED" */}
-          {(conversation.job.clientMarkedComplete ||
-            isJobCompleted) &&
-            !isConversationClosed &&
-            !reviewStatusSyncing && (
+          {canSubmitReview && (
               <>
                 {/* Check if current user already reviewed */}
                 {(conversation.my_role === "CLIENT" && clientHasReviewed) ||
@@ -4873,9 +4849,7 @@ export default function ChatScreen() {
                 {/* Team job worker review checklist - show who's been reviewed */}
                 {conversation.is_team_job &&
                   conversation.my_role === "CLIENT" &&
-                  (conversation.job.clientMarkedComplete ||
-                    isJobCompleted) &&
-                  !isConversationClosed &&
+                  canSubmitReview &&
                   (conversation.team_worker_assignments?.length || 0) > 1 && (
                     <View style={styles.teamReviewChecklist}>
                       {(conversation.team_worker_assignments || []).map(
