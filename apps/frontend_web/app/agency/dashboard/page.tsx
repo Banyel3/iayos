@@ -12,6 +12,7 @@ import {
   XCircle,
   Lock,
   TrendingUp,
+  TrendingDown,
   ChevronLeft,
   ChevronRight,
   Award,
@@ -46,6 +47,7 @@ interface AgencyStats {
     'All': { name: string, value: number }[];
   };
   specialization_ratings?: { name: string, rating: number }[];
+  revenue_growth?: number;
 }
 
 interface LeaderboardEntry {
@@ -212,9 +214,16 @@ export default function AgencyDashboardPage() {
               <p className="text-sm font-bold text-gray-900 mt-2">
                 Total Revenue
               </p>
-              <div className="flex items-center mt-1 text-sm text-green-500">
-                <TrendingUp className="h-4 w-4 mr-1" />
-                <span className="font-semibold text-xs">+56.3% vs last month</span>
+              <div className={`flex items-center mt-1 text-sm ${(stats?.revenue_growth || 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {(stats?.revenue_growth || 0) >= 0 ? (
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                ) : (
+                  <TrendingDown className="h-4 w-4 mr-1" />
+                )}
+                <span className="font-semibold text-xs">
+                  {(stats?.revenue_growth || 0) >= 0 ? "+" : ""}
+                  {(stats?.revenue_growth || 0).toFixed(1)}% vs last month
+                </span>
               </div>
             </div>
 

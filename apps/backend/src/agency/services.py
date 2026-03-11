@@ -919,6 +919,31 @@ def get_agency_profile(account_id):
                         finish_date__lt=me
                     ).aggregate(total=Sum('budget'))['total'] or 0
                     revenue_chart_data['All'][i]["value"] = float(m_val)
+                
+                # --- REVENUE GROWTH CALCULATION ---
+                this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                if now.month == 1:
+                    last_month_start = now.replace(year=now.year - 1, month=12, day=1, hour=0, minute=0, second=0, microsecond=0)
+                else:
+                    last_month_start = now.replace(month=now.month - 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                last_month_end = this_month_start
+
+                rev_this_month = completed_jobs_query.filter(
+                    finish_date__gte=this_month_start
+                ).aggregate(total=Sum('budget'))['total'] or Decimal('0.00')
+
+                rev_last_month = completed_jobs_query.filter(
+                    finish_date__gte=last_month_start,
+                    finish_date__lt=last_month_end
+                ).aggregate(total=Sum('budget'))['total'] or Decimal('0.00')
+
+                if rev_last_month > 0:
+                    revenue_growth = ((rev_this_month - rev_last_month) / rev_last_month) * 100
+                elif rev_this_month > 0:
+                    revenue_growth = Decimal('100.00')
+                else:
+                    revenue_growth = Decimal('0.00')
+                # -------------------------------
 
             except Exception as chart_err:
                 print(f"Error calculating revenue chart: {str(chart_err)}")
@@ -964,6 +989,7 @@ def get_agency_profile(account_id):
                 "total_revenue": float(total_revenue),
                 "revenue_chart_data": revenue_chart_data,
                 "average_rating": average_rating,
+                "revenue_growth": float(revenue_growth) if 'revenue_growth' in locals() else 0.0,
             },
             "created_at": created_at,
         }
