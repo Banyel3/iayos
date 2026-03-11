@@ -55,12 +55,6 @@ interface Specialization {
   category_name?: string;
 }
 
-interface JobCategory {
-  id: number;
-  name: string;
-  minimum_rate?: number;
-}
-
 interface SkillSlot {
   id: string; // Temporary ID for UI
   specialization_id: number;
@@ -138,10 +132,6 @@ export default function CreateTeamJobScreen() {
   const [skillSlots, setSkillSlots] = useState<SkillSlot[]>([]);
   const [allocationMethod, setAllocationMethod] =
     useState<AllocationMethod>("EQUAL_PER_WORKER");
-  const [primaryCategoryId, setPrimaryCategoryId] = useState<number | null>(
-    null,
-  );
-  const [categorySearch, setCategorySearch] = useState("");
 
   // Database-driven suggestions (same engine as single-job create)
   const { mutate: fetchSuggestions } = useJobSuggestions();
@@ -196,29 +186,17 @@ export default function CreateTeamJobScreen() {
     },
   });
 
-  // Fetch categories (same source used by single-job create)
-  const {
-    data: categories = [],
-    isLoading: categoriesLoading,
-    isError: categoriesLoadError,
-  } = useQuery<JobCategory[]>({
-    queryKey: ["job-categories"],
-    queryFn: async () => {
-      const response = await apiRequest(ENDPOINTS.GET_CATEGORIES);
-      const data = (await response.json()) as {
-        categories?: JobCategory[];
-        data?: JobCategory[];
-      };
-      return data.categories || data.data || [];
-    },
-  });
-
   // Fetch barangays
   const { data: barangays } = useBarangays(1); // Zamboanga City
 
   // Calculate totals
   const totalWorkersNeeded = useMemo(() => {
     return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+  }, [skillSlots]);
+
+  // Use first selected skill slot as prediction category source.
+  const primaryCategoryId = useMemo(() => {
+    return skillSlots[0]?.specialization_id ?? null;
   }, [skillSlots]);
 
   const budgetNum = parseFloat(totalBudget) || 0;
@@ -293,12 +271,6 @@ export default function CreateTeamJobScreen() {
     }
     return highest;
   }, [skillSlots]);
-
-  const filteredCategories = useMemo(() => {
-    const search = categorySearch.trim().toLowerCase();
-    if (!search) return categories;
-    return categories.filter((c) => c.name.toLowerCase().includes(search));
-  }, [categories, categorySearch]);
 
   useEffect(() => {
     if (!primaryCategoryId) {
@@ -522,7 +494,6 @@ export default function CreateTeamJobScreen() {
   const validateForm = () => {
     if (!title.trim()) return "Please enter a job title";
     if (!description.trim()) return "Please enter a job description";
-    if (!primaryCategoryId) return "Please select a job category";
     if (skillSlots.length === 0)
       return "Please add at least one skill requirement";
     if (totalWorkersNeeded < 1) return "Team jobs require at least 1 worker";
@@ -666,66 +637,6 @@ export default function CreateTeamJobScreen() {
 
             {/* Skill Requirements Section */}
             <View style={styles.section}>
-              <View style={styles.inputGroup}>
-                <View style={styles.sectionTitle}>
-                  <Ionicons name="grid" size={20} color={Colors.primary} />
-                  <Text style={styles.sectionTitleText}>
-                    Job Category <Text style={{ color: Colors.error }}>*</Text>
-                  </Text>
-                </View>
-
-                <SearchBar
-                  value={categorySearch}
-                  onChangeText={setCategorySearch}
-                  placeholder="Search categories..."
-                  showFilterButton={false}
-                  style={styles.categorySearchBar}
-                />
-
-                {categoriesLoading ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.loadingText}>
-                      Loading categories...
-                    </Text>
-                  </View>
-                ) : categoriesLoadError ? (
-                  <Text style={styles.emptyListText}>
-                    Failed to load categories
-                  </Text>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.categoryScroll}
-                    contentContainerStyle={styles.categoryScrollContent}
-                  >
-                    {filteredCategories.map((category) => {
-                      const isSelected = primaryCategoryId === category.id;
-                      return (
-                        <TouchableOpacity
-                          key={category.id}
-                          style={[
-                            styles.categoryChip,
-                            isSelected && styles.categoryChipActive,
-                          ]}
-                          onPress={() => setPrimaryCategoryId(category.id)}
-                        >
-                          <Text
-                            style={[
-                              styles.categoryChipText,
-                              isSelected && styles.categoryChipTextActive,
-                            ]}
-                          >
-                            {category.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-              </View>
-
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionTitle}>
                   <Ionicons name="people" size={20} color={Colors.primary} />
@@ -743,6 +654,10 @@ export default function CreateTeamJobScreen() {
                 showFilterButton={false}
                 style={{ marginBottom: Spacing.sm }}
               />
+
+              <Text style={styles.hint}>
+                Title, description, and price suggestions are based on the first selected skill requirement.
+              </Text>
 
               {specsLoading ? (
                 <ActivityIndicator size="small" color={Colors.primary} />
@@ -1604,25 +1519,12 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: Spacing.md,
   },
-  categorySearchBar: {
-    marginBottom: Spacing.sm,
-  },
   categoryScroll: {
     marginHorizontal: -Spacing.md,
   },
   categoryScrollContent: {
     paddingHorizontal: Spacing.md,
     gap: 8,
-  },
-  loadingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: Spacing.sm,
-  },
-  loadingText: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
   },
   categoryChip: {
     paddingHorizontal: 16,
@@ -2167,12 +2069,6 @@ const styles = StyleSheet.create({
   },
   specTagSubtextSelected: {
     color: Colors.primary,
-  },
-  emptyListText: {
-    ...Typography.body.medium,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    padding: Spacing.xl,
   },
   skillLevelOptions: {
     gap: Spacing.sm,
