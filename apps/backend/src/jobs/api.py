@@ -5914,26 +5914,19 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 status=403
             )
 
-        # Anti-abuse guard: limit concurrent active backjob requests per client
-        active_backjob_count = JobDispute.objects.filter(
-            jobID__clientID__profileID__accountFK=request.auth,
-            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
-        ).count()
-        if active_backjob_count >= 3:
+        # Allow repeated backjob requests on the same job within the 7-day window,
+        # but only one active dispute at a time for a given job.
+        existing_active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
+        ).first()
+        if existing_active_dispute:
             return Response(
                 {
-                    "error": "Backjob request limit reached. You can only have up to 3 active backjob requests at a time.",
-                    "active_backjob_count": active_backjob_count,
-                    "max_active_backjobs": 3,
+                    "error": "A backjob request is already active for this job",
+                    "dispute_id": existing_active_dispute.disputeID,
+                    "status": existing_active_dispute.status,
                 },
-                status=429,
-            )
-        
-        # Check if a dispute/backjob already exists for this job
-        existing_dispute = JobDispute.objects.filter(jobID=job).first()
-        if existing_dispute:
-            return Response(
-                {"error": "A backjob request already exists for this job", "dispute_id": existing_dispute.disputeID},
                 status=400
             )
         
@@ -6138,6 +6131,83 @@ def get_backjob_status(request, job_id: int):
     except Exception as e:
         print(f"Error fetching backjob status: {str(e)}")
         return Response({"error": "Failed to fetch backjob status"}, status=500)
+
+
+@router.post("/{job_id}/release-payment-now", auth=dual_auth)
+@require_kyc
+def release_payment_now_by_client(request, job_id: int):
+    """
+    Client-triggered early payment release.
+
+    This immediately releases pending worker/agency earnings and effectively
+    closes remaining backjob rights for the job because payment is released.
+    """
+    from jobs.payment_buffer_service import release_pending_payment
+
+    try:
+        try:
+            job = Job.objects.select_related(
+                'clientID__profileID__accountFK',
+                'assignedWorkerID__profileID__accountFK',
+                'assignedAgencyFK__accountFK'
+            ).get(jobID=job_id)
+        except Job.DoesNotExist:
+            return Response({"error": "Job not found"}, status=404)
+
+        # Only the job owner (client) can waive backjob rights by releasing payment.
+        if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the job owner can release payment early"}, status=403)
+
+        if job.status != 'COMPLETED':
+            return Response({"error": "Payment can only be released for completed jobs"}, status=400)
+
+        if not job.remainingPaymentPaid:
+            return Response({"error": "Final payment must be completed before releasing worker earnings"}, status=400)
+
+        if job.paymentReleasedToWorker:
+            return Response({"error": "Payment already released for this job"}, status=400)
+
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
+        ).first()
+        if active_dispute:
+            return Response(
+                {
+                    "error": "Cannot release payment while a backjob request is active",
+                    "dispute_id": active_dispute.disputeID,
+                    "dispute_status": active_dispute.status,
+                },
+                status=400,
+            )
+
+        # force=True allows early release before scheduled buffer date.
+        result = release_pending_payment(job, force=True)
+        if not result.get('success'):
+            return Response({"error": result.get('error', 'Failed to release payment')}, status=400)
+
+        JobLog.objects.create(
+            jobID=job,
+            oldStatus=job.status,
+            newStatus="PAY_REL_NOW",
+            changedBy=request.auth,
+            notes="Client released payment early and waived remaining backjob rights."
+        )
+
+        return {
+            "success": True,
+            "message": "Payment released successfully. Backjob window is now closed for this job.",
+            "job_id": job.jobID,
+            "amount": float(result.get('amount', 0)),
+            "payment_released": True,
+            "backjob_window_closed_by_client": True,
+        }
+
+    except Exception as e:
+        print(f"Error releasing payment early for job {job_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": f"Failed to release payment: {str(e)}"}, status=500)
 
 
 @router.post("/{job_id}/backjob/request-renegotiation", auth=dual_auth)

@@ -50,11 +50,11 @@ def get_backjob_cooldown_hours() -> int:
 def has_active_backjob(job: Job) -> bool:
     """
     Check if the job has an active/pending backjob request.
-    Active means: OPEN or UNDER_REVIEW status
+    Active means: OPEN, IN_NEGOTIATION, or UNDER_REVIEW status.
     """
     return JobDispute.objects.filter(
         jobID=job,
-        status__in=['OPEN', 'UNDER_REVIEW']
+        status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
     ).exists()
 
 

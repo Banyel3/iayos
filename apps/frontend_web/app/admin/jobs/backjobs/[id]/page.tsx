@@ -795,14 +795,6 @@ export default function BackjobDetailPage() {
                         Accept for Negotiation
                       </Button>
                       <Button
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        disabled={actionLoading}
-                        onClick={handleApproveBackjob}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Approve Directly
-                      </Button>
-                      <Button
                         className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
                         disabled={actionLoading}
                         onClick={() => setShowRejectModal(true)}
@@ -815,18 +807,10 @@ export default function BackjobDetailPage() {
                   {isNegotiating && (
                     <>
                       <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs text-sky-600">
-                        Negotiation in progress between client and
-                        worker/agency. Admin can monitor conversation and either
-                        approve or reject.
+                        Negotiation accepted and in progress between client and
+                        worker/agency. Admin can monitor and reject/close if
+                        needed.
                       </div>
-                      <Button
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        disabled={actionLoading}
-                        onClick={handleApproveBackjob}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Approve Backjob
-                      </Button>
                       <Button
                         className="w-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
                         disabled={actionLoading}
@@ -840,7 +824,7 @@ export default function BackjobDetailPage() {
                   {dispute.status === "under_review" && (
                     <>
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-600">
-                        This dispute is under review.
+                        Backjob is already approved for execution.
                         {dispute.scheduled_date
                           ? ` Scheduled date: ${new Date(
                             dispute.scheduled_date,
@@ -852,14 +836,6 @@ export default function BackjobDetailPage() {
                           ? " Worker/agency has confirmed the schedule."
                           : " Waiting for worker/agency schedule confirmation."}
                       </div>
-                      <Button
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        disabled={actionLoading}
-                        onClick={handleApproveBackjob}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Approve Backjob
-                      </Button>
                     </>
                   )}
                 </CardContent>

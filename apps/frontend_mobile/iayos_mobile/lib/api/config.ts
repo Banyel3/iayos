@@ -643,6 +643,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/backjob/confirm-scheduled-date`,
   BACKJOB_REQUEST_RENEGOTIATION: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/backjob/request-renegotiation`,
+  RELEASE_PAYMENT_NOW: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/release-payment-now`,
 
   // ML/AI Prediction Endpoints
   // Price prediction for job creation - returns min/suggested/max price range

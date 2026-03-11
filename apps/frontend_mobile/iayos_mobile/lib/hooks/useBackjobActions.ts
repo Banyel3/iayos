@@ -293,3 +293,47 @@ export function useRequestBackjobRenegotiation() {
     },
   });
 }
+
+/**
+ * Client releases worker/agency payment early.
+ * This waives remaining backjob rights for the job.
+ */
+export function useReleasePaymentNow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId }: { jobId: number }) => {
+      const url = ENDPOINTS.RELEASE_PAYMENT_NOW(jobId);
+      const response = await apiRequest(url, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to release payment"));
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      Toast.show({
+        type: "success",
+        text1: "Payment Released",
+        text2: "Backjob window has been closed for this job",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Release Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
