@@ -4983,7 +4983,9 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             # Check if review already exists
             existing_review = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=request.auth
+                reviewerID=request.auth,
+                reviewerType=reviewer_type,
+                revieweeID=reviewee_profile.accountFK,
             ).first()
             
             if existing_review:

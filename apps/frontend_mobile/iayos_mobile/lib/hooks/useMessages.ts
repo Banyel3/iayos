@@ -265,6 +265,19 @@ export type ConversationDetail = {
     comment: string;
     created_at: string;
   } | null;
+  counterparty_reviews?: Array<{
+    review_id: number;
+    reviewer_account_id?: number | null;
+    reviewer_type?: "WORKER" | "AGENCY";
+    reviewer_name?: string;
+    reviewer_avatar?: string | null;
+    rating_communication: number;
+    rating_punctuality: number;
+    rating_professionalism: number;
+    rating_quality: number;
+    comment: string;
+    created_at: string;
+  }>;
   // Job materials purchasing workflow
   job_materials?: JobMaterialItem[];
 };
@@ -326,6 +339,10 @@ export function useMessages(
             avatar: getAbsoluteMediaUrl(worker.avatar) || "",
           }),
         ),
+        counterparty_reviews: data.counterparty_reviews?.map((review: any) => ({
+          ...review,
+          reviewer_avatar: getAbsoluteMediaUrl(review.reviewer_avatar) || "",
+        })),
         messages: data.messages.map((msg: Message) => ({
           ...msg,
           sender_avatar: getAbsoluteMediaUrl(msg.sender_avatar) || "",

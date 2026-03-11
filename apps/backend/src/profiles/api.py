@@ -2079,6 +2079,7 @@ def get_conversation_messages(request, conversation_id: int):
         # Fetch actual review data (ratings and comments) for both parties
         client_review_data = None
         worker_review_data = None
+        counterparty_reviews_data = []
         
         if client_reviewed and client_account:
             # Get client's review of worker/employee
@@ -2140,6 +2141,46 @@ def get_conversation_messages(request, conversation_id: int):
                     "comment": worker_review.comment or "",
                     "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
                 }
+
+        # For client viewers, expose all counterparty reviews for this job.
+        # Team jobs can have N worker reviews; agency jobs may have agency/worker reviews.
+        if is_client:
+            account_to_worker_meta = {}
+            if is_team_job and team_worker_assignments:
+                for worker in team_worker_assignments:
+                    account_to_worker_meta[worker.get("account_id")] = {
+                        "name": worker.get("name") or "Worker",
+                        "avatar": worker.get("avatar"),
+                    }
+
+            review_qs = JobReview.objects.filter(
+                jobID=job,
+                reviewerType__in=["WORKER", "AGENCY"],
+            ).select_related("reviewerID").order_by("createdAt")
+
+            for review in review_qs:
+                reviewer_account_id = review.reviewerID.accountID if review.reviewerID else None
+                worker_meta = account_to_worker_meta.get(reviewer_account_id, {})
+
+                reviewer_name = worker_meta.get("name")
+                if not reviewer_name and review.reviewerType == "AGENCY" and getattr(job, "assignedAgencyFK", None):
+                    reviewer_name = job.assignedAgencyFK.businessName
+                if not reviewer_name:
+                    reviewer_name = "Worker"
+
+                counterparty_reviews_data.append({
+                    "review_id": review.reviewID,
+                    "reviewer_account_id": reviewer_account_id,
+                    "reviewer_type": review.reviewerType,
+                    "reviewer_name": reviewer_name,
+                    "reviewer_avatar": worker_meta.get("avatar"),
+                    "rating_communication": float(review.rating_communication) if review.rating_communication else 0,
+                    "rating_punctuality": float(review.rating_punctuality) if review.rating_punctuality else 0,
+                    "rating_professionalism": float(review.rating_professionalism) if review.rating_professionalism else 0,
+                    "rating_quality": float(review.rating_quality) if review.rating_quality else 0,
+                    "comment": review.comment or "",
+                    "created_at": review.createdAt.isoformat() if review.createdAt else None,
+                })
 
         # Get job materials for the materials purchasing workflow
         from accounts.models import JobMaterial
@@ -2219,6 +2260,7 @@ def get_conversation_messages(request, conversation_id: int):
             "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
+            "counterparty_reviews": counterparty_reviews_data,
             "job_materials": job_materials_list,
         }
         

@@ -5172,7 +5172,9 @@ export default function ChatScreen() {
                       >
                         <Text style={styles.reviewSectionTitle}>
                           {conversation?.my_role === "CLIENT"
-                            ? "Worker's"
+                            ? conversation?.is_team_job
+                              ? "Workers'"
+                              : "Worker's"
                             : "Client's"}{" "}
                           Review
                         </Text>
@@ -5192,6 +5194,11 @@ export default function ChatScreen() {
                             conversation.my_role === "CLIENT"
                               ? conversation.worker_review
                               : conversation.client_review;
+
+                          const counterpartyReviews =
+                            conversation.my_role === "CLIENT"
+                              ? conversation.counterparty_reviews || []
+                              : [];
 
                           const hasReviewed =
                             conversation.my_role === "CLIENT"
@@ -5225,6 +5232,161 @@ export default function ChatScreen() {
                                     to submit review...
                                   </Text>
                                 </View>
+                              </View>
+                            );
+                          }
+
+                          // Client view: display all counterparty reviews for this job.
+                          if (
+                            conversation.my_role === "CLIENT" &&
+                            counterpartyReviews.length > 0
+                          ) {
+                            const categories = [
+                              {
+                                key: "rating_communication",
+                                label: "Communication",
+                                icon: "💬",
+                              },
+                              {
+                                key: "rating_quality",
+                                label: "Clarity of Job Details",
+                                icon: "📋",
+                              },
+                              {
+                                key: "rating_punctuality",
+                                label: "Payment Reliability",
+                                icon: "💰",
+                              },
+                              {
+                                key: "rating_professionalism",
+                                label: "Respect & Professionalism",
+                                icon: "🤝",
+                              },
+                            ];
+
+                            return (
+                              <View style={{ gap: Spacing.sm }}>
+                                {counterpartyReviews.map((review, index) => {
+                                  const reviewerLabel =
+                                    review.reviewer_name ||
+                                    (review.reviewer_type === "AGENCY"
+                                      ? "Agency"
+                                      : `Worker ${index + 1}`);
+
+                                  return (
+                                    <View key={review.review_id || index} style={styles.reviewCard}>
+                                      <Text
+                                        style={{
+                                          ...Typography.body.small,
+                                          fontWeight: "700",
+                                          color: Colors.textPrimary,
+                                          marginBottom: Spacing.sm,
+                                        }}
+                                      >
+                                        {conversation.is_team_job
+                                          ? `Worker ${index + 1} - ${reviewerLabel}`
+                                          : reviewerLabel}
+                                      </Text>
+
+                                      {categories.map((cat, idx) => (
+                                        <View
+                                          key={`${review.review_id}-${cat.key}`}
+                                          style={{
+                                            marginBottom:
+                                              idx < categories.length - 1
+                                                ? Spacing.sm
+                                                : 0,
+                                          }}
+                                        >
+                                          <View
+                                            style={{
+                                              flexDirection: "row",
+                                              alignItems: "center",
+                                              marginBottom: 4,
+                                            }}
+                                          >
+                                            <Text style={{ fontSize: 16, marginRight: 6 }}>
+                                              {cat.icon}
+                                            </Text>
+                                            <Text
+                                              style={{
+                                                ...Typography.body.small,
+                                                fontWeight: "600",
+                                                color: Colors.textPrimary,
+                                              }}
+                                            >
+                                              {cat.label}
+                                            </Text>
+                                          </View>
+                                          <View
+                                            style={{
+                                              flexDirection: "row",
+                                              alignItems: "center",
+                                            }}
+                                          >
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                              <Ionicons
+                                                key={star}
+                                                name={
+                                                  star <=
+                                                  (review[
+                                                    cat.key as keyof typeof review
+                                                  ] as number)
+                                                    ? "star"
+                                                    : "star-outline"
+                                                }
+                                                size={18}
+                                                color="#FBC02D"
+                                                style={{ marginRight: 4 }}
+                                              />
+                                            ))}
+                                            <Text
+                                              style={{
+                                                marginLeft: 4,
+                                                ...Typography.body.small,
+                                                color: Colors.textSecondary,
+                                              }}
+                                            >
+                                              {review[
+                                                cat.key as keyof typeof review
+                                              ]}
+                                              /5
+                                            </Text>
+                                          </View>
+                                        </View>
+                                      ))}
+
+                                      {review.comment && (
+                                        <View
+                                          style={{
+                                            marginTop: Spacing.md,
+                                            paddingTop: Spacing.md,
+                                            borderTopWidth: 1,
+                                            borderTopColor: Colors.border,
+                                          }}
+                                        >
+                                          <Text
+                                            style={{
+                                              ...Typography.body.small,
+                                              fontWeight: "600",
+                                              marginBottom: 4,
+                                            }}
+                                          >
+                                            Comment:
+                                          </Text>
+                                          <Text
+                                            style={{
+                                              ...Typography.body.small,
+                                              color: Colors.textSecondary,
+                                            }}
+                                          >
+                                            {review.comment}
+                                          </Text>
+                                        </View>
+                                      )}
+                                    </View>
+                                  );
+                                })}
                               </View>
                             );
                           }
