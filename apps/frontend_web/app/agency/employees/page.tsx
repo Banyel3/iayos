@@ -23,6 +23,14 @@ import {
   X,
   Briefcase,
   Edit2,
+  Search,
+  Filter,
+  ArrowUpDown,
+  ChevronDown,
+  Trash2,
+  Mail,
+  Phone,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -90,13 +98,7 @@ function Rating({ value }: { value?: number | null }) {
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [specializations, setSpecializations] = useState<Specialization[]>([]);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
-    null,
-  );
-  const [performanceStats, setPerformanceStats] =
-    useState<PerformanceStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Add Employee form state - name breakdown
@@ -134,11 +136,16 @@ export default function EmployeesPage() {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [eotmTarget, setEotmTarget] = useState<Employee | null>(null);
 
   // Active tab
   const [activeTab, setActiveTab] = useState<
-    "employees" | "leaderboard" | "performance"
+    "employees" | "leaderboard"
   >("employees");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "rating" | "jobs" | "earnings">("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
 
   const fetchEmployees = async () => {
     try {
@@ -160,12 +167,29 @@ export default function EmployeesPage() {
   };
 
   useEffect(() => {
-    const controller = new AbortController();
     fetchEmployees();
     fetchLeaderboard();
     fetchSpecializations();
-    return () => controller.abort();
   }, []);
+
+  // Sync leaderboard from employees
+  const leaderboard = [...employees]
+    .map((emp) => ({
+      employeeId: Number(emp.employeeId || emp.id),
+      name: emp.fullName || emp.name,
+      email: emp.email,
+      role: emp.specializations && emp.specializations.length > 0
+        ? emp.specializations[0]
+        : emp.role || "Professional",
+      rating: Number(emp.totalJobsCompleted || 0) > 0 ? Number(emp.rating || 0) : 0,
+      totalJobsCompleted: Number(emp.totalJobsCompleted || 0),
+      totalEarnings: Number(emp.totalEarnings || 0),
+      rank: 0,
+      isEmployeeOfTheMonth: emp.employeeOfTheMonth || false
+    }))
+    .sort((a, b) => (b.rating - a.rating) || (b.totalJobsCompleted - a.totalJobsCompleted))
+    .slice(0, 10)
+    .map((emp, idx) => ({ ...emp, rank: idx + 1 }));
 
   const fetchSpecializations = async () => {
     try {
@@ -182,41 +206,13 @@ export default function EmployeesPage() {
   };
 
   const fetchLeaderboard = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/agency/employees/leaderboard`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLeaderboard(data.employees || []);
-      }
-    } catch (error) {
-      console.error("Error fetching leaderboard:", error);
-    }
+    // API results are now handled via the derived leaderboard constant
   };
 
-  const fetchPerformance = async (employeeId: number) => {
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/agency/employees/${employeeId}/performance`,
-        {
-          credentials: "include",
-        },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setPerformanceStats(data);
-      } else {
-        toast.error("Failed to fetch performance stats");
-      }
-    } catch (error) {
-      console.error("Error fetching performance:", error);
-      toast.error("Error loading performance stats");
-    }
-  };
+
 
   const setEmployeeOfMonth = async () => {
-    if (!selectedEmployee) return;
+    if (!eotmTarget) return;
 
     if (!eotmReason.trim()) {
       toast.error("Please provide a reason for Employee of the Month");
@@ -224,7 +220,7 @@ export default function EmployeesPage() {
     }
 
     try {
-      const employeeId = selectedEmployee.employeeId || selectedEmployee.id;
+      const employeeId = eotmTarget.employeeId || eotmTarget.id;
       const res = await fetch(
         `${API_BASE}/api/agency/employees/${employeeId}/set-eotm`,
         {
@@ -240,7 +236,7 @@ export default function EmployeesPage() {
       if (res.ok) {
         toast.success("Employee of the Month set successfully!");
         setSettingEOTM(false);
-        setSelectedEmployee(null);
+        setEotmTarget(null);
         setEotmReason("");
         fetchEmployees();
         fetchLeaderboard();
@@ -254,15 +250,10 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleViewPerformance = (emp: Employee) => {
-    setSelectedEmployee(emp);
-    setActiveTab("performance");
-    const employeeId = emp.employeeId || emp.id;
-    fetchPerformance(Number(employeeId));
-  };
+
 
   const handleSetEOTM = (emp: Employee) => {
-    setSelectedEmployee(emp);
+    setEotmTarget(emp);
     setSettingEOTM(true);
   };
 
@@ -446,6 +437,10 @@ export default function EmployeesPage() {
     }
   };
 
+  const removeEmployee = (id: string | number, name: string) => {
+    setRemoveTarget({ id, name });
+  };
+
   const confirmRemoveEmployee = async () => {
     if (!removeTarget) return;
     setIsRemoving(true);
@@ -557,21 +552,19 @@ export default function EmployeesPage() {
           <nav className="-mb-px flex space-x-4 md:space-x-8 overflow-x-auto">
             <button
               onClick={() => setActiveTab("employees")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === "employees"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "employees"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <Briefcase className="h-5 w-5" />
                 <span>All Employees</span>
                 <span
-                  className={`px-2 py-0.5 text-xs rounded-full ${
-                    activeTab === "employees"
-                      ? "bg-blue-100 text-blue-600"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
+                  className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "employees"
+                    ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                    : "bg-gray-100 text-gray-600"
+                    }`}
                 >
                   {employees.length}
                 </span>
@@ -580,35 +573,14 @@ export default function EmployeesPage() {
 
             <button
               onClick={() => setActiveTab("leaderboard")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === "leaderboard"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === "leaderboard"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <Trophy className="h-5 w-5" />
                 <span>Leaderboard</span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("performance")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === "performance"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-              disabled={!selectedEmployee}
-            >
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="h-5 w-5" />
-                <span>Performance</span>
-                {selectedEmployee && (
-                  <span className="text-xs text-gray-500">
-                    ({selectedEmployee.name})
-                  </span>
-                )}
               </div>
             </button>
           </nav>
@@ -639,7 +611,7 @@ export default function EmployeesPage() {
                             eotm.avatar ||
                             `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
                               eotm.name,
-                            )}`
+                            )}&backgroundColor=00BAF1`
                           }
                           alt={eotm.name}
                           className="w-16 h-16 rounded-full object-cover border-2 border-yellow-400"
@@ -668,63 +640,6 @@ export default function EmployeesPage() {
               return null;
             })()}
 
-            {/* Top Performer */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Star className="h-5 w-5 text-yellow-400" />
-                  Top Performer
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {(() => {
-                  const rated = employees.filter(
-                    (e) => typeof e.rating === "number" && e.rating > 0,
-                  );
-                  if (rated.length === 0) {
-                    return (
-                      <div className="text-sm text-gray-500">
-                        No ratings yet
-                      </div>
-                    );
-                  }
-                  const top = rated.reduce((a, b) =>
-                    a.rating! >= b.rating! ? a : b,
-                  );
-                  return (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={
-                            top.avatar ||
-                            `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                              top.name,
-                            )}`
-                          }
-                          alt={top.name}
-                          className="w-16 h-16 rounded-full object-cover"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium">{top.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {top.role}
-                          </div>
-                          <div className="mt-2">
-                            <Rating value={top.rating} />
-                          </div>
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => handleViewPerformance(top)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        View Performance
-                      </Button>
-                    </div>
-                  );
-                })()}
-              </CardContent>
-            </Card>
 
             {/* Add Employee Form */}
             <Card>
@@ -752,11 +667,14 @@ export default function EmployeesPage() {
                   />
                   <div>
                     <Input
-                      placeholder="Mobile number (e.g. 09171234567) *"
+                      placeholder="Mobile Number *"
                       type="tel"
                       value={mobile}
                       onChange={(e) => {
-                        setMobile(e.target.value);
+                        const val = e.target.value.replace(/\D/g, "");
+                        if (val.length <= 11) {
+                          setMobile(val);
+                        }
                         if (mobileError) setMobileError(null);
                       }}
                       className={
@@ -784,18 +702,17 @@ export default function EmployeesPage() {
                           onClick={() =>
                             toggleSpecialization(spec.categoryName)
                           }
-                          className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                            selectedSpecializations.includes(spec.categoryName)
-                              ? "bg-blue-600 text-white border-blue-600"
-                              : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                          }`}
+                          className={`px-3 py-1 text-sm rounded-full border transition-colors ${selectedSpecializations.includes(spec.categoryName)
+                            ? "bg-[#00BAF1] text-white border-[#00BAF1]"
+                            : "bg-white text-gray-700 border-gray-300 hover:border-[#00BAF1]/40"
+                            }`}
                         >
                           {spec.categoryName}
                           {selectedSpecializations.includes(
                             spec.categoryName,
                           ) && (
-                            <CheckCircle className="inline-block ml-1 h-3 w-3" />
-                          )}
+                              <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                            )}
                         </button>
                       ))}
                     </div>
@@ -803,7 +720,7 @@ export default function EmployeesPage() {
                   <Button
                     onClick={addEmployee}
                     disabled={isAddingEmployee}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    className="w-full bg-[#00BAF1] hover:bg-[#00A7D9] text-white"
                   >
                     {isAddingEmployee ? "Adding..." : "Add Employee"}
                   </Button>
@@ -813,118 +730,156 @@ export default function EmployeesPage() {
           </div>
 
           {/* Right Column - Employee List */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
+          <Card className="lg:col-span-2 overflow-hidden flex flex-col">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4">
               <CardTitle>Active Employees ({employees.length})</CardTitle>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search employees..."
+                    className="pl-9 h-9 border-gray-200 focus:border-[#00BAF1] focus:ring-[#00BAF1]"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 border-gray-200 text-gray-600"
+                  onClick={() => {
+                    if (sortBy === "name") {
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                    } else {
+                      setSortBy("name");
+                      setSortOrder("asc");
+                    }
+                  }}
+                >
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  Sort
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {employees.length === 0 ? (
+            <CardContent className="p-0">
+              <div className="max-h-[520px] overflow-y-auto px-6 pb-6 space-y-3 scrollbar-hide">
+                {employees.filter(emp =>
+                  emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  (emp.role && emp.role.toLowerCase().includes(searchQuery.toLowerCase()))
+                ).sort((a, b) => {
+                  const modifier = sortOrder === "asc" ? 1 : -1;
+                  if (sortBy === "name") return a.name.localeCompare(b.name) * modifier;
+                  if (sortBy === "rating") return ((a.rating || 0) - (b.rating || 0)) * modifier;
+                  if (sortBy === "jobs") return ((a.totalJobsCompleted || 0) - (b.totalJobsCompleted || 0)) * modifier;
+                  return 0;
+                }).length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
                     <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>No employees yet</p>
-                    <p className="text-sm mt-1">
-                      Add your first employee to get started
-                    </p>
+                    <p>No employees found</p>
                   </div>
                 ) : (
-                  employees.map((emp) => (
-                    <div
-                      key={emp.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
-                    >
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="relative">
-                          <img
-                            src={
-                              emp.avatar ||
-                              `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                                emp.name,
-                              )}`
-                            }
-                            alt={emp.name}
-                            className="w-14 h-14 rounded-full object-cover"
-                          />
-                          {emp.employeeOfTheMonth && (
-                            <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-1">
-                              <Trophy className="h-4 w-4 text-yellow-900" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <div className="font-semibold text-gray-900">
-                              {emp.name}
-                            </div>
-                            {!emp.isActive && (
-                              <span className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded">
-                                Inactive
-                              </span>
+                  employees
+                    .filter(emp =>
+                      emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      (emp.role && emp.role.toLowerCase().includes(searchQuery.toLowerCase()))
+                    )
+                    .sort((a, b) => {
+                      const modifier = sortOrder === "asc" ? 1 : -1;
+                      if (sortBy === "name") return a.name.localeCompare(b.name) * modifier;
+                      return 0;
+                    })
+                    .map((emp) => (
+                      <div
+                        key={emp.id}
+                        onClick={() => setViewingEmployee(emp)}
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-gray-100 rounded-xl hover:border-[#00BAF1]/30 hover:bg-gray-50/50 transition-all group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="relative">
+                            <img
+                              src={
+                                emp.avatar ||
+                                `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
+                                  emp.name,
+                                )}&backgroundColor=00BAF1`
+                              }
+                              alt={emp.name}
+                              className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                            />
+                            {emp.employeeOfTheMonth && (
+                              <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-1 shadow-sm">
+                                <Trophy className="h-3 w-3 text-yellow-900" />
+                              </div>
                             )}
                           </div>
-                          <div className="text-sm text-gray-600 line-clamp-1">
-                            {emp.specializations &&
-                            emp.specializations.length > 0
-                              ? emp.specializations.slice(0, 3).join(", ") +
-                                (emp.specializations.length > 3
-                                  ? ` +${emp.specializations.length - 3}`
-                                  : "")
-                              : emp.role}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {emp.email}
-                          </div>
-                          <div className="flex items-center gap-4 mt-1">
-                            <Rating value={emp.rating} />
-                            {emp.totalJobsCompleted !== undefined && (
-                              <span className="text-xs text-gray-500">
-                                {emp.totalJobsCompleted} jobs completed
-                              </span>
-                            )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="font-semibold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
+                                {emp.name}
+                              </div>
+                              {!emp.isActive && (
+                                <span className="px-2 py-0.5 text-[10px] uppercase font-bold bg-gray-100 text-gray-500 rounded">
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 mb-1">
+                              {emp.specializations && emp.specializations.length > 0
+                                ? emp.specializations.slice(0, 2).join(", ") + (emp.specializations.length > 2 ? "..." : "")
+                                : emp.role || "Cleaner"}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-400">
+                              <div className="flex items-center gap-1">
+                                <Star className={`h-3 w-3 ${Number(emp.totalJobsCompleted || 0) > 0 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`} />
+                                <span className="font-medium text-gray-600">{Number(emp.totalJobsCompleted || 0) > 0 ? (emp.rating || 0).toFixed(1) : "0.0"}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Briefcase className="h-3 w-3" />
+                                <span>{emp.totalJobsCompleted || 0} jobs</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Banknote className="h-3 w-3 text-green-500" />
+                                <span className="text-green-600 font-medium">₱{Number(emp.totalEarnings || 0).toLocaleString()}</span>
+                              </div>
+                              {Number(emp.totalJobsCompleted || 0) > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <CheckCircle className="h-3 w-3 text-[#00BAF1]" />
+                                  <span className="text-[#00BAF1] font-medium">100% Completion Rate</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditEmployee(emp);
+                            }}
+                            className="h-8 w-8 text-gray-400 hover:text-[#00BAF1] hover:bg-[#00BAF1]/10"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeEmployee(emp.id, emp.name);
+                            }}
+                            className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                            title="Remove"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      {/* Action buttons: 2x2 grid on mobile, flex row on desktop */}
-                      <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 w-full sm:w-auto">
-                        <Button
-                          onClick={() => handleEditEmployee(emp)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto justify-center"
-                          size="sm"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                          <span className="hidden sm:inline sm:ml-1">Edit</span>
-                        </Button>
-                        <Button
-                          onClick={() => handleSetEOTM(emp)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white w-full sm:w-auto justify-center"
-                          size="sm"
-                        >
-                          <Award className="h-4 w-4" />
-                          <span className="hidden sm:inline sm:ml-1">EOTM</span>
-                        </Button>
-                        <Button
-                          onClick={() => handleViewPerformance(emp)}
-                          className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto justify-center"
-                          size="sm"
-                        >
-                          <TrendingUp className="h-4 w-4" />
-                          <span className="hidden sm:inline sm:ml-1">
-                            Stats
-                          </span>
-                        </Button>
-                        <Button
-                          onClick={() => removeEmployee(emp.id, emp.name)}
-                          className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto justify-center"
-                          size="sm"
-                        >
-                          <X className="h-4 w-4" />
-                          <span className="hidden sm:inline sm:ml-1">
-                            Remove
-                          </span>
-                        </Button>
-                      </div>
-                    </div>
-                  ))
+                    ))
                 )}
               </div>
             </CardContent>
@@ -934,99 +889,68 @@ export default function EmployeesPage() {
 
       {/* Leaderboard Tab */}
       {activeTab === "leaderboard" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-6 w-6 text-yellow-400" />
-              Employee Leaderboard
-            </CardTitle>
+        <Card className="border-none shadow-sm overflow-hidden">
+          <CardHeader className="pb-0 pt-8 px-8">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold bg-white">
+                <Trophy className="h-6 w-6 text-[#00BAF1]" />
+                Employee Leaderboard
+              </CardTitle>
+              <div className="flex items-center gap-10 md:gap-16 pr-4">
+                <span className="text-sm font-bold text-gray-900 w-[60px] text-center">Earnings</span>
+                <span className="text-sm font-bold text-gray-900 w-[60px] text-center">Ratings</span>
+                <span className="text-sm font-bold text-gray-900 w-[60px] text-center">Jobs</span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-8 pt-6 pb-12">
             {leaderboard.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Trophy className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <p>No leaderboard data available</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="divide-y divide-gray-100">
                 {leaderboard.map((entry, index) => (
                   <div
                     key={entry.employeeId}
-                    className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                      index === 0
-                        ? "border-yellow-400 bg-yellow-50"
-                        : index === 1
-                          ? "border-gray-400 bg-gray-50"
-                          : index === 2
-                            ? "border-orange-400 bg-orange-50"
-                            : "border-gray-200"
-                    }`}
+                    className="flex items-center justify-between py-5 group transition-all"
                   >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="relative">
-                        <div
-                          className={`text-2xl font-bold ${
-                            index === 0
-                              ? "text-yellow-600"
-                              : index === 1
-                                ? "text-gray-600"
-                                : index === 2
-                                  ? "text-orange-600"
-                                  : "text-gray-400"
-                          }`}
-                        >
-                          #{entry.rank}
-                        </div>
-                        {index < 3 && (
-                          <div className="absolute -top-2 -right-2">
-                            {index === 0 && (
-                              <Trophy className="h-6 w-6 text-yellow-500" />
-                            )}
-                            {index === 1 && (
-                              <Trophy className="h-6 w-6 text-gray-500" />
-                            )}
-                            {index === 2 && (
-                              <Trophy className="h-6 w-6 text-orange-500" />
-                            )}
-                          </div>
+                    <div className="flex items-center gap-6 flex-1">
+                      <div className="w-8 flex justify-center">
+                        {index === 0 ? (
+                          <Award className="h-6 w-6 text-[#00BAF1]" />
+                        ) : (
+                          <span className="text-lg font-bold text-gray-400">{index + 1}</span>
                         )}
                       </div>
-                      <div className="flex-1">
-                        <div className="font-semibold text-gray-900">
-                          {entry.name}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {entry.role} • {entry.email}
+
+                      <div className="flex-1 min-w-0">
+                        {index === 0 && (
+                          <div className="text-[10px] uppercase font-extrabold text-[#00BAF1] tracking-widest mb-1">
+                            Employee of the Month
+                          </div>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-base font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors truncate">
+                            {entry.name}
+                          </span>
+                          <span className="text-xs text-gray-500 font-medium mt-0.5">
+                            {entry.role}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm">
-                        <div className="text-center">
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 text-yellow-400" />
-                            <span className="font-semibold">
-                              {(entry.rating ?? 0).toFixed(1)}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500">Rating</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="flex items-center gap-1">
-                            <Briefcase className="h-4 w-4 text-blue-400" />
-                            <span className="font-semibold">
-                              {entry.totalJobsCompleted}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500">Jobs</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="flex items-center gap-1">
-                            <Banknote className="h-4 w-4 text-green-400" />
-                            <span className="font-semibold">
-                              ₱{(entry.totalEarnings ?? 0).toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500">Earnings</div>
-                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-10 md:gap-16 pr-4">
+                      <div className="w-[60px] text-center">
+                        <span className="text-sm font-bold text-green-600">₱{Number(entry.totalEarnings || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="w-[60px] text-center">
+                        <span className="text-lg font-bold text-gray-600">{(entry.rating ?? 0).toFixed(1)}</span>
+                      </div>
+                      <div className="w-[60px] text-center">
+                        <span className="text-lg font-bold text-gray-600">{entry.totalJobsCompleted}</span>
                       </div>
                     </div>
                   </div>
@@ -1037,133 +961,8 @@ export default function EmployeesPage() {
         </Card>
       )}
 
-      {/* Performance Tab */}
-      {activeTab === "performance" && selectedEmployee && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Overall Rating
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <Star className="h-8 w-8 text-yellow-400" />
-                <span className="text-3xl font-bold">
-                  {performanceStats
-                    ? (performanceStats.rating ?? 0).toFixed(1)
-                    : "N/A"}
-                </span>
-                <span className="text-gray-500">/ 5.0</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Jobs Completed
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-8 w-8 text-green-400" />
-                <span className="text-3xl font-bold">
-                  {performanceStats?.totalJobsCompleted || 0}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Total Earnings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <Banknote className="h-8 w-8 text-green-400" />
-                <span className="text-3xl font-bold">
-                  ₱
-                  {performanceStats
-                    ? (performanceStats.totalEarnings ?? 0).toLocaleString()
-                    : "0"}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-gray-600">
-                Completion Rate
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-8 w-8 text-blue-400" />
-                <span className="text-3xl font-bold">0%</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Employee Details */}
-          <Card className="md:col-span-2 lg:col-span-4">
-            <CardHeader>
-              <CardTitle>Employee Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-6">
-                <img
-                  src={
-                    selectedEmployee.avatar ||
-                    `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                      selectedEmployee.name,
-                    )}`
-                  }
-                  alt={selectedEmployee.name}
-                  className="w-24 h-24 rounded-full object-cover"
-                />
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-2xl font-bold">
-                      {selectedEmployee.name}
-                    </h3>
-                    {performanceStats?.employeeOfTheMonth && (
-                      <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">
-                        <Award className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          Employee of the Month
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-gray-600 mb-1">
-                    <strong>Role:</strong> {performanceStats?.role}
-                  </p>
-                  <p className="text-gray-600 mb-1">
-                    <strong>Email:</strong> {performanceStats?.email}
-                  </p>
-                  <p className="text-gray-600 mb-1">
-                    <strong>Average Rating:</strong>{" "}
-                    {(performanceStats?.rating ?? 0).toFixed(2)} / 5.0
-                  </p>
-                  {performanceStats?.employeeOfTheMonthReason && (
-                    <p className="text-gray-700 mt-3 italic">
-                      <strong>EOTM Reason:</strong> "
-                      {performanceStats.employeeOfTheMonthReason}"
-                    </p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* EOTM Modal */}
-      {settingEOTM && selectedEmployee && (
+      {settingEOTM && eotmTarget && (
         <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
@@ -1175,7 +974,7 @@ export default function EmployeesPage() {
                 <button
                   onClick={() => {
                     setSettingEOTM(false);
-                    setSelectedEmployee(null);
+                    setEotmTarget(null);
                   }}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -1188,20 +987,20 @@ export default function EmployeesPage() {
                 <div className="flex items-center gap-3">
                   <img
                     src={
-                      selectedEmployee.avatar ||
+                      eotmTarget.avatar ||
                       `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
-                        selectedEmployee.name,
-                      )}`
+                        eotmTarget.name,
+                      )}&backgroundColor=00BAF1`
                     }
-                    alt={selectedEmployee.name}
+                    alt={eotmTarget.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />
                   <div>
                     <p className="font-semibold text-gray-900">
-                      {selectedEmployee.name}
+                      {eotmTarget.name}
                     </p>
                     <p className="text-sm text-gray-600">
-                      {selectedEmployee.role}
+                      {eotmTarget.role}
                     </p>
                   </div>
                 </div>
@@ -1231,7 +1030,7 @@ export default function EmployeesPage() {
                 <Button
                   onClick={() => {
                     setSettingEOTM(false);
-                    setSelectedEmployee(null);
+                    setEotmTarget(null);
                   }}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
                 >
@@ -1296,11 +1095,10 @@ export default function EmployeesPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle
-                  className={`flex items-center gap-2 ${
-                    removeResult.type === "success"
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }`}
+                  className={`flex items-center gap-2 ${removeResult.type === "success"
+                    ? "text-green-600"
+                    : "text-red-600"
+                    }`}
                 >
                   {removeResult.type === "success" ? (
                     <CheckCircle className="h-5 w-5" />
@@ -1323,11 +1121,10 @@ export default function EmployeesPage() {
               <p className="text-gray-700">{removeResult.message}</p>
               <Button
                 onClick={() => setRemoveResult(null)}
-                className={`w-full ${
-                  removeResult.type === "success"
-                    ? "bg-green-600 hover:bg-green-700 text-white"
-                    : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                }`}
+                className={`w-full ${removeResult.type === "success"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                  }`}
               >
                 Close
               </Button>
@@ -1343,7 +1140,7 @@ export default function EmployeesPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  <Edit2 className="h-5 w-5 text-blue-500" />
+                  <Edit2 className="h-5 w-5 text-[#00BAF1]" />
                   Edit Employee
                 </CardTitle>
                 <button
@@ -1427,11 +1224,10 @@ export default function EmployeesPage() {
                       onClick={() =>
                         toggleEditSpecialization(spec.categoryName)
                       }
-                      className={`px-3 py-1 text-sm rounded-full border transition-colors ${
-                        editSpecializations.includes(spec.categoryName)
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                      }`}
+                      className={`px-3 py-1 text-sm rounded-full border transition-colors ${editSpecializations.includes(spec.categoryName)
+                        ? "bg-[#00BAF1] text-white border-[#00BAF1]"
+                        : "bg-white text-gray-700 border-gray-300 hover:border-[#00BAF1]/40"
+                        }`}
                     >
                       {spec.categoryName}
                       {editSpecializations.includes(spec.categoryName) && (
@@ -1450,7 +1246,7 @@ export default function EmployeesPage() {
                 <Button
                   onClick={saveEditEmployee}
                   disabled={isSavingEdit}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="flex-1 bg-[#00BAF1] hover:bg-[#00A7D9] text-white"
                 >
                   {isSavingEdit ? "Saving..." : "Save Changes"}
                 </Button>
@@ -1462,6 +1258,124 @@ export default function EmployeesPage() {
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800"
                 >
                   Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      {/* Employee Details Modal */}
+      {viewingEmployee && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-[60] p-4 transition-all animate-in fade-in duration-200">
+          <Card className="w-full max-w-lg shadow-2xl border-none overflow-hidden scale-in-center">
+            <CardContent className="relative px-8 pt-10 pb-8">
+              <button
+                onClick={() => setViewingEmployee(null)}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors z-10"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-6">
+                  <img
+                    src={
+                      viewingEmployee.avatar ||
+                      `https://api.dicebear.com/6.x/initials/svg?seed=${encodeURIComponent(
+                        viewingEmployee.name,
+                      )}&backgroundColor=00BAF1`
+                    }
+                    alt={viewingEmployee.name}
+                    className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"
+                  />
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 leading-tight">{viewingEmployee.name}</h2>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                      <span className="font-bold text-gray-700">{(viewingEmployee.rating || 0).toFixed(1)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6 mt-8">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="p-2 bg-gray-50 rounded-lg">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Email Address</p>
+                      <p className="text-sm font-medium truncate">{viewingEmployee.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="p-2 bg-gray-50 rounded-lg">
+                      <Phone className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Mobile Number</p>
+                      <p className="text-sm font-medium">{viewingEmployee.mobile || "Not specified"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="p-2 bg-gray-50 rounded-lg">
+                      <Briefcase className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Jobs Completed</p>
+                      <p className="text-sm font-medium">{viewingEmployee.totalJobsCompleted || 0} Successful Jobs</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <div className="p-2 bg-gray-50 rounded-lg">
+                      <Banknote className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Earnings</p>
+                      <p className="text-sm font-medium">₱{Number(viewingEmployee.totalEarnings || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {viewingEmployee.specializations && viewingEmployee.specializations.length > 0 && (
+                <div className="mt-8">
+                  <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-3">Specializations</p>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingEmployee.specializations.map((spec, i) => (
+                      <span key={i} className="px-3 py-1 bg-[#00BAF1]/10 text-[#00BAF1] text-xs font-semibold rounded-full border border-[#00BAF1]/20">
+                        {spec}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 mt-10">
+                <Button
+                  onClick={() => {
+                    handleEditEmployee(viewingEmployee);
+                    setViewingEmployee(null);
+                  }}
+                  className="bg-[#00BAF1] hover:bg-[#00A7D9] text-white h-11 rounded-xl shadow-lg shadow-[#00BAF1]/20"
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    removeEmployee(viewingEmployee.id, viewingEmployee.name);
+                    setViewingEmployee(null);
+                  }}
+                  className="border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 h-11 rounded-xl"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove Employee
                 </Button>
               </div>
             </CardContent>
