@@ -7465,6 +7465,7 @@ def worker_check_in(request, job_id: int):
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
         
+        now = timezone.now()
         today = _get_effective_work_date(job)
         
         # Check if already checked in today
@@ -7582,6 +7583,7 @@ def worker_check_out(request, job_id: int):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
         
+        now = timezone.now()
         today = _get_effective_work_date(job)
         
         # Get today's attendance record
