@@ -1181,6 +1181,8 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         
         # Check if there's an active backjob/dispute for this job
         from accounts.models import JobDispute
+        total_backjobs_for_job = JobDispute.objects.filter(jobID=job).count()
+        latest_dispute = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
         active_dispute = JobDispute.objects.filter(
             jobID=job,
             status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
@@ -1191,6 +1193,8 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
+                "total_backjobs_for_job": total_backjobs_for_job,
+                "latest_dispute_status": latest_dispute.status if latest_dispute else active_dispute.status,
                 "status": active_dispute.status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
@@ -1207,6 +1211,15 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
+        elif latest_dispute:
+            # Preserve count/history visibility even when no active dispute exists.
+            backjob_info = {
+                "has_backjob": False,
+                "dispute_id": latest_dispute.disputeID,
+                "total_backjobs_for_job": total_backjobs_for_job,
+                "latest_dispute_status": latest_dispute.status,
+                "status": latest_dispute.status,
+            }
         
         if conversation:
             reopened = False
@@ -1681,11 +1694,7 @@ def get_conversation_messages(request, conversation_id: int):
             pending_employees_count = len(employees_pending_review)
 
             # Backward compatibility: never emit next-review action for already-completed records.
-            is_closed_for_reviews = (
-                job.status == 'COMPLETED'
-                or conversation.status == Conversation.ConversationStatus.COMPLETED
-                or (worker_reviewed and client_reviewed)
-            )
+            is_closed_for_reviews = worker_reviewed and client_reviewed
 
             if not is_closed_for_reviews and not client_reviewed:
                 if pending_employees_count > 0:
@@ -1720,7 +1729,12 @@ def get_conversation_messages(request, conversation_id: int):
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Job heal skipped: {heal_err}")
 
-        if job.status == 'COMPLETED' and conversation.status != Conversation.ConversationStatus.COMPLETED:
+        if (
+            job.status == 'COMPLETED'
+            and worker_reviewed
+            and client_reviewed
+            and conversation.status != Conversation.ConversationStatus.COMPLETED
+        ):
             try:
                 conversation.status = Conversation.ConversationStatus.COMPLETED
                 conversation.save(update_fields=['status'])
@@ -1728,7 +1742,7 @@ def get_conversation_messages(request, conversation_id: int):
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Conversation status heal skipped: {heal_err}")
 
-        if job.status == 'COMPLETED':
+        if job.status == 'COMPLETED' and worker_reviewed and client_reviewed:
             try:
                 from profiles.conversation_service import should_auto_archive, archive_conversation
                 if should_auto_archive(conversation):
@@ -1901,6 +1915,8 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Check for active backjob/dispute
         from accounts.models import JobDispute
+        total_backjobs_for_job = JobDispute.objects.filter(jobID=job).count()
+        latest_dispute = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
         active_dispute = JobDispute.objects.filter(
             jobID=job,
             status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
@@ -1911,6 +1927,8 @@ def get_conversation_messages(request, conversation_id: int):
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
+                "total_backjobs_for_job": total_backjobs_for_job,
+                "latest_dispute_status": latest_dispute.status if latest_dispute else active_dispute.status,
                 "status": active_dispute.status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
@@ -1928,6 +1946,32 @@ def get_conversation_messages(request, conversation_id: int):
                 "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
+        elif latest_dispute:
+            # Keep historical backjob metadata visible in conversation payload.
+            backjob_info = {
+                "has_backjob": False,
+                "dispute_id": latest_dispute.disputeID,
+                "total_backjobs_for_job": total_backjobs_for_job,
+                "latest_dispute_status": latest_dispute.status,
+                "status": latest_dispute.status,
+            }
+
+        # If there is an active approved/negotiating backjob but conversation stayed closed,
+        # auto-heal it to ACTIVE so participants can continue negotiating/executing.
+        if (
+            active_dispute
+            and active_dispute.status in ['IN_NEGOTIATION', 'UNDER_REVIEW']
+            and conversation.status != Conversation.ConversationStatus.ACTIVE
+        ):
+            try:
+                old_status = conversation.status
+                conversation.status = Conversation.ConversationStatus.ACTIVE
+                conversation.archivedByClient = False
+                conversation.archivedByWorker = False
+                conversation.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
+                print(f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} reopened from {old_status} due to active backjob {active_dispute.status}")
+            except Exception as reopen_err:
+                print(f"   ⚠️ [CONVO AUTO-HEAL] Backjob reopen skipped: {reopen_err}")
 
         # Get payment buffer info for completed jobs
         payment_buffer_info = None

@@ -191,13 +191,25 @@ export type ConversationDetail = {
     has_backjob: boolean;
     dispute_id?: number;
     reason?: string;
+    total_backjobs_for_job?: number;
+    latest_dispute_status?:
+      | "OPEN"
+      | "IN_NEGOTIATION"
+      | "UNDER_REVIEW"
+      | "APPROVED"
+      | "REJECTED"
+      | "COMPLETED"
+      | "RESOLVED"
+      | "CLOSED";
     status?:
       | "OPEN"
       | "IN_NEGOTIATION"
       | "UNDER_REVIEW"
       | "APPROVED"
       | "REJECTED"
-      | "COMPLETED";
+      | "COMPLETED"
+      | "RESOLVED"
+      | "CLOSED";
     scheduled_date?: string | null;
     worker_schedule_confirmed?: boolean;
     worker_schedule_confirmed_at?: string | null;
@@ -340,7 +352,9 @@ export function useSendMessageMutation() {
       predicate: (query) => {
         const key = query.queryKey;
         return (
-          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+          Array.isArray(key) &&
+          key[0] === "messages" &&
+          key[1] === conversationId
         );
       },
     });
@@ -384,7 +398,9 @@ export function useUploadImageMessage() {
       predicate: (query) => {
         const key = query.queryKey;
         return (
-          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+          Array.isArray(key) &&
+          key[0] === "messages" &&
+          key[1] === conversationId
         );
       },
     });
