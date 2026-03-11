@@ -159,7 +159,7 @@ body {
 
 /* Agency verified theme: when agency is verified, tint cards with a blue accent */
 .agency-verified [data-slot="card"] {
-  @apply bg-sky-50 border-blue-200 shadow-md;
+  @apply bg-white border-gray-100 shadow-sm;
 }
 
 /* PWA Safe Area Support */

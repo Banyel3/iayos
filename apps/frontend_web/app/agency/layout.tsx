@@ -36,11 +36,18 @@ export default async function AgencyLayout({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
+    const accessToken = cookieStore.get("access")?.value;
+    const headers: Record<string, string> = {
+      cookie: cookieHeader,
+      Accept: "application/json",
+    };
+
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
-      headers: {
-        cookie: cookieHeader,
-        Accept: "application/json",
-      },
+      headers,
       cache: "no-store", // Don't cache auth checks to prevent stale data
       signal: controller.signal,
     });
@@ -79,11 +86,18 @@ export default async function AgencyLayout({
   let submissionNotes: string | null = null;
   let submissionFiles: any[] | null = null;
   try {
+    const accessToken = cookieStore.get("access")?.value;
+    const statusHeaders: Record<string, string> = {
+      cookie: cookieHeader,
+      Accept: "application/json",
+    };
+
+    if (accessToken) {
+      statusHeaders["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     const statusRes = await fetch(`${serverApiUrl}/api/agency/status`, {
-      headers: {
-        cookie: cookieHeader,
-        Accept: "application/json",
-      },
+      headers: statusHeaders,
       next: { revalidate: 30 }, // Cache for 30 seconds
     });
 

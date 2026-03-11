@@ -10,6 +10,7 @@ import React, {
 import { User, AuthContextType } from "@/types";
 import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/config";
+import Cookies from "js-cookie";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -37,6 +38,10 @@ const clearAllAuthCaches = () => {
   sessionStorageKeys.forEach((key) => {
     sessionStorage.removeItem(key);
   });
+
+  // 🔥 Clear manually set cookies for Local-to-Prod dev
+  Cookies.remove("access", { path: "/" });
+  Cookies.remove("refresh", { path: "/" });
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -53,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const { user: cachedUser, timestamp } = JSON.parse(cached);
           const cacheAge = Date.now() - timestamp;
-          const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+          const CACHE_TTL = 30 * 60 * 1000; // 30 minutes (increased for stability)
 
           if (cacheAge < CACHE_TTL && cachedUser) {
             if (process.env.NODE_ENV === "development")
@@ -84,8 +89,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
+      // Use token from localStorage if available (helps with CORS/Local-to-Prod dev)
+      const token = localStorage.getItem("ws_token");
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE}/api/accounts/me`, {
         credentials: "include", // 🔥 HTTP-only cookies sent automatically
+        headers,
         signal: controller.signal,
       });
 
@@ -170,14 +183,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(errorMessage);
       }
 
-      // Store access token for WebSocket authentication
-      // (Cookies are HTTP-only, so WebSocket needs token via query param)
+      // Store access token and set cookies manually
+      // This is CRITICAL when proxying live backends that return HttpOnly cookies with 'Domain' restrictions
       if (loginData.access) {
         localStorage.setItem("ws_token", loginData.access);
+        // Manually set cookies so they apply to localhost
+        Cookies.set("access", loginData.access, { expires: 1, path: "/" });
+      }
+      if (loginData.refresh) {
+        Cookies.set("refresh", loginData.refresh, { expires: 7, path: "/" });
       }
 
       // Login successful - now fetch user data
       const userDataResponse = await fetch(`${API_BASE}/api/accounts/me`, {
+        headers: {
+          Authorization: `Bearer ${loginData.access}`,
+        },
         credentials: "include",
       });
 
@@ -273,10 +294,15 @@ export const useAuthStatus = (): {
 
 export const useAuthenticatedFetch = () => {
   const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const headers = {
-      ...options.headers,
+    const token = localStorage.getItem("ws_token");
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
       "Content-Type": "application/json",
     };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
 
     // With HTTP-only cookies, credentials are sent automatically
     const response = await fetch(url, {

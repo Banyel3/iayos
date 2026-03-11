@@ -32,11 +32,18 @@ export default async function AdminLayout({
 
   // Server-side validate session with backend to avoid client-only cookie checks
   try {
+    const accessToken = cookieStore.get("access")?.value;
+    const headers: Record<string, string> = {
+      cookie: cookieHeader,
+      Accept: "application/json",
+    };
+
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
     const res = await fetch(`${serverApiUrl}/api/accounts/me`, {
-      headers: {
-        cookie: cookieHeader,
-        Accept: "application/json",
-      },
+      headers,
       // Don't cache auth checks
       cache: "no-store",
     });
