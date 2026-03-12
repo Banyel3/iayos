@@ -116,10 +116,18 @@ export default function AgencySidebar({
     const fetchCounts = async () => {
       try {
         // Backjobs count
-        const backjobRes = await fetch(`${API_BASE}/api/jobs/my-backjobs?status=UNDER_REVIEW`, { credentials: "include" });
+        const backjobRes = await fetch(`${API_BASE}/api/jobs/my-backjobs`, {
+          credentials: "include",
+        });
         if (backjobRes.ok) {
           const data = await backjobRes.json();
-          setBackjobsCount(data.backjobs?.length || 0);
+          const pipelineBackjobs = (data.backjobs || []).filter(
+            (b: { status?: string }) =>
+              b.status === "OPEN" ||
+              b.status === "IN_NEGOTIATION" ||
+              b.status === "UNDER_REVIEW",
+          );
+          setBackjobsCount(pipelineBackjobs.length);
         }
       } catch (error) {
         console.error("Error fetching sidebar counts:", error);
@@ -138,7 +146,9 @@ export default function AgencySidebar({
 
       try {
         // Unread messages count
-        const msgRes = await fetch(`${API_BASE}/api/profiles/chat/conversations?filter=unread`, { credentials: "include" });
+        const msgRes = await fetch(`${API_BASE}/api/agency/conversations?filter=unread`, {
+          credentials: "include",
+        });
         if (msgRes.ok) {
           const data = await msgRes.json();
           const convos = data.conversations ?? [];
