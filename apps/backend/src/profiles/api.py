@@ -843,10 +843,10 @@ def get_conversations(request, filter: str = "all"):
                     relatedJobPosting__is_team_job=True,
                     relatedJobPosting__skill_slots__workers_assigned__gt=0
                 ) |
-                Q(  # Backjob approved - conversation reopened
+                Q(  # Active backjob phases keep conversation visible
                     status='ACTIVE',
                     relatedJobPosting__status='COMPLETED',
-                    relatedJobPosting__disputes__status='UNDER_REVIEW'
+                    relatedJobPosting__disputes__status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
                 ) |
                 Q(  # Completed job with reviews still pending - conversation stays open
                     status='ACTIVE',

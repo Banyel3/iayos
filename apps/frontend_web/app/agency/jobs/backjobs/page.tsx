@@ -31,7 +31,7 @@ interface BackjobItem {
   job_category: string | null;
   reason: string;
   description: string;
-  status: "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "CLOSED";
+  status: "OPEN" | "IN_NEGOTIATION" | "UNDER_REVIEW" | "RESOLVED" | "CLOSED";
   priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   opened_date: string | null;
   resolution: string | null;
@@ -49,7 +49,9 @@ export default function AgencyBackjobsPage() {
   const router = useRouter();
   const [backjobs, setBackjobs] = useState<BackjobItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "UNDER_REVIEW" | "RESOLVED">(
+  const [filter, setFilter] = useState<
+    "all" | "OPEN" | "IN_NEGOTIATION" | "UNDER_REVIEW" | "RESOLVED"
+  >(
     "all",
   );
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,20 @@ export default function AgencyBackjobsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case "OPEN":
+        return (
+          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending Admin Review
+          </Badge>
+        );
+      case "IN_NEGOTIATION":
+        return (
+          <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
+            <RefreshCw className="w-3 h-3 mr-1" />
+            In Negotiation
+          </Badge>
+        );
       case "UNDER_REVIEW":
         return (
           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
@@ -223,6 +239,22 @@ export default function AgencyBackjobsPage() {
           onClick={() => setFilter("all")}
         >
           All
+        </Button>
+        <Button
+          variant={filter === "OPEN" ? "default" : "outline"}
+          onClick={() => setFilter("OPEN")}
+          className={filter === "OPEN" ? "bg-blue-600 hover:bg-blue-700" : ""}
+        >
+          Pending Review
+        </Button>
+        <Button
+          variant={filter === "IN_NEGOTIATION" ? "default" : "outline"}
+          onClick={() => setFilter("IN_NEGOTIATION")}
+          className={
+            filter === "IN_NEGOTIATION" ? "bg-indigo-600 hover:bg-indigo-700" : ""
+          }
+        >
+          Negotiation
         </Button>
         <Button
           variant={filter === "UNDER_REVIEW" ? "default" : "outline"}

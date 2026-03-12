@@ -1771,13 +1771,14 @@ def get_my_backjobs(request, status: Optional[str] = None):
         else:
             return {"backjobs": [], "total": 0}
         
-        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
-        # or show all if status filter provided
+        # Show agency/worker backjobs in visibility order.
+        # OPEN is now visible as "pending admin review" for agency/worker awareness.
         if status:
             disputes_query = disputes_query.filter(status=status)
         else:
-            # By default show UNDER_REVIEW (approved for action) and RESOLVED
-            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
+            disputes_query = disputes_query.filter(
+                status__in=["OPEN", "IN_NEGOTIATION", "UNDER_REVIEW", "RESOLVED"]
+            )
         
         disputes = disputes_query.order_by('-openedDate')
         
@@ -6063,9 +6064,44 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
                 changedBy=request.auth,
                 notes=f"Client requested backjob. Reason: {reason}. Payment on hold."
             )
-            
-            # NOTE: Conversation reopening and system message are now sent
-            # only when admin APPROVES the backjob request (in adminpanel/api.py)
+
+            # Reopen conversation immediately so participants can coordinate while
+            # waiting for admin review.
+            from profiles.models import Conversation, Message
+            from profiles.conversation_service import unarchive_conversation
+
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                old_status = conversation.status
+                conversation.status = Conversation.ConversationStatus.ACTIVE
+                conversation.archivedByClient = False
+                conversation.archivedByWorker = False
+                conversation.save(update_fields=[
+                    'status',
+                    'archivedByClient',
+                    'archivedByWorker',
+                    'updatedAt'
+                ])
+                print(f"Reopened conversation {conversation.conversationID} on backjob request (was {old_status})")
+            else:
+                client_profile = job.clientID.profileID
+                worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                conversation = Conversation.objects.create(
+                    client=client_profile,
+                    worker=worker_profile,
+                    agency=job.assignedAgencyFK,
+                    relatedJobPosting=job,
+                    status=Conversation.ConversationStatus.ACTIVE,
+                    archivedByClient=False,
+                    archivedByWorker=False,
+                )
+                print(f"Created conversation {conversation.conversationID} on backjob request")
+
+            unarchive_conversation(conversation)
+            Message.create_system_message(
+                conversation,
+                "Backjob requested and submitted for admin review. You may coordinate details here while waiting for admin decision."
+            )
         
         return {
             "success": True,
