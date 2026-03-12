@@ -213,6 +213,9 @@ export type ConversationDetail = {
     scheduled_date?: string | null;
     worker_schedule_confirmed?: boolean;
     worker_schedule_confirmed_at?: string | null;
+    team_schedule_total_workers?: number;
+    team_schedule_confirmed_count?: number;
+    my_schedule_confirmed?: boolean | null;
     backjob_started?: boolean;
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;
@@ -350,8 +353,9 @@ export function useMessages(
       };
     },
     enabled: !!conversationId,
-    staleTime: 15000,
-    refetchInterval: 15000, // Poll every 15s as fallback when WebSocket events are missed
+    // Keep WebSocket as primary realtime transport, but tighten fallback polling.
+    staleTime: 5000,
+    refetchInterval: 5000, // Poll every 5s when WebSocket events are missed
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });

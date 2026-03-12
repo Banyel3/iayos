@@ -533,6 +533,12 @@ export default function ChatScreen() {
     !!hasApprovedBackjob &&
     !scheduledBackjobDate &&
     !conversation?.backjob?.backjob_started;
+  const teamScheduleTotalWorkers =
+    conversation?.backjob?.team_schedule_total_workers ?? 0;
+  const teamScheduleConfirmedCount =
+    conversation?.backjob?.team_schedule_confirmed_count ?? 0;
+  const myBackjobScheduleConfirmed =
+    conversation?.backjob?.my_schedule_confirmed === true;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -1136,10 +1142,7 @@ export default function ChatScreen() {
       {
         onSuccess: () => {
           setShowBackjobScheduleModal(false);
-          setBackjobScheduleInput("");
-          const d = new Date();
-          d.setHours(0, 0, 0, 0);
-          setBackjobScheduleDate(d);
+          // Keep local date state intact until server refetch settles to avoid visual reversion.
         },
       },
     );
@@ -6280,7 +6283,9 @@ export default function ChatScreen() {
                                   },
                                 ]}
                               >
-                                Waiting for Worker Confirmation
+                                {teamScheduleTotalWorkers > 0
+                                  ? `Waiting for Worker Confirmations (${teamScheduleConfirmedCount}/${teamScheduleTotalWorkers})`
+                                  : "Waiting for Worker Confirmation"}
                               </Text>
                             )}
                           </>
@@ -6329,7 +6334,8 @@ export default function ChatScreen() {
 
                 {conversation.my_role !== "CLIENT" &&
                   !!conversation.backjob?.scheduled_date &&
-                  !conversation.backjob?.worker_schedule_confirmed && (
+                  !conversation.backjob?.worker_schedule_confirmed &&
+                  !myBackjobScheduleConfirmed && (
                     <TouchableOpacity
                       style={[
                         styles.backjobActionButtonCompact,
@@ -6386,6 +6392,24 @@ export default function ChatScreen() {
                         </>
                       )}
                     </TouchableOpacity>
+                  )}
+
+                {conversation.my_role !== "CLIENT" &&
+                  !!conversation.backjob?.scheduled_date &&
+                  !conversation.backjob?.worker_schedule_confirmed &&
+                  myBackjobScheduleConfirmed && (
+                    <View style={styles.backjobWaitingBadge}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={14}
+                        color={Colors.success}
+                      />
+                      <Text style={styles.backjobWaitingText}>
+                        {teamScheduleTotalWorkers > 0
+                          ? `You confirmed. Waiting for others (${teamScheduleConfirmedCount}/${teamScheduleTotalWorkers})`
+                          : "You already confirmed. Waiting for client update..."}
+                      </Text>
+                    </View>
                   )}
               </View>
             )}

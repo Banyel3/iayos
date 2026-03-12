@@ -5,6 +5,8 @@ from ninja import Router, Schema
 # from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
 from ninja.responses import Response
 from accounts.authentication import cookie_auth
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -58,6 +60,43 @@ from .settings_service import (
     update_admin_last_login, get_all_permissions, check_admin_permission
 )
 router = Router(tags=["adminpanel"])
+
+
+def broadcast_admin_job_status_update(job_id: int, update_data: dict):
+    """
+    Broadcast admin-triggered job/dispute status updates to job and chat groups.
+    This keeps mobile/web banner and action-button states in sync with admin actions.
+    """
+    try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+
+        async_to_sync(channel_layer.group_send)(
+            f'job_{job_id}',
+            {
+                'type': 'job_status_update',
+                'data': update_data,
+            }
+        )
+
+        from profiles.models import Conversation
+
+        conv_ids = list(
+            Conversation.objects.filter(relatedJobPosting_id=job_id)
+            .values_list('pk', flat=True)
+        )
+
+        for conv_id in conv_ids:
+            async_to_sync(channel_layer.group_send)(
+                f'chat_{conv_id}',
+                {
+                    'type': 'job_status_update',
+                    'data': update_data,
+                }
+            )
+    except Exception as e:
+        print(f"❌ Error broadcasting admin job status for job {job_id}: {str(e)}")
 
 
 @router.get("/dashboard/stats", auth=cookie_auth)
@@ -1276,6 +1315,18 @@ def accept_negotiation(request, dispute_id: int):
                     relatedJobID=job.jobID
                 )
 
+            transaction.on_commit(
+                lambda: broadcast_admin_job_status_update(
+                    job.jobID,
+                    {
+                        "event": "backjob_negotiation_started",
+                        "job_id": job.jobID,
+                        "dispute_id": dispute.disputeID,
+                        "status": "IN_NEGOTIATION",
+                    },
+                )
+            )
+
         return {
             "success": True,
             "message": "Backjob accepted into negotiation.",
@@ -1572,6 +1623,19 @@ def approve_backjob(request, dispute_id: int):
                         conversation,
                         "Negotiation complete — admin has left the conversation. Backjob is now approved and in progress."
                     )
+
+                transaction.on_commit(
+                    lambda: broadcast_admin_job_status_update(
+                        job.jobID,
+                        {
+                            "event": "backjob_approved",
+                            "job_id": job.jobID,
+                            "dispute_id": dispute.disputeID,
+                            "status": "UNDER_REVIEW",
+                            "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+                        },
+                    )
+                )
         
         except Exception as e:
             print(f"Error managing conversation for backjob: {str(e)}")
@@ -1728,6 +1792,16 @@ def reject_backjob(request, dispute_id: int):
             from profiles.conversation_service import archive_conversation
             archive_result = archive_conversation(conversation)
             print(f"{archive_result.get('message', 'Conversation archived after backjob denial')}")
+
+        broadcast_admin_job_status_update(
+            job.jobID,
+            {
+                "event": "backjob_rejected",
+                "job_id": job.jobID,
+                "dispute_id": dispute.disputeID,
+                "status": "CLOSED",
+            },
+        )
         
         return {
             "success": True,

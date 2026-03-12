@@ -47,16 +47,17 @@ export function useConversations(
 
 /**
  * Hook to fetch and cache messages for a specific conversation
- * Tier 4: Real-time data - WebSocket updates only, no auto-refresh
+ * Tier 4: Real-time data with light polling fallback
  */
 export function useConversationMessages(conversationId: number | null) {
   return useQuery({
     queryKey: inboxKeys.messages(conversationId!),
     queryFn: () => fetchMessages(conversationId!),
     enabled: conversationId !== null,
-    staleTime: Infinity, // Never auto-refetch (WebSocket handles updates)
+    staleTime: 30 * 1000, // Keep data fresh enough for quick UI reconciliation
     gcTime: 24 * 60 * 60 * 1000, // 24 hours
-    refetchInterval: false, // No background refresh (WebSocket only)
+    refetchInterval: 30 * 1000, // Fallback if WebSocket event is missed
+    refetchIntervalInBackground: true,
     // Return the full response (messages + conversation metadata)
   });
 }

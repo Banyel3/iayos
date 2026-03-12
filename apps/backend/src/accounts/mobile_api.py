@@ -1923,13 +1923,14 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
         else:
             return {"backjobs": [], "total": 0}
         
-        # Only show approved backjobs (UNDER_REVIEW means admin has reviewed and assigned to worker)
-        # or show all if status filter provided
+        # OPEN and IN_NEGOTIATION are visible for awareness; execution actions
+        # remain guarded by existing status checks in workflow endpoints.
         if status:
             disputes_query = disputes_query.filter(status=status)
         else:
-            # By default show UNDER_REVIEW (approved for action) and RESOLVED
-            disputes_query = disputes_query.filter(status__in=["UNDER_REVIEW", "RESOLVED"])
+            disputes_query = disputes_query.filter(
+                status__in=["OPEN", "IN_NEGOTIATION", "UNDER_REVIEW", "RESOLVED"]
+            )
         
         disputes = disputes_query.order_by('-openedDate')
         

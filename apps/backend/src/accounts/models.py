@@ -2298,6 +2298,53 @@ class JobDispute(models.Model):
         return f"Dispute #{self.disputeID} - {self.jobID.title}"
 
 
+class BackjobScheduleConfirmation(models.Model):
+    """
+    Per-worker backjob schedule confirmation for team jobs.
+    A dispute is considered fully schedule-confirmed only when all active
+    team assignments have confirmed.
+    """
+    confirmationID = models.BigAutoField(primary_key=True)
+    disputeID = models.ForeignKey(
+        JobDispute,
+        on_delete=models.CASCADE,
+        related_name='team_schedule_confirmations'
+    )
+    assignmentID = models.ForeignKey(
+        'JobWorkerAssignment',
+        on_delete=models.CASCADE,
+        related_name='backjob_schedule_confirmations'
+    )
+    confirmed = models.BooleanField(default=True)
+    confirmedAt = models.DateTimeField(auto_now_add=True)
+    confirmedBy = models.ForeignKey(
+        'Accounts',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='backjob_schedule_confirmations'
+    )
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'backjob_schedule_confirmations'
+        ordering = ['-confirmedAt']
+        indexes = [
+            models.Index(fields=['disputeID', '-confirmedAt']),
+            models.Index(fields=['assignmentID']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['disputeID', 'assignmentID'],
+                name='unique_backjob_confirmation_per_assignment'
+            )
+        ]
+
+    def __str__(self):
+        return f"Backjob confirm #{self.confirmationID} for dispute #{self.disputeID_id}"
+
+
 class DisputeEvidence(models.Model):
     """
     Evidence images attached to job disputes/backjob requests

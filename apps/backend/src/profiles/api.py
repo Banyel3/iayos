@@ -843,10 +843,10 @@ def get_conversations(request, filter: str = "all"):
                     relatedJobPosting__is_team_job=True,
                     relatedJobPosting__skill_slots__workers_assigned__gt=0
                 ) |
-                Q(  # Backjob approved - conversation reopened
+                Q(  # Active backjob phases keep conversation visible
                     status='ACTIVE',
                     relatedJobPosting__status='COMPLETED',
-                    relatedJobPosting__disputes__status='UNDER_REVIEW'
+                    relatedJobPosting__disputes__status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
                 ) |
                 Q(  # Completed job with reviews still pending - conversation stays open
                     status='ACTIVE',
@@ -1190,6 +1190,38 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         
         backjob_info = None
         if active_dispute:
+            team_schedule_total_workers = 0
+            team_schedule_confirmed_count = 0
+            my_schedule_confirmed = None
+
+            if job.is_team_job:
+                from accounts.models import JobWorkerAssignment, BackjobScheduleConfirmation
+
+                active_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status='ACTIVE'
+                )
+                team_schedule_total_workers = active_assignments.count()
+
+                if team_schedule_total_workers > 0:
+                    active_assignment_ids = list(active_assignments.values_list('assignmentID', flat=True))
+                    team_schedule_confirmed_count = BackjobScheduleConfirmation.objects.filter(
+                        disputeID=active_dispute,
+                        assignmentID_id__in=active_assignment_ids,
+                        confirmed=True,
+                    ).count()
+
+                    if user_profile:
+                        my_assignment_id = active_assignments.filter(
+                            workerID__profileID=user_profile
+                        ).values_list('assignmentID', flat=True).first()
+                        if my_assignment_id:
+                            my_schedule_confirmed = BackjobScheduleConfirmation.objects.filter(
+                                disputeID=active_dispute,
+                                assignmentID_id=my_assignment_id,
+                                confirmed=True,
+                            ).exists()
+
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
@@ -1209,6 +1241,9 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
                 "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
                 "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
+                "team_schedule_total_workers": team_schedule_total_workers,
+                "team_schedule_confirmed_count": team_schedule_confirmed_count,
+                "my_schedule_confirmed": my_schedule_confirmed,
             }
             print(f"   🔄 Backjob info: {backjob_info}")
         elif latest_dispute:
@@ -1924,6 +1959,38 @@ def get_conversation_messages(request, conversation_id: int):
         
         backjob_info = None
         if active_dispute:
+            team_schedule_total_workers = 0
+            team_schedule_confirmed_count = 0
+            my_schedule_confirmed = None
+
+            if job.is_team_job:
+                from accounts.models import BackjobScheduleConfirmation
+
+                active_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status='ACTIVE'
+                )
+                team_schedule_total_workers = active_assignments.count()
+
+                if team_schedule_total_workers > 0:
+                    active_assignment_ids = list(active_assignments.values_list('assignmentID', flat=True))
+                    team_schedule_confirmed_count = BackjobScheduleConfirmation.objects.filter(
+                        disputeID=active_dispute,
+                        assignmentID_id__in=active_assignment_ids,
+                        confirmed=True,
+                    ).count()
+
+                    if user_profile:
+                        my_assignment_id = active_assignments.filter(
+                            workerID__profileID=user_profile
+                        ).values_list('assignmentID', flat=True).first()
+                        if my_assignment_id:
+                            my_schedule_confirmed = BackjobScheduleConfirmation.objects.filter(
+                                disputeID=active_dispute,
+                                assignmentID_id=my_assignment_id,
+                                confirmed=True,
+                            ).exists()
+
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
@@ -1944,6 +2011,9 @@ def get_conversation_messages(request, conversation_id: int):
                 "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
                 "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
                 "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
+                "team_schedule_total_workers": team_schedule_total_workers,
+                "team_schedule_confirmed_count": team_schedule_confirmed_count,
+                "my_schedule_confirmed": my_schedule_confirmed,
             }
             print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
         elif latest_dispute:
