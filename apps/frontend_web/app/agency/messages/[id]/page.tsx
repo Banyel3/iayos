@@ -666,7 +666,9 @@ export default function AgencyChatScreen() {
                   Status:{" "}
                   {conversation.backjob.status === "UNDER_REVIEW"
                     ? "Action Required"
-                    : "Pending Review"}
+                    : conversation.backjob.status === "IN_NEGOTIATION"
+                      ? "In Negotiation"
+                      : "Pending Review"}
                 </Badge>
               </div>
 

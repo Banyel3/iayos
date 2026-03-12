@@ -585,7 +585,7 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
                   onClick={handleContactClient}
                 >
                   <MessageCircle className="w-4 h-4 mr-2" />
-                  Contact Client
+                  Go to conversation
                 </Button>
               </CardContent>
             </Card>
