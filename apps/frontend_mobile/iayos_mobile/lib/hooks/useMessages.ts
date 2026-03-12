@@ -353,8 +353,9 @@ export function useMessages(
       };
     },
     enabled: !!conversationId,
-    staleTime: 15000,
-    refetchInterval: 15000, // Poll every 15s as fallback when WebSocket events are missed
+    // Keep WebSocket as primary realtime transport, but tighten fallback polling.
+    staleTime: 5000,
+    refetchInterval: 5000, // Poll every 5s when WebSocket events are missed
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
