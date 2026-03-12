@@ -25,6 +25,7 @@ import KYCDetailModal from "@/components/admin/KYCDetailModal";
 
 interface RejectedKYC {
   id: string;
+  logId?: string;
   userId: string;
   userName: string;
   userEmail: string;
@@ -101,11 +102,12 @@ export default function RejectedKYCPage() {
       // Transform backend data to match frontend interface
       const transformedData: RejectedKYC[] = logs.map((log: any) => {
         // Extract kycType from log data (check if it's agency or user KYC)
-        const kycType = log.agencyKycID ? "AGENCY" : "USER";
-        const kycId = log.agencyKycID || log.kycID || log.kycLogID;
+        const kycType = log.kycType || (log.agencyKycID ? "AGENCY" : "USER");
+        const kycId = log.kycID || log.agencyKycID || log.kycLogID;
 
         return {
           id: kycId?.toString() || "0",
+          logId: log.kycLogID?.toString() || `${kycId}-${log.reviewedAt}`,
           userId: log.userAccountID?.toString() || "0",
           userName: log.userEmail?.split("@")[0] || "Unknown", // Extract name from email
           userEmail: log.userEmail || "unknown@email.com",
@@ -346,7 +348,7 @@ export default function RejectedKYCPage() {
           <div className="space-y-4">
             {filteredRecords.map((record) => (
               <Card
-                key={record.id}
+                key={record.logId || record.id}
                 className="hover:shadow-md transition-shadow border-red-200"
               >
                 <CardContent className="p-4 sm:p-6">
