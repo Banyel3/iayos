@@ -213,6 +213,9 @@ export type ConversationDetail = {
     scheduled_date?: string | null;
     worker_schedule_confirmed?: boolean;
     worker_schedule_confirmed_at?: string | null;
+    team_schedule_total_workers?: number;
+    team_schedule_confirmed_count?: number;
+    my_schedule_confirmed?: boolean | null;
     backjob_started?: boolean;
     worker_marked_complete?: boolean;
     client_confirmed_complete?: boolean;

@@ -3,7 +3,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, JobEmployeeAssignment, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, JobEmployeeAssignment, BackjobScheduleConfirmation, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -6424,6 +6424,8 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
         dispute.scheduled_date = scheduled_date
         dispute.workerScheduleConfirmed = False
         dispute.workerScheduleConfirmedAt = None
+        # Reset per-worker confirmations whenever the schedule changes.
+        BackjobScheduleConfirmation.objects.filter(disputeID=dispute).delete()
 
         # If date is edited after prior confirmation, move back to negotiation until reconfirmed.
         if dispute.status == "UNDER_REVIEW":
@@ -6461,21 +6463,38 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
                 + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
             )
 
-        # Notify worker/agency
-        worker_account = None
-        if job.assignedAgencyFK:
-            worker_account = job.assignedAgencyFK.accountFK
-        elif job.assignedWorkerID:
-            worker_account = job.assignedWorkerID.profileID.accountFK
+        team_assignments = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status='ACTIVE'
+        ).select_related('workerID__profileID__accountFK') if job.is_team_job else JobWorkerAssignment.objects.none()
 
-        if worker_account:
-            Notification.objects.create(
-                accountFK=worker_account,
-                notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
-                title="Backjob Schedule Proposed",
-                message=f"Client {action_word} backjob schedule for '{job.title}' to {formatted_date}. Please confirm.",
-                relatedJobID=job.jobID,
-            )
+        # Notify all active team workers for team jobs, otherwise notify assigned worker/agency.
+        if job.is_team_job and team_assignments.exists():
+            for assignment in team_assignments:
+                Notification.objects.create(
+                    accountFK=assignment.workerID.profileID.accountFK,
+                    notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                    title="Backjob Schedule Proposed",
+                    message=f"Client {action_word} backjob schedule for '{job.title}' to {formatted_date}. Please confirm.",
+                    relatedJobID=job.jobID,
+                )
+        else:
+            worker_account = None
+            if job.assignedAgencyFK:
+                worker_account = job.assignedAgencyFK.accountFK
+            elif job.assignedWorkerID:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+
+            if worker_account:
+                Notification.objects.create(
+                    accountFK=worker_account,
+                    notificationType=Notification.NotificationType.BACKJOB_SCHEDULED,
+                    title="Backjob Schedule Proposed",
+                    message=f"Client {action_word} backjob schedule for '{job.title}' to {formatted_date}. Please confirm.",
+                    relatedJobID=job.jobID,
+                )
+
+        team_total_workers = team_assignments.count() if job.is_team_job else 0
 
         return {
             "success": True,
@@ -6485,6 +6504,8 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
             "status": dispute.status,
             "scheduled_date": dispute.scheduled_date.isoformat(),
             "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+            "team_schedule_total_workers": team_total_workers,
+            "team_schedule_confirmed_count": 0,
         }
 
     except Exception as e:
@@ -6513,13 +6534,28 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+        active_team_assignments = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status='ACTIVE'
+        ).select_related('workerID__profileID__accountFK') if job.is_team_job else JobWorkerAssignment.objects.none()
+
+        requester_team_assignment = None
+        if worker_profile and job.is_team_job:
+            requester_team_assignment = active_team_assignments.filter(
+                workerID=worker_profile
+            ).first()
+
         is_assigned_worker = bool(
             job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == request.auth
         )
         is_assigned_agency = bool(
             job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         )
-        if not (is_assigned_worker or is_assigned_agency):
+        is_team_assigned_worker = bool(requester_team_assignment)
+        if not (is_assigned_worker or is_assigned_agency or is_team_assigned_worker):
             return Response({"error": "Only the assigned worker or agency can confirm this schedule"}, status=403)
 
         dispute = JobDispute.objects.filter(jobID=job, status="IN_NEGOTIATION").first()
@@ -6538,53 +6574,135 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 "status": "UNDER_REVIEW",
                 "scheduled_date": dispute.scheduled_date.isoformat(),
                 "worker_schedule_confirmed": True,
+                "team_schedule_total_workers": active_team_assignments.count() if job.is_team_job else 0,
+                "team_schedule_confirmed_count": active_team_assignments.count() if job.is_team_job else 0,
             }
 
-        dispute.workerScheduleConfirmed = True
-        dispute.workerScheduleConfirmedAt = timezone.now()
-        dispute.status = "UNDER_REVIEW"
-        dispute.save(update_fields=[
-            "workerScheduleConfirmed",
-            "workerScheduleConfirmedAt",
-            "status",
-            "updatedAt",
-        ])
+        team_total_workers = 0
+        team_confirmed_count = 0
+        requester_confirmed = True
+
+        if job.is_team_job and active_team_assignments.exists():
+            team_total_workers = active_team_assignments.count()
+            if not requester_team_assignment:
+                return Response({"error": "Only active assigned team workers can confirm this schedule"}, status=403)
+
+            confirmation, created = BackjobScheduleConfirmation.objects.get_or_create(
+                disputeID=dispute,
+                assignmentID=requester_team_assignment,
+                defaults={
+                    "confirmed": True,
+                    "confirmedBy": request.auth,
+                }
+            )
+            if not created and not confirmation.confirmed:
+                confirmation.confirmed = True
+                confirmation.confirmedBy = request.auth
+                confirmation.confirmedAt = timezone.now()
+                confirmation.save(update_fields=["confirmed", "confirmedBy", "confirmedAt", "updatedAt"])
+
+            active_assignment_ids = list(active_team_assignments.values_list('assignmentID', flat=True))
+            team_confirmed_count = BackjobScheduleConfirmation.objects.filter(
+                disputeID=dispute,
+                assignmentID_id__in=active_assignment_ids,
+                confirmed=True,
+            ).count()
+
+            all_confirmed = team_total_workers > 0 and team_confirmed_count >= team_total_workers
+            if all_confirmed:
+                dispute.workerScheduleConfirmed = True
+                dispute.workerScheduleConfirmedAt = timezone.now()
+                dispute.status = "UNDER_REVIEW"
+                dispute.save(update_fields=[
+                    "workerScheduleConfirmed",
+                    "workerScheduleConfirmedAt",
+                    "status",
+                    "updatedAt",
+                ])
+            else:
+                dispute.workerScheduleConfirmed = False
+                dispute.workerScheduleConfirmedAt = None
+                dispute.status = "IN_NEGOTIATION"
+                dispute.save(update_fields=[
+                    "workerScheduleConfirmed",
+                    "workerScheduleConfirmedAt",
+                    "status",
+                    "updatedAt",
+                ])
+            requester_confirmed = True
+        else:
+            dispute.workerScheduleConfirmed = True
+            dispute.workerScheduleConfirmedAt = timezone.now()
+            dispute.status = "UNDER_REVIEW"
+            dispute.save(update_fields=[
+                "workerScheduleConfirmed",
+                "workerScheduleConfirmedAt",
+                "status",
+                "updatedAt",
+            ])
 
         formatted_date = dispute.scheduled_date.strftime("%B %d, %Y")
+        if dispute.workerScheduleConfirmed:
+            log_note = f"Worker confirmed backjob schedule ({formatted_date}); dispute moved to UNDER_REVIEW"
+        else:
+            log_note = (
+                f"Team worker confirmed backjob schedule ({formatted_date}); "
+                f"waiting for remaining confirmations ({team_confirmed_count}/{team_total_workers})"
+            )
+
         JobLog.objects.create(
             jobID=job,
             oldStatus=job.status,
             newStatus="BACKJOB_APPR",
             changedBy=request.auth,
-            notes=f"Worker confirmed backjob schedule ({formatted_date}); dispute moved to UNDER_REVIEW"
+            notes=log_note
         )
 
         from profiles.models import Conversation, Message
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         if conversation:
-            Message.create_system_message(
-                conversation,
-                f"Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
-            )
+            if dispute.workerScheduleConfirmed:
+                Message.create_system_message(
+                    conversation,
+                    f"Worker confirmed backjob schedule ({formatted_date}). Backjob is now approved for execution."
+                )
+            else:
+                Message.create_system_message(
+                    conversation,
+                    f"Team worker confirmed backjob schedule ({formatted_date}). "
+                    f"Waiting for remaining confirmations ({team_confirmed_count}/{team_total_workers})."
+                )
 
         # Notify client
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
             notificationType=Notification.NotificationType.BACKJOB_APPROVED,
-            title="Backjob Schedule Confirmed",
-            message=f"Worker confirmed backjob schedule for '{job.title}' on {formatted_date}.",
+            title="Backjob Schedule Confirmation Update",
+            message=(
+                f"Backjob schedule confirmation progress for '{job.title}': "
+                f"{team_confirmed_count}/{team_total_workers} workers confirmed."
+                if job.is_team_job and team_total_workers > 0
+                else f"Worker confirmed backjob schedule for '{job.title}' on {formatted_date}."
+            ),
             relatedJobID=job.jobID,
         )
 
         return {
             "success": True,
-            "message": f"Backjob scheduled date confirmed for {formatted_date}.",
+            "message": (
+                f"Backjob scheduled date confirmed for {formatted_date}."
+                if dispute.workerScheduleConfirmed
+                else f"Schedule confirmation recorded ({team_confirmed_count}/{team_total_workers})."
+            ),
             "job_id": job.jobID,
             "dispute_id": dispute.disputeID,
             "status": dispute.status,
             "scheduled_date": dispute.scheduled_date.isoformat(),
             "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
             "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+            "team_schedule_total_workers": team_total_workers,
+            "team_schedule_confirmed_count": team_confirmed_count,
+            "my_schedule_confirmed": requester_confirmed,
         }
 
     except Exception as e:
