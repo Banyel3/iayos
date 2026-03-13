@@ -748,7 +748,7 @@ export default function ChatScreen() {
           onPress: () => {
             setIsMarkOnTheWayLocked(true);
             markOnTheWayMutation.mutate(conversation.job.id, {
-              onSettled: () => {
+              onError: () => {
                 setIsMarkOnTheWayLocked(false);
               },
             });
