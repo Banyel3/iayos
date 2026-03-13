@@ -80,6 +80,9 @@ export type BackjobInfo = {
   worker_marked_complete_at: string | null;
   client_confirmed: boolean;
   client_confirmed_at: string | null;
+  scheduled_date?: string | null;
+  worker_schedule_confirmed?: boolean;
+  worker_schedule_confirmed_at?: string | null;
 };
 
 export type AgencyConversation = {
