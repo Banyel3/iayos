@@ -154,7 +154,8 @@ export default function AgencyDashboardPage() {
           .sort((a, b) => b.value - a.value);
         setPieData(derivedPieData);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error("Error fetching dashboard data:", error);
       toast.error("Error loading dashboard");
     } finally {

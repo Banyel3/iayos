@@ -217,10 +217,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         return true;
       } else {
+        const errText = await userDataResponse.text();
+        console.error("User Data Response Failed:", userDataResponse.status, errText);
         // Failed to get user data - clear everything
         setUser(null);
         clearAllAuthCaches();
-        throw new Error("Failed to fetch user data after login");
+        throw new Error(`Failed to fetch user data after login: ${userDataResponse.status} ${errText}`);
       }
     } catch (error) {
       // Ensure everything is cleared on any error
