@@ -946,7 +946,7 @@ def get_client_by_id(request, account_id: str):
 
 
 @router.get("/users/workers", auth=cookie_auth)
-def get_workers(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
+def get_workers(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None, category_id: int | None = None):
     """
     Get paginated list of worker accounts using optimized queries.
     
@@ -955,10 +955,11 @@ def get_workers(request, page: int = 1, page_size: int = 50, search: str | None 
     - page_size: Items per page (default 50)
     - search: Search by name or email
     - status: Filter by status (all, active, inactive)
+    - category_id: Filter by job category
     """
     try:
         # Use optimized query with subqueries to avoid N+1
-        result = get_workers_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
+        result = get_workers_list_optimized(page=page, page_size=page_size, search=search, status_filter=status, category_id=category_id)
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching workers: {str(e)}")

@@ -47,7 +47,9 @@ export function useConfirmWorkStarted() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to confirm work started"));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm work started"),
+        );
       }
 
       return response.json();
@@ -110,7 +112,6 @@ export function useMarkOnTheWay() {
         workerMarkedOnTheWayAt:
           data?.worker_marked_on_the_way_at || new Date().toISOString(),
       });
-
       Toast.show({
         type: "success",
         text1: "Status Updated",
@@ -163,7 +164,6 @@ export function useMarkJobStarted() {
         workerMarkedJobStartedAt:
           data?.worker_marked_job_started_at || new Date().toISOString(),
       });
-
       Toast.show({
         type: "success",
         text1: "Status Updated",
@@ -204,40 +204,35 @@ export function useCancelJob() {
       const response = await apiRequest(ENDPOINTS.CANCEL_JOB(jobId), {
         method: "PATCH",
         body: JSON.stringify({
-          reason: reason || "Cancelled by client",
-          actor_notes: actorNotes || "",
+          reason: reason ?? "Cancelled from conversation",
+          actor_notes: actorNotes ?? "",
         }),
       });
 
       if (!response.ok) {
-        const error = (await response.json().catch(() => ({}))) as {
-          error?: string;
-          message?: string;
-        };
-        throw new Error(
-          getErrorMessage(error, "Failed to cancel job"),
-        );
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to cancel job"));
       }
 
       return response.json();
     },
-    onSuccess: (_, { jobId }) => {
+    onSuccess: (_, variables) => {
       Toast.show({
         type: "success",
         text1: "Job Cancelled",
-        text2: "Funds were processed based on cancellation rules",
+        text2: "The job was cancelled successfully",
       });
 
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
-      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
     onError: (error: Error) => {
       Toast.show({
         type: "error",
-        text1: "Cancel Failed",
+        text1: "Cancellation Failed",
         text2: error.message,
       });
     },
@@ -265,7 +260,9 @@ export function useConfirmTeamWorkerArrival() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to confirm worker arrival"));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm worker arrival"),
+        );
       }
 
       return response.json();
@@ -315,7 +312,9 @@ export function useMarkTeamAssignmentComplete() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to mark assignment complete"));
+        throw new Error(
+          getErrorMessage(error, "Failed to mark assignment complete"),
+        );
       }
 
       return response.json();
@@ -378,7 +377,9 @@ export function useApproveTeamJobCompletion() {
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
-        throw new Error(getErrorMessage(error, "Failed to approve team job completion"));
+        throw new Error(
+          getErrorMessage(error, "Failed to approve team job completion"),
+        );
       }
 
       return response.json();
@@ -545,7 +546,13 @@ export function useDispatchProjectEmployee() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, employeeId }: { jobId: number; employeeId: number }): Promise<{ employee_name: string }> => {
+    mutationFn: async ({
+      jobId,
+      employeeId,
+    }: {
+      jobId: number;
+      employeeId: number;
+    }): Promise<{ employee_name: string }> => {
       const url = ENDPOINTS.AGENCY_DISPATCH_PROJECT_EMPLOYEE(jobId, employeeId);
       const response = await apiRequest(url, { method: "POST" });
 
@@ -581,7 +588,13 @@ export function useConfirmProjectArrival() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, employeeId }: { jobId: number; employeeId: number }): Promise<{ employee_name: string }> => {
+    mutationFn: async ({
+      jobId,
+      employeeId,
+    }: {
+      jobId: number;
+      employeeId: number;
+    }): Promise<{ employee_name: string }> => {
       const url = ENDPOINTS.AGENCY_CONFIRM_PROJECT_ARRIVAL(jobId, employeeId);
       const response = await apiRequest(url, { method: "POST" });
 
@@ -617,7 +630,15 @@ export function useAgencyMarkProjectComplete() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, employeeId, notes }: { jobId: number; employeeId: number; notes?: string }): Promise<{ employee_name: string; all_complete: boolean }> => {
+    mutationFn: async ({
+      jobId,
+      employeeId,
+      notes,
+    }: {
+      jobId: number;
+      employeeId: number;
+      notes?: string;
+    }): Promise<{ employee_name: string; all_complete: boolean }> => {
       const url = ENDPOINTS.AGENCY_MARK_PROJECT_COMPLETE(jobId, employeeId);
       const response = await apiRequest(url, {
         method: "POST",
@@ -629,13 +650,18 @@ export function useAgencyMarkProjectComplete() {
         throw new Error(getErrorMessage(error, "Failed to mark as complete"));
       }
 
-      return response.json() as Promise<{ employee_name: string; all_complete: boolean }>;
+      return response.json() as Promise<{
+        employee_name: string;
+        all_complete: boolean;
+      }>;
     },
     onSuccess: (data: { employee_name: string; all_complete: boolean }) => {
       Toast.show({
         type: "success",
         text1: "Work Marked Complete",
-        text2: data.all_complete ? "All employees complete! Waiting for client approval" : `${data.employee_name}'s work marked complete`,
+        text2: data.all_complete
+          ? "All employees complete! Waiting for client approval"
+          : `${data.employee_name}'s work marked complete`,
       });
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
     },

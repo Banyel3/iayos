@@ -2365,7 +2365,9 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                     'specializationId': ws.specializationID.specializationID,
                     'name': ws.specializationID.specializationName,
                     'experienceYears': ws.experienceYears,
-                    'certificationCount': cert_count
+                    'certificationCount': cert_count,
+                    'skillType': ws.skillType,
+                    'isPrimary': ws.skillType == 'PRIMARY'
                 })
             
             # Calculate average rating from reviews
@@ -2496,7 +2498,9 @@ def get_worker_detail_mobile(user, worker_id):
                 'specializationId': ws.specializationID.specializationID,
                 'name': ws.specializationID.specializationName,
                 'experienceYears': ws.experienceYears,
-                'certificationCount': cert_count
+                'certificationCount': cert_count,
+                'skillType': ws.skillType,
+                'isPrimary': ws.skillType == 'PRIMARY'
             })
 
         # Build detailed worker data
@@ -2651,7 +2655,9 @@ def get_worker_detail_mobile_v2(user, worker_id):
                 'specializationId': ws.specializationID.specializationID,
                 'name': ws.specializationID.specializationName,
                 'experienceYears': ws.experienceYears,
-                'certificationCount': cert_count
+                'certificationCount': cert_count,
+                'skillType': ws.skillType,
+                'isPrimary': ws.skillType == 'PRIMARY'
             })
 
         # Calculate distance if user has location
@@ -2812,11 +2818,25 @@ def get_agency_detail_mobile(user, agency_id):
 
         # For now, use simplified data from AgencyEmployee model
         # AgencyEmployee doesn't link to WorkerProfile, so we'll use the employee data directly
-        avg_rating = 0.0
-        review_count = 0
-        total_jobs_completed = 0
-        active_workers = agency_employees_qs.count()
-        specializations = []  # TODO: Implement when employee-specialization relationship exists
+        # Collect all unique specializations from employees
+        all_specs = set()
+        for emp_all in agency_employees_qs:
+            specs_list = emp_all.get_specializations_list()
+            # Add roles from legacy 'role' field, splitting by various delimiters
+            if emp_all.role:
+                import re
+                roles = re.split(r'[,;/\x00-\x1F\x7F-\x9F]', emp_all.role)
+                for r in roles:
+                    trimmed_r = r.strip()
+                    if trimmed_r:
+                        all_specs.add(trimmed_r)
+            
+            # Add from specializations list
+            for s in specs_list:
+                if s:
+                    all_specs.add(s)
+        
+        specializations = sorted(list(all_specs))
 
         # Build employees list from AgencyEmployee
         workers_list = []
@@ -2828,16 +2848,19 @@ def get_agency_detail_mobile(user, agency_id):
                 'profilePicture': emp.avatar or None,
                 'rating': round(float(emp.rating), 1) if emp.rating else 0.0,
                 'completedJobs': emp.totalJobsCompleted,
-                'specialization': emp.role or None
+                'specialization': emp.role or None,
+                'specializations': emp.get_specializations_list()
             })
         
         # Calculate overall rating from employees
-        employee_ratings = [emp.rating for emp in agency_employees_qs if emp.rating]
+        employee_ratings = [float(emp.rating) for emp in agency_employees_qs if emp.rating]
         if employee_ratings:
             avg_rating = sum(employee_ratings) / len(employee_ratings)
         
         # Calculate total jobs from employees
         total_jobs_completed = sum(emp.totalJobsCompleted for emp in agency_employees_qs)
+        active_workers = agency_employees_qs.count()
+        review_count = 0 # TODO: Implement when review model for agencies is ready
 
         # Build agency detail data matching mobile interface
         agency_data = {

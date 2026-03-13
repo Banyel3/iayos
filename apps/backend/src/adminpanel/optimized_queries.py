@@ -382,7 +382,8 @@ def get_workers_list_optimized(
     page: int = 1,
     page_size: int = 50,
     search: Optional[str] = None,
-    status_filter: Optional[str] = None
+    status_filter: Optional[str] = None,
+    category_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Get paginated workers list with job stats and skills in minimal queries.
@@ -443,6 +444,13 @@ def get_workers_list_optimized(
             queryset = queryset.filter(accountFK__isVerified=True)
         elif status_filter == 'inactive':
             queryset = queryset.filter(accountFK__isVerified=False)
+
+    if category_id:
+        worker_ids_with_category = workerSpecialization.objects.filter(
+            specializationID_id=category_id
+        ).values_list('workerID__profileID_id', flat=True)
+        queryset = queryset.filter(profileID__in=worker_ids_with_category)
+
     
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)

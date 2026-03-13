@@ -1,23 +1,36 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/form_button";
+import { 
+  Card, 
+  CardHeader, 
+  CardTitle, 
+  CardContent,
+  CardDescription 
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  ArrowUpRight,
-  ArrowDownLeft,
-  Wallet,
-  RefreshCw,
+  Banknote,
   Search,
-  Filter,
+  TrendingUp,
   Clock,
+  RefreshCcw,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Wallet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Calendar,
+  Filter,
   CheckCircle,
   XCircle,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
+  CreditCard,
+  Loader2,
 } from "lucide-react";
 import {
   useWalletBalance,
@@ -37,23 +50,14 @@ interface AgencyTransaction {
   balance_after?: number;
 }
 
-type TransactionFilter =
-  | "all"
-  | "DEPOSIT"
-  | "WITHDRAWAL"
-  | "PAYMENT"
-  | "EARNING"
-  | "PENDING_EARNING"
-  | "REFUND"
-  | "FEE";
-type StatusFilter = "all" | "COMPLETED" | "PENDING" | "FAILED";
-
 export default function AgencyTransactionsPage() {
-  const [typeFilter, setTypeFilter] = useState<TransactionFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 15;
 
   const {
     data: walletBalance = 0,
@@ -75,16 +79,21 @@ export default function AgencyTransactionsPage() {
     // Status filter
     if (statusFilter !== "all" && tx.status !== statusFilter) return false;
 
-    // Search query (search in description, ID, or payment method)
+    // Date range filter
+    if (dateFrom && new Date(tx.created_at) < new Date(dateFrom)) return false;
+    if (dateTo) {
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      if (new Date(tx.created_at) > end) return false;
+    }
+
+    // Search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesDescription = tx.description?.toLowerCase().includes(query);
       const matchesId = tx.id?.toString().includes(query);
-      const matchesPaymentMethod = tx.payment_method
-        ?.toLowerCase()
-        .includes(query);
-      if (!matchesDescription && !matchesId && !matchesPaymentMethod)
-        return false;
+      const matchesPaymentMethod = tx.payment_method?.toLowerCase().includes(query);
+      if (!matchesDescription && !matchesId && !matchesPaymentMethod) return false;
     }
 
     return true;
@@ -100,7 +109,7 @@ export default function AgencyTransactionsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [typeFilter, statusFilter, searchQuery]);
+  }, [typeFilter, statusFilter, searchQuery, dateFrom, dateTo]);
 
   const handleRefresh = () => {
     refetchWallet();
@@ -108,536 +117,388 @@ export default function AgencyTransactionsPage() {
     toast.success("Transactions refreshed");
   };
 
-  // For agencies, incoming money types: EARNING, PENDING_EARNING, DEPOSIT, REFUND
-  const isIncomingType = (type: string) =>
-    ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(type);
-
-  const getTransactionIcon = (type: string) => {
-    if (isIncomingType(type)) {
-      return <ArrowDownLeft className="h-5 w-5 text-green-600" />;
-    }
-    switch (type) {
-      case "WITHDRAWAL":
-      case "PAYMENT":
-      case "FEE":
-        return <ArrowUpRight className="h-5 w-5 text-red-600" />;
-      default:
-        return <Wallet className="h-5 w-5 text-gray-600" />;
-    }
-  };
-
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status?.toUpperCase()) {
       case "COMPLETED":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-            <CheckCircle className="h-3 w-3" />
+          <Badge className="bg-green-100 text-green-700 border-green-200">
             Completed
-          </span>
+          </Badge>
         );
       case "PENDING":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
-            <Clock className="h-3 w-3" />
+          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
             Pending
-          </span>
+          </Badge>
         );
       case "FAILED":
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-            <XCircle className="h-3 w-3" />
+          <Badge className="bg-red-100 text-red-700 border-red-200">
             Failed
-          </span>
+          </Badge>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
-            <AlertCircle className="h-3 w-3" />
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200">
             {status}
-          </span>
+          </Badge>
         );
     }
   };
 
   const getTypeBadge = (type: string) => {
-    switch (type) {
-      case "WITHDRAWAL":
-        return (
-          <span className="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-medium">
-            Withdrawal
-          </span>
-        );
-      case "DEPOSIT":
-        return (
-          <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">
-            Deposit
-          </span>
-        );
+    switch (type?.toUpperCase()) {
       case "EARNING":
         return (
-          <span className="px-2 py-1 bg-green-50 text-green-600 rounded text-xs font-medium">
+          <Badge className="bg-green-100 text-green-700 border-green-200">
             Earning
-          </span>
+          </Badge>
         );
       case "PENDING_EARNING":
         return (
-          <span className="px-2 py-1 bg-yellow-50 text-yellow-600 rounded text-xs font-medium">
+          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
             Pending Earning
-          </span>
+          </Badge>
+        );
+      case "WITHDRAWAL":
+        return (
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+            Withdrawal
+          </Badge>
+        );
+      case "DEPOSIT":
+        return (
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+            Deposit
+          </Badge>
         );
       case "REFUND":
         return (
-          <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-medium">
+          <Badge className="bg-orange-100 text-orange-700 border-orange-200">
             Refund
-          </span>
+          </Badge>
         );
       case "PAYMENT":
         return (
-          <span className="px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs font-medium">
+          <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
             Payment
-          </span>
+          </Badge>
         );
       case "FEE":
+      case "PLATFORM_FEE":
         return (
-          <span className="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-medium">
-            Platform Fee
-          </span>
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200">
+            Fee
+          </Badge>
         );
       default:
         return (
-          <span className="px-2 py-1 bg-gray-50 text-gray-600 rounded text-xs font-medium">
+          <Badge className="bg-gray-100 text-gray-700 border-gray-200">
             {type}
-          </span>
+          </Badge>
         );
     }
   };
 
   // Calculate summary stats
-  // For agencies: DEPOSIT, EARNING, PENDING_EARNING, REFUND are incoming
-  const totalDeposits = transactions
+  const totalReceived = transactions
     .filter((t: AgencyTransaction) =>
       ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type),
     )
     .filter((t: AgencyTransaction) => t.status === "COMPLETED")
     .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
-  const totalWithdrawals = transactions
+  const totalWithdrawn = transactions
     .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL")
     .filter((t: AgencyTransaction) => t.status === "COMPLETED")
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
 
   const pendingWithdrawals = transactions
-    .filter(
-      (t: AgencyTransaction) =>
-        t.type === "WITHDRAWAL" && t.status === "PENDING",
-    )
+    .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL" && t.status === "PENDING")
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
 
+  if (isLoadingTransactions && transactions.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+              <Banknote className="h-6 w-6 text-[#00BAF1] absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+            </div>
+            <p className="mt-6 text-lg font-medium text-gray-700">Loading transactions...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
+      {/* Header */}
+      <div className="pb-6 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-gray-600 mt-1">
-              View and manage your wallet transactions
+            <div className="flex items-center gap-3 mb-1">
+              <Banknote className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Transactions</h1>
+            </div>
+            <p className="text-gray-500 text-sm sm:text-base">
+              Monitor your financial activity and wallet history
             </p>
           </div>
-          <Button
-            onClick={handleRefresh}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={isLoadingTransactions}
-          >
-            <RefreshCw
-              className={`h-4 w-4 mr-2 ${isLoadingTransactions ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleRefresh}
+              className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200 shadow-sm transition-all"
+              disabled={isLoadingTransactions}
+            >
+              <RefreshCcw className={`h-4 w-4 mr-2 ${isLoadingTransactions ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button
+              className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white shadow-sm"
+              onClick={() => toast.info("Export functionality coming soon")}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
         </div>
+      </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-emerald-100 text-sm">Current Balance</p>
-                  <p className="text-2xl font-bold">
-                    {isLoadingWallet
-                      ? "..."
-                      : `₱${walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`}
-                  </p>
-                </div>
-                <Wallet className="h-8 w-8 text-emerald-200" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Total Received</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    ₱
-                    {totalDeposits.toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-                <ArrowDownLeft className="h-8 w-8 text-green-200" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Total Withdrawn</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    ₱
-                    {totalWithdrawals.toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-                <ArrowUpRight className="h-8 w-8 text-red-200" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm">Pending Withdrawals</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    ₱
-                    {pendingWithdrawals.toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-                <Clock className="h-8 w-8 text-yellow-200" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-4 items-center">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search transactions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Type Filter */}
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-gray-400" />
-                <select
-                  value={typeFilter}
-                  onChange={(e) =>
-                    setTypeFilter(e.target.value as TransactionFilter)
-                  }
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Types</option>
-                  <option value="DEPOSIT">Deposits</option>
-                  <option value="WITHDRAWAL">Withdrawals</option>
-                  <option value="EARNING">Earnings</option>
-                  <option value="PENDING_EARNING">Pending Earnings</option>
-                  <option value="REFUND">Refunds</option>
-                  <option value="PAYMENT">Payments Made</option>
-                  <option value="FEE">Platform Fees</option>
-                </select>
-              </div>
-
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) =>
-                  setStatusFilter(e.target.value as StatusFilter)
-                }
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="PENDING">Pending</option>
-                <option value="FAILED">Failed</option>
-              </select>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-4">
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+          <CardContent className="py-2.5 px-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Wallet className="h-5 w-5 text-[#00BAF1]" /></div>
+              <TrendingUp className="h-4 w-4 text-[#00BAF1]" />
             </div>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Current Balance</p>
+            <p className="text-xl font-bold text-gray-900">₱{walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
 
-        {/* Transactions Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Transaction History</span>
-              <span className="text-sm font-normal text-gray-500">
-                {filteredTransactions.length} transaction
-                {filteredTransactions.length !== 1 ? "s" : ""}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoadingTransactions ? (
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg animate-pulse"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-                      <div>
-                        <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-32"></div>
-                      </div>
-                    </div>
-                    <div className="h-6 bg-gray-200 rounded w-24"></div>
-                  </div>
-                ))}
-              </div>
-            ) : paginatedTransactions.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <Wallet className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <p className="font-medium text-lg">No transactions found</p>
-                <p className="text-sm mt-1">
-                  {searchQuery || typeFilter !== "all" || statusFilter !== "all"
-                    ? "Try adjusting your filters"
-                    : "Transactions will appear here when you make deposits or withdrawals"}
-                </p>
-              </div>
-            ) : (
-              <>
-                {/* Mobile card view */}
-                <div className="md:hidden space-y-3 mb-4">
-                  {paginatedTransactions.map((tx: AgencyTransaction) => (
-                    <div
-                      key={tx.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`p-2 rounded-full flex-shrink-0 ${tx.type === "WITHDRAWAL" ? "bg-red-100" : "bg-green-100"}`}
-                          >
-                            {getTransactionIcon(tx.type)}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">
-                              {tx.description || tx.type}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ID: {tx.id}
-                              {tx.payment_method && ` • ${tx.payment_method}`}
-                            </p>
-                          </div>
-                        </div>
-                        <p
-                          className={`font-semibold text-sm flex-shrink-0 ml-2 ${["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type) ? "text-red-600" : "text-green-600"}`}
-                        >
-                          {["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type)
-                            ? "-"
-                            : "+"}
-                          ₱
-                          {Math.abs(tx.amount).toLocaleString("en-PH", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {getTypeBadge(tx.type)}
-                          {getStatusBadge(tx.status)}
-                        </div>
-                        <p className="text-xs text-gray-500 whitespace-nowrap">
-                          {new Date(tx.created_at).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </p>
-                      </div>
-                      {tx.balance_after !== undefined && (
-                        <p className="text-xs text-gray-500 mt-2 text-right">
-                          Balance after: ₱
-                          {(tx.balance_after ?? 0).toLocaleString("en-PH", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+          <CardContent className="py-2.5 px-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><ArrowDownLeft className="h-5 w-5 text-[#00BAF1]" /></div>
+              <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
+            </div>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Total Received</p>
+            <p className="text-xl font-bold text-gray-900">₱{totalReceived.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+          </CardContent>
+        </Card>
 
-                {/* Desktop table view */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                          Transaction
-                        </th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                          Type
-                        </th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                          Date
-                        </th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                          Status
-                        </th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
-                          Amount
-                        </th>
-                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
-                          Balance After
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedTransactions.map((tx: AgencyTransaction) => (
-                        <tr
-                          key={tx.id}
-                          className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`p-2 rounded-full ${
-                                  tx.type === "WITHDRAWAL"
-                                    ? "bg-red-100"
-                                    : "bg-green-100"
-                                }`}
-                              >
-                                {getTransactionIcon(tx.type)}
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900 text-sm">
-                                  {tx.description || tx.type}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  ID: {tx.id}{" "}
-                                  {tx.payment_method &&
-                                    `• ${tx.payment_method}`}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">{getTypeBadge(tx.type)}</td>
-                          <td className="py-4 px-4">
-                            <p className="text-sm text-gray-900">
-                              {new Date(tx.created_at).toLocaleDateString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                },
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(tx.created_at).toLocaleTimeString(
-                                "en-US",
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </p>
-                          </td>
-                          <td className="py-4 px-4">
-                            {getStatusBadge(tx.status)}
-                          </td>
-                          <td className="py-4 px-4 text-right">
-                            <p
-                              className={`font-semibold ${
-                                ["WITHDRAWAL", "FEE", "PAYMENT"].includes(
-                                  tx.type,
-                                )
-                                  ? "text-red-600"
-                                  : "text-green-600"
-                              }`}
-                            >
-                              {["WITHDRAWAL", "FEE", "PAYMENT"].includes(
-                                tx.type,
-                              )
-                                ? "-"
-                                : "+"}
-                              ₱
-                              {Math.abs(tx.amount).toLocaleString("en-PH", {
-                                minimumFractionDigits: 2,
-                              })}
-                            </p>
-                          </td>
-                          <td className="py-4 px-4 text-right">
-                            <p className="text-sm text-gray-600">
-                              ₱
-                              {(tx.balance_after ?? 0).toLocaleString("en-PH", {
-                                minimumFractionDigits: 2,
-                              })}
-                            </p>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+          <CardContent className="py-2.5 px-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><ArrowUpRight className="h-5 w-5 text-[#00BAF1]" /></div>
+              <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
+            </div>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Total Withdrawn</p>
+            <p className="text-xl font-bold text-gray-900">₱{totalWithdrawn.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+          </CardContent>
+        </Card>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
-                    <p className="text-sm text-gray-600">
-                      Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                      {Math.min(
-                        currentPage * itemsPerPage,
-                        filteredTransactions.length,
-                      )}{" "}
-                      of {filteredTransactions.length} transactions
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={() =>
-                          setCurrentPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={currentPage === 1}
-                        className="bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="px-4 py-2 text-sm text-gray-700">
-                        Page {currentPage} of {totalPages}
-                      </span>
-                      <Button
-                        onClick={() =>
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
-                        }
-                        disabled={currentPage === totalPages}
-                        className="bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
+          <CardContent className="py-2.5 px-4 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
+              <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
+            </div>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Withdrawals</p>
+            <p className="text-xl font-bold text-gray-900">₱{pendingWithdrawals.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Filters */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative group">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-[#00BAF1] transition-colors" />
+            <Input
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+            />
+          </div>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+          >
+            <option value="all">All Types</option>
+            <option value="DEPOSIT">Deposits</option>
+            <option value="WITHDRAWAL">Withdrawals</option>
+            <option value="EARNING">Earnings</option>
+            <option value="PENDING_EARNING">Pending Earnings</option>
+            <option value="REFUND">Refunds</option>
+            <option value="PAYMENT">Payments</option>
+            <option value="FEE">Fees</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-[#00BAF1] focus:border-[#00BAF1] focus:ring-2 focus:ring-sky-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+          >
+            <option value="all">All Status</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="PENDING">Pending</option>
+            <option value="FAILED">Failed</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+            />
+          </div>
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-sky-200 rounded-xl bg-white shadow-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Transactions List */}
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <CardHeader className="bg-white pb-4">
+          <CardTitle>Transaction History</CardTitle>
+          <CardDescription>
+            Overview of your wallet activity (Page {currentPage} of {totalPages || 1})
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-100 bg-gray-50/50">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Balance After</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {paginatedTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-20 text-center">
+                      <Banknote className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">No Transactions Found</h3>
+                      <p className="text-gray-500">Try adjusting your filters or search query</p>
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedTransactions.map((tx: AgencyTransaction) => (
+                    <tr
+                      key={tx.id}
+                      className="hover:bg-gray-50/80 transition-colors group cursor-pointer"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full ${["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type) ? "bg-red-100/50" : "bg-green-100/50"}`}>
+                            {["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type) ? <ArrowUpRight className="h-4 w-4 text-red-600" /> : <ArrowDownLeft className="h-4 w-4 text-green-600" />}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-gray-900 leading-none mb-1">{tx.description || tx.type}</span>
+                            <span className="text-[10px] text-gray-400 font-mono">#{tx.id}{tx.payment_method && ` • ${tx.payment_method}`}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {getTypeBadge(tx.type)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-700 leading-none mb-1">
+                            {new Date(tx.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {new Date(tx.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(tx.status)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className={`text-sm font-bold ${["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type) ? "text-red-600" : "text-green-600"}`}>
+                          {["WITHDRAWAL", "FEE", "PAYMENT"].includes(tx.type) ? "-" : "+"}
+                          ₱{Math.abs(tx.amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-sm text-gray-600 font-medium">
+                          ₱{(tx.balance_after ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-4">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === 1 ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+            if (totalPages > 7) {
+              if (p !== 1 && p !== totalPages && Math.abs(p - currentPage) > 1) {
+                if (p === 2 || p === totalPages - 1) return <span key={p} className="w-4 text-center text-gray-400">...</span>;
+                return null;
+              }
+            }
+            return (
+              <button
+                key={p}
+                onClick={() => setCurrentPage(p)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${p === currentPage ? "bg-[#00BAF1] text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+              >
+                {p}
+              </button>
+            );
+          })}
+
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all ${currentPage === totalPages ? "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1]"}`}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
