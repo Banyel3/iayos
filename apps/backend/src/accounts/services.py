@@ -1461,13 +1461,36 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                                 submitted_full_name = candidate.strip()
                                 break
 
-                    if submitted_full_name:
-                        name_validation = evaluate_profile_name_match(user, submitted_full_name)
-                        if name_validation["can_validate"] and not name_validation["is_match"]:
+                    if not submitted_full_name:
+                        raise ValueError(
+                            "ID full name is required for verification. "
+                            "Please review and confirm your extracted ID details before submitting KYC."
+                        )
+
+                    name_validation = evaluate_profile_name_match(user, submitted_full_name)
+
+                    if not name_validation["can_validate"]:
+                        reason = name_validation.get("reason", "unknown")
+                        if reason == "profile_name_incomplete":
                             raise ValueError(
-                                "Name mismatch: Government ID name does not match your account profile name. "
-                                "Please edit your profile name first."
+                                "Unable to validate ID name because your profile name is incomplete. "
+                                "Please update your first and last name before submitting KYC."
                             )
+                        if reason == "ocr_name_missing":
+                            raise ValueError(
+                                "Unable to validate ID name because no readable name was extracted from your ID. "
+                                "Please use a clearer ID photo and try again."
+                            )
+                        raise ValueError(
+                            "Unable to validate ID name against your account profile. "
+                            "Please review your profile and ID details, then try again."
+                        )
+
+                    if not name_validation["is_match"]:
+                        raise ValueError(
+                            "Name mismatch: Government ID name does not match your account profile name. "
+                            "Please edit your profile name first."
+                        )
                     
                     # Map frontend field names to model fields
                     field_mapping = {
