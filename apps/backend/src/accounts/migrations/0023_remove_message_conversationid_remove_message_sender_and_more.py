@@ -10,18 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='message',
-            name='conversationID',
-        ),
-        migrations.RemoveField(
-            model_name='message',
-            name='sender',
-        ),
-        migrations.RemoveField(
-            model_name='messageattachment',
-            name='messageID',
-        ),
         migrations.DeleteModel(
             name='Conversation',
         ),
