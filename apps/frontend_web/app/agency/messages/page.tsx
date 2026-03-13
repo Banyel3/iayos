@@ -32,6 +32,7 @@ import {
   Users,
   RefreshCw,
   AlertTriangle,
+  TrendingUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
