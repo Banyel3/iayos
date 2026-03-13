@@ -2013,17 +2013,19 @@ def cancel_job_posting(request, job_id: int, data: Optional[CancelJobSchema] = N
                 {"error": "Job posting not found"},
                 status=404
             )
-        reason_parts: List[str] = []
-        if data and data.reason:
-            cleaned_reason = data.reason.strip()
-            if cleaned_reason:
-                reason_parts.append(cleaned_reason)
-        if data and data.actor_notes:
+        if not data or not data.reason or not data.reason.strip():
+            return Response(
+                {"error": "Cancellation reason is required"},
+                status=400,
+            )
+
+        reason_parts: List[str] = [data.reason.strip()]
+        if data.actor_notes:
             cleaned_notes = data.actor_notes.strip()
             if cleaned_notes:
                 reason_parts.append(f"Notes: {cleaned_notes}")
 
-        reason = " | ".join(reason_parts) if reason_parts else None
+        reason = " | ".join(reason_parts)
 
         result = cancel_job_with_scenarios(
             job=job,

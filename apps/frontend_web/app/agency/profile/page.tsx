@@ -260,8 +260,8 @@ export default function AgencyProfilePage() {
     setIsSaving(true);
     try {
       const formData = new FormData();
-      formData.append("business_description", editBusinessDesc.trim());
-      formData.append("contact_number", editContactNumber.trim());
+      if (editBusinessDesc.trim()) formData.append("business_description", editBusinessDesc.trim());
+      if (editContactNumber.trim()) formData.append("contact_number", editContactNumber.trim());
 
       const res = await fetch(`${API_BASE}/api/agency/profile/update`, {
         method: "POST",
@@ -336,7 +336,21 @@ export default function AgencyProfilePage() {
     );
   }
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <div className="max-w-7xl mx-auto pt-40 px-4 text-center">
+        <XCircle className="h-8 w-8 text-red-400 mx-auto mb-4" />
+        <p className="text-sm font-bold text-gray-700 mb-2">Profile not found</p>
+        <p className="text-xs font-medium text-gray-400 mb-6">Unable to load your agency profile. Please try again.</p>
+        <Button
+          onClick={() => window.location.reload()}
+          className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white rounded-xl px-6 h-11 font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-sky-100"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">

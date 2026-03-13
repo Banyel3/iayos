@@ -67,8 +67,8 @@ export function useConfirmWorkStarted() {
         text2: "Worker has been notified that you confirmed work started",
       });
 
-      // Invalidate messages to refetch with updated job status
-      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      // Keep optimistic conversation cache as source of truth immediately after mutation.
+      // WebSocket job_status_update + polling will reconcile server state without stale flicker.
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -118,7 +118,7 @@ export function useMarkOnTheWay() {
         text2: "Marked as on the way",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      // Avoid immediate messages invalidation to prevent refetch racing with stale lifecycle payload.
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -170,7 +170,7 @@ export function useMarkJobStarted() {
         text2: "Marked as job started",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      // Avoid immediate messages invalidation to prevent refetch racing with stale lifecycle payload.
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -198,13 +198,13 @@ export function useCancelJob() {
       actorNotes,
     }: {
       jobId: number;
-      reason?: string;
+      reason: string;
       actorNotes?: string;
     }) => {
       const response = await apiRequest(ENDPOINTS.CANCEL_JOB(jobId), {
         method: "PATCH",
         body: JSON.stringify({
-          reason: reason ?? "Cancelled from conversation",
+          reason,
           actor_notes: actorNotes ?? "",
         }),
       });

@@ -90,7 +90,7 @@ class ApproveJobCompletionSchema(Schema):
 
 
 class CancelJobSchema(Schema):
-    reason: Optional[str] = None
+    reason: str
     actor_notes: Optional[str] = None
 
 

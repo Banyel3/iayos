@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Clock,
   CheckCircle2,
+  AlertCircle,
   User,
   Send,
   RefreshCw,
@@ -100,7 +101,11 @@ export default function AgencyTicketDetailPage() {
 
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyText.trim() || replyText.length < 10) {
+    if (!replyText.trim()) {
+      toast.error("Please enter a reply message");
+      return;
+    }
+    if (replyText.trim().length < 10) {
       toast.error("Reply must be at least 10 characters");
       return;
     }
@@ -144,7 +149,23 @@ export default function AgencyTicketDetailPage() {
     );
   }
 
-  if (!ticket) return null;
+  if (!ticket) {
+    return (
+      <div className="max-w-7xl mx-auto pt-40 px-4 text-center">
+        <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-4" />
+        <p className="text-sm font-bold text-gray-700 mb-2">Ticket not found</p>
+        <p className="text-xs font-medium text-gray-400 mb-6">This ticket may have been removed or you don't have access.</p>
+        <Button
+          onClick={() => router.push("/agency/support/tickets")}
+          variant="outline"
+          className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-100 rounded-xl px-5 font-bold text-[10px] uppercase tracking-wider h-11"
+        >
+          <ArrowLeft className="h-3 w-3 mr-2" />
+          Back to Tickets
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
