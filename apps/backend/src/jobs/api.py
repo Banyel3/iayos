@@ -6769,8 +6769,11 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             ],
         ).select_related('employee__accountFK')
 
+        # AgencyEmployee does not map 1:1 to login accounts in manager-only setups.
+        # Resolve by agency ownership so agency account holders can confirm schedules
+        # even when there are no employee login accounts.
         requester_employee_assignment = active_employee_assignments.filter(
-            employee__accountFK=request.auth
+            employee__agency=request.auth
         ).first()
 
         active_team_assignments = JobWorkerAssignment.objects.filter(
