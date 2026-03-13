@@ -38,6 +38,8 @@ import {
   type WorkerSkill,
 } from "@/lib/hooks/useSkills";
 
+const MAX_WORKER_SKILLS = 5;
+
 export default function SkillsScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -75,6 +77,7 @@ export default function SkillsScreen() {
   // Get skills the worker doesn't have yet
   const mySkillIds = new Set(mySkills.map((s) => s.specializationId));
   const availableToAdd = availableSkills.filter((s) => !mySkillIds.has(s.id));
+  const isAtSkillLimit = mySkills.length >= MAX_WORKER_SKILLS;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -226,8 +229,18 @@ export default function SkillsScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>My Skills</Text>
         <Pressable
-          onPress={() => setShowAddModal(true)}
-          style={styles.addButton}
+          onPress={() => {
+            if (isAtSkillLimit) {
+              Alert.alert(
+                "Skill Limit Reached",
+                `You can only have up to ${MAX_WORKER_SKILLS} skills. Remove one skill before adding a new one.",
+              );
+              return;
+            }
+            setShowAddModal(true);
+          }}
+          style={[styles.addButton, isAtSkillLimit && styles.addButtonDisabled]}
+          disabled={isAtSkillLimit}
         >
           <Ionicons name="add" size={24} color={Colors.primary} />
         </Pressable>
@@ -248,13 +261,16 @@ export default function SkillsScreen() {
             color={Colors.primary}
           />
           <Text style={styles.infoText}>
-            Add skills to showcase your expertise. Skills are used to filter
-            jobs and link certifications.
+            Add up to {MAX_WORKER_SKILLS} skills to showcase your expertise.
+            Keep one skill marked as Primary. Skills are used to filter jobs
+            and link certifications.
           </Text>
         </View>
 
         {/* My Skills Section */}
-        <Text style={styles.sectionTitle}>My Skills ({mySkills.length})</Text>
+        <Text style={styles.sectionTitle}>
+          My Skills ({mySkills.length}/{MAX_WORKER_SKILLS})
+        </Text>
 
         {mySkills.length === 0 ? (
           <View style={styles.emptyState}>
@@ -344,6 +360,19 @@ export default function SkillsScreen() {
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.loadingText}>
                       Loading available skills...
+                    </Text>
+                  </View>
+                ) : isAtSkillLimit ? (
+                  <View style={styles.modalEmpty}>
+                    <Ionicons
+                      name="alert-circle"
+                      size={48}
+                      color={Colors.warning}
+                    />
+                    <Text style={styles.modalEmptyTitle}>Skill Limit Reached</Text>
+                    <Text style={styles.modalEmptyText}>
+                      You already have {MAX_WORKER_SKILLS} skills. Remove one
+                      first to add a new skill.
                     </Text>
                   </View>
                 ) : availableToAdd.length === 0 ? (
@@ -472,11 +501,11 @@ export default function SkillsScreen() {
                     <Pressable
                       style={[
                         styles.modalButton,
-                        (!selectedSkill || addSkill.isPending) &&
+                        (!selectedSkill || addSkill.isPending || isAtSkillLimit) &&
                           styles.modalButtonDisabled,
                       ]}
                       onPress={handleAddSkill}
-                      disabled={!selectedSkill || addSkill.isPending}
+                      disabled={!selectedSkill || addSkill.isPending || isAtSkillLimit}
                     >
                       {addSkill.isPending ? (
                         <ActivityIndicator size="small" color={Colors.white} />
@@ -696,6 +725,9 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     backgroundColor: Colors.primaryLight,
     borderRadius: BorderRadius.full,
+  },
+  addButtonDisabled: {
+    opacity: 0.45,
   },
   content: {
     flex: 1,
