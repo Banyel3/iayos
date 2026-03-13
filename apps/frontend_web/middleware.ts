@@ -86,13 +86,20 @@ export function middleware(request: NextRequest) {
     const role = payload.role?.toUpperCase() || "";
     const profileType = payload.profile_type?.toUpperCase() || "";
 
-    // Admin and Agency users can access everything
-    if (role === "ADMIN" || accountType === "agency") {
+    // 1. Admin and Agency users can access everything
+    // 2. If we can't find any relevant claims in the JWT (role, accountType, AND profileType
+    //    are all missing), let the request pass so the Layouts can do a proper server-side check.
+    //    We must include !profileType here; otherwise WORKER/CLIENT users whose tokens lack
+    //    role/account_type (but still carry profile_type) would bypass mobile-only enforcement.
+    if (role === "ADMIN" || accountType === "agency" || (!role && !accountType && !profileType)) {
       return NextResponse.next();
     }
 
-    // Workers and clients are permanently redirected to mobile-only
-    if (profileType === "WORKER" || profileType === "CLIENT") {
+    // Only redirect to mobile-only if we are NOT on an admin or agency path
+    const isSpecialPath = pathname.startsWith("/admin") || pathname.startsWith("/agency");
+
+    // Workers and clients are redirected to mobile-only, but only on generic routes
+    if (!isSpecialPath && (profileType === "WORKER" || profileType === "CLIENT")) {
       console.log(`[MIDDLEWARE] Redirecting ${profileType} to mobile-only from: ${pathname}`);
       return NextResponse.redirect(new URL("/mobile-only", request.url));
     }

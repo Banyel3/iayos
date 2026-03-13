@@ -23,7 +23,12 @@ import {
   CheckCircle,
   Users,
   MessageCircle,
+  Banknote,
+  MapPin,
+  Calendar,
+  Eye,
 } from "lucide-react";
+import { Button } from "@/components/ui/generic_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { JobSkillSlot, SlotAssignment } from "@/types/agency-team-jobs";
 
@@ -115,6 +120,7 @@ interface Job {
   createdAt: string;
   updatedAt: string;
   conversation_id?: number | null;
+  applications_count?: number;
 }
 
 type TabType =
@@ -132,6 +138,35 @@ export default function AgencyJobsPage() {
   const [inProgressJobs, setInProgressJobs] = useState<Job[]>([]);
   const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
   const [cancelledJobs, setCancelledJobs] = useState<Job[]>([]);
+
+  // Dummy data generators — only used in development for UI preview
+  const enableDummyJobs = process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_ENABLE_DUMMY_JOBS === "true";
+
+  const dummyClient = {
+    id: 0,
+    name: "Dummy Client",
+    avatar: null,
+    email: "client@example.com",
+  };
+
+  const createDummyJob = (id: number, title: string, status: string, urgency: string = "MEDIUM"): Job => ({
+    jobID: id,
+    title,
+    description: `This is a dummy ${title.toLowerCase()} for preview purposes. Edit this card as needed.`,
+    category: { id: 1, name: "General Services" },
+    budget: 1000,
+    location: "Remote",
+    urgency: urgency,
+    status: status,
+    jobType: "FIXED",
+    expectedDuration: "1 month",
+    preferredStartDate: new Date().toISOString(),
+    client: dummyClient,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    applications_count: 0,
+  });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [availableWorkers, setAvailableWorkers] = useState<WorkerListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -209,14 +244,20 @@ export default function AgencyJobsPage() {
         },
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        const apiJobs = data.invites || [];
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-1, "Sample Pending Invite", "PENDING", "HIGH");
+          setPendingInvites([dummyJob, ...apiJobs]);
+        } else {
+          setPendingInvites(apiJobs);
+        }
+      } else {
         throw new Error(
           `Failed to fetch pending invites: ${response.statusText}`,
         );
       }
-
-      const data = await response.json();
-      setPendingInvites(data.jobs || []);
     } catch (err) {
       console.error("Error fetching pending invites:", err);
       setError(
@@ -242,14 +283,20 @@ export default function AgencyJobsPage() {
         },
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        const apiJobs = data.jobs || [];
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-2, "Sample Accepted Job", "ACTIVE");
+          setAcceptedJobs([dummyJob, ...apiJobs]);
+        } else {
+          setAcceptedJobs(apiJobs);
+        }
+      } else {
         throw new Error(
           `Failed to fetch accepted jobs: ${response.statusText}`,
         );
       }
-
-      const data = await response.json();
-      setAcceptedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching accepted jobs:", err);
       setError(
@@ -273,15 +320,26 @@ export default function AgencyJobsPage() {
         },
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        const apiJobs = data.jobs || [];
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(
+            -3,
+            "Sample In-Progress Job",
+            "IN_PROGRESS",
+          );
+          dummyJob.assignedEmployee = { employeeId: 1, name: "Avery Johnson" };
+          dummyJob.conversation_id = 1;
+          setInProgressJobs([dummyJob, ...apiJobs]);
+        } else {
+          setInProgressJobs(apiJobs);
+        }
+      } else {
         throw new Error(
           `Failed to fetch in-progress jobs: ${response.statusText}`,
         );
       }
-
-      const data = await response.json();
-      // Backend already filters by status=IN_PROGRESS, trust the backend
-      setInProgressJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching in-progress jobs:", err);
       setError(
@@ -305,14 +363,21 @@ export default function AgencyJobsPage() {
         },
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        const apiJobs = data.jobs || [];
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-4, "Sample Completed Job", "COMPLETED");
+          dummyJob.assignedEmployee = { employeeId: 2, name: "Riley Smith" };
+          setCompletedJobs([dummyJob, ...apiJobs]);
+        } else {
+          setCompletedJobs(apiJobs);
+        }
+      } else {
         throw new Error(
           `Failed to fetch completed jobs: ${response.statusText}`,
         );
       }
-
-      const data = await response.json();
-      setCompletedJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching completed jobs:", err);
       setError(
@@ -336,14 +401,20 @@ export default function AgencyJobsPage() {
         },
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        const apiJobs = data.jobs || [];
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-5, "Sample Cancelled Job", "CANCELLED");
+          setCancelledJobs([dummyJob, ...apiJobs]);
+        } else {
+          setCancelledJobs(apiJobs);
+        }
+      } else {
         throw new Error(
           `Failed to fetch cancelled jobs: ${response.statusText}`,
         );
       }
-
-      const data = await response.json();
-      setCancelledJobs(data.jobs || []);
     } catch (err) {
       console.error("Error fetching cancelled jobs:", err);
       setError(
@@ -491,7 +562,7 @@ export default function AgencyJobsPage() {
         if (errorMessage.includes("escrow payment")) {
           throw new Error(
             "This job invitation cannot be accepted yet. The client has not completed the payment. " +
-              "Please wait for the client to complete their GCash/payment transaction.",
+            "Please wait for the client to complete their GCash/payment transaction.",
           );
         }
 
@@ -544,7 +615,7 @@ export default function AgencyJobsPage() {
       if (errorMessage.includes("escrow payment")) {
         throw new Error(
           "This job invitation cannot be accepted yet. The client has not completed the payment. " +
-            "Please wait for the client to complete their GCash/payment transaction.",
+          "Please wait for the client to complete their GCash/payment transaction.",
         );
       }
 
@@ -811,22 +882,20 @@ export default function AgencyJobsPage() {
           <nav className="-mb-px flex space-x-4 md:space-x-8 min-w-max pb-px">
             <button
               onClick={() => setActiveTab("invites")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                activeTab === "invites"
-                  ? "border-purple-600 text-purple-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === "invites"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <Mail className="h-5 w-5" />
                 <span>Pending Invites</span>
                 {pendingInvites.length > 0 && (
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
-                      activeTab === "invites"
-                        ? "bg-purple-100 text-purple-600"
-                        : "bg-red-100 text-red-600"
-                    }`}
+                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "invites"
+                      ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                      : "bg-red-100 text-red-600"
+                      }`}
                   >
                     {pendingInvites.length}
                   </span>
@@ -836,22 +905,20 @@ export default function AgencyJobsPage() {
 
             <button
               onClick={() => setActiveTab("accepted")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                activeTab === "accepted"
-                  ? "border-green-600 text-green-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === "accepted"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5" />
                 <span>Accepted</span>
                 {acceptedJobs.length > 0 && (
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
-                      activeTab === "accepted"
-                        ? "bg-green-100 text-green-600"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
+                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "accepted"
+                      ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                      : "bg-gray-100 text-gray-600"
+                      }`}
                   >
                     {acceptedJobs.length}
                   </span>
@@ -861,22 +928,20 @@ export default function AgencyJobsPage() {
 
             <button
               onClick={() => setActiveTab("inProgress")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                activeTab === "inProgress"
-                  ? "border-orange-600 text-orange-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === "inProgress"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <Loader2 className="h-5 w-5" />
                 <span>In Progress</span>
                 {inProgressJobs.length > 0 && (
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
-                      activeTab === "inProgress"
-                        ? "bg-orange-100 text-orange-600"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
+                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "inProgress"
+                      ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                      : "bg-gray-100 text-gray-600"
+                      }`}
                   >
                     {inProgressJobs.length}
                   </span>
@@ -886,22 +951,20 @@ export default function AgencyJobsPage() {
 
             <button
               onClick={() => setActiveTab("completed")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                activeTab === "completed"
-                  ? "border-emerald-600 text-emerald-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === "completed"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <CheckCircle className="h-5 w-5" />
                 <span>Completed</span>
                 {completedJobs.length > 0 && (
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
-                      activeTab === "completed"
-                        ? "bg-emerald-100 text-emerald-600"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
+                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "completed"
+                      ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                      : "bg-gray-100 text-gray-600"
+                      }`}
                   >
                     {completedJobs.length}
                   </span>
@@ -911,22 +974,20 @@ export default function AgencyJobsPage() {
 
             <button
               onClick={() => setActiveTab("cancelled")}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
-                activeTab === "cancelled"
-                  ? "border-red-600 text-red-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === "cancelled"
+                ? "border-[#00BAF1] text-[#00BAF1]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <AlertCircle className="h-5 w-5" />
                 <span>Cancelled</span>
                 {cancelledJobs.length > 0 && (
                   <span
-                    className={`px-2 py-0.5 text-xs rounded-full ${
-                      activeTab === "cancelled"
-                        ? "bg-red-100 text-red-600"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
+                    className={`px-2 py-0.5 text-xs rounded-full ${activeTab === "cancelled"
+                      ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                      : "bg-gray-100 text-gray-600"
+                      }`}
                   >
                     {cancelledJobs.length}
                   </span>
@@ -1029,156 +1090,171 @@ export default function AgencyJobsPage() {
               {acceptedJobs.map((job) => (
                 <Card
                   key={job.jobID}
-                  className="hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                  className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
                 >
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="text-xl font-bold text-gray-900 hover:text-green-600 transition-colors">
-                            {job.title}
-                          </h3>
-                          {job.is_team_job && (
-                            <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                              <Users size={12} className="mr-1" />
-                              Team Job ({job.total_workers_assigned || 0}/
-                              {job.total_workers_needed || 0})
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-gray-600 mb-3">{job.description}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <span className="text-sm text-gray-600">Budget</span>
-                        <p className="font-semibold text-gray-900">
-                          <JobBudgetDisplay
-                            budget={job.budget}
-                            paymentModel={job.payment_model}
-                            dailyRate={job.daily_rate_agreed}
-                            durationDays={job.duration_days}
-                          />
-                        </p>
-                        {job.payment_model && (
-                          <PaymentModelBadge
-                            paymentModel={job.payment_model}
-                            className="mt-1"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Category</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.category?.name || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Urgency</span>
-                        <p
-                          className={`font-semibold ${
-                            job.urgency === "HIGH"
-                              ? "text-red-600"
-                              : job.urgency === "MEDIUM"
-                                ? "text-orange-600"
-                                : "text-green-600"
-                          }`}
-                        >
-                          {job.urgency}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Status</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.status}
-                        </p>
-                      </div>
-                    </div>
-
-                    {job.assignedEmployee ? (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <CheckCircle className="text-green-600" size={20} />
-                          <span className="text-green-800 font-medium">
-                            Assigned to: {job.assignedEmployee.name}
-                          </span>
-                        </div>
-                      </div>
-                    ) : job.is_team_job &&
-                      (job.total_workers_assigned || 0) > 0 ? (
-                      <div className="space-y-2">
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <Users className="text-blue-600" size={20} />
-                              <span className="text-blue-800 font-medium">
-                                {job.total_workers_assigned}/
-                                {job.total_workers_needed} employees assigned
+                  <CardContent className="relative p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                      <div className="flex-1 space-y-4">
+                        {/* Title and Badges */}
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3 flex-wrap">
+                            <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
+                              {job.title}
+                            </h3>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${job.status === "ACTIVE" || job.status === "IN_PROGRESS"
+                                ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                                : job.status === "COMPLETED"
+                                  ? "bg-[#00BAF1]/10 text-[#00BAF1]"
+                                  : "bg-red-100 text-red-700"
+                                }`}
+                            >
+                              {job.status.replace("_", " ")}
+                            </span>
+                            {job.urgency && (
+                              <span
+                                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${job.urgency === "HIGH"
+                                  ? "bg-red-100 text-red-700 border-red-200"
+                                  : "bg-white text-gray-500 border-gray-200"
+                                  }`}
+                              >
+                                {job.urgency}
                               </span>
+                            )}
+                            {job.is_team_job && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                <Users size={12} className="mr-1" />
+                                Team Job ({job.total_workers_assigned || 0}/
+                                {job.total_workers_needed || 0})
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-gray-600 leading-relaxed line-clamp-2">
+                            {job.description}
+                          </p>
+                        </div>
+
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Banknote className="h-4 w-4 text-[#00BAF1]" />
                             </div>
-                            <div className="w-24 bg-blue-200 rounded-full h-2">
-                              <div
-                                className="bg-blue-600 h-2 rounded-full"
-                                style={{
-                                  width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
-                                }}
-                              />
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Budget</p>
+                              <div className="font-bold text-gray-900">
+                                <JobBudgetDisplay
+                                  budget={job.budget}
+                                  paymentModel={job.payment_model}
+                                  dailyRate={job.daily_rate_agreed}
+                                  durationDays={job.duration_days}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <MapPin className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Location</p>
+                              <p className="font-semibold text-gray-900 truncate">{job.location}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Users className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Applications</p>
+                              <p className="font-bold text-gray-900">{job.applications_count || 0}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Calendar className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Posted</p>
+                              <p className="font-semibold text-gray-900">
+                                {new Date(job.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </p>
                             </div>
                           </div>
                         </div>
-                        {(job.total_workers_assigned || 0) <
-                          (job.total_workers_needed || 0) && (
-                          <button
+
+                        {/* Footer Info */}
+                        <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-500">Client:</span>
+                            <span className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                              {job.client.name}
+                            </span>
+                          </div>
+                          {job.category && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">Category:</span>
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                                {job.category.name}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Assignment Progress for Team Jobs */}
+                        {job.is_team_job && (job.total_workers_assigned || 0) > 0 && (
+                          <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-[#00BAF1]" />
+                                <span className="text-sm font-medium text-blue-800">
+                                  {job.total_workers_assigned}/{job.total_workers_needed} assigned
+                                </span>
+                              </div>
+                              <div className="flex-1 h-1.5 bg-blue-100 rounded-full max-w-[200px]">
+                                <div
+                                  className="h-full bg-[#00BAF1] rounded-full"
+                                  style={{
+                                    width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-row md:flex-col gap-3 min-w-[140px]">
+                        <Button
+                          className="flex-1 h-10 bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all text-sm font-semibold"
+                          onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </Button>
+                        {!job.assignedEmployee && job.status === "ACTIVE" && (
+                          <Button
+                            className="flex-1 h-10 bg-white border-2 border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50 transition-all text-sm font-semibold"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleOpenAssignModal(job);
                             }}
                             disabled={loadingSkillSlots}
-                            className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
                           >
                             {loadingSkillSlots ? (
-                              <Loader2 size={18} className="animate-spin" />
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
                             ) : (
-                              <Users size={18} />
+                              <UserPlus className="h-4 w-4 mr-2" />
                             )}
-                            <span>Assign More Employees to Slots</span>
-                          </button>
+                            Assign
+                          </Button>
                         )}
                       </div>
-                    ) : job.status === "ACTIVE" ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenAssignModal(job);
-                        }}
-                        disabled={loadingSkillSlots}
-                        className={`w-full px-4 py-2 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 ${
-                          job.is_team_job
-                            ? "bg-purple-600 text-white hover:bg-purple-700"
-                            : "bg-[#07bcff] text-white hover:bg-[#06a8e5]"
-                        }`}
-                      >
-                        {loadingSkillSlots ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : job.is_team_job ? (
-                          <Users size={18} />
-                        ) : (
-                          <UserPlus size={18} />
-                        )}
-                        <span>
-                          {job.is_team_job
-                            ? `Assign Employees to ${job.total_workers_needed || 0} Skill Slots`
-                            : "Assign Employee"}
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-sm">
-                        ⚠️ Job is already in progress. Check the &quot;In
-                        Progress&quot; tab.
-                      </div>
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -1212,73 +1288,135 @@ export default function AgencyJobsPage() {
               {inProgressJobs.map((job) => (
                 <Card
                   key={job.jobID}
-                  className="hover:shadow-lg transition-shadow border-orange-200 cursor-pointer"
-                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                  className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
                 >
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-orange-600 transition-colors">
-                          {job.title}
-                        </h3>
-                        <p className="text-gray-600 mb-3">{job.description}</p>
-                      </div>
-                    </div>
+                  <CardContent className="relative p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                      <div className="flex-1 space-y-4">
+                        {/* Title and Badges */}
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3 flex-wrap">
+                            <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
+                              {job.title}
+                            </h3>
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#00BAF1]/10 text-[#00BAF1]">
+                              IN PROGRESS
+                            </span>
+                            {job.urgency && (
+                              <span
+                                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${job.urgency === "HIGH"
+                                  ? "bg-red-100 text-red-700 border-red-200"
+                                  : "bg-white text-gray-500 border-gray-200"
+                                  }`}
+                              >
+                                {job.urgency}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-600 leading-relaxed line-clamp-2">
+                            {job.description}
+                          </p>
+                        </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <span className="text-sm text-gray-600">Budget</span>
-                        <p className="font-semibold text-gray-900">
-                          <JobBudgetDisplay
-                            budget={job.budget}
-                            paymentModel={job.payment_model}
-                            dailyRate={job.daily_rate_agreed}
-                            durationDays={job.duration_days}
-                          />
-                        </p>
-                        {job.payment_model && (
-                          <PaymentModelBadge
-                            paymentModel={job.payment_model}
-                            className="mt-1"
-                          />
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Banknote className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Budget</p>
+                              <div className="font-bold text-gray-900">
+                                <JobBudgetDisplay
+                                  budget={job.budget}
+                                  paymentModel={job.payment_model}
+                                  dailyRate={job.daily_rate_agreed}
+                                  durationDays={job.duration_days}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <MapPin className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Location</p>
+                              <p className="font-semibold text-gray-900 truncate">{job.location}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Users className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Worker</p>
+                              <p className="font-bold text-gray-900 truncate">{job.assignedEmployee?.name || "Multiple"}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Calendar className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Posted</p>
+                              <p className="font-semibold text-gray-900">
+                                {new Date(job.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Footer Info */}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">Client:</span>
+                              <span className="text-sm font-semibold text-gray-700">
+                                {job.client.name}
+                              </span>
+                            </div>
+                            {job.category && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">Category:</span>
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                                  {job.category.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-[#00BAF1] text-xs font-bold animate-pulse">
+                            WORK IN PROGRESS...
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-row md:flex-col gap-3 min-w-[140px]">
+                        <Button
+                          className="flex-1 h-10 bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all text-sm font-semibold"
+                          onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Details
+                        </Button>
+                        {job.conversation_id && (
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-10 border-2 border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50 transition-all text-sm font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/agency/messages/${job.conversation_id}`);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            Chat
+                          </Button>
                         )}
                       </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Category</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.category?.name || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Worker</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.assignedEmployee?.name || "Unknown"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Client</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.client.name}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end">
-                      <span className="text-[#06a8e5] font-medium mr-3">
-                        Work in progress...
-                      </span>
-                      {job.conversation_id && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/agency/messages/${job.conversation_id}`);
-                          }}
-                          className="flex items-center space-x-2 bg-[#07bcff] hover:bg-[#06a8e5] text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                        >
-                          <MessageCircle size={16} />
-                          <span>View Chat</span>
-                        </button>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -1313,63 +1451,112 @@ export default function AgencyJobsPage() {
               {completedJobs.map((job) => (
                 <Card
                   key={job.jobID}
-                  className="hover:shadow-lg transition-shadow border-emerald-200 cursor-pointer"
-                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                  className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
                 >
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-emerald-600 transition-colors">
-                          {job.title}
-                        </h3>
-                        <p className="text-gray-600 mb-3">{job.description}</p>
-                      </div>
-                    </div>
+                  <CardContent className="relative p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                      <div className="flex-1 space-y-4">
+                        {/* Title and Badges */}
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3 flex-wrap">
+                            <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
+                              {job.title}
+                            </h3>
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#00BAF1]/10 text-[#00BAF1]">
+                              COMPLETED
+                            </span>
+                          </div>
+                          <p className="text-gray-600 leading-relaxed line-clamp-2">
+                            {job.description}
+                          </p>
+                        </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <span className="text-sm text-gray-600">Budget</span>
-                        <p className="font-semibold text-gray-900">
-                          <JobBudgetDisplay
-                            budget={job.budget}
-                            paymentModel={job.payment_model}
-                            dailyRate={job.daily_rate_agreed}
-                            durationDays={job.duration_days}
-                          />
-                        </p>
-                        {job.payment_model && (
-                          <PaymentModelBadge
-                            paymentModel={job.payment_model}
-                            className="mt-1"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Category</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.category?.name || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Worker</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.assignedEmployee?.name || "Unknown"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Client</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.client.name}
-                        </p>
-                      </div>
-                    </div>
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Banknote className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Final Budget</p>
+                              <div className="font-bold text-gray-900">
+                                <JobBudgetDisplay
+                                  budget={job.budget}
+                                  paymentModel={job.payment_model}
+                                  dailyRate={job.daily_rate_agreed}
+                                  durationDays={job.duration_days}
+                                />
+                              </div>
+                            </div>
+                          </div>
 
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="text-emerald-600" size={20} />
-                        <span className="text-emerald-800 font-medium">
-                          Completed successfully
-                        </span>
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <MapPin className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Location</p>
+                              <p className="font-semibold text-gray-900 truncate">{job.location}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Users className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Worker</p>
+                              <p className="font-bold text-gray-900 truncate">{job.assignedEmployee?.name || "Multiple"}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                              <Calendar className="h-4 w-4 text-[#00BAF1]" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Completed</p>
+                              <p className="font-semibold text-gray-900">
+                                {new Date(job.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Footer Info */}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">Client:</span>
+                              <span className="text-sm font-semibold text-gray-700">
+                                {job.client.name}
+                              </span>
+                            </div>
+                            {job.category && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">Category:</span>
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                                  {job.category.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-[#00BAF1] font-bold text-xs">
+                            <CheckCircle className="h-4 w-4" />
+                            COMPLETED SUCCESSFULLY
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-row md:flex-col gap-3 min-w-[140px]">
+                        <Button
+                          className="flex-1 h-10 bg-[#00BAF1] hover:bg-sky-500 text-white shadow-md hover:shadow-lg transition-all text-sm font-semibold"
+                          onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Details
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -1405,63 +1592,112 @@ export default function AgencyJobsPage() {
               {cancelledJobs.map((job) => (
                 <Card
                   key={job.jobID}
-                  className="hover:shadow-lg transition-shadow border-red-200 opacity-75 cursor-pointer"
-                  onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                  className="border-0 shadow-lg transition-all duration-300 overflow-hidden group opacity-85"
                 >
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-red-600 transition-colors">
-                          {job.title}
-                        </h3>
-                        <p className="text-gray-600 mb-3">{job.description}</p>
-                      </div>
-                    </div>
+                  <CardContent className="relative p-4 sm:p-6">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
+                      <div className="flex-1 space-y-4">
+                        {/* Title and Badges */}
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3 flex-wrap">
+                            <h3 className="text-xl font-bold text-gray-900 group-hover:text-red-600 transition-colors">
+                              {job.title}
+                            </h3>
+                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                              CANCELLED
+                            </span>
+                          </div>
+                          <p className="text-gray-600 leading-relaxed line-clamp-2">
+                            {job.description}
+                          </p>
+                        </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <span className="text-sm text-gray-600">Budget</span>
-                        <p className="font-semibold text-gray-900">
-                          <JobBudgetDisplay
-                            budget={job.budget}
-                            paymentModel={job.payment_model}
-                            dailyRate={job.daily_rate_agreed}
-                            durationDays={job.duration_days}
-                          />
-                        </p>
-                        {job.payment_model && (
-                          <PaymentModelBadge
-                            paymentModel={job.payment_model}
-                            className="mt-1"
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Category</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.category?.name || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Worker</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.assignedEmployee?.name || "N/A"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-600">Client</span>
-                        <p className="font-semibold text-gray-900">
-                          {job.client.name}
-                        </p>
-                      </div>
-                    </div>
+                        {/* Info Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-red-100 rounded-lg">
+                              <Banknote className="h-4 w-4 text-red-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Budget</p>
+                              <div className="font-bold text-gray-900">
+                                <JobBudgetDisplay
+                                  budget={job.budget}
+                                  paymentModel={job.payment_model}
+                                  dailyRate={job.daily_rate_agreed}
+                                  durationDays={job.duration_days}
+                                />
+                              </div>
+                            </div>
+                          </div>
 
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="flex items-center space-x-2">
-                        <AlertCircle className="text-red-600" size={20} />
-                        <span className="text-red-800 font-medium">
-                          Job cancelled
-                        </span>
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-red-100 rounded-lg">
+                              <MapPin className="h-4 w-4 text-red-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Location</p>
+                              <p className="font-semibold text-gray-900 truncate">{job.location}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-red-100 rounded-lg">
+                              <Users className="h-4 w-4 text-red-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Worker</p>
+                              <p className="font-bold text-gray-900 truncate">{job.assignedEmployee?.name || "N/A"}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                            <div className="p-1.5 bg-red-100 rounded-lg">
+                              <Calendar className="h-4 w-4 text-red-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 font-medium">Date</p>
+                              <p className="font-semibold text-gray-900">
+                                {new Date(job.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Footer Info */}
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">Client:</span>
+                              <span className="text-sm font-semibold text-gray-700">
+                                {job.client.name}
+                              </span>
+                            </div>
+                            {job.category && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">Category:</span>
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                                  {job.category.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-red-600 font-bold text-xs uppercase">
+                            <AlertCircle className="h-4 w-4" />
+                            Job Cancelled
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex flex-row md:flex-col gap-3 min-w-[140px]">
+                        <Button
+                          className="flex-1 h-10 bg-gray-400 hover:bg-gray-500 text-white shadow-md transition-all text-sm font-semibold"
+                          onClick={() => router.push(`/agency/jobs/${job.jobID}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Details
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

@@ -9,6 +9,7 @@ from decimal import Decimal
 import uuid
 import os
 import math
+import datetime
 
 # NOTE: DocumentVerificationService imported lazily inside functions to prevent
 # InsightFace from loading during Django startup (saves ~24s per command)
@@ -831,7 +832,124 @@ def get_agency_profile(account_id):
                 total=Sum('budget')
             )['total'] or Decimal('0.00')
             
-            # Get average rating from reviews (using employee ratings as proxy for now)
+            # --- REVENUE CHART DATA CALCULATION ---
+            from django.db.models.functions import TruncDay, TruncWeek
+            
+            now = timezone.now()
+            revenue_chart_data = {'7d': [], '30d': [], 'All': []}
+            
+            # Initialize with zeroed entries to ensure chart structure is ALWAYS returned
+            # 1. '7d' view - Revenue by Day for the last 7 days
+            start_7d = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+            for i in range(7):
+                d = (start_7d + timedelta(days=i)).date()
+                revenue_chart_data['7d'].append({"name": d.strftime('%a'), "value": 0})
+            
+            # 2. '30d' view - Revenue by Week for last 30 days
+            start_30d = (now - timedelta(days=29)).replace(hour=0, minute=0, second=0, microsecond=0)
+            week_cursor = start_30d - timedelta(days=start_30d.weekday())
+            for i in range(5):
+                curr_w = week_cursor.date()
+                if i < 4 or curr_w <= now.date():
+                    revenue_chart_data['30d'].append({"name": f"W{i+1}", "value": 0})
+                week_cursor += timedelta(days=7)
+                
+            # 3. 'All' view - Last 6 Months
+            for i in range(5, -1, -1):
+                target_month = now.month - i
+                target_year = now.year
+                while target_month <= 0:
+                    target_month += 12
+                    target_year -= 1
+                m_start = timezone.make_aware(datetime.datetime(target_year, target_month, 1))
+                revenue_chart_data['All'].append({"name": m_start.strftime('%b'), "value": 0})
+
+            try:
+                # Use Coalesce to handle jobs that are COMPLETED but might have null completedAt (fallback to updatedAt)
+                from django.db.models.functions import Coalesce
+                completed_jobs_query = agency_jobs.filter(status='COMPLETED').annotate(
+                    finish_date=Coalesce('completedAt', 'updatedAt')
+                )
+
+                # Fill 7d
+                daily_rev = completed_jobs_query.filter(
+                    finish_date__gte=start_7d
+                ).annotate(
+                    day=TruncDay('finish_date')
+                ).values('day').annotate(
+                    val=Sum('budget')
+                )
+                day_map = {d['day'].date(): float(d['val'] or 0) for d in daily_rev if d['day']}
+
+                for i in range(7):
+                    d = (start_7d + timedelta(days=i)).date()
+                    revenue_chart_data['7d'][i]["value"] = day_map.get(d, 0)
+                
+                # 30d
+                weekly_rev = completed_jobs_query.filter(
+                    finish_date__gte=start_30d
+                ).annotate(
+                    week=TruncWeek('finish_date')
+                ).values('week').annotate(
+                    val=Sum('budget')
+                )
+                week_map = {w['week'].date(): float(w['val'] or 0) for w in weekly_rev if w['week']}
+                week_cursor = start_30d - timedelta(days=start_30d.weekday())
+                for i in range(len(revenue_chart_data['30d'])):
+                    curr_w = (week_cursor + timedelta(days=7*i)).date()
+                    revenue_chart_data['30d'][i]["value"] = week_map.get(curr_w, 0)
+                
+                # All
+                for i in range(6):
+                    # ...
+                    target_month = now.month - (5 - i)
+                    target_year = now.year
+                    while target_month <= 0:
+                        target_month += 12
+                        target_year -= 1
+                    
+                    ms = timezone.make_aware(datetime.datetime(target_year, target_month, 1))
+                    if target_month == 12:
+                        me = timezone.make_aware(datetime.datetime(target_year + 1, 1, 1))
+                    else:
+                        me = timezone.make_aware(datetime.datetime(target_year, target_month + 1, 1))
+                    
+                    m_val = completed_jobs_query.filter(
+                        finish_date__gte=ms,
+                        finish_date__lt=me
+                    ).aggregate(total=Sum('budget'))['total'] or 0
+                    revenue_chart_data['All'][i]["value"] = float(m_val)
+                
+                # --- REVENUE GROWTH CALCULATION ---
+                this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                if now.month == 1:
+                    last_month_start = now.replace(year=now.year - 1, month=12, day=1, hour=0, minute=0, second=0, microsecond=0)
+                else:
+                    last_month_start = now.replace(month=now.month - 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                last_month_end = this_month_start
+
+                rev_this_month = completed_jobs_query.filter(
+                    finish_date__gte=this_month_start
+                ).aggregate(total=Sum('budget'))['total'] or Decimal('0.00')
+
+                rev_last_month = completed_jobs_query.filter(
+                    finish_date__gte=last_month_start,
+                    finish_date__lt=last_month_end
+                ).aggregate(total=Sum('budget'))['total'] or Decimal('0.00')
+
+                if rev_last_month > 0:
+                    revenue_growth = ((rev_this_month - rev_last_month) / rev_last_month) * 100
+                elif rev_this_month > 0:
+                    revenue_growth = Decimal('100.00')
+                else:
+                    revenue_growth = Decimal('0.00')
+                # -------------------------------
+
+            except Exception as chart_err:
+                print(f"Error calculating revenue chart: {str(chart_err)}")
+                # Continue with zeroed data instead of 500ing
+
+            # Get average rating from reviews
             average_rating = float(avg_employee_rating) if avg_employee_rating else 0.0
             
         except Agency.DoesNotExist:
@@ -840,6 +958,12 @@ def get_agency_profile(account_id):
             completed_jobs = 0
             cancelled_jobs = 0
             total_revenue = Decimal('0.00')
+            revenue_chart_data = {'7d': [], '30d': [], 'All': []}
+            # Fill 7d zeros for consistency
+            start_7d = (timezone.now() - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+            for i in range(7):
+                d = (start_7d + timedelta(days=i)).date()
+                revenue_chart_data['7d'].append({"name": d.strftime('%a'), "value": 0})
             average_rating = 0.0
         
         # Get account info
@@ -863,7 +987,9 @@ def get_agency_profile(account_id):
                 "completed_jobs": completed_jobs,
                 "cancelled_jobs": cancelled_jobs,
                 "total_revenue": float(total_revenue),
+                "revenue_chart_data": revenue_chart_data,
                 "average_rating": average_rating,
+                "revenue_growth": float(revenue_growth) if 'revenue_growth' in locals() else 0.0,
             },
             "created_at": created_at,
         }

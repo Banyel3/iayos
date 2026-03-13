@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  API_BASE } from "@/lib/api/config";
+  API_BASE
+} from "@/lib/api/config";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/form_button";
@@ -406,11 +407,10 @@ export default function JobDetailPage() {
                     </div>
                     <div className="w-full bg-purple-200 rounded-full h-2">
                       <div
-                        className={`h-2 rounded-full transition-all ${
-                          (job.total_workers_assigned || 0) >= (job.total_workers_needed || 0)
-                            ? "bg-green-600"
-                            : "bg-purple-600"
-                        }`}
+                        className={`h-2 rounded-full transition-all ${(job.total_workers_assigned || 0) >= (job.total_workers_needed || 0)
+                          ? "bg-green-600"
+                          : "bg-purple-600"
+                          }`}
                         style={{
                           width: `${Math.min(((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100, 100)}%`,
                         }}
@@ -428,13 +428,12 @@ export default function JobDetailPage() {
                       {skillSlots.map((slot) => (
                         <div
                           key={slot.skill_slot_id}
-                          className={`p-4 rounded-lg border ${
-                            slot.status === "FILLED"
-                              ? "bg-green-50 border-green-200"
-                              : slot.status === "PARTIALLY_FILLED"
+                          className={`p-4 rounded-lg border ${slot.status === "FILLED"
+                            ? "bg-green-50 border-green-200"
+                            : slot.status === "PARTIALLY_FILLED"
                               ? "bg-yellow-50 border-yellow-200"
                               : "bg-gray-50 border-gray-200"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
@@ -449,8 +448,8 @@ export default function JobDetailPage() {
                                   slot.status === "FILLED"
                                     ? "bg-green-100 text-green-700"
                                     : slot.status === "PARTIALLY_FILLED"
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : "bg-gray-100 text-gray-700"
+                                      ? "bg-yellow-100 text-yellow-700"
+                                      : "bg-gray-100 text-gray-700"
                                 }
                               >
                                 {slot.assigned_employees?.length || 0}/{slot.workers_needed} workers
@@ -607,46 +606,7 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Assigned Employee */}
-            {job.assignedEmployee && (
-              <Card className="border-blue-200">
-                <CardContent className="p-6">
-                  <h2 className="text-lg font-bold text-gray-900 mb-4">
-                    Assigned Employee
-                  </h2>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        <User className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">
-                          {job.assignedEmployee.name}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {job.assignedEmployee.role}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="pt-3 border-t border-gray-200 space-y-2">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Mail className="h-4 w-4 mr-2" />
-                        {job.assignedEmployee.email}
-                      </div>
-                      {job.employeeAssignedAt && (
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Calendar className="h-4 w-4 mr-2" />
-                          Assigned{" "}
-                          {new Date(
-                            job.employeeAssignedAt,
-                          ).toLocaleDateString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+
 
             {/* Assigned Team (Multi-Employee) */}
             {job.assignedEmployees && job.assignedEmployees.length > 0 && (
@@ -664,53 +624,45 @@ export default function JobDetailPage() {
                     {job.assignedEmployees.map((employee, index) => (
                       <div
                         key={employee.employee_id || index}
-                        className={`flex items-center space-x-3 p-3 rounded-lg ${
-                          employee.is_primary_contact
-                            ? "bg-yellow-50 border border-yellow-200"
-                            : "bg-white border border-gray-100"
-                        }`}
+                        className="flex items-center space-x-3 p-3 rounded-lg bg-white border border-gray-100"
                       >
-                        <div className="relative">
-                          <div className="h-10 w-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                            {employee.name?.charAt(0) || "?"}
+                        <div className="flex flex-col items-center gap-1 min-w-[50px]">
+                          <div className="relative">
+                            <div className="h-10 w-10 bg-[#00BAF1] rounded-full flex items-center justify-center text-white font-bold">
+                              {employee.name?.charAt(0) || "?"}
+                            </div>
                           </div>
-                          {employee.is_primary_contact && (
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center">
-                              <Crown className="w-3 h-3 text-yellow-800" />
+                          {employee.rating && (
+                            <div className="flex items-center gap-0.5 text-[10px] text-gray-600 font-medium">
+                              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                              {employee.rating.toFixed(1)}
                             </div>
                           )}
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">
-                              {employee.name}
-                            </span>
-                            {employee.is_primary_contact && (
-                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
-                                Team Lead
-                              </span>
-                            )}
+                          <div className="font-semibold text-gray-900 border-none">
+                            {employee.name}
                           </div>
-                          <div className="flex items-center gap-3 text-sm text-gray-500">
-                            {employee.role && <span>{employee.role}</span>}
-                            {employee.rating && (
-                              <span className="flex items-center gap-1">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                {employee.rating.toFixed(1)}
-                              </span>
-                            )}
-                            <span
-                              className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                employee.status === "IN_PROGRESS"
-                                  ? "bg-orange-100 text-orange-700"
-                                  : employee.status === "COMPLETED"
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-blue-100 text-blue-700"
+                          {employee.role && (
+                            <div className="text-sm text-gray-500 mt-0.5">{employee.role}</div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          {employee.is_primary_contact && (
+                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">
+                              Team Lead
+                            </span>
+                          )}
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-medium ${employee.status === "IN_PROGRESS"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : employee.status === "COMPLETED"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
                               }`}
-                            >
-                              {employee.status?.replace("_", " ")}
-                            </span>
-                          </div>
+                          >
+                            {employee.status?.replace("_", " ")}
+                          </span>
                         </div>
                       </div>
                     ))}

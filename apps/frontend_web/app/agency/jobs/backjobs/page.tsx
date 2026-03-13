@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  API_BASE } from "@/lib/api/config";
+  API_BASE
+} from "@/lib/api/config";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,10 @@ import {
   Camera,
   ArrowLeft,
 } from "lucide-react";
+
+// Keep empty by default; real API data is used in production.
+const DUMMY_BACKJOBS: any[] = [];
+
 
 interface BackjobItem {
   dispute_id: number;
@@ -75,9 +80,19 @@ export default function AgencyBackjobsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setBackjobs(data.backjobs || []);
+        const apiBackjobs = data.backjobs || [];
+        // Combine with dummy data that matches the filter
+        const filteredDummies = DUMMY_BACKJOBS.filter(
+          (job) => filter === "all" || job.status === filter,
+        );
+        setBackjobs([...apiBackjobs, ...filteredDummies]);
       } else {
         setError("Failed to fetch backjobs");
+        // Still show dummy data even if API fails
+        const filteredDummies = DUMMY_BACKJOBS.filter(
+          (job) => filter === "all" || job.status === filter,
+        );
+        setBackjobs(filteredDummies);
       }
     } catch (err) {
       console.error("Error fetching backjobs:", err);
@@ -186,46 +201,46 @@ export default function AgencyBackjobsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Action Required</p>
-                <p className="text-2xl font-bold text-amber-600">
+                <p className="text-2xl font-bold text-black">
                   {backjobs.filter((b) => b.status === "UNDER_REVIEW").length}
                 </p>
               </div>
-              <div className="p-3 bg-amber-100 rounded-full">
-                <AlertCircle className="w-6 h-6 text-amber-600" />
+              <div className="p-3 bg-blue-50 rounded-full">
+                <AlertCircle className="w-6 h-6 text-[#00BAF1]" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Completed</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-black">
                   {backjobs.filter((b) => b.status === "RESOLVED").length}
                 </p>
               </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+              <div className="p-3 bg-blue-50 rounded-full">
+                <CheckCircle className="w-6 h-6 text-[#00BAF1]" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Total Backjobs</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-2xl font-bold text-black">
                   {backjobs.length}
                 </p>
               </div>
-              <div className="p-3 bg-gray-100 rounded-full">
-                <RefreshCw className="w-6 h-6 text-gray-600" />
+              <div className="p-3 bg-blue-50 rounded-full">
+                <RefreshCw className="w-6 h-6 text-[#00BAF1]" />
               </div>
             </div>
           </CardContent>
@@ -237,13 +252,18 @@ export default function AgencyBackjobsPage() {
         <Button
           variant={filter === "all" ? "default" : "outline"}
           onClick={() => setFilter("all")}
+          className={
+            filter === "all" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
+          }
         >
           All
         </Button>
         <Button
           variant={filter === "OPEN" ? "default" : "outline"}
           onClick={() => setFilter("OPEN")}
-          className={filter === "OPEN" ? "bg-blue-600 hover:bg-blue-700" : ""}
+          className={
+            filter === "OPEN" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
+          }
         >
           Pending Review
         </Button>
@@ -251,7 +271,7 @@ export default function AgencyBackjobsPage() {
           variant={filter === "IN_NEGOTIATION" ? "default" : "outline"}
           onClick={() => setFilter("IN_NEGOTIATION")}
           className={
-            filter === "IN_NEGOTIATION" ? "bg-indigo-600 hover:bg-indigo-700" : ""
+            filter === "IN_NEGOTIATION" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
           }
         >
           Negotiation
@@ -260,7 +280,7 @@ export default function AgencyBackjobsPage() {
           variant={filter === "UNDER_REVIEW" ? "default" : "outline"}
           onClick={() => setFilter("UNDER_REVIEW")}
           className={
-            filter === "UNDER_REVIEW" ? "bg-amber-600 hover:bg-amber-700" : ""
+            filter === "UNDER_REVIEW" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
           }
         >
           Action Required
@@ -269,7 +289,7 @@ export default function AgencyBackjobsPage() {
           variant={filter === "RESOLVED" ? "default" : "outline"}
           onClick={() => setFilter("RESOLVED")}
           className={
-            filter === "RESOLVED" ? "bg-green-600 hover:bg-green-700" : ""
+            filter === "RESOLVED" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
           }
         >
           Completed

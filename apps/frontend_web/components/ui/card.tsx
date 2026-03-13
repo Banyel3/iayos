@@ -10,7 +10,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
         // default card styles
         "bg-white text-neutral-950 flex flex-col gap-6 rounded-xl border border-neutral-200 py-6 shadow-sm dark:bg-neutral-950 dark:text-neutral-50 dark:border-neutral-800",
         // when inside an agency-verified container or admin theme, use blue accents
-        "agency-verified:border-blue-200 agency-verified:bg-sky-50 agency-verified:shadow-md",
+        "agency-verified:border-gray-100 agency-verified:bg-white agency-verified:shadow-sm",
         "admin-theme:border-transparent admin-theme:shadow-sm",
         className
       )}

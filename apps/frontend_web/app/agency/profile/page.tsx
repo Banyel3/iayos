@@ -126,10 +126,11 @@ export default function AgencyProfilePage() {
   const { data: transactions = [], isLoading: isLoadingTransactions } =
     useWalletTransactions(true);
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (signal?: AbortSignal) => {
     try {
       const res = await fetch(`${API_BASE}/api/agency/profile`, {
         credentials: "include",
+        signal,
       });
 
       if (res.ok) {
@@ -141,7 +142,8 @@ export default function AgencyProfilePage() {
       } else {
         toast.error("Failed to fetch profile");
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error("Error fetching profile:", error);
       toast.error("Error loading profile");
     } finally {
@@ -151,7 +153,7 @@ export default function AgencyProfilePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchProfile();
+    fetchProfile(controller.signal);
     return () => controller.abort();
   }, []);
 
@@ -590,31 +592,28 @@ export default function AgencyProfilePage() {
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${
-              activeTab === "overview"
+            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === "overview"
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+              }`}
           >
             Overview
           </button>
           <button
             onClick={() => setActiveTab("transactions")}
-            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${
-              activeTab === "transactions"
+            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === "transactions"
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+              }`}
           >
             Transactions
           </button>
           <button
             onClick={() => setActiveTab("payment-methods")}
-            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${
-              activeTab === "payment-methods"
+            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === "payment-methods"
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+              }`}
           >
             Pay Methods
           </button>
@@ -665,11 +664,10 @@ export default function AgencyProfilePage() {
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`p-2 rounded-full ${
-                            tx.type === "WITHDRAWAL"
+                          className={`p-2 rounded-full ${tx.type === "WITHDRAWAL"
                               ? "bg-red-100 text-red-600"
                               : "bg-green-100 text-green-600"
-                          }`}
+                            }`}
                         >
                           {tx.type === "WITHDRAWAL" ? (
                             <ArrowUpRight className="h-4 w-4" />
@@ -697,11 +695,10 @@ export default function AgencyProfilePage() {
                       </div>
                       <div className="text-right">
                         <p
-                          className={`font-semibold ${
-                            tx.type === "WITHDRAWAL"
+                          className={`font-semibold ${tx.type === "WITHDRAWAL"
                               ? "text-red-600"
                               : "text-green-600"
-                          }`}
+                            }`}
                         >
                           {tx.type === "WITHDRAWAL" ? "-" : "+"}₱
                           {Math.abs(tx.amount).toLocaleString("en-PH", {
@@ -709,13 +706,12 @@ export default function AgencyProfilePage() {
                           })}
                         </p>
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${
-                            tx.status === "COMPLETED"
+                          className={`text-xs px-2 py-0.5 rounded-full ${tx.status === "COMPLETED"
                               ? "bg-green-100 text-green-700"
                               : tx.status === "PENDING"
                                 ? "bg-yellow-100 text-yellow-700"
                                 : "bg-gray-100 text-gray-700"
-                          }`}
+                            }`}
                         >
                           {tx.status}
                         </span>
@@ -787,11 +783,10 @@ export default function AgencyProfilePage() {
                   {paymentMethods.map((method) => (
                     <div
                       key={method.id}
-                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
-                        method.is_primary
+                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${method.is_primary
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-200 hover:border-gray-300 bg-white"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-4">
                         {/* GCash Icon */}
@@ -1066,11 +1061,10 @@ export default function AgencyProfilePage() {
                     <button
                       key={method.id}
                       onClick={() => setSelectedPaymentMethodId(method.id)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${
-                        selectedPaymentMethodId === method.id
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${selectedPaymentMethodId === method.id
                           ? "border-emerald-500 bg-emerald-50"
                           : "border-gray-200 hover:border-gray-300"
-                      }`}
+                        }`}
                     >
                       <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
                         G
@@ -1122,11 +1116,10 @@ export default function AgencyProfilePage() {
                   key={amt}
                   onClick={() => setWithdrawAmount(amt.toString())}
                   disabled={walletBalance < amt}
-                  className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
-                    walletBalance >= amt
+                  className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${walletBalance >= amt
                       ? "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
                       : "border-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
+                    }`}
                 >
                   ₱{amt.toLocaleString()}
                 </button>
@@ -1134,11 +1127,10 @@ export default function AgencyProfilePage() {
               <button
                 onClick={() => setWithdrawAmount(walletBalance.toString())}
                 disabled={walletBalance < 100}
-                className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${
-                  walletBalance >= 100
+                className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${walletBalance >= 100
                     ? "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
                     : "border-gray-200 text-gray-400 cursor-not-allowed"
-                }`}
+                  }`}
               >
                 All
               </button>
@@ -1320,15 +1312,14 @@ export default function AgencyProfilePage() {
               {/* Validation feedback */}
               {newAccountNumber && (
                 <div
-                  className={`flex items-center gap-2 text-sm ${
-                    newAccountNumber.startsWith("09") &&
-                    newAccountNumber.length === 11
+                  className={`flex items-center gap-2 text-sm ${newAccountNumber.startsWith("09") &&
+                      newAccountNumber.length === 11
                       ? "text-green-600"
                       : "text-amber-600"
-                  }`}
+                    }`}
                 >
                   {newAccountNumber.startsWith("09") &&
-                  newAccountNumber.length === 11 ? (
+                    newAccountNumber.length === 11 ? (
                     <>
                       <CheckCircle className="h-4 w-4" />
                       <span>Valid GCash number format</span>

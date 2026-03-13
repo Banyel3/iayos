@@ -35,6 +35,9 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
+// Keep empty by default; optionally populated only for UI preview scenarios.
+const DUMMY_MESSAGES: AgencyConversation[] = [];
+
 type FilterType = "active" | "unread" | "archived";
 
 export default function AgencyMessagesPage() {
@@ -58,15 +61,48 @@ export default function AgencyMessagesPage() {
     useAgencyConversationSearch(searchQuery);
 
   // Determine which conversations to display
+  const enableDummyMessages =
+    process.env.NEXT_PUBLIC_ENABLE_DUMMY_MESSAGES === "true";
+
   const displayedConversations = useMemo(() => {
     if (searchQuery.trim()) {
       return searchResults;
     }
-    return conversationsData?.conversations || [];
-  }, [searchQuery, searchResults, conversationsData]);
+
+    const realConversations = conversationsData?.conversations || [];
+
+    // In production (or when disabled), never mix in dummy records
+    if (!enableDummyMessages) {
+      return realConversations;
+    }
+
+    // Add dummy messages based on filter for UI preview only
+    if (activeFilter === "active") {
+      return [...DUMMY_MESSAGES, ...realConversations];
+    }
+
+    if (activeFilter === "unread") {
+      const dummyUnread = DUMMY_MESSAGES.filter(
+        (m) => m.unread_count > 0
+      );
+      return [...dummyUnread, ...realConversations];
+    }
+
+    return realConversations;
+  }, [
+    searchQuery,
+    searchResults,
+    conversationsData,
+    activeFilter,
+    enableDummyMessages,
+  ]);
 
   // Get unread count for badge - using AGENCY-SPECIFIC hook
-  const { unreadCount } = useAgencyUnreadCount();
+  const { unreadCount: realUnreadCount } = useAgencyUnreadCount();
+  const dummyUnreadCount = enableDummyMessages
+    ? DUMMY_MESSAGES.reduce((acc, msg) => acc + msg.unread_count, 0)
+    : 0;
+  const unreadCount = realUnreadCount + dummyUnreadCount;
 
   // Auto-refresh on WebSocket connection
   useEffect(() => {
@@ -106,7 +142,11 @@ export default function AgencyMessagesPage() {
           </Badge>
         );
       case "COMPLETED":
-        return <Badge variant="secondary">Completed</Badge>;
+        return (
+          <Badge className="bg-blue-50 text-[#00BAF1] border border-[#00BAF1] hover:bg-blue-100">
+            Completed
+          </Badge>
+        );
       case "CANCELLED":
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
@@ -118,8 +158,8 @@ export default function AgencyMessagesPage() {
   const renderConversationCard = (conversation: AgencyConversation) => {
     const formattedTime = conversation.last_message_time
       ? formatDistanceToNow(new Date(conversation.last_message_time), {
-          addSuffix: true,
-        })
+        addSuffix: true,
+      })
       : null;
 
     const truncatedMessage = conversation.last_message
@@ -159,11 +199,10 @@ export default function AgencyMessagesPage() {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <h3
-                    className={`text-base truncate ${
-                      conversation.unread_count > 0
-                        ? "font-bold text-gray-900"
-                        : "font-medium text-gray-700"
-                    }`}
+                    className={`text-base truncate ${conversation.unread_count > 0
+                      ? "font-bold text-gray-900"
+                      : "font-medium text-gray-700"
+                      }`}
                   >
                     {conversation.client.name}
                   </h3>
@@ -171,6 +210,13 @@ export default function AgencyMessagesPage() {
                     <User className="h-3 w-3 mr-1" />
                     Client
                   </Badge>
+                  {conversation.job.workerMarkedComplete &&
+                    !conversation.job.clientMarkedComplete && (
+                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                        Awaiting Approval
+                      </Badge>
+                    )}
+                  {getStatusBadge(conversation.job.status)}
                 </div>
                 {formattedTime && (
                   <span className="text-xs text-gray-500 ml-2 flex-shrink-0 flex items-center gap-1">
@@ -182,52 +228,18 @@ export default function AgencyMessagesPage() {
 
               {/* Job Title */}
               <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                <Briefcase className="h-4 w-4 text-blue-500" />
+                <Briefcase className="h-4 w-4 text-[#00BAF1]" />
                 <span className="truncate font-medium">
                   {conversation.job.title}
                 </span>
               </div>
 
-              {/* Assigned Employees (Multi-employee support) */}
-              {conversation.assigned_employees &&
-              conversation.assigned_employees.length > 0 ? (
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 bg-gray-50 p-1.5 rounded">
-                  <Users className="h-3 w-3 text-green-600" />
-                  <span>
-                    Assigned ({conversation.assigned_employees.length}):{" "}
-                    <span className="font-medium text-gray-700">
-                      {conversation.assigned_employees
-                        .map((e) => e.name)
-                        .join(", ")}
-                    </span>
-                  </span>
-                </div>
-              ) : (
-                conversation.assigned_employee && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-2 bg-gray-50 p-1.5 rounded">
-                    <Users className="h-3 w-3 text-green-600" />
-                    <span>
-                      Assigned to:{" "}
-                      <span className="font-medium text-gray-700">
-                        {conversation.assigned_employee.name}
-                      </span>
-                    </span>
-                    {conversation.assigned_employee.employeeOfTheMonth && (
-                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                        🏆 EOTM
-                      </Badge>
-                    )}
-                  </div>
-                )
-              )}
-
               {/* Last Message */}
               <p
-                className={`text-sm truncate ${
-                  conversation.unread_count > 0
-                    ? "font-semibold text-gray-800"
-                    : "text-gray-500"
-                }`}
+                className={`text-sm truncate ${conversation.unread_count > 0
+                  ? "font-semibold text-gray-800"
+                  : "text-gray-500"
+                  }`}
               >
                 {truncatedMessage}
               </p>
@@ -259,19 +271,43 @@ export default function AgencyMessagesPage() {
 
               {/* Bottom Row: Budget + Status */}
               <div className="flex items-center justify-between mt-3">
-                <span className="text-sm font-bold text-green-600">
+                <span className="text-sm font-bold text-gray-700">
                   ₱{(conversation.job.budget ?? 0).toLocaleString()}
                 </span>
-                <div className="flex items-center gap-2">
-                  {conversation.job.workerMarkedComplete &&
-                    !conversation.job.clientMarkedComplete && (
-                      <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                        Awaiting Approval
+              </div>
+
+              {/* Assigned Employees (Multi-employee support) - Relocated below budget */}
+              {conversation.assigned_employees &&
+                conversation.assigned_employees.length > 0 ? (
+                <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                  <Users className="h-3 w-3 text-[#00BAF1]" />
+                  <span>
+                    Assigned ({conversation.assigned_employees.length}):{" "}
+                    <span className="font-medium text-gray-700">
+                      {conversation.assigned_employees
+                        .map((e) => e.name)
+                        .join(", ")}
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                conversation.assigned_employee && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                    <Users className="h-3 w-3 text-[#00BAF1]" />
+                    <span>
+                      Assigned to:{" "}
+                      <span className="font-medium text-gray-700">
+                        {conversation.assigned_employee.name}
+                      </span>
+                    </span>
+                    {conversation.assigned_employee.employeeOfTheMonth && (
+                      <Badge className="bg-yellow-100 text-yellow-800 text-xs ml-1">
+                        🏆 EOTM
                       </Badge>
                     )}
-                  {getStatusBadge(conversation.job.status)}
-                </div>
-              </div>
+                  </div>
+                )
+              )}
             </div>
           </div>
         </CardContent>
@@ -290,16 +326,19 @@ export default function AgencyMessagesPage() {
 
     return (
       <Button
-        variant={isActive ? "default" : "outline"}
-        className={`relative ${isActive ? "shadow-md" : ""}`}
+        variant={isActive ? "default" : "ghost"}
+        className={`relative h-10 px-6 rounded-xl transition-all duration-200 ${isActive
+          ? "bg-white text-[#00BAF1] shadow-sm hover:bg-white"
+          : "text-gray-500 hover:text-gray-700 hover:bg-gray-200/50"
+          }`}
         onClick={() => setActiveFilter(filter)}
       >
         {icon}
-        <span className="ml-2">{label}</span>
+        <span className="ml-2 font-semibold">{label}</span>
         {count !== undefined && count > 0 && (
           <Badge
-            variant={isActive ? "secondary" : "default"}
-            className={`ml-2 ${isActive ? "bg-white text-blue-600" : "bg-red-500 text-white"}`}
+            variant={isActive ? "default" : "secondary"}
+            className={`ml-2 ${isActive ? "bg-[#00BAF1] text-white" : "bg-gray-200 text-gray-600"}`}
           >
             {count}
           </Badge>
@@ -321,81 +360,89 @@ export default function AgencyMessagesPage() {
 
     if (searchQuery.trim()) {
       return (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Search className="h-20 w-20 text-gray-300 mb-4" />
-          <p className="text-xl font-medium text-gray-700 mb-2">
-            No conversations found
-          </p>
-          <p className="text-sm text-gray-500">
-            Try searching for a different client name, job title, or employee
-          </p>
-        </div>
+        <Card className="text-center py-16">
+          <CardContent className="flex flex-col items-center justify-center">
+            <Search className="h-20 w-20 text-gray-300 mb-4" />
+            <p className="text-xl font-medium text-gray-700 mb-2">
+              No conversations found
+            </p>
+            <p className="text-sm text-gray-500">
+              Try searching for a different client name, job title, or employee
+            </p>
+          </CardContent>
+        </Card>
       );
     }
 
     if (activeFilter === "archived") {
       return (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Archive className="h-20 w-20 text-gray-300 mb-4" />
-          <p className="text-xl font-medium text-gray-700 mb-2">
-            No archived conversations
-          </p>
-          <p className="text-sm text-gray-500">
-            Archived conversations will appear here
-          </p>
-        </div>
+        <Card className="text-center py-16">
+          <CardContent className="flex flex-col items-center justify-center">
+            <Archive className="h-20 w-20 text-gray-300 mb-4" />
+            <p className="text-xl font-medium text-gray-700 mb-2">
+              No archived conversations
+            </p>
+            <p className="text-sm text-gray-500">
+              Archived conversations will appear here
+            </p>
+          </CardContent>
+        </Card>
       );
     }
 
     if (activeFilter === "unread") {
       return (
-        <div className="flex flex-col items-center justify-center py-20">
-          <MessageSquare className="h-20 w-20 text-gray-300 mb-4" />
-          <p className="text-xl font-medium text-gray-700 mb-2">
-            No unread messages
-          </p>
-          <p className="text-sm text-gray-500">You're all caught up! 🎉</p>
-        </div>
+        <Card className="text-center py-16">
+          <CardContent className="flex flex-col items-center justify-center">
+            <MessageSquare className="h-20 w-20 text-gray-300 mb-4" />
+            <p className="text-xl font-medium text-gray-700 mb-2">
+              No unread messages
+            </p>
+            <p className="text-sm text-gray-500">You're all caught up! 🎉</p>
+          </CardContent>
+        </Card>
       );
     }
 
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Inbox className="h-20 w-20 text-gray-300 mb-4" />
-        <p className="text-xl font-medium text-gray-700 mb-2">
-          No conversations yet
-        </p>
-        <p className="text-sm text-gray-500 text-center max-w-md">
-          When clients accept your agency for jobs, conversations will appear
-          here. Accept job invitations to start messaging!
-        </p>
-        <Button className="mt-4" onClick={() => router.push("/agency/jobs")}>
-          <Briefcase className="h-4 w-4 mr-2" />
-          View Job Invitations
-        </Button>
-      </div>
+      <Card className="text-center py-16">
+        <CardContent className="flex flex-col items-center justify-center">
+          <Inbox className="h-20 w-20 text-gray-300 mb-4" />
+          <p className="text-xl font-medium text-gray-700 mb-2">
+            No conversations yet
+          </p>
+          <p className="text-sm text-gray-500 text-center max-w-md">
+            When clients accept your agency for jobs, conversations will appear
+            here. Accept job invitations to start messaging!
+          </p>
+          <Button className="mt-4" onClick={() => router.push("/agency/jobs")}>
+            <Briefcase className="h-4 w-4 mr-2" />
+            View Job Invitations
+          </Button>
+        </CardContent>
+      </Card>
     );
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div className="max-w-7xl mx-auto space-y-8 pt-4">
+      {/* Header Section (Admin style) */}
+      <div className="pb-6 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <MessageSquare className="h-8 w-8 text-blue-600" />
-              Messages
-            </h1>
-            <p className="text-gray-600 mt-2">
+            <div className="flex items-center gap-3 mb-1">
+              <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Messages</h1>
+            </div>
+            <p className="text-gray-500 text-sm sm:text-base">
               Communicate with clients about your agency's jobs
             </p>
           </div>
 
-          {/* Connection status */}
+          {/* Connection status (Moved to header right) */}
           <div className="flex items-center gap-3">
             {isConnected ? (
-              <Badge variant="default" className="bg-green-500 py-1.5 px-3">
+              <Badge variant="default" className="bg-[#00BAF1] text-white py-1.5 px-3 shadow-sm border-0">
                 <Wifi className="h-4 w-4 mr-2" />
                 Live Updates
               </Badge>
@@ -403,7 +450,7 @@ export default function AgencyMessagesPage() {
               <Badge
                 variant="destructive"
                 onClick={reconnect}
-                className="cursor-pointer py-1.5 px-3"
+                className="cursor-pointer py-1.5 px-3 shadow-md"
               >
                 <WifiOff className="h-4 w-4 mr-2" />
                 {connectionState === "connecting"
@@ -413,21 +460,39 @@ export default function AgencyMessagesPage() {
             )}
           </div>
         </div>
+      </div>
 
-        {/* Search bar */}
-        <div className="relative mb-6">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search by client, job title, or employee name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-12 py-6 text-lg rounded-xl"
-          />
+      {/* Search & Filters row (Admin style) */}
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative group">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-hover:text-[#00BAF1] transition-colors" />
+            <Input
+              type="text"
+              placeholder="Search by client, job title, or employee name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-12 h-12 border-gray-200 focus:border-[#00BAF1] focus:ring-2 focus:ring-blue-100 rounded-xl bg-white shadow-sm"
+            />
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isRefetching}
+            className="h-12 px-6 rounded-xl border-gray-200 hover:border-[#00BAF1] hover:text-[#00BAF1] shadow-sm font-medium"
+          >
+            {isRefetching ? (
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            ) : (
+              <RefreshCw className="h-5 w-5 mr-2" />
+            )}
+            Refresh
+          </Button>
         </div>
 
-        {/* Filter buttons */}
-        <div className="flex gap-3 flex-wrap">
+        {/* Filter buttons as segmented tabs */}
+        <div className="flex gap-2 flex-wrap p-1.5 bg-gray-100/50 rounded-2xl w-fit">
           {renderFilterButton(
             "active",
             "Active",
@@ -445,51 +510,19 @@ export default function AgencyMessagesPage() {
             "Archived",
             <Archive className="h-4 w-4" />,
           )}
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            disabled={isRefetching}
-            className="ml-auto"
-          >
-            {isRefetching ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Refresh
-          </Button>
         </div>
       </div>
 
       {/* Conversations list */}
-      <Card className="shadow-lg">
-        <CardHeader className="border-b bg-gray-50">
-          <CardTitle className="flex items-center justify-between">
-            <span>
-              {searchQuery.trim()
-                ? `Search Results (${displayedConversations.length})`
-                : `${activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Conversations`}
-            </span>
-            {displayedConversations.length > 0 && (
-              <span className="text-sm font-normal text-gray-500">
-                {displayedConversations.length} conversation
-                {displayedConversations.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
-          {displayedConversations.length === 0 ? (
-            renderEmptyState()
-          ) : (
-            <div className="space-y-4">
-              {displayedConversations.map((conversation) =>
-                renderConversationCard(conversation),
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {displayedConversations.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          displayedConversations.map((conversation) =>
+            renderConversationCard(conversation),
+          )
+        )}
+      </div>
     </div>
   );
 }
