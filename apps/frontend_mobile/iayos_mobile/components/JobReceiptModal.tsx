@@ -62,6 +62,7 @@ export default function JobReceiptModal({
 }: JobReceiptModalProps) {
   const { data, isLoading, error } = useJobReceipt(jobId, visible);
   const receipt = data?.receipt as JobReceipt | undefined;
+  const isCancelledReceipt = (receipt?.status || "").toUpperCase() === "CANCELLED";
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -205,13 +206,19 @@ ${RECEIPT_DISCLAIMER_TEXT}
               <View style={styles.receiptBadge}>
                 <Ionicons
                   name={
-                    receipt.status === "COMPLETED" ? "checkmark-circle" : "time"
+                    receipt.status === "COMPLETED"
+                      ? "checkmark-circle"
+                      : receipt.status === "CANCELLED"
+                        ? "close-circle"
+                        : "time"
                   }
                   size={16}
                   color={
                     receipt.status === "COMPLETED"
                       ? Colors.success
-                      : Colors.warning
+                      : receipt.status === "CANCELLED"
+                        ? Colors.error
+                        : Colors.warning
                   }
                 />
                 <Text
@@ -219,13 +226,69 @@ ${RECEIPT_DISCLAIMER_TEXT}
                     styles.receiptBadgeText,
                     receipt.status === "COMPLETED"
                       ? styles.completedText
-                      : styles.pendingText,
+                      : receipt.status === "CANCELLED"
+                        ? { color: Colors.error }
+                        : styles.pendingText,
                   ]}
                 >
-                  {receipt.status === "COMPLETED" ? "Paid" : "Pending"}
+                  {receipt.status === "COMPLETED"
+                    ? "Paid"
+                    : receipt.status === "CANCELLED"
+                      ? "Cancelled"
+                      : "Pending"}
                 </Text>
               </View>
             </View>
+
+            {/* Cancellation Settlement Card */}
+            {receipt.status === "CANCELLED" && receipt.cancellation?.is_cancelled && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Cancellation Settlement</Text>
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                  <Ionicons name="layers-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.infoText}>
+                    Stage: {receipt.cancellation.stage || "N/A"}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Ionicons name="person-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.infoText}>
+                    Cancelled by: {receipt.cancellation.cancelled_by_role || "N/A"}
+                  </Text>
+                </View>
+
+                {!!receipt.cancellation.summary && (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="document-text-outline" size={16} color={Colors.textSecondary} />
+                    <Text style={styles.infoText}>{receipt.cancellation.summary}</Text>
+                  </View>
+                )}
+
+                <View style={styles.infoRow}>
+                  <Ionicons name="refresh-outline" size={16} color={Colors.success} />
+                  <Text style={styles.infoText}>
+                    Client refund: {formatCurrency(receipt.cancellation.client_refund_amount)}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Ionicons name="wallet-outline" size={16} color={Colors.primary} />
+                  <Text style={styles.infoText}>
+                    Worker compensation: {formatCurrency(receipt.cancellation.worker_compensation_amount)}
+                  </Text>
+                </View>
+
+                {!!receipt.cancellation.reason && (
+                  <View style={{ marginTop: Spacing.sm }}>
+                    <Text style={[styles.infoText, { color: Colors.textSecondary }]}>Reason</Text>
+                    <Text style={styles.infoText}>{receipt.cancellation.reason}</Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Receipt Disclaimer */}
             <ReceiptDisclaimer />
@@ -390,16 +453,54 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>
-                  {userRole === "CLIENT" ? "Total You Paid" : "Your Earnings"}
+                  {isCancelledReceipt
+                    ? userRole === "CLIENT"
+                      ? "Net Paid After Refund"
+                      : "Earnings For This Job"
+                    : userRole === "CLIENT"
+                      ? "Total You Paid"
+                      : "Your Earnings"}
                 </Text>
                 <Text style={styles.totalValue}>
                   {formatCurrency(
-                    userRole === "CLIENT"
-                      ? receipt.payment.total_client_paid
-                      : receipt.payment.worker_earnings
+                    isCancelledReceipt
+                      ? userRole === "CLIENT"
+                        ? (receipt.payment.actual_client_paid ?? receipt.payment.total_client_paid)
+                        : (receipt.payment.actual_worker_earnings ?? receipt.payment.worker_earnings)
+                      : userRole === "CLIENT"
+                        ? receipt.payment.total_client_paid
+                        : receipt.payment.worker_earnings
                   )}
                 </Text>
               </View>
+
+              {isCancelledReceipt && (
+                <>
+                  <View style={[styles.paymentRow, { marginTop: 4 }]}> 
+                    <Text style={[styles.paymentLabel, { color: Colors.error, fontWeight: "700" }]}>
+                      This job was cancelled. Settlement values are shown below.
+                    </Text>
+                  </View>
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentLabel}>Expected Worker Earnings (full job)</Text>
+                    <Text style={styles.paymentValue}>
+                      {formatCurrency(
+                        receipt.payment.expected_worker_earnings ?? receipt.payment.worker_earnings,
+                      )}
+                    </Text>
+                  </View>
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentLabel}>Actual Worker Earnings (from transaction history)</Text>
+                    <Text style={[styles.paymentValue, styles.positiveAmount]}>
+                      {formatCurrency(
+                        receipt.payment.actual_worker_earnings ??
+                          receipt.cancellation?.worker_compensation_amount ??
+                          0,
+                      )}
+                    </Text>
+                  </View>
+                </>
+              )}
 
               {receipt.payment.payment_method && (
                 <View style={styles.paymentMethodRow}>
@@ -555,6 +656,17 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
                 {receipt.transactions.map(
                   (txn: ReceiptTransaction, index: number) => (
+                    (() => {
+                      const isCredit =
+                        txn.impact
+                          ? txn.impact === "CREDIT"
+                          : txn.type === "EARNING" ||
+                            txn.type === "PENDING_EARNING" ||
+                            txn.type === "REFUND" ||
+                            txn.type === "DEPOSIT" ||
+                            txn.type === "MATERIALS_REIMBURSEMENT";
+
+                      return (
                     <View
                       key={txn.id}
                       style={[
@@ -586,6 +698,10 @@ ${RECEIPT_DISCLAIMER_TEXT}
                         <Text style={styles.transactionType}>
                           {getTransactionTypeLabel(txn.type)}
                         </Text>
+                        <Text style={styles.transactionMeta}>
+                          {isCredit ? "Added to" : "Incurred by"}: {txn.affected_name || "Unknown"}
+                          {txn.affected_role ? ` (${txn.affected_role})` : ""}
+                        </Text>
                         <Text style={styles.transactionDate}>
                           {formatReceiptDate(txn.created_at)}
                         </Text>
@@ -593,19 +709,19 @@ ${RECEIPT_DISCLAIMER_TEXT}
                       <Text
                         style={[
                           styles.transactionAmount,
-                          txn.type === "EARNING" ||
-                            txn.type === "PENDING_EARNING"
+                          isCredit
                             ? styles.positiveAmount
                             : styles.negativeAmount,
                         ]}
                       >
-                        {txn.type === "EARNING" ||
-                          txn.type === "PENDING_EARNING"
+                        {isCredit
                           ? "+"
                           : "-"}
                         {formatCurrency(txn.amount)}
                       </Text>
                     </View>
+                      );
+                    })()
                   )
                 )}
               </View>
@@ -1020,6 +1136,11 @@ const styles = StyleSheet.create({
   transactionDate: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+  },
+  transactionMeta: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   transactionAmount: {
     ...Typography.body.medium,

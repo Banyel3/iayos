@@ -5,7 +5,7 @@ from django.conf import settings
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
     JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency,
-    JobSkillSlot, JobWorkerAssignment
+    JobSkillSlot, JobWorkerAssignment, JobLog
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
@@ -78,6 +78,38 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c
+
+
+def _derive_cancellation_reason(job: JobPosting) -> Optional[str]:
+    """Return the best available cancellation reason for legacy/partial records."""
+    direct_reason = (job.cancellationReason or "").strip()
+    if direct_reason:
+        return direct_reason
+
+    try:
+        log = JobLog.objects.filter(
+            jobID=job,
+            newStatus=JobPosting.JobStatus.CANCELLED,
+        ).order_by('-createdAt').first()
+
+        if not log or not log.notes:
+            return None
+
+        notes = str(log.notes).strip()
+        if not notes:
+            return None
+
+        lower_notes = notes.lower()
+        marker = 'reason='
+        marker_index = lower_notes.rfind(marker)
+        if marker_index != -1:
+            parsed = notes[marker_index + len(marker):].strip(' ;.')
+            if parsed:
+                return parsed
+
+        return notes
+    except Exception:
+        return None
 
 
 def get_mobile_job_list(
@@ -600,6 +632,8 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         except Exception as e:
             print(f"   ⚠️ Distance calculation error: {e}")
 
+        cancellation_reason = _derive_cancellation_reason(job)
+
         job_data = {
             'id': job.jobID,
             'title': job.title,
@@ -630,6 +664,18 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'remaining_payment_paid': job.remainingPaymentPaid,
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
+            'worker_marked_on_the_way': job.workerMarkedOnTheWay,
+            'worker_marked_on_the_way_at': job.workerMarkedOnTheWayAt.isoformat() if job.workerMarkedOnTheWayAt else None,
+            'worker_marked_job_started': job.workerMarkedJobStarted,
+            'worker_marked_job_started_at': job.workerMarkedJobStartedAt.isoformat() if job.workerMarkedJobStartedAt else None,
+            'client_confirmed_work_started': job.clientConfirmedWorkStarted,
+            'client_confirmed_work_started_at': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
+            'cancelled_at': job.cancelledAt.isoformat() if job.cancelledAt else None,
+            'cancelled_by_role': job.cancelledByRole,
+            'cancellation_stage': job.cancellationStage,
+            'cancellation_reason': cancellation_reason,
+            'client_refund_amount': float(job.clientRefundAmount or 0),
+            'worker_compensation_amount': float(job.workerCompensationAmount or 0),
             'estimated_completion': ml_prediction,
             # Universal job fields for ML accuracy
             'job_scope': job.job_scope,

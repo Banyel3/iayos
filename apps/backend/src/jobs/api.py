@@ -7798,8 +7798,26 @@ def get_job_receipt(request, job_id: int):
         
         # Worker receives full budget + materials reimbursement (client pays budget + fee + materials)
         materials_cost = Decimal(str(job.materialsCost)) if job.materialsCost else Decimal('0.00')
-        worker_earnings = budget + materials_cost
-        total_client_paid = budget + platform_fee + materials_cost
+        expected_worker_earnings = budget + materials_cost
+        expected_client_paid = budget + platform_fee + materials_cost
+
+        # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
+        if job.status == Job.JobStatus.CANCELLED:
+            actual_worker_earnings = Decimal(str(job.workerCompensationAmount or Decimal('0.00')))
+            if job.escrowPaid:
+                # What client effectively lost after refund + retained fee.
+                actual_client_paid = (
+                    max(Decimal('0.00'), escrow_amount - Decimal(str(job.clientRefundAmount or Decimal('0.00'))))
+                    + platform_fee
+                )
+            else:
+                actual_client_paid = Decimal('0.00')
+        else:
+            actual_worker_earnings = expected_worker_earnings
+            actual_client_paid = expected_client_paid
+
+        worker_earnings = expected_worker_earnings
+        total_client_paid = expected_client_paid
         
         # Get buffer period settings
         buffer_days = get_payment_buffer_days()
@@ -7817,14 +7835,77 @@ def get_job_receipt(request, job_id: int):
         
         # Get related transactions for this job
         transactions = []
+        earning_amount_from_transactions = Decimal('0.00')
+        pending_earning_amount_from_transactions = Decimal('0.00')
         try:
             # Get all transactions related to this job (from any wallet)
-            from accounts.models import Transaction
+            from accounts.models import Transaction, Profile
+
+            team_worker_name_map = {}
+            if job.is_team_job:
+                from accounts.models import JobWorkerAssignment
+                team_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID__profileID__accountFK', 'workerID__profileID')
+                for assignment in team_assignments:
+                    worker_account = getattr(assignment.workerID.profileID, 'accountFK', None)
+                    if worker_account:
+                        team_worker_name_map[worker_account.accountID] = (
+                            f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip()
+                        )
+
+            account_name_cache = {}
+
+            def resolve_account_name(account_obj):
+                if not account_obj:
+                    return "System"
+                account_id = account_obj.accountID
+                if account_id in account_name_cache:
+                    return account_name_cache[account_id]
+
+                profile = Profile.objects.filter(accountFK=account_obj).first()
+                if profile:
+                    full_name = f"{profile.firstName} {profile.lastName}".strip()
+                    account_name_cache[account_id] = full_name or account_obj.email
+                else:
+                    account_name_cache[account_id] = account_obj.email
+
+                return account_name_cache[account_id]
+
             related_transactions = Transaction.objects.filter(
                 relatedJobPosting=job
-            ).order_by('-createdAt')[:10]  # Last 10 transactions
+            ).select_related('walletID__accountFK').order_by('-createdAt')[:10]  # Last 10 transactions
             
             for txn in related_transactions:
+                affected_account = getattr(getattr(txn, 'walletID', None), 'accountFK', None)
+                affected_role = "SYSTEM"
+                affected_name = "System"
+
+                if affected_account:
+                    affected_name = resolve_account_name(affected_account)
+                    if affected_account == job.clientID.profileID.accountFK:
+                        affected_role = "CLIENT"
+                    elif job.assignedWorkerID and affected_account == job.assignedWorkerID.profileID.accountFK:
+                        affected_role = "WORKER"
+                    elif job.assignedAgencyFK and affected_account == job.assignedAgencyFK.accountFK:
+                        affected_role = "AGENCY"
+                    elif job.is_team_job and affected_account.accountID in team_worker_name_map:
+                        affected_role = "WORKER"
+                        affected_name = team_worker_name_map[affected_account.accountID]
+                    else:
+                        affected_role = "USER"
+
+                impact = "DEBIT"
+                if txn.transactionType in [
+                    Transaction.TransactionType.DEPOSIT,
+                    Transaction.TransactionType.REFUND,
+                    Transaction.TransactionType.EARNING,
+                    Transaction.TransactionType.PENDING_EARNING,
+                    Transaction.TransactionType.MATERIALS_REIMBURSEMENT,
+                ]:
+                    impact = "CREDIT"
+
                 transactions.append({
                     'id': txn.transactionID,
                     'type': txn.transactionType,
@@ -7833,11 +7914,30 @@ def get_job_receipt(request, job_id: int):
                     'description': txn.description,
                     'reference_number': txn.referenceNumber,
                     'payment_method': txn.paymentMethod,
+                    'affected_account_id': affected_account.accountID if affected_account else None,
+                    'affected_role': affected_role,
+                    'affected_name': affected_name,
+                    'impact': impact,
                     'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
                     'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
                 })
+
+                # Track what was actually credited to worker/agency from transaction history.
+                # For cancelled jobs this is the source of truth for "actual earnings".
+                if affected_role in ["WORKER", "AGENCY"]:
+                    if txn.transactionType == Transaction.TransactionType.EARNING:
+                        earning_amount_from_transactions += Decimal(str(txn.amount))
+                    elif txn.transactionType == Transaction.TransactionType.PENDING_EARNING:
+                        pending_earning_amount_from_transactions += Decimal(str(txn.amount))
         except Exception as e:
             print(f"⚠️ Error fetching transactions for receipt: {e}")
+
+        # For cancelled jobs, prefer earnings from transaction history over model-level compensation fields.
+        if job.status == Job.JobStatus.CANCELLED:
+            if earning_amount_from_transactions > Decimal('0.00'):
+                actual_worker_earnings = earning_amount_from_transactions
+            elif pending_earning_amount_from_transactions > Decimal('0.00'):
+                actual_worker_earnings = pending_earning_amount_from_transactions
         
         # Build worker/agency info
         worker_info = None
@@ -7915,6 +8015,7 @@ def get_job_receipt(request, job_id: int):
                 'worker_completed_at': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
                 'client_approved_at': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
                 'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+                'cancelled_at': job.cancelledAt.isoformat() if job.cancelledAt else None,
                 
                 # Payment breakdown (all in PHP)
                 'payment': {
@@ -7927,6 +8028,10 @@ def get_job_receipt(request, job_id: int):
                     'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
                     'worker_earnings': float(worker_earnings),
                     'total_client_paid': float(total_client_paid),
+                    'expected_worker_earnings': float(expected_worker_earnings),
+                    'actual_worker_earnings': float(actual_worker_earnings),
+                    'expected_client_paid': float(expected_client_paid),
+                    'actual_client_paid': float(actual_client_paid),
                     'escrow_paid': job.escrowPaid,
                     'escrow_paid_at': job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
                     'final_payment_paid': job.remainingPaymentPaid,
@@ -7970,6 +8075,20 @@ def get_job_receipt(request, job_id: int):
                 'reviews': {
                     'client_reviewed': job.clientReviewed if hasattr(job, 'clientReviewed') else False,
                     'worker_reviewed': job.workerReviewed if hasattr(job, 'workerReviewed') else False,
+                },
+
+                # Cancellation settlement details (for cancelled jobs)
+                'cancellation': {
+                    'is_cancelled': job.status == Job.JobStatus.CANCELLED,
+                    'reason': job.cancellationReason,
+                    'stage': job.cancellationStage,
+                    'cancelled_by_role': job.cancelledByRole,
+                    'summary': (
+                        f"Cancelled by {job.cancelledByRole or 'UNKNOWN'}"
+                        + (f" at {job.cancellationStage}" if job.cancellationStage else "")
+                    ) if job.status == Job.JobStatus.CANCELLED else None,
+                    'client_refund_amount': float(job.clientRefundAmount or Decimal('0.00')),
+                    'worker_compensation_amount': float(job.workerCompensationAmount or Decimal('0.00')),
                 },
             }
         }
