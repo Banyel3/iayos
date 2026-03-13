@@ -1,4 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
+from datetime import timedelta
 from typing import Dict, Optional, Tuple
 
 from django.db import transaction as db_transaction
@@ -61,11 +62,13 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
     """
     Centralized cancellation logic for project jobs.
 
-    Rules:
-    - Before work start: client gets full escrow back.
-    - After arrival/work-start markers: worker side gets 50% of escrow pool,
-      client gets the remaining 50%.
-    - If escrow was only reserved (not paid), release reserved funds instead.
+        Rules:
+        - Client cancels before worker arrival: client gets full escrow back.
+        - Client cancels after arrival but before work start: escrow is split 50/50.
+        - Client cancels after worker started: worker gets full escrow.
+        - Client cancels after worker marked complete: worker gets full escrow,
+            and client is suspended for 1 day.
+        - If escrow was only reserved (not paid), release reserved funds instead.
     """
     actor_role = _actor_role_for_job(job, actor_account)
     if actor_role is None:
@@ -92,25 +95,45 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
     escrow_pool = _q(job.escrowAmount if job.escrowAmount and job.escrowAmount > 0 else (job.budget * Decimal("0.5")))
     platform_fee = _q(Decimal(str(job.budget)) * Decimal("0.10"))
 
-    cancellation_stage = "BEFORE_WORK_START"
+    cancellation_stage = "BEFORE_ARRIVAL"
     client_refund = Decimal("0.00")
     worker_compensation = Decimal("0.00")
     reserved_release = Decimal("0.00")
+    suspension_applied = False
+    suspension_until = None
 
-    after_arrival_or_started = bool(
-        job.clientConfirmedWorkStarted or job.workerMarkedJobStarted
-    )
-
-    if job.status == Job.JobStatus.IN_PROGRESS and after_arrival_or_started:
-        cancellation_stage = "AFTER_ARRIVAL_OR_STARTED"
-        worker_compensation = _q(escrow_pool * Decimal("0.50"))
-        client_refund = _q(escrow_pool - worker_compensation)
-    elif job.status == Job.JobStatus.IN_PROGRESS and job.workerMarkedOnTheWay:
-        cancellation_stage = "ON_THE_WAY_NOT_STARTED"
-        client_refund = escrow_pool
+    # Apply strict policy to CLIENT cancellations; preserve previous behavior for other actor roles.
+    if actor_role == "CLIENT":
+        if job.workerMarkedComplete:
+            cancellation_stage = "AFTER_WORKER_MARKED_DONE"
+            worker_compensation = escrow_pool
+            client_refund = Decimal("0.00")
+        elif job.workerMarkedJobStarted:
+            cancellation_stage = "AFTER_WORK_STARTED"
+            worker_compensation = escrow_pool
+            client_refund = Decimal("0.00")
+        elif job.clientConfirmedWorkStarted:
+            cancellation_stage = "AFTER_ARRIVAL_BEFORE_WORK_START"
+            worker_compensation = _q(escrow_pool * Decimal("0.50"))
+            client_refund = _q(escrow_pool - worker_compensation)
+        else:
+            cancellation_stage = "BEFORE_ARRIVAL"
+            client_refund = escrow_pool
     else:
-        cancellation_stage = "BEFORE_WORK_START"
-        client_refund = escrow_pool
+        # Legacy routing for worker/agency initiated cancellations.
+        after_arrival_or_started = bool(
+            job.clientConfirmedWorkStarted or job.workerMarkedJobStarted
+        )
+        if job.status == Job.JobStatus.IN_PROGRESS and after_arrival_or_started:
+            cancellation_stage = "AFTER_ARRIVAL_OR_STARTED"
+            worker_compensation = _q(escrow_pool * Decimal("0.50"))
+            client_refund = _q(escrow_pool - worker_compensation)
+        elif job.status == Job.JobStatus.IN_PROGRESS and job.workerMarkedOnTheWay:
+            cancellation_stage = "ON_THE_WAY_NOT_STARTED"
+            client_refund = escrow_pool
+        else:
+            cancellation_stage = "BEFORE_WORK_START"
+            client_refund = escrow_pool
 
     # Safety: if there is no worker/agency recipient, revert all to client refund.
     if worker_compensation > 0 and worker_recipient is None:
@@ -171,6 +194,17 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
         job.workerCompensationAmount = _q(worker_compensation)
         job.save()
 
+        # Policy enforcement: if client cancels after worker marked done, suspend client for 1 day.
+        if actor_role == "CLIENT" and cancellation_stage == "AFTER_WORKER_MARKED_DONE":
+            suspension_until = now + timedelta(days=1)
+            client_account.is_suspended = True
+            client_account.suspended_until = suspension_until
+            client_account.suspended_reason = (
+                "Account temporarily suspended for 1 day due to cancellation after worker marked job done."
+            )
+            client_account.save(update_fields=["is_suspended", "suspended_until", "suspended_reason"])
+            suspension_applied = True
+
         JobLog.objects.create(
             jobID=job,
             notes=(
@@ -216,6 +250,18 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
             relatedJobID=job.jobID,
         )
 
+    if suspension_applied:
+        Notification.objects.create(
+            accountFK=client_account,
+            notificationType=Notification.NotificationType.JOB_CANCELLED,
+            title="Temporary Account Suspension",
+            message=(
+                "Your account has been suspended for 1 day due to cancelling "
+                "a job after the worker marked it as done."
+            ),
+            relatedJobID=job.jobID,
+        )
+
     client_wallet, _ = Wallet.objects.get_or_create(accountFK=client_account)
 
     return {
@@ -228,5 +274,7 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
         "worker_compensation_amount": float(job.workerCompensationAmount),
         "reserved_release_amount": float(reserved_release),
         "escrow_paid": bool(job.escrowPaid),
+        "suspension_applied": suspension_applied,
+        "suspension_until": suspension_until.isoformat() if suspension_until else None,
         "available_balance": float(client_wallet.availableBalance),
     }
