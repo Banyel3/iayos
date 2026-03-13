@@ -9,3 +9,5 @@ export {
   EstimatedTimeCard,
   type EstimatedCompletion,
 } from "./EstimatedTimeCard";
+
+export { JobLifecycleTimeline } from "./JobLifecycleTimeline";
