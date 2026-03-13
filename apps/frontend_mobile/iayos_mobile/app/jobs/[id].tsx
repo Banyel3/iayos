@@ -32,7 +32,11 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
-import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
+import {
+  EstimatedTimeCard,
+  JobLifecycleTimeline,
+  type EstimatedCompletion,
+} from "@/components";
 import JobReceiptModal from "@/components/JobReceiptModal";
 import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 import InfoModal from "@/components/InfoModal";
@@ -137,6 +141,18 @@ interface JobDetail {
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
+  workerMarkedOnTheWay?: boolean;
+  workerMarkedOnTheWayAt?: string | null;
+  workerMarkedJobStarted?: boolean;
+  workerMarkedJobStartedAt?: string | null;
+  clientConfirmedWorkStarted?: boolean;
+  clientConfirmedWorkStartedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelledByRole?: string | null;
+  cancellationStage?: string | null;
+  cancellationReason?: string | null;
+  clientRefundAmount?: number;
+  workerCompensationAmount?: number;
 }
 
 interface JobApplication {
@@ -462,6 +478,23 @@ export default function JobDetailScreen() {
             ? jobData.budget / jobData.duration_days
             : undefined),
         duration_days: jobData.duration_days,
+        workerMarkedOnTheWay: Boolean(jobData.worker_marked_on_the_way),
+        workerMarkedOnTheWayAt: jobData.worker_marked_on_the_way_at || null,
+        workerMarkedJobStarted: Boolean(jobData.worker_marked_job_started),
+        workerMarkedJobStartedAt: jobData.worker_marked_job_started_at || null,
+        clientConfirmedWorkStarted: Boolean(
+          jobData.client_confirmed_work_started,
+        ),
+        clientConfirmedWorkStartedAt:
+          jobData.client_confirmed_work_started_at || null,
+        cancelledAt: jobData.cancelled_at || null,
+        cancelledByRole: jobData.cancelled_by_role || null,
+        cancellationStage: jobData.cancellation_stage || null,
+        cancellationReason: jobData.cancellation_reason || null,
+        clientRefundAmount: Number(jobData.client_refund_amount || 0),
+        workerCompensationAmount: Number(
+          jobData.worker_compensation_amount || 0,
+        ),
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -1286,6 +1319,14 @@ export default function JobDetailScreen() {
     return date.toLocaleDateString();
   };
 
+  const formatCancellationStage = (stage?: string | null) => {
+    if (!stage) return "Cancelled";
+    return stage
+      .split("_")
+      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+      .join(" ");
+  };
+
   const renderReviewCard = (title: string, review?: JobReviewSummary) => {
     const formattedDate = review ? formatReviewDate(review.createdAt) : null;
 
@@ -1584,6 +1625,50 @@ export default function JobDetailScreen() {
             </View>
           )}
         </View>
+
+        <View style={styles.section}>
+          <JobLifecycleTimeline
+            workerMarkedOnTheWay={job.workerMarkedOnTheWay}
+            workerMarkedOnTheWayAt={job.workerMarkedOnTheWayAt}
+            workerMarkedJobStarted={job.workerMarkedJobStarted}
+            workerMarkedJobStartedAt={job.workerMarkedJobStartedAt}
+            clientConfirmedWorkStarted={job.clientConfirmedWorkStarted}
+            clientConfirmedWorkStartedAt={job.clientConfirmedWorkStartedAt}
+          />
+        </View>
+
+        {job.status === "CANCELLED" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Cancellation Summary</Text>
+            <View style={styles.cancellationCard}>
+              <Text style={styles.cancellationTitle}>
+                {formatCancellationStage(job.cancellationStage)}
+              </Text>
+              {job.cancellationReason ? (
+                <Text style={styles.cancellationLine}>
+                  Reason: {job.cancellationReason}
+                </Text>
+              ) : null}
+              {job.cancelledByRole ? (
+                <Text style={styles.cancellationLine}>
+                  Cancelled by: {job.cancelledByRole}
+                </Text>
+              ) : null}
+              {job.clientRefundAmount && job.clientRefundAmount > 0 ? (
+                <Text style={styles.cancellationLine}>
+                  Client refund: PHP {job.clientRefundAmount.toFixed(2)}
+                </Text>
+              ) : null}
+              {job.workerCompensationAmount &&
+              job.workerCompensationAmount > 0 ? (
+                <Text style={styles.cancellationLine}>
+                  Worker compensation: PHP{" "}
+                  {job.workerCompensationAmount.toFixed(2)}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
 
         {/* Description */}
         <View style={styles.section}>
@@ -3753,6 +3838,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
+  },
+  cancellationCard: {
+    marginTop: 8,
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FED7AA",
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: 4,
+  },
+  cancellationTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#9A3412",
+    marginBottom: 2,
+  },
+  cancellationLine: {
+    fontSize: 12,
+    color: "#9A3412",
   },
   jobCategory: {
     fontSize: Typography.fontSize.base,
