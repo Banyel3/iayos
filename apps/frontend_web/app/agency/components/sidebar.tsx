@@ -12,7 +12,6 @@ import {
   HelpCircle,
   LogOut,
   ChevronLeft,
-  ChevronRight,
   Star,
   MessageSquare,
   Receipt,

@@ -27,9 +27,6 @@ import {
   MapPin,
   Calendar,
   Eye,
-  Trash2,
-  ChevronRight,
-  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/generic_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -142,7 +139,10 @@ export default function AgencyJobsPage() {
   const [completedJobs, setCompletedJobs] = useState<Job[]>([]);
   const [cancelledJobs, setCancelledJobs] = useState<Job[]>([]);
 
-  // Dummy data generators
+  // Dummy data generators — only used in development for UI preview
+  const enableDummyJobs = process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_ENABLE_DUMMY_JOBS === "true";
+
   const dummyClient = {
     id: 0,
     name: "Dummy Client",
@@ -165,7 +165,7 @@ export default function AgencyJobsPage() {
     client: dummyClient,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    applications_count: Math.floor(Math.random() * 5),
+    applications_count: 0,
   });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [availableWorkers, setAvailableWorkers] = useState<WorkerListing[]>([]);
@@ -247,8 +247,12 @@ export default function AgencyJobsPage() {
       if (response.ok) {
         const data = await response.json();
         const apiJobs = data.invites || [];
-        const dummyJob = createDummyJob(-1, "Sample Pending Invite", "PENDING", "HIGH");
-        setPendingInvites([dummyJob, ...apiJobs]);
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-1, "Sample Pending Invite", "PENDING", "HIGH");
+          setPendingInvites([dummyJob, ...apiJobs]);
+        } else {
+          setPendingInvites(apiJobs);
+        }
       } else {
         throw new Error(
           `Failed to fetch pending invites: ${response.statusText}`,
@@ -282,8 +286,12 @@ export default function AgencyJobsPage() {
       if (response.ok) {
         const data = await response.json();
         const apiJobs = data.jobs || [];
-        const dummyJob = createDummyJob(-2, "Sample Accepted Job", "ACTIVE");
-        setAcceptedJobs([dummyJob, ...apiJobs]);
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-2, "Sample Accepted Job", "ACTIVE");
+          setAcceptedJobs([dummyJob, ...apiJobs]);
+        } else {
+          setAcceptedJobs(apiJobs);
+        }
       } else {
         throw new Error(
           `Failed to fetch accepted jobs: ${response.statusText}`,
@@ -315,14 +323,18 @@ export default function AgencyJobsPage() {
       if (response.ok) {
         const data = await response.json();
         const apiJobs = data.jobs || [];
-        const dummyJob = createDummyJob(
-          -3,
-          "Sample In-Progress Job",
-          "IN_PROGRESS",
-        );
-        dummyJob.assignedEmployee = { employeeId: 1, name: "Avery Johnson" };
-        dummyJob.conversation_id = 1;
-        setInProgressJobs([dummyJob, ...apiJobs]);
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(
+            -3,
+            "Sample In-Progress Job",
+            "IN_PROGRESS",
+          );
+          dummyJob.assignedEmployee = { employeeId: 1, name: "Avery Johnson" };
+          dummyJob.conversation_id = 1;
+          setInProgressJobs([dummyJob, ...apiJobs]);
+        } else {
+          setInProgressJobs(apiJobs);
+        }
       } else {
         throw new Error(
           `Failed to fetch in-progress jobs: ${response.statusText}`,
@@ -354,9 +366,13 @@ export default function AgencyJobsPage() {
       if (response.ok) {
         const data = await response.json();
         const apiJobs = data.jobs || [];
-        const dummyJob = createDummyJob(-4, "Sample Completed Job", "COMPLETED");
-        dummyJob.assignedEmployee = { employeeId: 2, name: "Riley Smith" };
-        setCompletedJobs([dummyJob, ...apiJobs]);
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-4, "Sample Completed Job", "COMPLETED");
+          dummyJob.assignedEmployee = { employeeId: 2, name: "Riley Smith" };
+          setCompletedJobs([dummyJob, ...apiJobs]);
+        } else {
+          setCompletedJobs(apiJobs);
+        }
       } else {
         throw new Error(
           `Failed to fetch completed jobs: ${response.statusText}`,
@@ -388,8 +404,12 @@ export default function AgencyJobsPage() {
       if (response.ok) {
         const data = await response.json();
         const apiJobs = data.jobs || [];
-        const dummyJob = createDummyJob(-5, "Sample Cancelled Job", "CANCELLED");
-        setCancelledJobs([dummyJob, ...apiJobs]);
+        if (enableDummyJobs) {
+          const dummyJob = createDummyJob(-5, "Sample Cancelled Job", "CANCELLED");
+          setCancelledJobs([dummyJob, ...apiJobs]);
+        } else {
+          setCancelledJobs(apiJobs);
+        }
       } else {
         throw new Error(
           `Failed to fetch cancelled jobs: ${response.statusText}`,

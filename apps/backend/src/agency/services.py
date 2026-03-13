@@ -833,7 +833,7 @@ def get_agency_profile(account_id):
             )['total'] or Decimal('0.00')
             
             # --- REVENUE CHART DATA CALCULATION ---
-            from django.db.models.functions import TruncDay, TruncWeek, TruncMonth
+            from django.db.models.functions import TruncDay, TruncWeek
             
             now = timezone.now()
             revenue_chart_data = {'7d': [], '30d': [], 'All': []}

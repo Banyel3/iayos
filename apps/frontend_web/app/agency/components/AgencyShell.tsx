@@ -27,6 +27,9 @@ export default function AgencyShell({ children, kycVerified }: AgencyShellProps)
     } else {
       document.body.style.overflow = "";
     }
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [sidebarOpen]);
 
   return (

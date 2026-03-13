@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
-import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import {
@@ -13,10 +12,7 @@ import {
   Lock,
   TrendingUp,
   TrendingDown,
-  ChevronLeft,
-  ChevronRight,
   Award,
-  Users,
   Star,
   Trophy,
   Activity,
@@ -64,7 +60,6 @@ function getColor(index: number) {
 }
 
 export default function AgencyDashboardPage() {
-  const router = useRouter();
   const [stats, setStats] = useState<AgencyStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [pieData, setPieData] = useState<{ name: string, value: number, color: string }[]>([]);
@@ -317,7 +312,7 @@ export default function AgencyDashboardPage() {
               <div className="bg-amber-50 px-4 py-2.5 rounded-xl flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Pending Job Invitations</span>
-                  <div className="text-xl font-bold text-amber-900 leading-tight">1</div>
+                  <div className="text-xl font-bold text-amber-900 leading-tight">—</div>
                 </div>
                 <Clock className="h-4 w-4 text-amber-600" />
               </div>
@@ -333,7 +328,7 @@ export default function AgencyDashboardPage() {
               <div className="bg-red-50 px-4 py-2.5 rounded-xl flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Jobs Near Deadline</span>
-                  <div className="text-xl font-bold text-red-900 leading-tight">0</div>
+                  <div className="text-xl font-bold text-red-900 leading-tight">—</div>
                 </div>
                 <XCircle className="h-4 w-4 text-red-600" />
               </div>
