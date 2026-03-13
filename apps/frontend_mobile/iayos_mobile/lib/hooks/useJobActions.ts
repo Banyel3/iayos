@@ -198,13 +198,13 @@ export function useCancelJob() {
       actorNotes,
     }: {
       jobId: number;
-      reason?: string;
+      reason: string;
       actorNotes?: string;
     }) => {
       const response = await apiRequest(ENDPOINTS.CANCEL_JOB(jobId), {
         method: "PATCH",
         body: JSON.stringify({
-          reason: reason ?? "Cancelled from conversation",
+          reason,
           actor_notes: actorNotes ?? "",
         }),
       });
