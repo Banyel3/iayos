@@ -6746,6 +6746,19 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         worker_profile = WorkerProfile.objects.filter(
             profileID__accountFK=request.auth
         ).first()
+        active_employee_assignments = JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).select_related('employee__accountFK')
+
+        requester_employee_assignment = active_employee_assignments.filter(
+            employee__accountFK=request.auth
+        ).first()
+
         active_team_assignments = JobWorkerAssignment.objects.filter(
             jobID=job,
             assignment_status='ACTIVE'
@@ -6764,8 +6777,9 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         )
         is_team_assigned_worker = bool(requester_team_assignment)
-        if not (is_assigned_worker or is_assigned_agency or is_team_assigned_worker):
-            return Response({"error": "Only the assigned worker or agency can confirm this schedule"}, status=403)
+        is_assigned_employee = bool(requester_employee_assignment)
+        if not (is_assigned_worker or is_assigned_agency or is_team_assigned_worker or is_assigned_employee):
+            return Response({"error": "Only the assigned worker, assigned employee, or agency can confirm this schedule"}, status=403)
 
         dispute = JobDispute.objects.filter(jobID=job, status="IN_NEGOTIATION").first()
         if not dispute:
@@ -6791,7 +6805,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         team_confirmed_count = 0
         requester_confirmed = True
 
-        if job.is_team_job and active_team_assignments.exists():
+        if job.is_team_job and active_team_assignments.exists() and not requester_employee_assignment:
             team_total_workers = active_team_assignments.count()
             if not requester_team_assignment:
                 return Response({"error": "Only active assigned team workers can confirm this schedule"}, status=403)
