@@ -193,8 +193,6 @@ export default function AgencyDashboardPage() {
     );
   }
 
-  const totalWorkers = stats?.total_employees || 58;
-
   return (
     <div className="max-w-7xl mx-auto">
       {/* Page Header */}
