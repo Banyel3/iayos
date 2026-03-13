@@ -31,7 +31,6 @@ import {
   ChevronRight,
   TrendingUp,
 } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/generic_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { JobSkillSlot, SlotAssignment } from "@/types/agency-team-jobs";
