@@ -28,7 +28,9 @@ export function useConfirmBackjobStarted() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(error, "Failed to confirm backjob started"));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm backjob started"),
+        );
       }
 
       return response.json();
@@ -66,7 +68,9 @@ export function useMarkBackjobComplete() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(error, "Failed to mark backjob complete"));
+        throw new Error(
+          getErrorMessage(error, "Failed to mark backjob complete"),
+        );
       }
 
       return response.json();
@@ -104,7 +108,9 @@ export function useApproveBackjobCompletion() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(error, "Failed to approve backjob completion"));
+        throw new Error(
+          getErrorMessage(error, "Failed to approve backjob completion"),
+        );
       }
 
       return response.json();

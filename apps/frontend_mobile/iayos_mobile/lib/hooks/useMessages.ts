@@ -253,6 +253,11 @@ export type ConversationDetail = {
   messages: Message[];
   total_messages: number;
   client_review?: {
+    review_id?: number;
+    reviewer_account_id?: number | null;
+    reviewer_type?: "CLIENT" | "WORKER" | "AGENCY";
+    reviewer_name?: string;
+    reviewer_avatar?: string | null;
     rating_communication: number;
     rating_punctuality: number;
     rating_professionalism: number;
@@ -261,6 +266,11 @@ export type ConversationDetail = {
     created_at: string;
   } | null;
   worker_review?: {
+    review_id?: number;
+    reviewer_account_id?: number | null;
+    reviewer_type?: "CLIENT" | "WORKER" | "AGENCY";
+    reviewer_name?: string;
+    reviewer_avatar?: string | null;
     rating_communication: number;
     rating_punctuality: number;
     rating_professionalism: number;
@@ -342,6 +352,22 @@ export function useMessages(
             avatar: getAbsoluteMediaUrl(worker.avatar) || "",
           }),
         ),
+        client_review: data.client_review
+          ? {
+              ...data.client_review,
+              reviewer_avatar:
+                getAbsoluteMediaUrl(data.client_review.reviewer_avatar || null) ||
+                "",
+            }
+          : null,
+        worker_review: data.worker_review
+          ? {
+              ...data.worker_review,
+              reviewer_avatar:
+                getAbsoluteMediaUrl(data.worker_review.reviewer_avatar || null) ||
+                "",
+            }
+          : null,
         counterparty_reviews: data.counterparty_reviews?.map((review: any) => ({
           ...review,
           reviewer_avatar: getAbsoluteMediaUrl(review.reviewer_avatar) || "",

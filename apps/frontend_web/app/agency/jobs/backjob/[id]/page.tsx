@@ -471,9 +471,9 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
                   ? "Please review and complete the backjob work requested by the client."
                   : dispute.status === "IN_NEGOTIATION"
                     ? "Waiting for schedule confirmation to move backjob into action-required stage."
-                  : dispute.status === "RESOLVED"
-                    ? "This backjob has been completed successfully."
-                    : "This backjob request is pending admin review."}
+                    : dispute.status === "RESOLVED"
+                      ? "This backjob has been completed successfully."
+                      : "This backjob request is pending admin review."}
               </p>
               {dispute.scheduled_date && (
                 <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">

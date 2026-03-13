@@ -811,10 +811,7 @@ export default function JobDetailScreen() {
 
   const handleCancelJob = () => {
     if (job?.status !== "ACTIVE") {
-      Alert.alert(
-        "Cannot Cancel",
-        "Only active jobs can be cancelled.",
-      );
+      Alert.alert("Cannot Cancel", "Only active jobs can be cancelled.");
       return;
     }
 
@@ -1473,24 +1470,23 @@ export default function JobDetailScreen() {
             </TouchableOpacity>
           )}
           {/* Cancel button - for job owner on ACTIVE jobs */}
-          {user?.accountID === job.postedBy?.id &&
-            job.status === "ACTIVE" && (
-              <TouchableOpacity
-                onPress={handleCancelJob}
-                style={styles.deleteButton}
-                disabled={cancelJobMutation.isPending}
-              >
-                {cancelJobMutation.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.error} />
-                ) : (
-                  <Ionicons
-                    name="close-circle-outline"
-                    size={24}
-                    color={Colors.error}
-                  />
-                )}
-              </TouchableOpacity>
-            )}
+          {user?.accountID === job.postedBy?.id && job.status === "ACTIVE" && (
+            <TouchableOpacity
+              onPress={handleCancelJob}
+              style={styles.deleteButton}
+              disabled={cancelJobMutation.isPending}
+            >
+              {cancelJobMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <Ionicons
+                  name="close-circle-outline"
+                  size={24}
+                  color={Colors.error}
+                />
+              )}
+            </TouchableOpacity>
+          )}
           {isWorker && (
             <SaveButton
               jobId={parseInt(id)}

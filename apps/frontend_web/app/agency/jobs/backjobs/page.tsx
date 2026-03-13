@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import {
-  API_BASE
-} from "@/lib/api/config";
+import { API_BASE } from "@/lib/api/config";
 import { useConfirmBackjobScheduledDate } from "@/lib/hooks/useAgencyBackjobActions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -26,7 +24,6 @@ import {
 
 // Keep empty by default; real API data is used in production.
 const DUMMY_BACKJOBS: any[] = [];
-
 
 interface BackjobItem {
   dispute_id: number;
@@ -59,9 +56,7 @@ export default function AgencyBackjobsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<
     "all" | "OPEN" | "IN_NEGOTIATION" | "UNDER_REVIEW" | "RESOLVED"
-  >(
-    "all",
-  );
+  >("all");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -290,7 +285,9 @@ export default function AgencyBackjobsPage() {
           variant={filter === "IN_NEGOTIATION" ? "default" : "outline"}
           onClick={() => setFilter("IN_NEGOTIATION")}
           className={
-            filter === "IN_NEGOTIATION" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
+            filter === "IN_NEGOTIATION"
+              ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+              : ""
           }
         >
           Negotiation
@@ -299,7 +296,9 @@ export default function AgencyBackjobsPage() {
           variant={filter === "UNDER_REVIEW" ? "default" : "outline"}
           onClick={() => setFilter("UNDER_REVIEW")}
           className={
-            filter === "UNDER_REVIEW" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
+            filter === "UNDER_REVIEW"
+              ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+              : ""
           }
         >
           Action Required
@@ -374,7 +373,9 @@ export default function AgencyBackjobsPage() {
                             e.stopPropagation();
                             handleConfirmScheduledDate(backjob.job_id);
                           }}
-                          disabled={confirmBackjobScheduledDateMutation.isPending}
+                          disabled={
+                            confirmBackjobScheduledDateMutation.isPending
+                          }
                         >
                           {confirmBackjobScheduledDateMutation.isPending ? (
                             <RefreshCw className="w-3 h-3 mr-1 animate-spin" />

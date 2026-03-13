@@ -196,6 +196,64 @@ export default function ChatScreen() {
     refetch,
   } = useMessages(conversationId, messageViewerKey);
 
+  const formatPossessive = (name: string) => {
+    if (!name) {
+      return "";
+    }
+    return name.endsWith("s") ? `${name}'` : `${name}'s`;
+  };
+
+  const resolveMyReviewerName = () => {
+    if (!conversation) {
+      return "You";
+    }
+
+    const myReview =
+      conversation.my_role === "CLIENT"
+        ? conversation.client_review
+        : conversation.worker_review;
+
+    if (myReview?.reviewer_name) {
+      return myReview.reviewer_name;
+    }
+
+    if (conversation.my_role === "CLIENT") {
+      const firstName = user?.profile_data?.firstName?.trim() || "";
+      const lastName = user?.profile_data?.lastName?.trim() || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+      return fullName || "Client";
+    }
+
+    if (conversation.my_role === "AGENCY") {
+      return "Agency";
+    }
+
+    return "Worker";
+  };
+
+  const resolveCounterpartyTitle = () => {
+    if (!conversation) {
+      return "Counterparty Review";
+    }
+
+    if (conversation.my_role === "CLIENT") {
+      if (conversation.is_team_job) {
+        return "Team Reviews";
+      }
+      const counterpartyName =
+        conversation.worker_review?.reviewer_name ||
+        conversation.other_participant?.name ||
+        (conversation.is_agency_job ? "Agency" : "Worker");
+      return `${formatPossessive(counterpartyName)} Review`;
+    }
+
+    const clientName =
+      conversation.client_review?.reviewer_name ||
+      conversation.other_participant?.name ||
+      "Client";
+    return `${formatPossessive(clientName)} Review`;
+  };
+
   // For agency jobs: Auto-set review step based on what's already reviewed
   useEffect(() => {
     if (conversation?.is_agency_job && conversation.job) {
@@ -2348,7 +2406,9 @@ export default function ChatScreen() {
         {/* Header Action Buttons */}
         <View style={styles.headerActions}>
           {/* Voice Call Button - supports both 1-on-1 and group (team job) calls */}
-          {(!isConversationClosed || hasApprovedBackjob || hasActiveNegotiation) && (
+          {(!isConversationClosed ||
+            hasApprovedBackjob ||
+            hasActiveNegotiation) && (
             <TouchableOpacity
               onPress={async () => {
                 if (!AGORA_AVAILABLE) {
@@ -2441,18 +2501,20 @@ export default function ChatScreen() {
               <View style={styles.jobInfo}>
                 <View style={{ flex: 1 }}>
                   {/* Job Completed Status - Compact green text */}
-                  {isConversationClosed && !hasApprovedBackjob && !hasActiveNegotiation && (
-                    <Text
-                      style={{
-                        color: Colors.success,
-                        fontWeight: "700",
-                        fontSize: 11,
-                        marginBottom: 2,
-                      }}
-                    >
-                      Job Completed Successfully
-                    </Text>
-                  )}
+                  {isConversationClosed &&
+                    !hasApprovedBackjob &&
+                    !hasActiveNegotiation && (
+                      <Text
+                        style={{
+                          color: Colors.success,
+                          fontWeight: "700",
+                          fontSize: 11,
+                          marginBottom: 2,
+                        }}
+                      >
+                        Job Completed Successfully
+                      </Text>
+                    )}
                   <Text style={styles.jobTitle} numberOfLines={1}>
                     {conversation.job.title}
                   </Text>
@@ -2484,7 +2546,8 @@ export default function ChatScreen() {
             {/* Buttons Column - stacked vertically, right-aligned */}
             <View style={{ marginLeft: 12, alignItems: "stretch", gap: 6 }}>
               {/* Rate/View Reviews Button */}
-              {!reviewStatusSyncing && (canSubmitReview || viewerHasReviewed) && (
+              {!reviewStatusSyncing &&
+                (canSubmitReview || viewerHasReviewed) && (
                   <TouchableOpacity
                     style={{
                       backgroundColor: "#FFFDE7",
@@ -2506,11 +2569,15 @@ export default function ChatScreen() {
                         setReviewStep(effectiveAgencyReviewStep);
                       }
 
-                      openReviewModalSafely(viewerHasReviewed ? "view" : "submit");
+                      openReviewModalSafely(
+                        viewerHasReviewed ? "view" : "submit",
+                      );
                     }}
                   >
                     <Ionicons
-                      name={viewerHasReviewed ? "document-text-outline" : "star"}
+                      name={
+                        viewerHasReviewed ? "document-text-outline" : "star"
+                      }
                       size={16}
                       color="#F9A825"
                     />
@@ -2605,7 +2672,11 @@ export default function ChatScreen() {
                     {releasePaymentNowMutation.isPending ? (
                       <ActivityIndicator size="small" color={Colors.error} />
                     ) : (
-                      <Ionicons name="flash-outline" size={16} color={Colors.error} />
+                      <Ionicons
+                        name="flash-outline"
+                        size={16}
+                        color={Colors.error}
+                      />
                     )}
                     <Text
                       style={{
@@ -4183,7 +4254,9 @@ export default function ChatScreen() {
                           size={20}
                           color={Colors.white}
                         />
-                        <Text style={styles.actionButtonText}>Mark On The Way</Text>
+                        <Text style={styles.actionButtonText}>
+                          Mark On The Way
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -4235,7 +4308,9 @@ export default function ChatScreen() {
                           size={20}
                           color={Colors.white}
                         />
-                        <Text style={styles.actionButtonText}>Mark Job Started</Text>
+                        <Text style={styles.actionButtonText}>
+                          Mark Job Started
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -4934,14 +5009,16 @@ export default function ChatScreen() {
                     >
                       Tap here to request a backjob (rework)
                     </Text>
-                    {(conversation.backjob?.total_backjobs_for_job ?? 0) > 0 && (
+                    {(conversation.backjob?.total_backjobs_for_job ?? 0) >
+                      0 && (
                       <Text
                         style={[
                           styles.requestBackjobSubtitle,
                           { color: "#E65100", marginTop: 2, fontWeight: "600" },
                         ]}
                       >
-                        Previous backjobs on this job: {conversation.backjob?.total_backjobs_for_job}
+                        Previous backjobs on this job:{" "}
+                        {conversation.backjob?.total_backjobs_for_job}
                       </Text>
                     )}
                   </View>
@@ -4999,15 +5076,14 @@ export default function ChatScreen() {
                       { color: "#1B5E20", marginTop: 2, fontWeight: "600" },
                     ]}
                   >
-                    Total backjobs for this job: {conversation.backjob?.total_backjobs_for_job ?? 1}
+                    Total backjobs for this job:{" "}
+                    {conversation.backjob?.total_backjobs_for_job ?? 1}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
               </View>
             </TouchableOpacity>
           )}
-
-
 
           {/* Review Modal */}
           <Modal
@@ -5081,7 +5157,7 @@ export default function ChatScreen() {
                               { marginBottom: 0 },
                             ]}
                           >
-                            Your Review
+                            {`${formatPossessive(resolveMyReviewerName())} Review`}
                           </Text>
                           {conversation.backjob?.status === "COMPLETED" && (
                             <TouchableOpacity
@@ -5324,12 +5400,7 @@ export default function ChatScreen() {
                         ]}
                       >
                         <Text style={styles.reviewSectionTitle}>
-                          {conversation?.my_role === "CLIENT"
-                            ? conversation?.is_team_job
-                              ? "Workers'"
-                              : "Worker's"
-                            : "Client's"}{" "}
-                          Review
+                          {resolveCounterpartyTitle()}
                         </Text>
                         {(() => {
                           // Add null safety check for conversation
@@ -5427,7 +5498,10 @@ export default function ChatScreen() {
                                       : `Worker ${index + 1}`);
 
                                   return (
-                                    <View key={review.review_id || index} style={styles.reviewCard}>
+                                    <View
+                                      key={review.review_id || index}
+                                      style={styles.reviewCard}
+                                    >
                                       <Text
                                         style={{
                                           ...Typography.body.small,
@@ -5436,9 +5510,7 @@ export default function ChatScreen() {
                                           marginBottom: Spacing.sm,
                                         }}
                                       >
-                                        {conversation.is_team_job
-                                          ? `Worker ${index + 1} - ${reviewerLabel}`
-                                          : reviewerLabel}
+                                        {reviewerLabel}
                                       </Text>
 
                                       {categories.map((cat, idx) => (
@@ -5458,7 +5530,12 @@ export default function ChatScreen() {
                                               marginBottom: 4,
                                             }}
                                           >
-                                            <Text style={{ fontSize: 16, marginRight: 6 }}>
+                                            <Text
+                                              style={{
+                                                fontSize: 16,
+                                                marginRight: 6,
+                                              }}
+                                            >
                                               {cat.icon}
                                             </Text>
                                             <Text
@@ -5500,9 +5577,11 @@ export default function ChatScreen() {
                                                 color: Colors.textSecondary,
                                               }}
                                             >
-                                              {review[
-                                                cat.key as keyof typeof review
-                                              ]}
+                                              {
+                                                review[
+                                                  cat.key as keyof typeof review
+                                                ]
+                                              }
                                               /5
                                             </Text>
                                           </View>
@@ -6374,7 +6453,9 @@ export default function ChatScreen() {
                       : "Pending"}
                 </Text>
               </View>
-              <Text style={[styles.backjobStatusTextCompact, { marginLeft: 6 }]}> 
+              <Text
+                style={[styles.backjobStatusTextCompact, { marginLeft: 6 }]}
+              >
                 #{conversation.backjob.total_backjobs_for_job ?? 1}
               </Text>
               <Ionicons
@@ -6815,7 +6896,9 @@ export default function ChatScreen() {
         />
 
         {/* Message Input or Closed Message */}
-        {isConversationClosed && !hasApprovedBackjob && !hasActiveNegotiation ? (
+        {isConversationClosed &&
+        !hasApprovedBackjob &&
+        !hasActiveNegotiation ? (
           <View style={styles.conversationClosedContainer}>
             <Ionicons
               name="lock-closed"
