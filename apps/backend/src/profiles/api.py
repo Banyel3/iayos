@@ -2307,8 +2307,39 @@ def get_conversation_messages(request, conversation_id: int):
                     "created_at": review.createdAt.isoformat() if review.createdAt else None,
                 })
 
-        # Get job materials for the materials purchasing workflow
-        from accounts.models import JobMaterial
+        # Backward-compatibility for legacy jobs created before timeline markers were reliable.
+        # If explicit flags are missing/inconsistent, infer worker on-the-way from subsequent lifecycle
+        # milestones or existing JobLog entries.
+        from accounts.models import JobLog, JobMaterial
+
+        worker_marked_on_the_way = bool(getattr(job, 'workerMarkedOnTheWay', False))
+        worker_marked_on_the_way_at = getattr(job, 'workerMarkedOnTheWayAt', None)
+        worker_marked_job_started = bool(getattr(job, 'workerMarkedJobStarted', False))
+        worker_marked_job_started_at = getattr(job, 'workerMarkedJobStartedAt', None)
+        client_confirmed_work_started = bool(getattr(job, 'clientConfirmedWorkStarted', False))
+
+        if not worker_marked_on_the_way and (worker_marked_job_started or client_confirmed_work_started):
+            worker_marked_on_the_way = True
+            worker_marked_on_the_way_at = (
+                worker_marked_on_the_way_at
+                or worker_marked_job_started_at
+                or getattr(job, 'clientConfirmedWorkStartedAt', None)
+            )
+
+        if not worker_marked_on_the_way:
+            legacy_on_the_way_log = (
+                JobLog.objects.filter(
+                    jobID=job,
+                    notes__icontains='marked on the way',
+                )
+                .order_by('-createdAt')
+                .first()
+            )
+            if legacy_on_the_way_log:
+                worker_marked_on_the_way = True
+                if not worker_marked_on_the_way_at:
+                    worker_marked_on_the_way_at = legacy_on_the_way_log.createdAt
+
         job_materials_qs = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
         job_materials_list = [
             {
@@ -2343,7 +2374,11 @@ def get_conversation_messages(request, conversation_id: int):
                 "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
                 "budget": float(job.budget),
                 "location": job.location,
-                "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
+                "workerMarkedOnTheWay": worker_marked_on_the_way,
+                "workerMarkedOnTheWayAt": worker_marked_on_the_way_at.isoformat() if worker_marked_on_the_way_at else None,
+                "workerMarkedJobStarted": worker_marked_job_started,
+                "workerMarkedJobStartedAt": worker_marked_job_started_at.isoformat() if worker_marked_job_started_at else None,
+                "clientConfirmedWorkStarted": client_confirmed_work_started,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
                 "remainingPaymentPaid": job.remainingPaymentPaid,
