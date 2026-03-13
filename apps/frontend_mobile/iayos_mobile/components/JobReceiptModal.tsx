@@ -985,17 +985,24 @@ const styles = StyleSheet.create({
   paymentRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: Spacing.sm,
+    gap: Spacing.sm,
   },
   paymentLabel: {
     ...Typography.body.medium,
     color: Colors.textSecondary,
+    flex: 1,
+    flexWrap: "wrap",
+    paddingRight: Spacing.xs,
   },
   paymentValue: {
     ...Typography.body.medium,
     color: Colors.textPrimary,
     fontWeight: "600",
+    textAlign: "right",
+    maxWidth: "40%",
+    flexShrink: 0,
   },
   feeText: {
     color: Colors.warning,
