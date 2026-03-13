@@ -7856,7 +7856,6 @@ def get_job_receipt(request, job_id: int):
                             cancellation_reason = reason_match.group(1).strip()
             except Exception:
                 pass
-
         # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
         if job.status == Job.JobStatus.CANCELLED:
             actual_worker_earnings = worker_compensation_amount
