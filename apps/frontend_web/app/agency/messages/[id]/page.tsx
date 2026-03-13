@@ -68,7 +68,9 @@ import { format, isSameDay } from "date-fns";
 import { toast } from "sonner";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
 import { useAgencyVoiceCall } from "@/lib/hooks/useAgencyVoiceCall";
-import { DUMMY_CONVERSATION_DETAILS } from "../dummy_data";
+
+// Keep empty by default; real API payloads are used in production.
+const DUMMY_CONVERSATION_DETAILS: Record<number, any> = {};
 
 export default function AgencyChatScreen() {
   const router = useRouter();

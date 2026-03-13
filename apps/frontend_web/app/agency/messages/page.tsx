@@ -35,7 +35,9 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { DUMMY_MESSAGES } from "./dummy_data";
+
+// Keep empty by default; optionally populated only for UI preview scenarios.
+const DUMMY_MESSAGES: AgencyConversation[] = [];
 
 type FilterType = "active" | "unread" | "archived";
 

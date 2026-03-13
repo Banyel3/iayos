@@ -21,7 +21,9 @@ import {
   Camera,
   ArrowLeft,
 } from "lucide-react";
-import { DUMMY_BACKJOBS } from "./dummy_data";
+
+// Keep empty by default; real API data is used in production.
+const DUMMY_BACKJOBS: any[] = [];
 
 
 interface BackjobItem {
