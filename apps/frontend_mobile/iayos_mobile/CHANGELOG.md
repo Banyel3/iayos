@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Hidden the generic bottom apply button on team job detail screens.
   - Kept only per-skill-slot apply actions as the valid team application entry point.
   - Added defensive checks to block generic apply submission paths for team jobs.
+  - Hardened generic apply guards to use team-job state checks in both open and submit handlers.
   - **Impact**: Team applications are now always tied to a specific skill slot, preventing invalid slot-less submissions.
 
 - **Worker Calendar -> Job Details Freeze on Expo Go**

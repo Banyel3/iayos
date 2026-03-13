@@ -825,7 +825,7 @@ export default function JobDetailScreen() {
   const handleApply = () => {
     if (!job) return;
 
-    if (job.is_team_job) {
+    if (isTeamJob || job.is_team_job) {
       Alert.alert(
         "Team Job",
         "Please apply through a specific skill slot for this team job.",
@@ -847,7 +847,7 @@ export default function JobDetailScreen() {
   };
 
   const handleSubmitApplication = () => {
-    if (job?.is_team_job) {
+    if (isTeamJob || job?.is_team_job) {
       Alert.alert(
         "Invalid Submission",
         "Team jobs require selecting a skill slot before applying.",
@@ -3200,10 +3200,10 @@ export default function JobDetailScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
+      {/* Apply Button (Fixed at bottom) - Only for non-team LISTING jobs */}
       {isWorker &&
         job?.jobType !== "INVITE" &&
-        !isTeamJob &&
+        !job?.is_team_job &&
         job?.status === "ACTIVE" &&
         !isCurrentWorkerAssigned && (
           <View style={styles.applyButtonContainer} pointerEvents="box-none">
