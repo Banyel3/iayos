@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/form_button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/generic_button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -22,6 +22,8 @@ import {
   PauseCircle,
   XCircle,
   Shield,
+  Briefcase,
+  Layers,
 } from "lucide-react";
 
 interface Reply {
@@ -44,18 +46,18 @@ interface TicketDetail {
 }
 
 const PRIORITY_CONFIG = {
-  urgent: { label: "Urgent", color: "bg-red-100 text-red-700 border-red-200" },
-  high: { label: "High", color: "bg-orange-100 text-orange-700 border-orange-200" },
-  medium: { label: "Medium", color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  low: { label: "Low", color: "bg-gray-100 text-gray-700 border-gray-200" },
+  urgent: { label: "Urgent", color: "bg-red-50 text-red-600 border-red-100" },
+  high: { label: "High", color: "bg-orange-50 text-orange-600 border-orange-100" },
+  medium: { label: "Medium", color: "bg-amber-50 text-amber-600 border-amber-100" },
+  low: { label: "Low", color: "bg-gray-50 text-gray-500 border-gray-100" },
 };
 
 const STATUS_CONFIG = {
-  open: { label: "Open", color: "bg-blue-100 text-blue-700 border-blue-200", icon: Inbox },
-  in_progress: { label: "In Progress", color: "bg-purple-100 text-purple-700 border-purple-200", icon: PlayCircle },
-  waiting_user: { label: "Awaiting Reply", color: "bg-yellow-100 text-yellow-700 border-yellow-200", icon: PauseCircle },
-  resolved: { label: "Resolved", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle2 },
-  closed: { label: "Closed", color: "bg-gray-100 text-gray-700 border-gray-200", icon: XCircle },
+  open: { label: "Open", color: "bg-sky-50 text-sky-600 border-sky-100", icon: Inbox },
+  in_progress: { label: "Active", color: "bg-purple-50 text-purple-600 border-purple-100", icon: PlayCircle },
+  waiting_user: { label: "Pending", color: "bg-amber-50 text-amber-600 border-amber-100", icon: PauseCircle },
+  resolved: { label: "Resolved", color: "bg-emerald-50 text-emerald-600 border-emerald-100", icon: CheckCircle2 },
+  closed: { label: "Closed", color: "bg-gray-50 text-gray-500 border-gray-100", icon: XCircle },
 };
 
 export default function AgencyTicketDetailPage() {
@@ -78,10 +80,7 @@ export default function AgencyTicketDetailPage() {
   const fetchTicketDetail = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE}/api/agency/support/tickets/${ticketId}`,
-        { credentials: "include" }
-      );
+      const response = await fetch(`${API_BASE}/api/agency/support/tickets/${ticketId}`, { credentials: "include" });
       const data = await response.json();
 
       if (data.success) {
@@ -101,43 +100,29 @@ export default function AgencyTicketDetailPage() {
 
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!replyText.trim()) {
-      toast.error("Please enter a reply message");
-      return;
-    }
-
-    if (replyText.length < 10) {
+    if (!replyText.trim() || replyText.length < 10) {
       toast.error("Reply must be at least 10 characters");
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      const response = await fetch(
-        `${API_BASE}/api/agency/support/tickets/${ticketId}/reply`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ content: replyText }),
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/agency/support/tickets/${ticketId}/reply`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: replyText }),
+      });
 
       const data = await response.json();
-
       if (data.success) {
-        toast.success("Reply sent successfully");
+        toast.success("Reply sent!");
         setReplyText("");
-        fetchTicketDetail(); // Refresh to show new reply
+        fetchTicketDetail();
       } else {
         toast.error(data.error || "Failed to send reply");
       }
     } catch (error) {
-      console.error("Error sending reply:", error);
       toast.error("Failed to send reply");
     } finally {
       setIsSubmitting(false);
@@ -145,224 +130,178 @@ export default function AgencyTicketDetailPage() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(dateString).toLocaleDateString("en-GB", {
+      day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-3" />
-          <p className="text-gray-500">Loading ticket...</p>
-        </div>
+      <div className="max-w-7xl mx-auto pt-40 px-4 text-center">
+        <RefreshCw className="h-8 w-8 text-[#00BAF1] animate-spin mx-auto mb-4" />
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Hydrating Ticket...</p>
       </div>
     );
   }
 
-  if (!ticket) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Ticket className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-          <h2 className="font-medium text-gray-900 mb-1">Ticket not found</h2>
-          <Button onClick={() => router.push("/agency/support/tickets")}>
-            Go Back
+  if (!ticket) return null;
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
+      {/* Header */}
+      <div className="pb-6 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="flex items-center gap-4">
+             <Ticket className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+             <div>
+               <div className="flex items-center gap-2 mb-1">
+                  <p className="text-[#00BAF1] text-[10px] font-black uppercase tracking-widest">#{ticket.id}</p>
+                  <Badge className={`${STATUS_CONFIG[ticket.status]?.color} text-[8px] font-black uppercase tracking-tighter px-2 border-0`}>
+                     {STATUS_CONFIG[ticket.status]?.label || ticket.status}
+                  </Badge>
+               </div>
+               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{ticket.subject}</h1>
+             </div>
+          </div>
+          <Button
+            onClick={() => router.push("/agency/support/tickets")}
+            variant="outline"
+            className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-100 rounded-xl px-5 font-bold text-[10px] uppercase tracking-wider h-11 transition-all"
+          >
+            <ArrowLeft className="h-3 w-3 mr-2" />
+            Inbox
           </Button>
         </div>
       </div>
-    );
-  }
 
-  const StatusIcon = STATUS_CONFIG[ticket.status]?.icon || Inbox;
-  const isTicketClosed = ticket.status === "closed" || ticket.status === "resolved";
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+         {/* Main Chat/Conversation */}
+         <div className="lg:col-span-2 space-y-8">
+            <SettingsSection title="Conversation History">
+               <div className="divide-y divide-gray-50">
+                  {messages.map((message, idx) => (
+                     <div key={message.id} className={`p-6 transition-colors ${message.is_admin ? "bg-[#00BAF1]/[0.02]" : "bg-white"}`}>
+                        <div className="flex items-center justify-between mb-4">
+                           <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-xl ${message.is_admin ? "bg-[#00BAF1] text-white shadow-lg shadow-sky-100" : "bg-gray-100 text-gray-400"}`}>
+                                 {message.is_admin ? <Shield className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                              </div>
+                              <div>
+                                 <p className="text-xs font-black text-gray-900 uppercase tracking-tight">
+                                    {message.is_admin ? "iayos Support Team" : message.sender_name}
+                                 </p>
+                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                                    {message.is_admin ? "Verified Agent" : "Agency Owner"}
+                                 </p>
+                              </div>
+                           </div>
+                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{formatDate(message.created_at)}</p>
+                        </div>
+                        <p className="text-sm font-medium text-gray-600 leading-relaxed whitespace-pre-wrap ml-12">
+                           {message.content}
+                        </p>
+                     </div>
+                  ))}
+               </div>
+            </SettingsSection>
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-slate-50">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 py-8">
-        <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.5))]" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-indigo-500/30 rounded-full blur-3xl" />
-
-        <div className="relative z-10 max-w-4xl mx-auto">
-          <button
-            onClick={() => router.push("/agency/support/tickets")}
-            className="flex items-center gap-2 text-white/80 hover:text-white mb-4 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Tickets</span>
-          </button>
-
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-white/10 rounded-xl backdrop-blur-sm">
-                <StatusIcon className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-white/70 text-sm">Ticket #{ticket.id}</span>
-                  <Badge className={STATUS_CONFIG[ticket.status]?.color || "bg-gray-100"}>
-                    {STATUS_CONFIG[ticket.status]?.label || ticket.status}
-                  </Badge>
-                  <Badge className={PRIORITY_CONFIG[ticket.priority]?.color || "bg-gray-100"}>
-                    {PRIORITY_CONFIG[ticket.priority]?.label || ticket.priority}
-                  </Badge>
-                </div>
-                <h1 className="text-2xl font-bold text-white">{ticket.subject}</h1>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="grid gap-6">
-          {/* Original Message */}
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-blue-600" />
-                  Original Request
-                </CardTitle>
-                <span className="text-sm text-gray-500 flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  {formatDate(ticket.created_at)}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-700 whitespace-pre-wrap">{messages.length > 0 ? messages[0].content : 'No description available'}</p>
-              <div className="mt-4 pt-4 border-t flex items-center gap-4 text-sm text-gray-500">
-                <span>Category: <span className="font-medium text-gray-700">{ticket.category}</span></span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Replies */}
-          {messages.length > 1 && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-gray-900 flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-gray-400" />
-                Conversation ({messages.length - 1} {messages.length - 1 === 1 ? 'reply' : 'replies'})
-              </h3>
-              {messages.slice(1).map((reply) => (
-                <Card
-                  key={reply.id}
-                  className={`border-0 shadow-sm ${
-                    reply.is_admin ? "bg-blue-50 border-l-4 border-l-blue-500" : ""
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        {reply.is_admin ? (
-                          <>
-                            <div className="p-1.5 bg-blue-100 rounded-full">
-                              <Shield className="h-4 w-4 text-blue-600" />
-                            </div>
-                            <span className="font-medium text-blue-700">
-                              Support Team
-                            </span>
-                            <Badge className="bg-blue-100 text-blue-700 text-xs">
-                              Staff
-                            </Badge>
-                          </>
-                        ) : (
-                          <>
-                            <div className="p-1.5 bg-gray-100 rounded-full">
-                              <User className="h-4 w-4 text-gray-600" />
-                            </div>
-                            <span className="font-medium text-gray-900">
-                              {reply.sender_name}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {formatDate(reply.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-gray-700 whitespace-pre-wrap ml-8">
-                      {reply.content}
-                    </p>
+            {/* Reply Input */}
+            {ticket.status !== "closed" && ticket.status !== "resolved" ? (
+               <Card className="border-0 shadow-2xl rounded-3xl bg-white overflow-hidden">
+                  <CardHeader className="p-6 border-b border-gray-50 bg-gray-50/50">
+                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quick Reply</p>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                     <form onSubmit={handleSubmitReply} className="space-y-4">
+                        <Textarea
+                           value={replyText}
+                           onChange={(e) => setReplyText(e.target.value)}
+                           placeholder="Describe your follow-up details here..."
+                           className="min-h-[150px] bg-gray-50 border-gray-100 focus:bg-white rounded-2xl p-5 font-bold text-sm resize-none transition-all outline-none"
+                        />
+                        <div className="flex items-center justify-between">
+                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                              {replyText.length} / 1000 characters
+                           </p>
+                           <Button
+                              type="submit"
+                              disabled={isSubmitting || replyText.length < 10}
+                              className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white rounded-xl h-12 px-8 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
+                           >
+                              {isSubmitting ? "Sending..." : "Post Reply"}
+                           </Button>
+                        </div>
+                     </form>
                   </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Reply Form */}
-          {!isTicketClosed ? (
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Send className="h-5 w-5 text-blue-600" />
-                  Send a Reply
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmitReply} className="space-y-4">
-                  <Textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your reply here..."
-                    rows={4}
-                    required
-                  />
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-400">
-                      {replyText.length}/1000 characters
-                    </p>
-                    <Button
-                      type="submit"
-                      disabled={isSubmitting || replyText.length < 10}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4 mr-2" />
-                          Send Reply
-                        </>
-                      )}
-                    </Button>
+               </Card>
+            ) : (
+               <div className="bg-emerald-50 rounded-3xl p-8 border border-emerald-100 text-center">
+                  <div className="p-3 bg-emerald-100 rounded-2xl w-fit mx-auto mb-4">
+                     <CheckCircle2 className="h-6 w-6 text-emerald-600" />
                   </div>
-                </form>
-              </CardContent>
+                  <h3 className="text-lg font-bold text-emerald-900">Issue Resolved</h3>
+                  <p className="text-sm font-medium text-emerald-600/80 mt-1">This ticket has been finalised and is no longer accepting replies.</p>
+                  <Button 
+                     onClick={() => router.push("/agency/support")}
+                     className="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-11 px-8 font-bold text-[10px] uppercase tracking-widest border-0"
+                  >
+                     Open New Request
+                  </Button>
+               </div>
+            )}
+         </div>
+
+         {/* Sidebar Metadata */}
+         <div className="space-y-6">
+            <SettingsSection title="Ticket Metadata">
+               <div className="p-6 space-y-6">
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Priority Ranking</label>
+                     <div className="pt-1">
+                        <Badge className={`${PRIORITY_CONFIG[ticket.priority]?.color} text-[10px] font-black uppercase px-3 py-1 border-0`}>
+                           {ticket.priority} Priority
+                        </Badge>
+                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Service Item</label>
+                     <p className="text-sm font-bold text-gray-800">{ticket.category}</p>
+                  </div>
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Activity</label>
+                     <p className="text-sm font-bold text-gray-800">{formatDate(ticket.updated_at)}</p>
+                  </div>
+               </div>
+            </SettingsSection>
+
+            <Card className="border-0 shadow-lg bg-gray-50/50 rounded-3xl p-6 overflow-hidden relative">
+               <div className="relative z-10 space-y-2">
+                  <p className="text-[10px] font-black text-[#00BAF1] uppercase tracking-widest">Support Policy</p>
+                  <p className="text-xs font-medium text-gray-500 leading-relaxed">
+                     Please allow up to 24 hours for our staff to review your follow-up. For urgent security issues, please use the account lock feature.
+                  </p>
+               </div>
+               <Layers className="absolute -bottom-4 -right-4 h-20 w-20 text-gray-100 -rotate-12" />
             </Card>
-          ) : (
-            <Card className="border-0 shadow-sm bg-gray-50">
-              <CardContent className="p-6 text-center">
-                <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
-                <h3 className="font-medium text-gray-900 mb-1">Ticket Closed</h3>
-                <p className="text-sm text-gray-500">
-                  This ticket has been {ticket.status}. If you need further assistance, 
-                  please create a new ticket.
-                </p>
-                <Button
-                  onClick={() => router.push("/agency/support")}
-                  className="mt-4"
-                  variant="outline"
-                >
-                  Create New Ticket
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+         </div>
       </div>
     </div>
   );
 }
+
+function SettingsSection({ title, children }: { title: string, children: React.ReactNode }) {
+   return (
+     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+       <div className="mb-4">
+         <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+           {title}
+         </h3>
+       </div>
+       <Card className="border-0 shadow-xl overflow-hidden rounded-3xl bg-white">
+         <CardContent className="p-0">
+           {children}
+         </CardContent>
+       </Card>
+     </div>
+   );
+ }
