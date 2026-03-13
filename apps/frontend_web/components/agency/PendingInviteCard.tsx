@@ -5,7 +5,6 @@ import {
   Banknote,
   Calendar,
   MapPin,
-  User,
   Users,
   Clock,
   AlertTriangle,
@@ -14,7 +13,6 @@ import {
   XCircle,
   Loader2,
   Wrench,
-  ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
