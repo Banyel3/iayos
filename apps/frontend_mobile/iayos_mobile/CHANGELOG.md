@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Worker Calendar -> Job Details Freeze on Expo Go**
+  - Refactored worker calendar date details from a nested modal into a single-modal overlay flow.
+  - Hardened Android back handling so date-details closes first before dismissing the calendar sheet.
+  - Preserved guarded close-then-navigate behavior to avoid stale touch-block overlays during route transitions.
+  - **Impact**: Opening a job from calendar date details no longer leaves job details screen unresponsive.
+
 - **Agency Conversation Review CTA Reopen/Double-Submit Guard**
   - Fixed mobile conversation review CTA visibility to hide during closure-sync windows and after conversation closure.
   - Added safe review-modal opener guard to block stale re-open attempts right after review submission.
