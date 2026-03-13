@@ -512,7 +512,6 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         assigned_agency = None
         if job.assignedAgencyFK:
             try:
-                from agency.models import Agency
                 agency = job.assignedAgencyFK
                 
                 # Calculate agency average rating
@@ -634,6 +633,18 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
 
         cancellation_reason = _derive_cancellation_reason(job)
 
+        worker_marked_on_the_way = bool(getattr(job, 'workerMarkedOnTheWay', False))
+        worker_marked_on_the_way_at = getattr(job, 'workerMarkedOnTheWayAt', None)
+        worker_marked_job_started = bool(getattr(job, 'workerMarkedJobStarted', False))
+        worker_marked_job_started_at = getattr(job, 'workerMarkedJobStartedAt', None)
+        client_confirmed_work_started = bool(getattr(job, 'clientConfirmedWorkStarted', False))
+        client_confirmed_work_started_at = getattr(job, 'clientConfirmedWorkStartedAt', None)
+
+        cancelled_at = getattr(job, 'cancelledAt', None)
+        cancelled_by_role = getattr(job, 'cancelledByRole', None)
+        cancellation_stage = getattr(job, 'cancellationStage', None)
+        client_refund_amount = getattr(job, 'clientRefundAmount', Decimal('0.00'))
+        worker_compensation_amount = getattr(job, 'workerCompensationAmount', Decimal('0.00'))
         job_data = {
             'id': job.jobID,
             'title': job.title,
@@ -664,18 +675,18 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'remaining_payment_paid': job.remainingPaymentPaid,
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
-            'worker_marked_on_the_way': job.workerMarkedOnTheWay,
-            'worker_marked_on_the_way_at': job.workerMarkedOnTheWayAt.isoformat() if job.workerMarkedOnTheWayAt else None,
-            'worker_marked_job_started': job.workerMarkedJobStarted,
-            'worker_marked_job_started_at': job.workerMarkedJobStartedAt.isoformat() if job.workerMarkedJobStartedAt else None,
-            'client_confirmed_work_started': job.clientConfirmedWorkStarted,
-            'client_confirmed_work_started_at': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
-            'cancelled_at': job.cancelledAt.isoformat() if job.cancelledAt else None,
-            'cancelled_by_role': job.cancelledByRole,
-            'cancellation_stage': job.cancellationStage,
+            'worker_marked_on_the_way': worker_marked_on_the_way,
+            'worker_marked_on_the_way_at': worker_marked_on_the_way_at.isoformat() if worker_marked_on_the_way_at else None,
+            'worker_marked_job_started': worker_marked_job_started,
+            'worker_marked_job_started_at': worker_marked_job_started_at.isoformat() if worker_marked_job_started_at else None,
+            'client_confirmed_work_started': client_confirmed_work_started,
+            'client_confirmed_work_started_at': client_confirmed_work_started_at.isoformat() if client_confirmed_work_started_at else None,
+            'cancelled_at': cancelled_at.isoformat() if cancelled_at else None,
+            'cancelled_by_role': cancelled_by_role,
+            'cancellation_stage': cancellation_stage,
             'cancellation_reason': cancellation_reason,
-            'client_refund_amount': float(job.clientRefundAmount or 0),
-            'worker_compensation_amount': float(job.workerCompensationAmount or 0),
+            'client_refund_amount': float(client_refund_amount or 0),
+            'worker_compensation_amount': float(worker_compensation_amount or 0),
             'estimated_completion': ml_prediction,
             # Universal job fields for ML accuracy
             'job_scope': job.job_scope,
