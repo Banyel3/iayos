@@ -437,6 +437,12 @@ export default function ChatScreen() {
   const normalizedJobStatus = (conversation?.job?.status || "").toUpperCase();
   const isJobCompleted = normalizedJobStatus === "COMPLETED";
   const isJobInProgress = normalizedJobStatus === "IN_PROGRESS";
+  const isJobActive = normalizedJobStatus === "ACTIVE";
+  const isJobAssigned = normalizedJobStatus === "ASSIGNED";
+  const isRegularJobTerminal =
+    normalizedJobStatus === "COMPLETED" || normalizedJobStatus === "CANCELLED";
+  const canUseRegularProjectActions =
+    isJobInProgress || isJobActive || isJobAssigned;
   const isServerMarkedClosed = normalizedConversationStatus === "COMPLETED";
   const isConversationArchived = !!conversation?.is_archived;
   const computedConversationClosed =
@@ -4155,10 +4161,8 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
-                (conversation.job.status === "ACTIVE" ||
-                  conversation.job.status === "IN_PROGRESS") &&
-                conversation.job.status !== "COMPLETED" &&
-                conversation.job.status !== "CANCELLED" && (
+                canUseRegularProjectActions &&
+                !isRegularJobTerminal && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.cancelJobButton]}
                     onPress={handleCancelJob}
@@ -4183,22 +4187,10 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job.status === "IN_PROGRESS" &&
-                (!conversation.job?.preferred_start_date ||
-                  new Date() >=
-                    (() => {
-                      const d = new Date(
-                        conversation.job.preferred_start_date!,
-                      );
-                      d.setHours(0, 0, 0, 0);
-                      return d;
-                    })()) &&
+                canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted &&
-                (conversation.job.materials_status === "NONE" ||
-                  conversation.job.materials_status === "APPROVED" ||
-                  !conversation.job.materials_status) && (
+                !conversation.job.workerMarkedJobStarted && (
                   <TouchableOpacity
                     style={[
                       styles.actionButton,
@@ -4229,7 +4221,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job.status === "IN_PROGRESS" &&
+                canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete && (
                   <View style={[styles.actionButton, styles.waitingButton]}>
@@ -4249,7 +4241,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
-                conversation.job.status === "IN_PROGRESS" &&
+                canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedOnTheWay &&
                 !isMarkOnTheWayLocked && (
@@ -4279,7 +4271,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
-                conversation.job.status === "IN_PROGRESS" &&
+                canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedOnTheWay &&
                 !conversation.job.workerMarkedJobStarted && (
@@ -4305,7 +4297,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
-                conversation.job.status === "IN_PROGRESS" &&
+                canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedOnTheWay &&
                 !conversation.job.workerMarkedJobStarted && (
@@ -4336,7 +4328,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
-                conversation.job.status === "IN_PROGRESS" &&
+                canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedJobStarted &&
                 !conversation.job.workerMarkedComplete && (
@@ -4387,6 +4379,8 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete &&
                 !conversation.job.remainingPaymentPaid && (
