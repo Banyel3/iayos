@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Daily-Rate Authorization and Payment Accuracy Hardening**
+  - Added stricter DAILY authorization checks across backend attendance/summary/extension/rate-change APIs to block non-participant access.
+  - Added team-aware DAILY actor resolution so team workers can participate in extension/rate-change approval flows.
+  - Hardened mobile no-work endpoint validation to ensure selected worker/employee belongs to the target job (including agency employee support).
+  - Added assignment validation to mobile worker check-out flow for consistency with check-in authorization.
+  - Updated daily attendance pay confirmation copy to use per-attendance `amount_earned` instead of static job daily rate.
+  - **Impact**: Safer DAILY workflows (reduced unauthorized access risk), correct client payment prompts, and improved client→agency daily no-work handling.
+
 - **Team Job Duplicate Apply Button Removal**
   - Hidden the generic bottom apply button on team job detail screens.
   - Kept only per-skill-slot apply actions as the valid team application entry point.

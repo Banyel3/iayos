@@ -14,8 +14,12 @@ export function JobBudgetDisplay({
   className = '',
 }: JobBudgetDisplayProps) {
   if (paymentModel === 'DAILY') {
-    const rate = dailyRate || 0;
-    const days = durationDays || 0;
+    if (typeof dailyRate !== 'number' || typeof durationDays !== 'number') {
+      return <span className={className}>Daily rate unavailable</span>;
+    }
+
+    const rate = dailyRate;
+    const days = durationDays;
     return (
       <span className={className}>
         ₱{rate.toLocaleString()}/day × {days} day{days !== 1 ? 's' : ''}

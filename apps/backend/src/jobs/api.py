@@ -48,6 +48,51 @@ def get_user_profile(request):
         return Profile.objects.filter(accountFK=request.auth).first()
 
 
+def _is_daily_job_participant(job: Job, user) -> bool:
+    """Return True when the account is a participant of the DAILY job."""
+    if not job or not user:
+        return False
+
+    if job.clientID and job.clientID.profileID.accountFK == user:
+        return True
+
+    if job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        return True
+
+    if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        return True
+
+    return JobWorkerAssignment.objects.filter(
+        jobID=job,
+        workerID__profileID__accountFK=user,
+        assignment_status__in=['ACTIVE', 'COMPLETED']
+    ).exists()
+
+
+def _resolve_daily_actor_type(job: Job, user) -> Optional[str]:
+    """Resolve request actor type for DAILY extension/rate-change workflows."""
+    if not job or not user:
+        return None
+
+    if job.clientID and job.clientID.profileID.accountFK == user:
+        return 'CLIENT'
+
+    if job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
+        return 'AGENCY'
+
+    if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
+        return 'WORKER'
+
+    if JobWorkerAssignment.objects.filter(
+        jobID=job,
+        workerID__profileID__accountFK=user,
+        assignment_status__in=['ACTIVE', 'COMPLETED']
+    ).exists():
+        return 'WORKER'
+
+    return None
+
+
 def is_testing_mode_enabled() -> bool:
     """Return True when TESTING mode is enabled."""
     return bool(getattr(settings, 'TESTING', False))
@@ -7984,9 +8029,9 @@ def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
     
-    # Determine worker type and validate access
     user = request.auth
-    profile_type = getattr(user, 'profile_type', None)
+    if not _is_daily_job_participant(job, user):
+        return Response({"error": "You are not authorized to access this daily job"}, status=403)
     
     # Parse date
     work_date_str = data.work_date
@@ -8030,11 +8075,32 @@ def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
             )
         except JobWorkerAssignment.DoesNotExist:
             return Response({"error": "Assignment not found"}, status=404)
+
+        is_client_actor = bool(job.clientID and job.clientID.profileID.accountFK == user)
+        is_agency_actor = bool(job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user)
+        is_assignment_worker_actor = bool(
+            assignment.workerID and assignment.workerID.profileID.accountFK == user
+        )
+        if not is_client_actor and not is_agency_actor and not is_assignment_worker_actor:
+            return Response({"error": "Not authorized to log attendance for this team assignment"}, status=403)
+        worker = assignment.workerID
     elif not employee_id:
         # Single worker job - get assigned worker
         worker = job.assignedWorkerID
         if not worker:
             return Response({"error": "No worker assigned to this job"}, status=400)
+
+        is_client_actor = bool(job.clientID and job.clientID.profileID.accountFK == user)
+        is_agency_actor = bool(job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user)
+        is_worker_actor = bool(worker.profileID.accountFK == user)
+        if not is_client_actor and not is_agency_actor and not is_worker_actor:
+            return Response({"error": "Not authorized to log attendance for this worker"}, status=403)
+    else:
+        # Agency employee attendance can only be logged by client or assigned agency
+        is_client_actor = bool(job.clientID and job.clientID.profileID.accountFK == user)
+        is_agency_actor = bool(job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user)
+        if not is_client_actor and not is_agency_actor:
+            return Response({"error": "Not authorized to log attendance for agency employees"}, status=403)
     
     result = DailyPaymentService.log_attendance(
         job=job,
@@ -8072,6 +8138,19 @@ def confirm_attendance_worker(request, job_id: int, attendance_id: int):
     except DailyAttendance.DoesNotExist:
         return Response({"error": "Attendance record not found"}, status=404)
     
+    # Verify confirmer is the correct worker-side actor.
+    if attendance.workerID:
+        if attendance.workerID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the assigned worker can confirm this attendance"}, status=403)
+    elif attendance.assignmentID:
+        if attendance.assignmentID.workerID.profileID.accountFK != request.auth:
+            return Response({"error": "Only the assigned team worker can confirm this attendance"}, status=403)
+    elif attendance.employeeID:
+        if not attendance.jobID.assignedAgencyFK or attendance.jobID.assignedAgencyFK.accountFK != request.auth:
+            return Response({"error": "Only the assigned agency can confirm this attendance"}, status=403)
+    else:
+        return Response({"error": "Invalid attendance record: no worker-side actor found"}, status=400)
+
     result = DailyPaymentService.confirm_attendance_worker(attendance, request.auth)
     
     if not result.get('success'):
@@ -8272,6 +8351,9 @@ def get_daily_attendance(request, job_id: int, start_date: str = None, end_date:
     
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
+
+    if not _is_daily_job_participant(job, request.auth):
+        return Response({"error": "You are not authorized to access this daily job"}, status=403)
     
     queryset = DailyAttendance.objects.filter(jobID=job).select_related(
         'workerID__profileID__accountFK',
@@ -8348,6 +8430,9 @@ def get_daily_job_summary(request, job_id: int):
     
     if job.payment_model != 'DAILY':
         return Response({"error": "This job is not a daily-rate job"}, status=400)
+
+    if not _is_daily_job_participant(job, request.auth):
+        return Response({"error": "You are not authorized to access this daily job"}, status=403)
     
     return DailyPaymentService.get_daily_summary(job)
 
@@ -8382,17 +8467,10 @@ def request_daily_extension(request, job_id: int, data: RequestExtensionSchema):
     if not reason:
         return Response({"error": "reason is required"}, status=400)
     
-    # Determine who is requesting
+    # Determine who is requesting (team-worker aware)
     user = request.auth
-    is_client = job.clientID.profileID.accountFK == user
-    
-    if is_client:
-        requested_by = 'CLIENT'
-    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
-        requested_by = 'AGENCY'
-    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
-        requested_by = 'WORKER'
-    else:
+    requested_by = _resolve_daily_actor_type(job, user)
+    if not requested_by:
         return Response({"error": "Only the client, worker, or agency can request extensions"}, status=403)
     
     result = DailyPaymentService.request_extension(
@@ -8430,16 +8508,9 @@ def approve_daily_extension(request, job_id: int, extension_id: int):
     job = extension.jobID
     user = request.auth
     
-    # Determine approver type
-    is_client = job.clientID.profileID.accountFK == user
-    
-    if is_client:
-        approver_type = 'CLIENT'
-    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
-        approver_type = 'AGENCY'
-    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
-        approver_type = 'WORKER'
-    else:
+    # Determine approver type (team-worker aware)
+    approver_type = _resolve_daily_actor_type(job, user)
+    if not approver_type:
         return Response({"error": "Only the client, worker, or agency can approve extensions"}, status=403)
     
     result = DailyPaymentService.approve_extension(extension, approver_type, user)
@@ -8462,6 +8533,9 @@ def get_daily_extensions(request, job_id: int):
         job = Job.objects.get(jobID=job_id)
     except Job.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)
+
+    if not _is_daily_job_participant(job, request.auth):
+        return Response({"error": "You are not authorized to access this daily job"}, status=403)
     
     extensions = DailyJobExtension.objects.filter(jobID=job).order_by('-created_at')
     
@@ -8528,17 +8602,10 @@ def request_rate_change(request, job_id: int, data: RequestRateChangeSchema):
     except ValueError:
         return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=400)
     
-    # Determine who is requesting
+    # Determine who is requesting (team-worker aware)
     user = request.auth
-    is_client = job.clientID.profileID.accountFK == user
-    
-    if is_client:
-        requested_by = 'CLIENT'
-    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
-        requested_by = 'AGENCY'
-    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
-        requested_by = 'WORKER'
-    else:
+    requested_by = _resolve_daily_actor_type(job, user)
+    if not requested_by:
         return Response({"error": "Only the client, worker, or agency can request rate changes"}, status=403)
     
     result = DailyPaymentService.request_rate_change(
@@ -8577,16 +8644,9 @@ def approve_rate_change(request, job_id: int, change_id: int):
     job = rate_change.jobID
     user = request.auth
     
-    # Determine approver type
-    is_client = job.clientID.profileID.accountFK == user
-    
-    if is_client:
-        approver_type = 'CLIENT'
-    elif job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user:
-        approver_type = 'AGENCY'
-    elif job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
-        approver_type = 'WORKER'
-    else:
+    # Determine approver type (team-worker aware)
+    approver_type = _resolve_daily_actor_type(job, user)
+    if not approver_type:
         return Response({"error": "Only the client, worker, or agency can approve rate changes"}, status=403)
     
     result = DailyPaymentService.approve_rate_change(rate_change, approver_type, user)
@@ -8609,6 +8669,9 @@ def get_rate_changes(request, job_id: int):
         job = Job.objects.get(jobID=job_id)
     except Job.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)
+
+    if not _is_daily_job_participant(job, request.auth):
+        return Response({"error": "You are not authorized to access this daily job"}, status=403)
     
     rate_changes = DailyRateChange.objects.filter(jobID=job).order_by('-created_at')
     

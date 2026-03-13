@@ -7584,6 +7584,11 @@ def worker_check_out(request, job_id: int):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
         
+        # Verify worker is assigned to this job
+        is_assigned = (job.assignedWorkerID == worker)
+        if not is_assigned:
+            return Response({"error": "You are not assigned to this job"}, status=403)
+
         now = timezone.now()
         today = _get_effective_work_date(job)
         
@@ -7803,7 +7808,8 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
     Dedicated quick action for clients when worker did not work for the day.
     Marks today's attendance as ABSENT and processes no-payment confirmation.
     """
-    from .models import Job, DailyAttendance, WorkerProfile
+    from .models import Job, DailyAttendance, WorkerProfile, JobWorkerAssignment
+    from agency.models import AgencyEmployee
     from jobs.daily_payment_service import DailyPaymentService
 
     try:
@@ -7819,28 +7825,65 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             return Response({"error": "Only the job client can mark no-work days"}, status=403)
 
         target_worker = None
+        target_employee = None
+
         if worker_id:
+            # First try regular worker profile id
             target_worker = WorkerProfile.objects.filter(workerProfileID=worker_id).first()
-            if not target_worker:
-                return Response({"error": "Worker not found"}, status=404)
+            if target_worker:
+                is_primary_assigned_worker = (job.assignedWorkerID == target_worker)
+                is_team_assigned_worker = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    workerID=target_worker,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).exists()
+                if not is_primary_assigned_worker and not is_team_assigned_worker:
+                    return Response({"error": "Selected worker is not assigned to this job"}, status=400)
+            else:
+                # Fallback for agency daily jobs where attendance carries employeeID
+                target_employee = AgencyEmployee.objects.filter(employeeID=worker_id).first()
+                if not target_employee:
+                    return Response({"error": "Worker/employee not found"}, status=404)
+
+                if not job.assignedAgencyFK:
+                    return Response({"error": "Selected employee is not valid for this job"}, status=400)
+
+                if target_employee.agency_id != job.assignedAgencyFK.accountFK_id:
+                    return Response({"error": "Selected employee does not belong to the assigned agency"}, status=400)
         elif job.assignedWorkerID:
             target_worker = job.assignedWorkerID
         else:
             return Response({"error": "worker_id is required for this job"}, status=400)
 
         today = _get_effective_work_date(job)
-        attendance, _ = DailyAttendance.objects.get_or_create(
-            jobID=job,
-            workerID=target_worker,
-            date=today,
-            defaults={
-                'status': 'ABSENT',
-                'amount_earned': Decimal('0.00'),
-                'worker_confirmed': True,
-                'worker_confirmed_at': timezone.now(),
-                'notes': 'Marked absent by client quick action',
-            },
-        )
+        if target_employee:
+            attendance, _ = DailyAttendance.objects.get_or_create(
+                jobID=job,
+                employeeID=target_employee,
+                date=today,
+                defaults={
+                    'workerID': None,
+                    'status': 'ABSENT',
+                    'amount_earned': Decimal('0.00'),
+                    'worker_confirmed': True,
+                    'worker_confirmed_at': timezone.now(),
+                    'notes': 'Marked absent by client quick action',
+                },
+            )
+        else:
+            attendance, _ = DailyAttendance.objects.get_or_create(
+                jobID=job,
+                workerID=target_worker,
+                date=today,
+                defaults={
+                    'employeeID': None,
+                    'status': 'ABSENT',
+                    'amount_earned': Decimal('0.00'),
+                    'worker_confirmed': True,
+                    'worker_confirmed_at': timezone.now(),
+                    'notes': 'Marked absent by client quick action',
+                },
+            )
 
         if attendance.time_in:
             return Response({
@@ -7869,7 +7912,10 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
         if not result.get('success'):
             return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
 
-        worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
+        if target_worker:
+            worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
+        else:
+            worker_name = target_employee.fullName if target_employee else "Worker"
 
         return {
             "success": True,
