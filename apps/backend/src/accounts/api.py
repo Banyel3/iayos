@@ -1572,11 +1572,53 @@ def confirm_kyc_extracted_data(request, payload: dict = Body(...)):
             defaults={"extraction_status": "PENDING"}
         )
 
-        # Defensive hard-block: confirmed name must match account profile name
+        # Defensive hard-block: confirmed name must be present and must match account profile name
+        personal_name_fields = {
+            "full_name",
+            "first_name",
+            "middle_name",
+            "last_name",
+            "address",
+            "id_number",
+            "birth_date",
+            "date_of_birth",
+            "sex",
+            "nationality",
+            "place_of_birth",
+        }
+        requires_name_validation = any(
+            field in payload and payload.get(field) not in (None, "")
+            for field in personal_name_fields
+        )
+
         confirmed_full_name = (payload.get("full_name") or "").strip()
-        if confirmed_full_name:
+        if requires_name_validation:
+            if not confirmed_full_name:
+                return {
+                    "success": False,
+                    "error": "ID full name is required for verification.",
+                    "error_code": "NAME_VALIDATION_REQUIRED",
+                    "name_match": False,
+                    "name_match_score": 0,
+                    "profile_name": "",
+                    "ocr_name": "",
+                    "name_match_reason": "full_name_missing",
+                }
+
             name_validation = evaluate_profile_name_match(user, confirmed_full_name)
-            if name_validation["can_validate"] and not name_validation["is_match"]:
+            if not name_validation["can_validate"]:
+                return {
+                    "success": False,
+                    "error": "Unable to validate name against your account profile.",
+                    "error_code": "NAME_VALIDATION_UNAVAILABLE",
+                    "name_match": False,
+                    "name_match_score": name_validation["score"],
+                    "profile_name": name_validation["profile_name"],
+                    "ocr_name": name_validation["ocr_name"],
+                    "name_match_reason": name_validation["reason"],
+                }
+
+            if not name_validation["is_match"]:
                 return {
                     "success": False,
                     "error": "Name on Government ID does not match your account profile name.",
