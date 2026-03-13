@@ -361,7 +361,7 @@ export default function JobListingsPage() {
                               className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${job.urgency === "HIGH"
                                 ? "bg-red-100 text-red-700"
                                 : job.urgency === "MEDIUM"
-                                  ? "bg-orange-100 text-orange-700"
+                                  ? "bg-yellow-100 text-yellow-700"
                                   : "bg-green-100 text-green-700"
                                 }`}
                             >
