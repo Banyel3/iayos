@@ -83,7 +83,7 @@ export default function JobDetailPage() {
       case "HIGH":
         return "text-red-600 bg-red-50";
       case "MEDIUM":
-        return "text-yellow-600 bg-yellow-50";
+        return "text-yellow-700 bg-yellow-50 border-yellow-200";
       case "LOW":
         return "text-green-600 bg-green-50";
       default:
@@ -123,20 +123,19 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="container mx-auto py-8 px-12 lg:px-24 max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">{job.title}</h1>
-            <p className="text-muted-foreground">Job ID: #{job.id}</p>
-          </div>
         </div>
         <div className="flex gap-2">
-          <Badge variant={getStatusBadgeVariant(job.status)}>
+          <Badge 
+            variant={getStatusBadgeVariant(job.status)}
+            className={job.status.toUpperCase() === "ACTIVE" ? "bg-[#00BAF1] text-white hover:bg-[#00BAF1]/90 border-transparent shadow-none" : ""}
+          >
             {job.status.replace("_", " ")}
           </Badge>
           <Badge className={getUrgencyColor(job.urgency)}>{job.urgency}</Badge>
@@ -148,7 +147,11 @@ export default function JobDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Job Description */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
+              <div className="flex flex-col mb-4">
+                <h1 className="text-3xl font-bold">{job.title}</h1>
+                <p className="text-muted-foreground">Job ID: #{job.id}</p>
+              </div>
               <CardTitle>Job Description</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -244,7 +247,7 @@ export default function JobDetailPage() {
                       key={app.id}
                       className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent transition-colors"
                     >
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#00BAF1] to-[#008BB5] flex items-center justify-center text-white text-sm font-bold">
                         {app.worker.name.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="flex-1">
@@ -334,7 +337,7 @@ export default function JobDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white text-sm font-bold">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#00BAF1] to-[#008BB5] flex items-center justify-center text-white text-sm font-bold">
                   {job.client.name.substring(0, 2).toUpperCase()}
                 </div>
                 <div>
@@ -389,7 +392,7 @@ export default function JobDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#00BAF1] to-[#008BB5] flex items-center justify-center text-white text-sm font-bold">
                     {job.worker.name.substring(0, 2).toUpperCase()}
                   </div>
                   <div>
@@ -451,7 +454,10 @@ export default function JobDetailPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Escrow Status</span>
-                <Badge variant={job.escrow_paid ? "outline" : "destructive"}>
+                <Badge 
+                  variant={job.escrow_paid ? "outline" : "outline"} 
+                  className={!job.escrow_paid ? "border-red-200 text-red-600 bg-red-50" : "text-green-600 border-green-200 bg-green-50"}
+                >
                   {job.escrow_paid ? "Paid" : "Unpaid"}
                 </Badge>
               </div>
@@ -464,9 +470,8 @@ export default function JobDetailPage() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Remaining Status</span>
                 <Badge
-                  variant={
-                    job.remaining_payment_paid ? "outline" : "destructive"
-                  }
+                  variant={job.remaining_payment_paid ? "outline" : "outline"}
+                  className={!job.remaining_payment_paid ? "border-red-200 text-red-600 bg-red-50" : "text-green-600 border-green-200 bg-green-50"}
                 >
                   {job.remaining_payment_paid ? "Paid" : "Unpaid"}
                 </Badge>

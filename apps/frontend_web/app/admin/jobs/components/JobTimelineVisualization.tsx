@@ -219,7 +219,7 @@ export function JobTimelineVisualization({
       <CardContent>
         <div className="relative">
           {/* Vertical Line */}
-          <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-200" />
+          <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-200" />
 
           {/* Milestones */}
           <div className="space-y-8">
@@ -239,21 +239,21 @@ export function JobTimelineVisualization({
                   {/* Icon Circle */}
                   <div
                     className={cn(
-                      "absolute left-0 w-12 h-12 rounded-full flex items-center justify-center",
+                      "absolute left-1 w-10 h-10 rounded-full flex items-center justify-center z-10 bg-white border-2",
                       milestone.status === "completed"
-                        ? "bg-green-100"
+                        ? "border-[#00BAF1]/20 bg-white"
                         : milestone.status === "pending"
-                          ? "bg-blue-100"
-                          : "bg-gray-100"
+                          ? "border-[#00BAF1]/10 bg-white"
+                          : "border-gray-100 bg-white"
                     )}
                   >
                     <Icon
                       className={cn(
-                        "h-6 w-6",
+                        "h-4 w-4",
                         milestone.status === "completed"
-                          ? "text-green-600"
+                          ? "text-[#00BAF1]"
                           : milestone.status === "pending"
-                            ? "text-blue-600"
+                            ? "text-[#00BAF1]/60"
                             : "text-gray-400"
                       )}
                     />
@@ -284,11 +284,13 @@ export function JobTimelineVisualization({
                           </>
                         ) : (
                           <Badge
-                            variant={
+                            variant="outline"
+                            className={cn(
+                              "shadow-none",
                               milestone.status === "pending"
-                                ? "default"
-                                : "secondary"
-                            }
+                                ? "border-[#00BAF1] text-[#00BAF1] bg-[#00BAF1]/5"
+                                : "bg-gray-50 text-gray-500 border-gray-200"
+                            )}
                           >
                             {milestone.status === "pending"
                               ? "Pending"

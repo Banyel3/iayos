@@ -54,6 +54,11 @@ interface Worker {
   total_earnings?: number;
 }
 
+interface JobCategory {
+  id: number;
+  name: string;
+}
+
 interface WorkersResponse {
   success: boolean;
   workers: Worker[];
@@ -81,6 +86,8 @@ export default function WorkersPage() {
   const [totalWorkers, setTotalWorkers] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [categories, setCategories] = useState<JobCategory[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // Bulk selection state
   const [selectedWorkers, setSelectedWorkers] = useState<Set<string>>(
@@ -107,6 +114,7 @@ export default function WorkersPage() {
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (verificationFilter !== "all")
         params.append("verification_status", verificationFilter);
+      if (categoryFilter !== "all") params.append("category_id", categoryFilter);
       if (sortBy !== "newest") params.append("sort", sortBy);
 
       const response = await fetch(
@@ -134,11 +142,29 @@ export default function WorkersPage() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/adminpanel/jobs/categories`, {
+        credentials: "include",
+      });
+      const data = await response.json();
+      if (data.success) {
+        setCategories(data.categories);
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   useEffect(() => {
     fetchWorkers();
     setSelectedWorkers(new Set());
     setSelectAll(false);
-  }, [currentPage, statusFilter, verificationFilter, sortBy]);
+  }, [currentPage, statusFilter, verificationFilter, categoryFilter, sortBy]);
 
   // Debounce search
   useEffect(() => {
@@ -410,6 +436,18 @@ export default function WorkersPage() {
               <option value="unverified">Unverified</option>
             </select>
             <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id.toString()}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className="px-6 h-12 border-2 border-gray-200 rounded-xl bg-white hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-medium text-gray-700 shadow-sm outline-none"
@@ -554,19 +592,8 @@ export default function WorkersPage() {
                               {worker.email}
                             </td>
                             <td className="px-4 py-2">
-                              {worker.skills && worker.skills.length > 0 && (
-                                <div className="mb-1 flex items-center gap-1.5">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">
-                                    {worker.skills.length}/5 skills
-                                  </span>
-                                  {worker.skills.length > 5 && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
-                                      Grandfathered above limit
-                                    </span>
-                                  )}
-                                </div>
-                              )}
                               <div className="flex flex-wrap gap-1">
+
                                 {worker.skills && worker.skills.length > 0 ? (
                                   <>
                                     {worker.skills

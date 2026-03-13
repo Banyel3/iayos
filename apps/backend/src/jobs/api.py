@@ -5771,7 +5771,12 @@ def create_invite_job(
                     inviteStatus="PENDING",  # Agency/worker hasn't responded yet
                     status="ACTIVE",  # Job is created but awaiting acceptance
                     assignedAgencyFK=assigned_agency,
-                    assignedWorkerID=assigned_worker
+                    assignedWorkerID=assigned_worker,
+                    # Defensive initialization for worker timeline markers
+                    workerMarkedOnTheWay=False,
+                    workerMarkedOnTheWayAt=None,
+                    workerMarkedJobStarted=False,
+                    workerMarkedJobStartedAt=None,
                 )
                 
                 # Create escrow transaction
@@ -5847,7 +5852,12 @@ def create_invite_job(
                     inviteStatus="PENDING",
                     status="ACTIVE",
                     assignedAgencyFK=assigned_agency,
-                    assignedWorkerID=assigned_worker
+                    assignedWorkerID=assigned_worker,
+                    # Defensive initialization for worker timeline markers
+                    workerMarkedOnTheWay=False,
+                    workerMarkedOnTheWayAt=None,
+                    workerMarkedJobStarted=False,
+                    workerMarkedJobStartedAt=None,
                 )
                 
                 # Create pending transaction

@@ -1736,6 +1736,12 @@ class Job(models.Model):
     # Work started tracking (client confirms worker has arrived)
     clientConfirmedWorkStarted = models.BooleanField(default=False)
     clientConfirmedWorkStartedAt = models.DateTimeField(null=True, blank=True)
+
+    # Worker timeline markers (conversation flow)
+    workerMarkedOnTheWay = models.BooleanField(default=False)
+    workerMarkedOnTheWayAt = models.DateTimeField(null=True, blank=True)
+    workerMarkedJobStarted = models.BooleanField(default=False)
+    workerMarkedJobStartedAt = models.DateTimeField(null=True, blank=True)
     
     # Two-phase completion tracking
     workerMarkedComplete = models.BooleanField(default=False)

@@ -2150,6 +2150,45 @@ def get_conversation_messages(request, conversation_id: int):
         client_review_data = None
         worker_review_data = None
         counterparty_reviews_data = []
+
+        reviewer_profile_cache = {}
+
+        def resolve_reviewer_identity(review):
+            reviewer_account_id = review.reviewerID.accountID if review.reviewerID else None
+            reviewer_type = review.reviewerType
+            reviewer_name = None
+            reviewer_avatar = None
+
+            if reviewer_type == "AGENCY" and getattr(job, "assignedAgencyFK", None):
+                reviewer_name = job.assignedAgencyFK.businessName or "Agency"
+
+            if reviewer_account_id:
+                cached_profile = reviewer_profile_cache.get(reviewer_account_id)
+                if cached_profile is None:
+                    cached_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+                    reviewer_profile_cache[reviewer_account_id] = cached_profile
+
+                if cached_profile:
+                    profile_name = f"{cached_profile.firstName or ''} {cached_profile.lastName or ''}".strip()
+                    if profile_name:
+                        reviewer_name = profile_name
+                    reviewer_avatar = cached_profile.profileImg
+
+            if not reviewer_name:
+                if reviewer_type == "CLIENT":
+                    reviewer_name = "Client"
+                elif reviewer_type == "AGENCY":
+                    reviewer_name = "Agency"
+                else:
+                    reviewer_name = "Worker"
+
+            return {
+                "review_id": review.reviewID,
+                "reviewer_account_id": reviewer_account_id,
+                "reviewer_type": reviewer_type,
+                "reviewer_name": reviewer_name,
+                "reviewer_avatar": reviewer_avatar,
+            }
         
         if client_reviewed and client_account:
             # Get client's review of worker/employee
@@ -2168,7 +2207,13 @@ def get_conversation_messages(request, conversation_id: int):
             client_review = client_review_qs.order_by('-createdAt').first()
             
             if client_review:
+                client_reviewer_identity = resolve_reviewer_identity(client_review)
                 client_review_data = {
+                    "review_id": client_reviewer_identity["review_id"],
+                    "reviewer_account_id": client_reviewer_identity["reviewer_account_id"],
+                    "reviewer_type": client_reviewer_identity["reviewer_type"],
+                    "reviewer_name": client_reviewer_identity["reviewer_name"],
+                    "reviewer_avatar": client_reviewer_identity["reviewer_avatar"],
                     "rating_communication": float(client_review.rating_communication) if client_review.rating_communication else 0,
                     "rating_punctuality": float(client_review.rating_punctuality) if client_review.rating_punctuality else 0,
                     "rating_professionalism": float(client_review.rating_professionalism) if client_review.rating_professionalism else 0,
@@ -2185,7 +2230,13 @@ def get_conversation_messages(request, conversation_id: int):
             ).first()
             
             if worker_review:
+                worker_reviewer_identity = resolve_reviewer_identity(worker_review)
                 worker_review_data = {
+                    "review_id": worker_reviewer_identity["review_id"],
+                    "reviewer_account_id": worker_reviewer_identity["reviewer_account_id"],
+                    "reviewer_type": worker_reviewer_identity["reviewer_type"],
+                    "reviewer_name": worker_reviewer_identity["reviewer_name"],
+                    "reviewer_avatar": worker_reviewer_identity["reviewer_avatar"],
                     "rating_communication": float(worker_review.rating_communication) if worker_review.rating_communication else 0,
                     "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
                     "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
@@ -2203,7 +2254,13 @@ def get_conversation_messages(request, conversation_id: int):
             ).first()
             
             if worker_review:
+                worker_reviewer_identity = resolve_reviewer_identity(worker_review)
                 worker_review_data = {
+                    "review_id": worker_reviewer_identity["review_id"],
+                    "reviewer_account_id": worker_reviewer_identity["reviewer_account_id"],
+                    "reviewer_type": worker_reviewer_identity["reviewer_type"],
+                    "reviewer_name": worker_reviewer_identity["reviewer_name"],
+                    "reviewer_avatar": worker_reviewer_identity["reviewer_avatar"],
                     "rating_communication": float(worker_review.rating_communication) if worker_review.rating_communication else 0,
                     "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
                     "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
@@ -2229,21 +2286,19 @@ def get_conversation_messages(request, conversation_id: int):
             ).select_related("reviewerID").order_by("createdAt")
 
             for review in review_qs:
-                reviewer_account_id = review.reviewerID.accountID if review.reviewerID else None
+                reviewer_identity = resolve_reviewer_identity(review)
+                reviewer_account_id = reviewer_identity["reviewer_account_id"]
                 worker_meta = account_to_worker_meta.get(reviewer_account_id, {})
 
-                reviewer_name = worker_meta.get("name")
-                if not reviewer_name and review.reviewerType == "AGENCY" and getattr(job, "assignedAgencyFK", None):
-                    reviewer_name = job.assignedAgencyFK.businessName
-                if not reviewer_name:
-                    reviewer_name = "Worker"
+                reviewer_name = worker_meta.get("name") or reviewer_identity["reviewer_name"]
+                reviewer_avatar = worker_meta.get("avatar") or reviewer_identity["reviewer_avatar"]
 
                 counterparty_reviews_data.append({
-                    "review_id": review.reviewID,
+                    "review_id": reviewer_identity["review_id"],
                     "reviewer_account_id": reviewer_account_id,
-                    "reviewer_type": review.reviewerType,
+                    "reviewer_type": reviewer_identity["reviewer_type"],
                     "reviewer_name": reviewer_name,
-                    "reviewer_avatar": worker_meta.get("avatar"),
+                    "reviewer_avatar": reviewer_avatar,
                     "rating_communication": float(review.rating_communication) if review.rating_communication else 0,
                     "rating_punctuality": float(review.rating_punctuality) if review.rating_punctuality else 0,
                     "rating_professionalism": float(review.rating_professionalism) if review.rating_professionalism else 0,
