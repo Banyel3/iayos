@@ -118,3 +118,41 @@ export function useApproveBackjobCompletion() {
     },
   });
 }
+
+/**
+ * Agency/worker confirms client-proposed backjob scheduled date.
+ * This transitions dispute from IN_NEGOTIATION to UNDER_REVIEW.
+ */
+export function useConfirmBackjobScheduledDate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${jobId}/backjob/confirm-scheduled-date`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm backjob schedule"),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["agency-backjobs"] });
+    },
+    onError: (error: Error) => {
+      console.error("Failed to confirm backjob schedule:", error.message);
+    },
+  });
+}

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import {
   API_BASE
 } from "@/lib/api/config";
+import { useConfirmBackjobScheduledDate } from "@/lib/hooks/useAgencyBackjobActions";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +54,7 @@ interface BackjobItem {
 
 export default function AgencyBackjobsPage() {
   const router = useRouter();
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
   const [backjobs, setBackjobs] = useState<BackjobItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<
@@ -169,6 +172,22 @@ export default function AgencyBackjobsPage() {
       month: "short",
       day: "numeric",
       year: "numeric",
+    });
+  };
+
+  const handleConfirmScheduledDate = (jobId: number) => {
+    if (!window.confirm("Confirm the client-proposed backjob schedule date?")) {
+      return;
+    }
+
+    confirmBackjobScheduledDateMutation.mutate(jobId, {
+      onSuccess: () => {
+        toast.success("Backjob schedule confirmed");
+        fetchBackjobs();
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to confirm backjob schedule");
+      },
     });
   };
 
@@ -345,7 +364,28 @@ export default function AgencyBackjobsPage() {
                     {getStatusBadge(backjob.status)}
                     {getPriorityBadge(backjob.priority)}
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                  <div className="flex items-center gap-2">
+                    {backjob.status === "IN_NEGOTIATION" &&
+                      backjob.scheduled_date && (
+                        <Button
+                          size="sm"
+                          className="h-7 px-3 bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConfirmScheduledDate(backjob.job_id);
+                          }}
+                          disabled={confirmBackjobScheduledDateMutation.isPending}
+                        >
+                          {confirmBackjobScheduledDateMutation.isPending ? (
+                            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                          )}
+                          Confirm Schedule
+                        </Button>
+                      )}
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </div>
                 </div>
 
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">

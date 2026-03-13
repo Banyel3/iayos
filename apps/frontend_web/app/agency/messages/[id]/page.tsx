@@ -24,6 +24,7 @@ import {
 } from "@/lib/hooks/useAgencyDailyAttendance";
 import {
   useConfirmBackjobStarted,
+  useConfirmBackjobScheduledDate,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
 } from "@/lib/hooks/useAgencyBackjobActions";
@@ -132,6 +133,7 @@ export default function AgencyChatScreen() {
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
 
@@ -463,6 +465,26 @@ export default function AgencyChatScreen() {
     );
   };
 
+  // Handle confirm backjob scheduled date (AGENCY/assigned worker side)
+  const handleConfirmBackjobScheduledDate = () => {
+    if (!conversation?.job.id) return;
+
+    const hasConfirmed = window.confirm(
+      "Confirm the client-proposed backjob schedule date?",
+    );
+    if (!hasConfirmed) return;
+
+    confirmBackjobScheduledDateMutation.mutate(conversation.job.id, {
+      onSuccess: () => {
+        refetch();
+        toast.success("Backjob schedule confirmed");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to confirm backjob schedule");
+      },
+    });
+  };
+
   // Handle approve backjob completion (CLIENT only - but agencies shouldn't see this)
   const handleApproveBackjobCompletion = () => {
     if (!conversation?.job.id) return;
@@ -605,6 +627,33 @@ export default function AgencyChatScreen() {
                 <p className="text-xs text-amber-700 mb-2">
                   {conversation.backjob.reason || "Backjob work required"}
                 </p>
+                {conversation.backjob.status === "IN_NEGOTIATION" &&
+                  conversation.my_role === "AGENCY" && (
+                    <div className="mt-2">
+                      {conversation.backjob.scheduled_date &&
+                      !conversation.backjob.worker_schedule_confirmed ? (
+                        <Button
+                          size="sm"
+                          className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+                          onClick={handleConfirmBackjobScheduledDate}
+                          disabled={
+                            confirmBackjobScheduledDateMutation.isPending
+                          }
+                        >
+                          {confirmBackjobScheduledDateMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                          )}
+                          Confirm Scheduled Date
+                        </Button>
+                      ) : (
+                        <div className="text-xs text-gray-500 italic">
+                          Waiting for client to set schedule...
+                        </div>
+                      )}
+                    </div>
+                  )}
                 {conversation.backjob.status === "UNDER_REVIEW" && conversation.my_role === "AGENCY" && (
                   <div className="mt-2">
                     {!conversation.backjob.backjob_started ? (
