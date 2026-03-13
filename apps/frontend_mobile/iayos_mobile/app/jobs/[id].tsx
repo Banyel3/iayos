@@ -843,8 +843,11 @@ export default function JobDetailScreen() {
   };
 
   const handleCancelJob = () => {
-    if (job?.status !== "ACTIVE") {
-      Alert.alert("Cannot Cancel", "Only active jobs can be cancelled.");
+    if (job?.status === "COMPLETED" || job?.status === "CANCELLED") {
+      Alert.alert(
+        "Cannot Cancel",
+        "Completed or cancelled jobs can no longer be cancelled.",
+      );
       return;
     }
 
@@ -852,7 +855,7 @@ export default function JobDetailScreen() {
       visible: true,
       title: "Cancel Job",
       message:
-        "Are you sure you want to cancel this job? Refund/release follows platform cancellation rules.",
+        "Are you sure you want to cancel this job? Refund/release follows platform cancellation rules, and in-progress cancellations may include worker compensation.",
       confirmLabel: "Cancel Job",
       confirmStyle: "destructive",
       countdownSeconds: 5,
@@ -1510,8 +1513,10 @@ export default function JobDetailScreen() {
               />
             </TouchableOpacity>
           )}
-          {/* Cancel button - for job owner on ACTIVE jobs */}
-          {user?.accountID === job.postedBy?.id && job.status === "ACTIVE" && (
+          {/* Cancel button - for job owner on non-terminal project jobs */}
+          {user?.accountID === job.postedBy?.id &&
+            job.status !== "COMPLETED" &&
+            job.status !== "CANCELLED" && (
             <TouchableOpacity
               onPress={handleCancelJob}
               style={styles.deleteButton}

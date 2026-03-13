@@ -3609,9 +3609,9 @@ def worker_mark_on_the_way(request, job_id: int):
     if not is_authorized:
         return Response({"error": "You are not authorized for this job"}, status=403)
 
-    if job.status != JobPosting.JobStatus.IN_PROGRESS:
+    if job.status not in [JobPosting.JobStatus.IN_PROGRESS, JobPosting.JobStatus.ACTIVE]:
         return Response(
-            {"error": f"Job must be IN_PROGRESS. Current status: {job.status}"},
+            {"error": f"Job must be IN_PROGRESS or ACTIVE (legacy compatibility). Current status: {job.status}"},
             status=400,
         )
 
@@ -3680,9 +3680,9 @@ def worker_mark_job_started(request, job_id: int):
     if not is_authorized:
         return Response({"error": "You are not authorized for this job"}, status=403)
 
-    if job.status != JobPosting.JobStatus.IN_PROGRESS:
+    if job.status not in [JobPosting.JobStatus.IN_PROGRESS, JobPosting.JobStatus.ACTIVE]:
         return Response(
-            {"error": f"Job must be IN_PROGRESS. Current status: {job.status}"},
+            {"error": f"Job must be IN_PROGRESS or ACTIVE (legacy compatibility). Current status: {job.status}"},
             status=400,
         )
 
@@ -3793,9 +3793,9 @@ def client_confirm_work_started(request, job_id: int):
             )
         
         # Verify job is in progress
-        if job.status != "IN_PROGRESS":
+        if job.status not in ["IN_PROGRESS", "ACTIVE"]:
             return Response(
-                {"error": f"Job must be IN_PROGRESS. Current status: {job.status}"},
+                {"error": f"Job must be IN_PROGRESS or ACTIVE (legacy compatibility). Current status: {job.status}"},
                 status=400
             )
         

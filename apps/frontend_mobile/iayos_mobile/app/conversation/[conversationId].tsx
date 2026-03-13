@@ -153,6 +153,7 @@ export default function ChatScreen() {
     return d;
   });
   const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
+  const [isMarkOnTheWayLocked, setIsMarkOnTheWayLocked] = useState(false);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -436,6 +437,12 @@ export default function ChatScreen() {
   const normalizedJobStatus = (conversation?.job?.status || "").toUpperCase();
   const isJobCompleted = normalizedJobStatus === "COMPLETED";
   const isJobInProgress = normalizedJobStatus === "IN_PROGRESS";
+  const isJobActive = normalizedJobStatus === "ACTIVE";
+  const isJobAssigned = normalizedJobStatus === "ASSIGNED";
+  const isRegularJobTerminal =
+    normalizedJobStatus === "COMPLETED" || normalizedJobStatus === "CANCELLED";
+  const canUseRegularProjectActions =
+    isJobInProgress || isJobActive || isJobAssigned;
   const isServerMarkedClosed = normalizedConversationStatus === "COMPLETED";
   const isConversationArchived = !!conversation?.is_archived;
   const computedConversationClosed =
@@ -729,6 +736,7 @@ export default function ChatScreen() {
   // Handle worker self-status: on the way
   const handleMarkOnTheWay = () => {
     if (!conversation) return;
+    if (markOnTheWayMutation.isPending || isMarkOnTheWayLocked) return;
 
     Alert.alert(
       "Mark On The Way",
@@ -738,7 +746,12 @@ export default function ChatScreen() {
         {
           text: "Confirm",
           onPress: () => {
-            markOnTheWayMutation.mutate(conversation.job.id);
+            setIsMarkOnTheWayLocked(true);
+            markOnTheWayMutation.mutate(conversation.job.id, {
+              onSettled: () => {
+                setIsMarkOnTheWayLocked(false);
+              },
+            });
           },
         },
       ],
@@ -4148,8 +4161,8 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job.status === "ACTIVE" &&
-                !conversation.job.clientConfirmedWorkStarted && (
+                canUseRegularProjectActions &&
+                !isRegularJobTerminal && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.cancelJobButton]}
                     onPress={handleCancelJob}
@@ -4174,21 +4187,10 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
-                (!conversation.job?.preferred_start_date ||
-                  new Date() >=
-                    (() => {
-                      const d = new Date(
-                        conversation.job.preferred_start_date!,
-                      );
-                      d.setHours(0, 0, 0, 0);
-                      return d;
-                    })()) &&
+                canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted &&
-                (conversation.job.materials_status === "NONE" ||
-                  conversation.job.materials_status === "APPROVED" ||
-                  !conversation.job.materials_status) && (
+                !conversation.job.workerMarkedJobStarted && (
                   <TouchableOpacity
                     style={[
                       styles.actionButton,
@@ -4219,6 +4221,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete && (
                   <View style={[styles.actionButton, styles.waitingButton]}>
@@ -4238,12 +4241,14 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
-                !conversation.job.workerMarkedOnTheWay && (
+                !conversation.job.workerMarkedOnTheWay &&
+                !isMarkOnTheWayLocked && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.onTheWayButton]}
                     onPress={handleMarkOnTheWay}
-                    disabled={markOnTheWayMutation.isPending}
+                    disabled={markOnTheWayMutation.isPending || isMarkOnTheWayLocked}
                   >
                     {markOnTheWayMutation.isPending ? (
                       <ActivityIndicator size="small" color={Colors.white} />
@@ -4266,6 +4271,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedOnTheWay &&
                 !conversation.job.workerMarkedJobStarted && (
@@ -4291,6 +4297,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedOnTheWay &&
                 !conversation.job.workerMarkedJobStarted && (
@@ -4321,6 +4328,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
                 conversation.job.workerMarkedJobStarted &&
                 !conversation.job.workerMarkedComplete && (
@@ -4371,6 +4379,8 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete &&
                 !conversation.job.remainingPaymentPaid && (
