@@ -40,7 +40,6 @@ from django.utils import timezone
 from datetime import timedelta, datetime as dt_datetime
 from zoneinfo import ZoneInfo
 
-MINIMUM_CHECKOUT_HOURS = 2
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
 
@@ -7610,19 +7609,6 @@ def worker_check_out(request, job_id: int):
                 "time_out": attendance.time_out.isoformat()
             }, status=400)
         
-        # Enforce minimum work duration before checkout (applies in QA and production)
-        if attendance.time_in:
-            elapsed_seconds = (now - attendance.time_in).total_seconds()
-            minimum_seconds = MINIMUM_CHECKOUT_HOURS * 3600
-            if elapsed_seconds < minimum_seconds:
-                remaining_minutes = int((minimum_seconds - elapsed_seconds + 59) // 60)
-                return Response({
-                    "error": f"Checkout is allowed only after {MINIMUM_CHECKOUT_HOURS} hours of work",
-                    "minimum_hours": MINIMUM_CHECKOUT_HOURS,
-                    "remaining_minutes": remaining_minutes,
-                    "time_in": attendance.time_in.isoformat(),
-                }, status=400)
-
         # Update time_out
         attendance.time_out = now
         attendance.save()

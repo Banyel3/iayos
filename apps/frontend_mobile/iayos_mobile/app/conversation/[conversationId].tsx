@@ -2794,23 +2794,22 @@ export default function ChatScreen() {
                                   styles.checkOutButton,
                                 ]}
                                 onPress={() =>
-                                  Alert.alert(
-                                    "Check Out",
-                                    "Checkout is only allowed after at least 2 hours from check-in.",
-                                    [
-                                      {
-                                        text: "Cancel",
-                                        style: "cancel",
-                                      },
-                                      {
-                                        text: "Check Out",
-                                        onPress: () =>
-                                          workerCheckOutMutation.mutate(
-                                            conversation.job.id,
-                                          ),
-                                      },
-                                    ],
-                                  )
+                                  setCountdownConfig({
+                                    visible: true,
+                                    title: "Confirm Check Out",
+                                    message:
+                                      "You are about to check out for today. Please confirm to continue.",
+                                    confirmLabel: "Check Out",
+                                    countdownSeconds: 6,
+                                    onConfirm: () => {
+                                      setCountdownConfig(null);
+                                      workerCheckOutMutation.mutate(
+                                        conversation.job.id,
+                                      );
+                                    },
+                                    icon: "log-out-outline",
+                                    iconColor: Colors.warning,
+                                  })
                                 }
                                 disabled={workerCheckOutMutation.isPending}
                               >

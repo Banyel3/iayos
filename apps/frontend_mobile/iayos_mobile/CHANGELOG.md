@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DAILY Worker Checkout Confirmation Update**
+  - Removed the backend 2-hour minimum work-duration blocker for worker checkout in DAILY jobs.
+  - Added a 6-second delayed confirmation dialog before worker checkout to prevent accidental checkouts.
+  - Preserved existing safeguards (must be assigned and must have checked in first).
+  - **Impact**: Workers can check out when needed without duration lockouts, while still getting anti-misclick protection.
+
 - **Daily-Rate Authorization and Payment Accuracy Hardening**
   - Added stricter DAILY authorization checks across backend attendance/summary/extension/rate-change APIs to block non-participant access.
   - Added team-aware DAILY actor resolution so team workers can participate in extension/rate-change approval flows.
