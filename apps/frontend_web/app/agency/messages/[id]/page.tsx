@@ -14,6 +14,7 @@ import {
   useAgencyMarkComplete,
   useAgencySubmitReview,
   useUploadCompletionPhoto,
+  AssignedEmployee,
 } from "@/lib/hooks/useAgencyConversations";
 import {
   useAgencyDailyAttendance,
@@ -60,11 +61,14 @@ import {
   X,
   Upload,
   Send,
+  Users,
+  DollarSign,
 } from "lucide-react";
 import { format, isSameDay } from "date-fns";
 import { toast } from "sonner";
 import type { AgencyMessage } from "@/lib/hooks/useAgencyConversations";
 import { useAgencyVoiceCall } from "@/lib/hooks/useAgencyVoiceCall";
+import { DUMMY_CONVERSATION_DETAILS } from "../dummy_data";
 
 export default function AgencyChatScreen() {
   const router = useRouter();
@@ -105,11 +109,16 @@ export default function AgencyChatScreen() {
   );
 
   // Fetch conversation and messages using agency hooks
+  const isDummy = !!DUMMY_CONVERSATION_DETAILS[conversationId];
   const {
-    data: conversation,
-    isLoading,
-    refetch,
-  } = useAgencyMessages(conversationId);
+    data: realConversation,
+    isLoading: isRealLoading,
+    refetch: realRefetch,
+  } = useAgencyMessages(isDummy ? null : conversationId);
+
+  const conversation = isDummy ? DUMMY_CONVERSATION_DETAILS[conversationId] : realConversation;
+  const isLoading = isDummy ? false : isRealLoading;
+  const refetch = isDummy ? () => {} : realRefetch;
 
   // Send message mutation using agency hook
   const sendMutation = useAgencySendMessage();
@@ -411,7 +420,7 @@ export default function AgencyChatScreen() {
           setReviewText("");
           refetch();
         },
-        onError: (error) => {
+        onError: (error: any) => {
           toast.error(error.message || "Failed to submit review");
         },
       },
@@ -523,946 +532,283 @@ export default function AgencyChatScreen() {
     conversation;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <Card className="rounded-none border-b">
-        <CardHeader className="p-4">
-          <div className="flex items-center justify-between">
-            {/* Left: Back button + Client info */}
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleBack}
-                className="flex-shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Main Chat Area */}
+      <div className="flex flex-col flex-1 min-w-0 h-full relative">
+        {/* Header - Floating style as requested */}
+        <div className="p-4 bg-transparent z-10">
+          <Card className="rounded-2xl border-none shadow-sm">
+            <CardHeader className="p-4">
+              <div className="flex items-center justify-between">
+                {/* Left: Back button + Client info */}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleBack}
+                    className="flex-shrink-0"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
 
-              <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarImage src={client.avatar || ""} />
-                <AvatarFallback className="bg-blue-100 text-blue-700">
-                  {getInitials(client.name)}
-                </AvatarFallback>
-              </Avatar>
+                  <Avatar className="h-10 w-10 flex-shrink-0">
+                    <AvatarImage src={client.avatar || ""} />
+                    <AvatarFallback className="bg-blue-100 text-blue-700">
+                      {getInitials(client.name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-              <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-semibold text-gray-900 truncate">
-                  {client.name}
-                </h2>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Briefcase className="h-3 w-3" />
-                  <span className="truncate">{job.title}</span>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900 truncate">
+                      {client.name}
+                    </h2>
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Briefcase className="h-3 w-3" />
+                      <span className="truncate">{job.title}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleStartCall}
+                    disabled={callStatus !== "idle" && callStatus !== "ended"}
+                    title="Start voice call"
+                    className="rounded-full h-10 w-10"
+                  >
+                    <Phone className="h-4 w-4 text-[#00BAF1]" />
+                  </Button>
                 </div>
               </div>
-            </div>
+            </CardHeader>
+          </Card>
+        </div>
 
-            {/* Right: Status badges */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleStartCall}
-                disabled={callStatus !== "idle" && callStatus !== "ended"}
-                title="Start voice call"
-              >
-                <Phone className="h-4 w-4 text-green-600" />
-              </Button>
-              {isConnected ? (
-                <Badge variant="default" className="bg-green-500">
-                  <Wifi className="h-3 w-3 mr-1" />
-                  Live
-                </Badge>
-              ) : (
-                <Badge variant="destructive">
-                  <WifiOff className="h-3 w-3 mr-1" />
-                  Offline
-                </Badge>
-              )}
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Job info banner with assigned employee */}
-          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-blue-600" />
-                <span className="text-gray-700">{job.location}</span>
-              </div>
-              <Badge
-                variant="outline"
-                className="text-blue-700 border-blue-300"
-              >
-                ₱{(job.budget ?? 0).toLocaleString()}
-              </Badge>
-            </div>
-            {/* Multi-employee display */}
-            {assigned_employees && assigned_employees.length > 0 ? (
-              <div className="flex flex-col gap-1 text-sm text-gray-600 pt-2 border-t border-blue-200">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium">
-                    Assigned Workers ({assigned_employees.length}):
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2 ml-6">
-                  {assigned_employees.map((emp) => (
-                    <Badge
-                      key={emp.employeeId}
-                      variant={emp.isPrimaryContact ? "default" : "secondary"}
-                      className={`text-xs ${emp.isPrimaryContact ? "bg-blue-600" : ""}`}
-                    >
-                      {emp.name}
-                      {emp.isPrimaryContact && " ⭐"}
-                      {emp.rating && ` (${emp.rating.toFixed(1)})`}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              assigned_employee && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 pt-2 border-t border-blue-200">
-                  <User className="h-4 w-4 text-blue-600" />
-                  <span>Assigned: {assigned_employee.name}</span>
-                  {assigned_employee.employeeOfTheMonth && (
-                    <Badge
-                      variant="default"
-                      className="text-xs bg-amber-500 hover:bg-amber-600"
-                    >
-                      🏆 EOTM
-                    </Badge>
-                  )}
-                  {assigned_employee.rating && (
-                    <Badge variant="secondary" className="text-xs">
-                      ⭐ {assigned_employee.rating.toFixed(1)}
-                    </Badge>
-                  )}
-                </div>
-              )
-            )}
-          </div>
-
-          {/* Backjob Workflow Section - Only show if there's an active backjob */}
-          {conversation.backjob?.has_backjob && (
-            <div className="mt-3">
-              {/* Backjob Banner */}
-              <div className="p-3 bg-amber-50 rounded-lg border-2 border-amber-300 mb-2">
+        {/* Scrollable Message Area */}
+        <div 
+          ref={messagesContainerRef} 
+          className="flex-1 overflow-y-auto px-4 pb-4 scroll-smooth"
+        >
+          <div className="max-w-4xl mx-auto space-y-4 pt-2">
+            {/* Status Banners */}
+            {conversation.backjob?.has_backjob && (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="h-5 w-5 text-amber-600" />
-                  <span className="text-sm font-bold text-amber-800">
-                    🔄 Active Backjob Request
-                  </span>
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm font-bold text-amber-800">Active Backjob Request</span>
                 </div>
-                <p className="text-xs text-amber-700 mb-1">
+                <p className="text-xs text-amber-700 mb-2">
                   {conversation.backjob.reason || "Backjob work required"}
                 </p>
-                <Badge
-                  variant="outline"
-                  className="text-xs bg-amber-100 text-amber-800 border-amber-300"
-                >
-                  Status:{" "}
-                  {conversation.backjob.status === "UNDER_REVIEW"
-                    ? "Action Required"
-                    : conversation.backjob.status === "IN_NEGOTIATION"
-                      ? "In Negotiation"
-                      : "Pending Review"}
-                </Badge>
-              </div>
-
-              {/* Backjob Workflow Actions - Only for UNDER_REVIEW status */}
-              {conversation.backjob.status === "UNDER_REVIEW" && (
-                <>
-                  {/* AGENCY/WORKER: Waiting for Client Confirmation */}
-                  {conversation.my_role === "AGENCY" &&
-                    !conversation.backjob.backjob_started && (
-                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm text-gray-700 font-medium">
-                            Waiting for client to confirm backjob started...
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          The client needs to confirm that your employee has
-                          arrived and started the backjob work
-                        </p>
-                      </div>
-                    )}
-
-                  {/* AGENCY/WORKER: Mark Backjob Complete Button */}
-                  {conversation.my_role === "AGENCY" &&
-                    conversation.backjob.backjob_started &&
-                    !conversation.backjob.worker_marked_complete && (
-                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm text-blue-800 font-medium">
-                              Client confirmed backjob started
-                            </span>
-                          </div>
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={() => setShowBackjobCompleteModal(true)}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Mark Complete
-                          </Button>
-                        </div>
-                        <p className="text-xs text-blue-600 mt-1">
-                          Once the backjob work is finished, mark it as complete
-                        </p>
-                      </div>
-                    )}
-
-                  {/* AGENCY/WORKER: Waiting for Client Approval */}
-                  {conversation.my_role === "AGENCY" &&
-                    conversation.backjob.worker_marked_complete &&
-                    !conversation.backjob.client_confirmed && (
-                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
-                          <span className="text-sm text-amber-800 font-medium">
-                            ⏳ Waiting for client to approve backjob completion
-                          </span>
-                        </div>
-                        <p className="text-xs text-amber-600 mt-1">
-                          You've marked the backjob as complete. The client will
-                          review and approve the work.
-                        </p>
-                      </div>
-                    )}
-
-                  {/* Backjob Completed */}
-                  {conversation.backjob.client_confirmed && (
-                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-800 font-medium">
-                          ✅ Backjob Completed Successfully!
-                        </span>
-                      </div>
-                      <p className="text-xs text-green-600 mt-1">
-                        The backjob work has been approved by the client. The
-                        dispute is now resolved.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Job Status & Actions Section */}
-          <div className="mt-3">
-            {/* Agency PROJECT job workflow status (dispatch → arrival → complete → client pays) */}
-            {job.payment_model === "PROJECT" &&
-              job.status === "IN_PROGRESS" &&
-              !job.workerMarkedComplete &&
-              !job.clientMarkedComplete &&
-              assigned_employees &&
-              assigned_employees.length > 0 &&
-              (() => {
-                const allDispatched = assigned_employees.every(
-                  (e) => e.dispatched,
-                );
-                const allArrived = assigned_employees.every(
-                  (e) => e.clientConfirmedArrival,
-                );
-                const allComplete = assigned_employees.every(
-                  (e) => e.agencyMarkedComplete,
-                );
-                const dispatchedCount = assigned_employees.filter(
-                  (e) => e.dispatched,
-                ).length;
-                const arrivedCount = assigned_employees.filter(
-                  (e) => e.clientConfirmedArrival,
-                ).length;
-                const completeCount = assigned_employees.filter(
-                  (e) => e.agencyMarkedComplete,
-                ).length;
-                const totalCount = assigned_employees.length;
-
-                // State 1: Not all employees dispatched yet
-                if (!allDispatched) {
-                  return (
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Clock className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm text-blue-800 font-medium">
-                          Dispatch your employees to begin work
-                        </span>
-                        <span className="text-xs text-blue-600 ml-auto">
-                          {dispatchedCount}/{totalCount} dispatched
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {assigned_employees.map((emp) => (
-                          <div
-                            key={emp.employeeId}
-                            className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-blue-100"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700">
-                                {emp.name?.charAt(0) || "?"}
-                              </div>
-                              <span className="text-sm text-gray-800">
-                                {emp.name}
-                              </span>
-                              {emp.role && (
-                                <span className="text-xs text-gray-500">
-                                  ({emp.role})
-                                </span>
-                              )}
-                            </div>
-                            {emp.dispatched ? (
-                              <Badge
-                                variant="outline"
-                                className="text-xs border-blue-500 text-blue-700"
-                              >
-                                🚗 Dispatched
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs border-blue-500 text-blue-700 hover:bg-blue-50"
-                                onClick={() => {
-                                  dispatchProjectMutation.mutate({
-                                    jobId: job.id,
-                                    employeeId: emp.employeeId,
-                                    conversationId,
-                                  });
-                                }}
-                                disabled={dispatchProjectMutation.isPending}
-                              >
-                                {dispatchProjectMutation.isPending ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Send className="h-3 w-3 mr-1" />
-                                )}
-                                Dispatch
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-
-                // State 2: All dispatched, waiting for client to confirm arrivals
-                if (!allArrived) {
-                  return (
-                    <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm text-yellow-800 font-medium">
-                          Waiting for client to confirm employee arrivals
-                        </span>
-                      </div>
-                      <p className="text-xs text-yellow-600 mt-1">
-                        {arrivedCount}/{totalCount} arrivals confirmed by
-                        client. The client needs to verify each employee has
-                        arrived at the work site.
-                      </p>
-                    </div>
-                  );
-                }
-
-                // State 3: All arrived, agency can mark work complete
-                if (!allComplete) {
-                  return (
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm text-blue-800 font-medium">
-                            All employees arrived — ready to mark complete
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => setShowMarkCompleteModal(true)}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Mark Complete
-                        </Button>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-1">
-                        {completeCount}/{totalCount} employees marked complete.
-                        Once all work is finished, mark the job as complete.
-                      </p>
-                    </div>
-                  );
-                }
-
-                // State 4: All complete, waiting for client to approve & pay
-                return (
-                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
-                      <span className="text-sm text-amber-800 font-medium">
-                        ⏳ Waiting for client to approve and pay
-                      </span>
-                    </div>
-                    <p className="text-xs text-amber-600 mt-1">
-                      All {totalCount} employees have completed their work. The
-                      client will review and approve the job.
-                    </p>
-                  </div>
-                );
-              })()}
-
-            {/* Fallback: Waiting for client to confirm work started (non-agency PROJECT jobs) */}
-            {job.payment_model === "PROJECT" &&
-              job.status === "IN_PROGRESS" &&
-              (!assigned_employees || assigned_employees.length === 0) &&
-              !job.clientConfirmedWorkStarted && (
-                <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm text-yellow-800 font-medium">
-                      Waiting for client to confirm work has started
-                    </span>
-                  </div>
-                  <p className="text-xs text-yellow-600 mt-1">
-                    The client needs to confirm that your employee has arrived
-                    and started working
-                  </p>
-                </div>
-              )}
-
-            {/* Status: Daily attendance tracking active (DAILY jobs) */}
-            {job.payment_model === "DAILY" && job.status === "IN_PROGRESS" && (
-              <>
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-800 font-medium">
-                      Daily attendance tracking active
-                    </span>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Mark which employees are working today. Client will verify
-                    attendance.
-                  </p>
-                </div>
-
-                {/* Agency Skip-Day Request Section */}
-                <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      📅 Skip Day Request
-                    </h3>
-                    <Badge variant="outline" className="text-xs">
-                      Client approval required
-                    </Badge>
-                  </div>
-
-                  <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2">
-                    <p className="text-xs text-amber-800 font-medium">
-                      Client approval is not guaranteed. If a skip-day request
-                      is rejected, repeated abuse may lead to reports and
-                      possible admin action.
-                    </p>
-                  </div>
-
-                  {(() => {
-                    const todaySkipRequest =
-                      conversation.daily_skip_requests_today?.[0];
-                    const requestToday = new Date().toISOString().split("T")[0];
-
-                    if (!todaySkipRequest) {
-                      return (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-red-500 text-red-700 hover:bg-red-50"
-                          onClick={() => {
-                            if (!job?.id) return;
-                            requestSkipDayMutation.mutate({
-                              jobId: job.id,
-                              request_date: requestToday,
-                              conversationId,
-                            });
-                          }}
-                          disabled={requestSkipDayMutation.isPending}
-                        >
-                          {requestSkipDayMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                          ) : (
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                          )}
-                          Request Skip Day (Today)
-                        </Button>
-                      );
-                    }
-
-                    if (todaySkipRequest.status === "PENDING") {
-                      return (
-                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
-                            <span className="text-sm text-amber-800 font-medium">
-                              ⏳ Skip day request pending client review
-                            </span>
-                          </div>
-                          {todaySkipRequest.requires_all_team_workers && (
-                            <p className="text-xs text-amber-700 mt-1">
-                              Team consensus: {todaySkipRequest.requested_count}/
-                              {todaySkipRequest.total_required} workers requested
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    if (todaySkipRequest.status === "APPROVED") {
-                      return (
-                        <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span className="text-sm text-green-800 font-medium">
-                              ✅ Skip day approved by client
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-red-600" />
-                          <span className="text-sm text-red-800 font-medium">
-                            Skip day request rejected
-                          </span>
-                        </div>
-                        {!!todaySkipRequest.client_rejection_reason && (
-                          <p className="text-xs text-red-700 mt-1">
-                            {todaySkipRequest.client_rejection_reason}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Daily Attendance Section */}
-                <div className="mt-3 p-4 bg-white rounded-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      📋 Daily Attendance -{" "}
-                      {new Date().toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </h3>
-                    <Badge variant="outline" className="text-xs">
-                      {attendanceData?.records.length || 0} employees
-                    </Badge>
-                  </div>
-
-                  {/* Employee List with Checkboxes */}
-                  <div className="space-y-2">
-                    {assigned_employees && assigned_employees.length > 0 ? (
-                      assigned_employees.map((emp: any) => {
-                        const attendance = attendanceData?.records.find(
-                          (r: any) => r.employee_id === emp.employeeId,
-                        );
-                        const isDispatched =
-                          !!attendance && !attendance.time_in; // On the way, not yet arrived
-                        const hasArrived = !!attendance?.time_in; // Client verified arrival
-                        const hasCheckedOut = !!attendance?.time_out; // Client marked checkout
-                        const isClientConfirmed =
-                          !!attendance?.client_confirmed;
-
-                        return (
-                          <div
-                            key={emp.employeeId}
-                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
-                          >
-                            {/* Left: Employee info and checkbox */}
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm text-gray-900">
-                                    {emp.name}
-                                  </span>
-                                  {emp.isPrimaryContact && (
-                                    <Badge
-                                      variant="default"
-                                      className="text-xs bg-blue-600"
-                                    >
-                                      ⭐ Primary
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-gray-500">
-                                  {hasArrived && attendance.time_in && (
-                                    <span className="flex items-center gap-1">
-                                      <CheckCircle className="h-3 w-3 text-green-600" />
-                                      Arrived:{" "}
-                                      {new Date(
-                                        attendance.time_in,
-                                      ).toLocaleTimeString("en-US", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                  )}
-                                  {hasCheckedOut && attendance.time_out && (
-                                    <span className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3 text-gray-600" />
-                                      Left:{" "}
-                                      {new Date(
-                                        attendance.time_out,
-                                      ).toLocaleTimeString("en-US", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Right: Action buttons and status */}
-                            <div className="flex items-center gap-2">
-                              {!attendance ? (
-                                // No attendance record - show Dispatch button
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs border-blue-500 text-blue-700 hover:bg-blue-50"
-                                  onClick={() => {
-                                    dispatchEmployeeMutation.mutate({
-                                      jobId: job.id,
-                                      employeeId: emp.employeeId,
-                                    });
-                                  }}
-                                  disabled={dispatchEmployeeMutation.isPending}
-                                >
-                                  {dispatchEmployeeMutation.isPending ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                  )}
-                                  Dispatch
-                                </Button>
-                              ) : isDispatched ? (
-                                // Dispatched but not yet verified by client
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs border-blue-500 text-blue-700"
-                                >
-                                  🚗 On the Way
-                                </Badge>
-                              ) : !hasCheckedOut ? (
-                                // Working (client verified arrival, not checked out yet)
-                                <Badge
-                                  variant="default"
-                                  className="text-xs bg-green-600"
-                                >
-                                  ✓ Working
-                                </Badge>
-                              ) : isClientConfirmed ? (
-                                // Client confirmed and paid
-                                <Badge
-                                  variant="default"
-                                  className="text-xs bg-blue-600"
-                                >
-                                  ✓ Client Verified
-                                </Badge>
-                              ) : (
-                                // Checked out, awaiting client payment
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs border-amber-500 text-amber-700"
-                                >
-                                  ⏳ Awaiting Payment
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-4 text-sm text-gray-500">
-                        No employees assigned to this job
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Status: Ready to mark complete (non-agency-workflow fallback) */}
-            {job.status === "IN_PROGRESS" &&
-              (!assigned_employees || assigned_employees.length === 0) &&
-              job.clientConfirmedWorkStarted &&
-              !job.workerMarkedComplete && (
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm text-blue-800 font-medium">
-                        Client confirmed work has started
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={() => setShowMarkCompleteModal(true)}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Mark Complete
-                    </Button>
-                  </div>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Once the job is finished, mark it as complete for the client
-                    to approve
-                  </p>
-                </div>
-              )}
-
-            {/* Status: Waiting for client approval */}
-            {job.workerMarkedComplete && !job.clientMarkedComplete && (
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
-                  <span className="text-sm text-amber-800 font-medium">
-                    ⏳ Waiting for client to approve completion
-                  </span>
-                </div>
-                <p className="text-xs text-amber-600 mt-1">
-                  You've marked the job as complete. The client will review and
-                  approve the work.
-                </p>
-              </div>
-            )}
-
-            {/* Status: Completed - Show review section */}
-            {job.clientMarkedComplete && (
-              <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-800 font-medium">
-                    ✅ Job Completed Successfully!
-                  </span>
-                </div>
-
-                {/* Both parties reviewed - fully closed */}
-                {job.workerReviewed && job.clientReviewed ? (
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-green-200">
-                    <CheckCircle className="h-3 w-3 text-green-600" />
-                    <span className="text-xs text-green-700">
-                      Both parties have submitted reviews. This job is complete.
-                    </span>
-                  </div>
-                ) : !job.workerReviewed ? (
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-green-200">
-                    <span className="text-sm text-gray-600">
-                      Leave a review for the client
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-green-500 text-green-700 hover:bg-green-100"
-                      onClick={() => setShowReviewModal(true)}
-                    >
-                      <Star className="h-4 w-4 mr-1" />
-                      Leave Review
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-green-200">
-                    <CheckCircle className="h-3 w-3 text-green-600" />
-                    <span className="text-xs text-green-700">
-                      You've submitted your review
-                    </span>
-                    {!job.clientReviewed && (
-                      <span className="text-xs text-gray-500 ml-2">
-                        • Waiting for client's review
-                      </span>
+                {conversation.backjob.status === "UNDER_REVIEW" && conversation.my_role === "AGENCY" && (
+                  <div className="mt-2">
+                    {!conversation.backjob.backjob_started ? (
+                      <div className="text-xs text-gray-500 italic">Waiting for client to confirm...</div>
+                    ) : !conversation.backjob.worker_marked_complete && (
+                      <Button size="sm" className="w-full bg-green-600 hover:bg-green-700" onClick={() => setShowBackjobCompleteModal(true)}>
+                        <CheckCircle className="h-3 w-3 mr-1" /> Mark Complete
+                      </Button>
                     )}
                   </div>
                 )}
               </div>
             )}
-          </div>
-        </CardHeader>
-      </Card>
 
-      {/* Messages list */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4">
-        {messages.map((message: AgencyMessage, index: number) => {
-          const currentDate = new Date(message.created_at);
-          const previousDate =
-            index > 0 ? new Date(messages[index - 1].created_at) : undefined;
+            {job.status === "IN_PROGRESS" && job.payment_model === "PROJECT" && assigned_employees?.length > 0 && (
+              (() => {
+                const allDispatched = assigned_employees.every((e: AssignedEmployee) => e.dispatched);
+                const allArrived = assigned_employees.every((e: AssignedEmployee) => e.clientConfirmedArrival);
+                const allComplete = assigned_employees.every((e: AssignedEmployee) => e.agencyMarkedComplete);
+                const dispatchedCount = assigned_employees.filter((e: AssignedEmployee) => e.dispatched).length;
+                const arrivedCount = assigned_employees.filter((e: AssignedEmployee) => e.clientConfirmedArrival).length;
+                const totalCount = assigned_employees.length;
 
-          return (
-            <div key={`${message.message_id}-${index}`}>
-              {renderDateSeparator(currentDate, previousDate)}
-              {/* System messages - centered with distinct styling */}
-              {message.message_type === "SYSTEM" ? (
-                <div className="flex justify-center my-3">
-                  <div className="bg-gray-100 text-gray-600 text-sm px-4 py-2 rounded-full max-w-[80%] text-center">
-                    {message.message_text}
-                    <span className="text-xs text-gray-400 ml-2">
-                      {format(new Date(message.created_at), "h:mm a")}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                /* Inline message bubble for agency chat */
-                <div
-                  className={`flex mb-3 ${
-                    message.is_mine ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  {!message.is_mine && (
-                    <Avatar className="h-8 w-8 mr-2 flex-shrink-0">
-                      <AvatarImage src={message.sender_avatar || ""} />
-                      <AvatarFallback className="bg-gray-200 text-gray-600 text-xs">
-                        {getInitials(message.sender_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div
-                    className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                      message.is_mine
-                        ? "bg-blue-600 text-white rounded-br-sm"
-                        : "bg-white border border-gray-200 text-gray-900 rounded-bl-sm"
-                    }`}
-                  >
-                    {!message.is_mine && (
-                      <p className="text-xs font-medium text-gray-500 mb-1">
-                        {message.sender_name}
-                        {message.sent_by_agency && (
-                          <Badge
-                            variant="outline"
-                            className="ml-2 text-xs py-0"
-                          >
-                            <Building2 className="h-3 w-3 mr-1" />
-                            Agency
-                          </Badge>
-                        )}
-                      </p>
-                    )}
-                    {message.message_type === "IMAGE" &&
-                    message.message_text ? (
-                      <img
-                        src={message.message_text}
-                        alt="Image"
-                        className="max-w-full rounded-lg cursor-pointer"
-                        onClick={() => setShowImageModal(message.message_text)}
-                      />
-                    ) : message.message_type === "IMAGE" ? (
-                      <div className="text-sm text-gray-500 italic">
-                        [Image not available]
+                if (!allDispatched) {
+                  return (
+                    <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-blue-900">Dispatch Pending ({dispatchedCount}/{totalCount})</span>
+                        </div>
+                        <div className="space-y-1.5 text-xs">
+                          {assigned_employees.map((e: AssignedEmployee) => !e.dispatched && (
+                            <div key={e.employeeId} className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100">
+                              <span>{e.name}</span>
+                              <Button size="sm" className="h-6 px-3 bg-[#00BAF1] text-[10px]" onClick={() => dispatchProjectMutation.mutate({ jobId: job.id, employeeId: e.employeeId, conversationId })}>
+                                Dispatch
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                if (!allArrived) {
+                  return (
+                    <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
+                      Waiting for client to confirm arrivals ({arrivedCount}/{totalCount})
+                    </div>
+                  );
+                }
+                if (!allComplete) {
+                  return (
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-blue-900">Ready to complete</span>
+                      <Button size="sm" className="bg-green-600 px-3 h-7 text-[10px]" onClick={() => setShowMarkCompleteModal(true)}>Complete Job</Button>
+                    </div>
+                  );
+                }
+                return null;
+              })()
+            )}
+
+            {/* Message Map */}
+            {messages.map((message: AgencyMessage, index: number) => {
+              const currentDate = new Date(message.created_at);
+              const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : undefined;
+
+              return (
+                <div key={`${message.message_id}-${index}`}>
+                  {renderDateSeparator(currentDate, previousDate)}
+                  {message.message_type === "SYSTEM" ? (
+                    <div className="flex justify-center my-4 text-[11px] text-gray-400 font-medium uppercase tracking-wider text-center">
+                      {message.message_text} — {format(currentDate, "h:mm a")}
+                    </div>
+                  ) : (
+                    <div className={`flex mb-4 ${message.is_mine ? "justify-end" : "justify-start"}`}>
+                      {!message.is_mine && (
+                        <Avatar className="h-8 w-8 mr-2 flex-shrink-0 mt-1">
+                          <AvatarImage src={message.sender_avatar || ""} />
+                          <AvatarFallback className="text-[10px] font-bold">{getInitials(message.sender_name)}</AvatarFallback>
+                        </Avatar>
+                      )}
+                      <div className={`max-w-[75%] space-y-1 ${message.is_mine ? "items-end" : "items-start"}`}>
+                        <div className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm ${
+                          message.is_mine 
+                            ? "bg-[#00BAF1] text-white rounded-br-none" 
+                            : "bg-white border border-gray-100 text-gray-800 rounded-bl-none"
+                        }`}>
+                          {message.message_type === "IMAGE" && message.message_text ? (
+                            <img src={message.message_text} alt="Shared" className="rounded-lg max-w-full cursor-pointer hover:opacity-95" onClick={() => setShowImageModal(message.message_text)} />
+                          ) : (
+                            <p className="whitespace-pre-wrap leading-relaxed">{message.message_text}</p>
+                          )}
+                        </div>
+                        <p className={`text-[10px] font-medium px-1 ${message.is_mine ? "text-right text-gray-400" : "text-left text-gray-400"}`}>
+                          {format(currentDate, "h:mm a")}
+                        </p>
                       </div>
-                    ) : (
-                      <p className="text-sm whitespace-pre-wrap">
-                        {message.message_text}
-                      </p>
-                    )}
-                    <p
-                      className={`text-xs mt-1 ${
-                        message.is_mine ? "text-blue-200" : "text-gray-400"
-                      }`}
-                    >
-                      {format(new Date(message.created_at), "h:mm a")}
-                    </p>
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
 
-        {/* Typing indicator */}
-        {isTyping && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-            <div className="flex gap-1">
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-              <div
-                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                style={{ animationDelay: "0.1s" }}
-              />
-              <div
-                className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                style={{ animationDelay: "0.2s" }}
-              />
-            </div>
-            <span>{client.name} is typing...</span>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Message input or Conversation Closed banner */}
-      {job.clientMarkedComplete && job.workerReviewed && job.clientReviewed ? (
-        <div className="p-4 bg-gray-100 border-t border-gray-200">
-          <div className="flex items-center justify-center gap-2 text-gray-600">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            <span className="text-sm font-medium">
-              This conversation has been closed. Both parties have submitted
-              reviews.
-            </span>
+            {isTyping && (
+              <div className="flex items-center gap-2 text-[11px] text-gray-400 italic font-medium px-2">
+                <span className="flex gap-1">
+                  <span className="w-1 h-1 bg-gray-300 rounded-full animate-bounce" />
+                  <span className="w-1 h-1 bg-gray-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                  <span className="w-1 h-1 bg-gray-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                </span>
+                {client.name} is typing...
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         </div>
-      ) : (
-        <MessageInput
-          onSend={handleSendMessage}
-          onTyping={sendTyping}
-          onImageSelect={handleImageSelect}
-          disabled={!isConnected || sendMutation.isPending}
-          isUploading={isUploading}
-          placeholder={
-            isConnected ? "Type a message..." : "Reconnecting... Please wait"
-          }
-        />
-      )}
 
-      {/* Incoming call modal */}
+        {/* Message Input - Floating Style */}
+        <div className="p-4 bg-transparent mt-auto z-10">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {job.clientMarkedComplete && job.workerReviewed && job.clientReviewed ? (
+              <div className="p-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-widest">
+                Conversation Closed
+              </div>
+            ) : (
+              <MessageInput
+                onSend={handleSendMessage}
+                onTyping={sendTyping}
+                onImageSelect={handleImageSelect}
+                disabled={!isConnected || sendMutation.isPending}
+                isUploading={isUploading}
+                placeholder={isConnected ? "Type a message..." : "Reconnecting..."}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Right Sidebar - Job Details */}
+      <div className="w-[380px] p-4 bg-transparent hidden lg:flex flex-col h-full">
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-y-auto p-6 space-y-8">
+          <div>
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 px-1">Job Information</h3>
+            <div className="space-y-6">
+              {[
+                { icon: Briefcase, label: "Title", value: job.title },
+                { icon: MapPin, label: "Location", value: job.location },
+                { icon: DollarSign, label: "Budget", value: `₱${(job.budget ?? 0).toLocaleString()}` }
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-4">
+                  <div className="p-2.5 bg-blue-50/50 rounded-xl">
+                    <item.icon className="h-4 w-4 text-[#00BAF1]" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight mb-0.5">{item.label}</p>
+                    <p className="text-sm font-semibold text-gray-900 leading-tight">{item.value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-gray-100">
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Assigned Workers</h3>
+            <div className="space-y-3">
+              {(assigned_employees?.length > 0 ? assigned_employees : (assigned_employee ? [assigned_employee] : [])).map((emp: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-gray-100 transition-colors">
+                  <Avatar className="h-9 w-9 border-2 border-white ">
+                    <AvatarFallback className="bg-blue-50 text-[#00BAF1] text-[10px] font-bold">{getInitials(emp.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-gray-900 truncate">{emp.name} {emp.isPrimaryContact && "★"}</p>
+                    {emp.rating && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                        <span className="text-[10px] font-bold text-gray-500">{emp.rating.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modals & Overlays */}
       {incomingCall && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <Card className="w-full max-w-sm">
             <CardContent className="pt-6 space-y-4 text-center">
               <p className="text-sm text-gray-500">Incoming voice call</p>
               <h3 className="text-lg font-semibold text-gray-900">
-                {incomingCall.callerName}
+                {incomingCall?.callerName || "Unknown Caller"}
               </h3>
               <div className="flex items-center justify-center gap-3">
-                <Button
-                  variant="outline"
-                  className="border-red-500 text-red-700 hover:bg-red-50"
-                  onClick={() => {
-                    rejectCall();
-                  }}
-                >
-                  <PhoneOff className="h-4 w-4 mr-1" />
-                  Decline
+                <Button variant="outline" className="border-red-500 text-red-700 hover:bg-red-50" onClick={rejectCall}>
+                  <PhoneOff className="h-4 w-4 mr-1" /> Decline
                 </Button>
-                <Button
-                  className="bg-green-600 hover:bg-green-700"
-                  onClick={async () => {
-                    const accepted = await acceptCall();
-                    if (!accepted) {
-                      toast.error(callError || "Failed to accept call.");
-                    }
-                  }}
-                >
-                  <Phone className="h-4 w-4 mr-1" />
-                  Answer
+                <Button className="bg-green-600 hover:bg-green-700" onClick={async () => {
+                  const accepted = await acceptCall();
+                  if (!accepted) toast.error(callError || "Failed to accept call.");
+                }}>
+                  <Phone className="h-4 w-4 mr-1" /> Answer
                 </Button>
               </div>
             </CardContent>
@@ -1470,38 +816,17 @@ export default function AgencyChatScreen() {
         </div>
       )}
 
-      {/* Active call HUD */}
       {(callStatus === "connecting" || callStatus === "connected" || callStatus === "ringing") && (
         <div className="fixed bottom-4 right-4 z-40">
           <Card className="shadow-xl border-green-200">
             <CardContent className="py-3 px-4 flex items-center gap-3">
-              <Badge className="bg-green-600">
-                {callStatus === "connected"
-                  ? `In call ${formatCallDuration(durationSeconds)}`
-                  : callStatus === "ringing"
-                    ? "Ringing..."
-                    : "Connecting..."}
+              <Badge className="bg-green-600 font-bold uppercase tracking-tighter text-[10px]">
+                {callStatus === "connected" ? `In call ${formatCallDuration(durationSeconds)}` : callStatus === "ringing" ? "Ringing..." : "Connecting..."}
               </Badge>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => {
-                  const muted = toggleMute();
-                  setIsMuted(muted);
-                }}
-                title={isMuted ? "Unmute" : "Mute"}
-              >
+              <Button variant="outline" size="icon" onClick={() => setIsMuted(toggleMute())} className="h-9 w-9">
                 {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
-              <Button
-                variant="destructive"
-                size="icon"
-                onClick={() => {
-                  endCall();
-                  setIsMuted(false);
-                }}
-                title="End call"
-              >
+              <Button variant="destructive" size="icon" onClick={() => { endCall(); setIsMuted(false); }} className="h-9 w-9">
                 <PhoneOff className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -1509,154 +834,63 @@ export default function AgencyChatScreen() {
         </div>
       )}
 
-      {/* Image modal */}
       {showImageModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
-          onClick={() => setShowImageModal(null)}
-        >
-          <img
-            src={showImageModal}
-            alt="Full size"
-            className="max-w-full max-h-full object-contain"
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 right-4 text-white"
-            onClick={() => setShowImageModal(null)}
-          >
-            ✕
+        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50" onClick={() => setShowImageModal(null)}>
+          <img src={showImageModal || undefined} alt="View" className="max-w-full max-h-full object-contain" />
+          <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white hover:bg-white/10" onClick={() => setShowImageModal(null)}>
+            <X className="h-6 w-6" />
           </Button>
         </div>
       )}
 
-      {/* Mark Complete Modal */}
       {showMarkCompleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader className="pb-2">
-              <h3 className="text-lg font-semibold">Mark Job as Complete</h3>
-              <p className="text-sm text-gray-500">
-                Confirm that the work has been completed for "{job.title}"
-              </p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md shadow-2xl overflow-hidden rounded-3xl">
+            <CardHeader className="pb-2 pt-6">
+              <h3 className="text-lg font-bold">Complete Job</h3>
+              <p className="text-sm text-gray-500 font-medium">Verify completion for "{job.title}"</p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5 pb-8">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Completion Notes (optional)
-                </label>
-                <textarea
-                  className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                  placeholder="Add any notes about the completed work..."
-                  value={completionNotes}
-                  onChange={(e) => setCompletionNotes(e.target.value)}
-                />
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Notes</label>
+                <textarea className="w-full border-gray-100 border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-[#00BAF1] outline-none bg-gray-50/30 transition-all" rows={3} placeholder="What was accomplished?" value={completionNotes} onChange={(e) => setCompletionNotes(e.target.value)} />
               </div>
 
-              {/* Photo Upload Section */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Completion Photos (optional, up to 10)
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/jpg,image/webp"
-                  multiple
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                  disabled={completionPhotos.length >= 10}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={completionPhotos.length >= 10}
-                  className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Camera className="h-6 w-6 mx-auto text-gray-400 mb-1" />
-                  <span className="text-sm text-gray-600">
-                    {completionPhotos.length >= 10
-                      ? "Maximum 10 photos reached"
-                      : `Click to add photos (${completionPhotos.length}/10)`}
-                  </span>
-                </button>
-
-                {/* Photo Preview Grid */}
-                {photoPreviewUrls.length > 0 && (
-                  <div className="mt-3 grid grid-cols-4 gap-2">
-                    {photoPreviewUrls.map((url, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={url}
-                          alt={`Completion photo ${index + 1}`}
-                          className="w-full h-20 object-cover rounded-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePhoto(index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Proof of Work (Max 10)</label>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect} className="hidden" />
+                
+                <div className="grid grid-cols-4 gap-2">
+                  {photoPreviewUrls.map((url, i) => (
+                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden group border border-gray-100">
+                      <img src={url} alt="Preview" className="w-full h-full object-cover" />
+                      <button onClick={() => handleRemovePhoto(i)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {completionPhotos.length < 10 && (
+                    <button onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-[#00BAF1] hover:bg-blue-50/50 transition-all text-gray-400 hover:text-[#00BAF1]">
+                      <Camera className="h-5 w-5 mb-1" />
+                      <span className="text-[10px] font-bold">Add</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Upload Progress */}
               {isUploadingPhotos && (
                 <div className="space-y-2">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
+                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-[#00BAF1] h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                   </div>
-                  <p className="text-xs text-gray-500 text-center">
-                    Uploading photos... {Math.round(uploadProgress)}%
-                  </p>
+                  <p className="text-[10px] text-center font-bold text-[#00BAF1] uppercase tracking-tighter">Uploading {Math.round(uploadProgress)}%</p>
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowMarkCompleteModal(false);
-                    setCompletionNotes("");
-                    setCompletionPhotos([]);
-                    photoPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-                    setPhotoPreviewUrls([]);
-                  }}
-                  disabled={isUploadingPhotos}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  onClick={handleMarkComplete}
-                  disabled={markCompleteMutation.isPending || isUploadingPhotos}
-                >
-                  {isUploadingPhotos ? (
-                    <>
-                      <Upload className="h-4 w-4 mr-2 animate-pulse" />
-                      Uploading...
-                    </>
-                  ) : markCompleteMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Confirm Complete
-                    </>
-                  )}
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1 rounded-2xl h-12 font-bold" onClick={() => { setShowMarkCompleteModal(false); setCompletionPhotos([]); setPhotoPreviewUrls([]); }} disabled={isUploadingPhotos}>Cancel</Button>
+                <Button className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12 font-bold" onClick={handleMarkComplete} disabled={markCompleteMutation.isPending || isUploadingPhotos}>
+                  {isUploadingPhotos || markCompleteMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : "Confirm Complete"}
                 </Button>
               </div>
             </CardContent>
@@ -1664,116 +898,35 @@ export default function AgencyChatScreen() {
         </div>
       )}
 
-      {/* Review Modal */}
       {showReviewModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <CardHeader className="pb-2">
-              <h3 className="text-lg font-semibold">Leave a Review</h3>
-              <p className="text-sm text-gray-500">
-                Rate your experience with {client.name}
-              </p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-none">
+            <CardHeader className="pb-4 pt-8 text-center">
+              <h3 className="text-xl font-bold text-gray-900">Rate Client</h3>
+              <p className="text-sm text-gray-500 font-medium mt-1">Share your experience with {client.name}</p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Multi-criteria Star Ratings - Client-appropriate labels */}
+            <CardContent className="space-y-6 px-10 pb-10">
               {[
-                {
-                  label: "📋 Clarity of Requirements",
-                  value: ratingQuality,
-                  setter: setRatingQuality,
-                },
-                {
-                  label: "💬 Communication",
-                  value: ratingCommunication,
-                  setter: setRatingCommunication,
-                },
-                {
-                  label: "💳 Payment Promptness",
-                  value: ratingPunctuality,
-                  setter: setRatingPunctuality,
-                },
-                {
-                  label: "👔 Professionalism",
-                  value: ratingProfessionalism,
-                  setter: setRatingProfessionalism,
-                },
+                { label: "📋 Clarity", value: ratingQuality, setter: setRatingQuality },
+                { label: "💬 Communication", value: ratingCommunication, setter: setRatingCommunication },
+                { label: "💳 Payment", value: ratingPunctuality, setter: setRatingPunctuality },
+                { label: "👔 Professionalism", value: ratingProfessionalism, setter: setRatingProfessionalism }
               ].map((criteria) => (
-                <div key={criteria.label}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {criteria.label}
-                  </label>
-                  <div className="flex gap-1">
+                <div key={criteria.label} className="space-y-2">
+                  <label className="block text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{criteria.label}</label>
+                  <div className="flex justify-center gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => criteria.setter(star)}
-                        className="focus:outline-none"
-                      >
-                        <Star
-                          className={`h-6 w-6 transition-colors ${
-                            star <= criteria.value
-                              ? "fill-yellow-400 text-yellow-400"
-                              : "text-gray-300 hover:text-yellow-300"
-                          }`}
-                        />
+                      <button key={star} onClick={() => criteria.setter(star)} className="focus:outline-none scale-110">
+                        <Star className={`h-6 w-6 transition-all ${star <= criteria.value ? "fill-[#00BAF1] text-[#00BAF1]" : "text-gray-200 hover:text-[#00BAF1]/40"}`} />
                       </button>
                     ))}
                   </div>
                 </div>
               ))}
-
-              {/* Review Text */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your Review (Optional)
-                </label>
-                <textarea
-                  className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                  placeholder="Share your experience working with this client..."
-                  value={reviewText}
-                  onChange={(e) => setReviewText(e.target.value)}
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowReviewModal(false);
-                    setRatingQuality(0);
-                    setRatingCommunication(0);
-                    setRatingPunctuality(0);
-                    setRatingProfessionalism(0);
-                    setReviewText("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={handleSubmitReview}
-                  disabled={
-                    ratingQuality === 0 ||
-                    ratingCommunication === 0 ||
-                    ratingPunctuality === 0 ||
-                    ratingProfessionalism === 0 ||
-                    submitReviewMutation.isPending
-                  }
-                >
-                  {submitReviewMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Star className="h-4 w-4 mr-2" />
-                      Submit Review
-                    </>
-                  )}
+              <div className="pt-4 flex gap-3">
+                <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setShowReviewModal(false)}>Cancel</Button>
+                <Button className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12" onClick={handleSubmitReview} disabled={!ratingQuality || !ratingCommunication || !ratingPunctuality || !ratingProfessionalism || submitReviewMutation.isPending}>
+                  {submitReviewMutation.isPending ? <Loader2 className="animate-spin" /> : <div className="flex items-center gap-2"><Star className="h-4 w-4" /> Submit</div>}
                 </Button>
               </div>
             </CardContent>
@@ -1781,59 +934,22 @@ export default function AgencyChatScreen() {
         </div>
       )}
 
-      {/* Mark Backjob Complete Modal */}
       {showBackjobCompleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader className="pb-2">
-              <h3 className="text-lg font-semibold">
-                Mark Backjob as Complete
-              </h3>
-              <p className="text-sm text-gray-500">
-                Confirm that the backjob work has been completed
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Completion Notes (optional)
-                </label>
-                <textarea
-                  className="w-full border rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                  placeholder="Add any notes about the completed backjob work..."
-                  value={backjobNotes}
-                  onChange={(e) => setBackjobNotes(e.target.value)}
-                />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-sm rounded-3xl shadow-2xl border-none">
+            <CardHeader className="pt-8 text-center">
+              <div className="mx-auto w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-amber-500" />
               </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setShowBackjobCompleteModal(false);
-                    setBackjobNotes("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
-                  onClick={handleMarkBackjobComplete}
-                  disabled={markBackjobCompleteMutation.isPending}
-                >
-                  {markBackjobCompleteMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark Complete
-                    </>
-                  )}
+              <h3 className="text-lg font-bold">Backjob Completed</h3>
+              <p className="text-sm text-gray-500 font-medium">Verify that all requested corrections are done.</p>
+            </CardHeader>
+            <CardContent className="space-y-4 px-8 pb-10">
+              <textarea className="w-full border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-400 outline-none" rows={3} placeholder="Notes about the fix..." value={backjobNotes} onChange={(e) => setBackjobNotes(e.target.value)} />
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setShowBackjobCompleteModal(false)}>Cancel</Button>
+                <Button className="flex-1 bg-green-600 hover:bg-green-700 rounded-2xl h-12" onClick={handleMarkBackjobComplete} disabled={markBackjobCompleteMutation.isPending}>
+                  {markBackjobCompleteMutation.isPending ? <Loader2 className="animate-spin" /> : "Mark Complete"}
                 </Button>
               </div>
             </CardContent>
@@ -1841,5 +957,6 @@ export default function AgencyChatScreen() {
         </div>
       )}
     </div>
+
   );
 }

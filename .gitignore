@@ -329,6 +329,7 @@ fix_card_payment_check.patch
 # USER CUSTOM IGNORES
 # =============================================================================
 apps/frontend_web/app/agency/jobs/backjobs/dummy_data.ts
+apps/frontend_web/app/agency/messages/dummy_data.ts
 apps/backend/src/accounts/models.py
 apps/backend/src/accounts/services.py
 docker-compose.yml

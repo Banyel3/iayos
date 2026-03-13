@@ -35,6 +35,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { DUMMY_MESSAGES } from "./dummy_data";
 
 type FilterType = "active" | "unread" | "archived";
 
@@ -63,11 +64,25 @@ export default function AgencyMessagesPage() {
     if (searchQuery.trim()) {
       return searchResults;
     }
-    return conversationsData?.conversations || [];
-  }, [searchQuery, searchResults, conversationsData]);
+    const realConversations = conversationsData?.conversations || [];
+    
+    // Add dummy messages based on filter
+    if (activeFilter === "active") {
+      return [...DUMMY_MESSAGES, ...realConversations];
+    }
+    
+    if (activeFilter === "unread") {
+      const dummyUnread = DUMMY_MESSAGES.filter(m => m.unread_count > 0);
+      return [...dummyUnread, ...realConversations];
+    }
+    
+    return realConversations;
+  }, [searchQuery, searchResults, conversationsData, activeFilter]);
 
   // Get unread count for badge - using AGENCY-SPECIFIC hook
-  const { unreadCount } = useAgencyUnreadCount();
+  const { unreadCount: realUnreadCount } = useAgencyUnreadCount();
+  const dummyUnreadCount = DUMMY_MESSAGES.reduce((acc, msg) => acc + msg.unread_count, 0);
+  const unreadCount = realUnreadCount + dummyUnreadCount;
 
   // Auto-refresh on WebSocket connection
   useEffect(() => {
