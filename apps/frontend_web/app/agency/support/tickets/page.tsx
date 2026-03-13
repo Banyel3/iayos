@@ -21,8 +21,6 @@ import {
   XCircle,
   Plus,
   RefreshCw,
-  Search,
-  Filter,
 } from "lucide-react";
 
 interface TicketData {
