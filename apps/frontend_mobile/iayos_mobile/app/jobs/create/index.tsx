@@ -115,26 +115,129 @@ interface SkillSlot {
 // Predefined job title suggestions based on category
 // Keys MUST match Specializations.specializationName from seed_data.py
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
-  "Plumbing": ["Fix leaking pipe", "Install faucet", "Unclog toilet", "Repair shower", "Water tank cleaning"],
-  "Electrical Work": ["Fix light fixture", "Repair outlet", "Install ceiling fan", "Rewiring work", "Breaker repair"],
-  "Carpentry": ["Repair furniture", "Build cabinet", "Fix door lock", "Install shelving", "Deck repair"],
-  "Painting": ["Exterior painting", "Interior room paint", "Fence painting", "Cabinet refinishing"],
-  "General Cleaning": ["Deep house cleaning", "Post-construction cleanup", "Office cleaning", "Window cleaning"],
-  "Landscaping": ["Lawn mowing", "Tree trimming", "Garden maintenance", "Planting shrubs"],
-  "Masonry": ["Wall repair", "Tile installation", "Floor leveling", "Concrete work"],
-  "HVAC (Aircon Services)": ["AC cleaning", "Repair AC unit", "Install split type AC", "HVAC maintenance"],
-  "Roofing": ["Fix roof leak", "Gutter cleaning", "Roof painting", "Roof replacement"],
-  "Welding": ["Gate repair", "Window grill fabrication", "Steel frame welding", "Fence repair"],
-  "Auto Mechanic": ["Engine tune-up", "Oil change", "Brake repair", "Electrical checkup"],
-  "Motorcycle Repair": ["Engine overhaul", "Brake pad replacement", "Oil change", "Chain adjustment"],
-  "Tiling": ["Floor tiling", "Wall tiling", "Bathroom retiling", "Kitchen backsplash"],
-  "Appliance Repair": ["Repair washing machine", "Fix refrigerator", "AC unit repair", "Oven repair"],
-  "Pest Control": ["Termite treatment", "General pest spray", "Rodent control", "Ant treatment"],
-  "Furniture Assembly": ["Assemble cabinet", "Build bed frame", "Install wall shelf", "Desk assembly"],
-  "Moving Services": ["House moving", "Office relocation", "Furniture transport", "Appliance delivery"],
-  "Glass Installation": ["Window glass replacement", "Shower glass door", "Glass partition", "Mirror installation"],
-  "Drywall Installation": ["Wall partition", "Ceiling repair", "Drywall patching", "Room divider"],
-  "Security System Installation": ["CCTV installation", "Alarm system setup", "Smart lock install", "Doorbell camera"],
+  Plumbing: [
+    "Fix leaking pipe",
+    "Install faucet",
+    "Unclog toilet",
+    "Repair shower",
+    "Water tank cleaning",
+  ],
+  "Electrical Work": [
+    "Fix light fixture",
+    "Repair outlet",
+    "Install ceiling fan",
+    "Rewiring work",
+    "Breaker repair",
+  ],
+  Carpentry: [
+    "Repair furniture",
+    "Build cabinet",
+    "Fix door lock",
+    "Install shelving",
+    "Deck repair",
+  ],
+  Painting: [
+    "Exterior painting",
+    "Interior room paint",
+    "Fence painting",
+    "Cabinet refinishing",
+  ],
+  "General Cleaning": [
+    "Deep house cleaning",
+    "Post-construction cleanup",
+    "Office cleaning",
+    "Window cleaning",
+  ],
+  Landscaping: [
+    "Lawn mowing",
+    "Tree trimming",
+    "Garden maintenance",
+    "Planting shrubs",
+  ],
+  Masonry: [
+    "Wall repair",
+    "Tile installation",
+    "Floor leveling",
+    "Concrete work",
+  ],
+  "HVAC (Aircon Services)": [
+    "AC cleaning",
+    "Repair AC unit",
+    "Install split type AC",
+    "HVAC maintenance",
+  ],
+  Roofing: [
+    "Fix roof leak",
+    "Gutter cleaning",
+    "Roof painting",
+    "Roof replacement",
+  ],
+  Welding: [
+    "Gate repair",
+    "Window grill fabrication",
+    "Steel frame welding",
+    "Fence repair",
+  ],
+  "Auto Mechanic": [
+    "Engine tune-up",
+    "Oil change",
+    "Brake repair",
+    "Electrical checkup",
+  ],
+  "Motorcycle Repair": [
+    "Engine overhaul",
+    "Brake pad replacement",
+    "Oil change",
+    "Chain adjustment",
+  ],
+  Tiling: [
+    "Floor tiling",
+    "Wall tiling",
+    "Bathroom retiling",
+    "Kitchen backsplash",
+  ],
+  "Appliance Repair": [
+    "Repair washing machine",
+    "Fix refrigerator",
+    "AC unit repair",
+    "Oven repair",
+  ],
+  "Pest Control": [
+    "Termite treatment",
+    "General pest spray",
+    "Rodent control",
+    "Ant treatment",
+  ],
+  "Furniture Assembly": [
+    "Assemble cabinet",
+    "Build bed frame",
+    "Install wall shelf",
+    "Desk assembly",
+  ],
+  "Moving Services": [
+    "House moving",
+    "Office relocation",
+    "Furniture transport",
+    "Appliance delivery",
+  ],
+  "Glass Installation": [
+    "Window glass replacement",
+    "Shower glass door",
+    "Glass partition",
+    "Mirror installation",
+  ],
+  "Drywall Installation": [
+    "Wall partition",
+    "Ceiling repair",
+    "Drywall patching",
+    "Room divider",
+  ],
+  "Security System Installation": [
+    "CCTV installation",
+    "Alarm system setup",
+    "Smart lock install",
+    "Doorbell camera",
+  ],
 };
 
 // ============================================================================
@@ -145,21 +248,18 @@ const CLIENT_PAYMENT_INFO_ITEMS = [
   {
     icon: "wallet-outline" as const,
     label: "Fund your Wallet",
-    description:
-      "Ensure you have enough balance to cover the job.",
+    description: "Ensure you have enough balance to cover the job.",
   },
   {
     icon: "lock-closed-outline" as const,
     label: "Book with Confidence",
-    description:
-      "50% (plus a 10% fee) is held in escrow upfront.",
+    description: "50% (plus a 10% fee) is held in escrow upfront.",
   },
   {
     icon: "checkmark-circle-outline" as const,
     label: "Finish & Pay",
-    description:
-      "Once the job is completed, the final 50% is released.",
-  }
+    description: "Once the job is completed, the final 50% is released.",
+  },
 ];
 
 export default function CreateJobScreen() {
@@ -170,12 +270,13 @@ export default function CreateJobScreen() {
   const router = useRouter();
 
   // Debug logging
-  if (__DEV__) console.log(
-    "[CreateJob] Screen loaded - workerId:",
-    workerId,
-    "agencyId:",
-    agencyId,
-  );
+  if (__DEV__)
+    console.log(
+      "[CreateJob] Screen loaded - workerId:",
+      workerId,
+      "agencyId:",
+      agencyId,
+    );
 
   // Form state
   const [title, setTitle] = useState("");
@@ -187,7 +288,9 @@ export default function CreateJobScreen() {
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
   const [duration, setDuration] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(null);
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(
+    null,
+  );
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
@@ -205,7 +308,9 @@ export default function CreateJobScreen() {
     "INDOOR" | "OUTDOOR" | "BOTH" | null
   >(null);
   // Daily payment model fields
-  const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">("PROJECT");
+  const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">(
+    "PROJECT",
+  );
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
@@ -259,7 +364,7 @@ export default function CreateJobScreen() {
       const days = parseInt(durationDays) || 0;
       if (rate > 0 && days > 0) {
         const totalEscrow = rate * days;
-        return totalEscrow * 1.10; // 100% escrow + 10% platform fee (DAILY uses higher fee)
+        return totalEscrow * 1.1; // 100% escrow + 10% platform fee (DAILY uses higher fee)
       }
       return 0;
     }
@@ -318,7 +423,9 @@ export default function CreateJobScreen() {
   } = usePricePrediction();
 
   // Debounce timer ref for price prediction
-  const predictionTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const predictionTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   // Fetch categories
   const {
@@ -361,15 +468,21 @@ export default function CreateJobScreen() {
   }, [effectiveCategory]);
 
   // Database-driven job field suggestions
-  const {
-    mutate: fetchSuggestions,
-  } = useJobSuggestions();
+  const { mutate: fetchSuggestions } = useJobSuggestions();
 
   // Suggestion state per field
-  const [titleSuggestions, setTitleSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [descriptionSuggestions, setDescriptionSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [durationSuggestions, setDurationSuggestions] = React.useState<JobSuggestion[]>([]);
-  const [loadingSuggestionFields, setLoadingSuggestionFields] = React.useState<Set<string>>(new Set());
+  const [titleSuggestions, setTitleSuggestions] = React.useState<
+    JobSuggestion[]
+  >([]);
+  const [descriptionSuggestions, setDescriptionSuggestions] = React.useState<
+    JobSuggestion[]
+  >([]);
+  const [durationSuggestions, setDurationSuggestions] = React.useState<
+    JobSuggestion[]
+  >([]);
+  const [loadingSuggestionFields, setLoadingSuggestionFields] = React.useState<
+    Set<string>
+  >(new Set());
 
   // Fetch all suggestion fields when category changes
   React.useEffect(() => {
@@ -387,10 +500,18 @@ export default function CreateJobScreen() {
       {
         onSuccess: (resp) => {
           if (resp.field === "title") setTitleSuggestions(resp.suggestions);
-          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+          setLoadingSuggestionFields((prev) => {
+            const n = new Set(prev);
+            n.delete("title");
+            return n;
+          });
         },
         onError: () => {
-          setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("title"); return n; });
+          setLoadingSuggestionFields((prev) => {
+            const n = new Set(prev);
+            n.delete("title");
+            return n;
+          });
         },
       },
     );
@@ -401,11 +522,20 @@ export default function CreateJobScreen() {
         { category_id: effectiveCategoryId, field: "description", limit: 6 },
         {
           onSuccess: (resp) => {
-            if (resp.field === "description") setDescriptionSuggestions(resp.suggestions);
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+            if (resp.field === "description")
+              setDescriptionSuggestions(resp.suggestions);
+            setLoadingSuggestionFields((prev) => {
+              const n = new Set(prev);
+              n.delete("description");
+              return n;
+            });
           },
           onError: () => {
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("description"); return n; });
+            setLoadingSuggestionFields((prev) => {
+              const n = new Set(prev);
+              n.delete("description");
+              return n;
+            });
           },
         },
       );
@@ -416,11 +546,20 @@ export default function CreateJobScreen() {
         { category_id: effectiveCategoryId, field: "duration", limit: 6 },
         {
           onSuccess: (resp) => {
-            if (resp.field === "duration") setDurationSuggestions(resp.suggestions);
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+            if (resp.field === "duration")
+              setDurationSuggestions(resp.suggestions);
+            setLoadingSuggestionFields((prev) => {
+              const n = new Set(prev);
+              n.delete("duration");
+              return n;
+            });
           },
           onError: () => {
-            setLoadingSuggestionFields(prev => { const n = new Set(prev); n.delete("duration"); return n; });
+            setLoadingSuggestionFields((prev) => {
+              const n = new Set(prev);
+              n.delete("duration");
+              return n;
+            });
           },
         },
       );
@@ -435,7 +574,9 @@ export default function CreateJobScreen() {
   const selectedCategoryNames = React.useMemo(() => {
     if (!skillSlots.length) return [] as string[];
     return skillSlots
-      .map((slot) => categories.find((c) => c.id === slot.specialization_id)?.name)
+      .map(
+        (slot) => categories.find((c) => c.id === slot.specialization_id)?.name,
+      )
       .filter((name): name is string => Boolean(name));
   }, [skillSlots, categories]);
 
@@ -510,7 +651,9 @@ export default function CreateJobScreen() {
         setDurationDays("1");
       } else if (startDate && scheduledEndDate) {
         // Calculate difference in milliseconds
-        const diffTime = Math.abs(scheduledEndDate.getTime() - startDate.getTime());
+        const diffTime = Math.abs(
+          scheduledEndDate.getTime() - startDate.getTime(),
+        );
         // Convert to days and add 1 (inclusive)
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         setDurationDays(diffDays.toString());
@@ -535,7 +678,7 @@ export default function CreateJobScreen() {
     }
 
     // Force 1 worker for non-agency jobs; agency jobs allow 1-10
-    const workersCount = agencyId ? (parseInt(newSlotWorkersNeeded) || 1) : 1;
+    const workersCount = agencyId ? parseInt(newSlotWorkersNeeded) || 1 : 1;
     if (workersCount < 1 || workersCount > 10) {
       Alert.alert("Error", "Workers needed must be between 1 and 10");
       return;
@@ -582,7 +725,6 @@ export default function CreateJobScreen() {
     return skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
   }, [skillSlots]);
 
-
   // Fetch worker details (including skills) when hiring a specific worker
   interface WorkerSkill {
     id: number;
@@ -602,35 +744,40 @@ export default function CreateJobScreen() {
     };
   }
 
-  const { data: workerDetailsData, isLoading: workerDetailsLoading } = useQuery({
-    queryKey: ["workerDetails", workerId],
-    queryFn: async () => {
-      if (!workerId) return null;
-      const response = await fetchJson<WorkerDetailResponse>(
-        ENDPOINTS.WORKER_DETAIL(parseInt(workerId)),
-      );
-      // Backend worker detail V2 returns { worker: {...} }, not { data: {...} }
-      const raw = (response as any)?.worker || response?.data || null;
-      // Bug 2 fix: normalize specializations → skills so filteredCategories useMemo can filter correctly
-      if (raw && !raw.skills && raw.specializations) {
-        raw.skills = raw.specializations;
-      }
-      return raw;
+  const { data: workerDetailsData, isLoading: workerDetailsLoading } = useQuery(
+    {
+      queryKey: ["workerDetails", workerId],
+      queryFn: async () => {
+        if (!workerId) return null;
+        const response = await fetchJson<WorkerDetailResponse>(
+          ENDPOINTS.WORKER_DETAIL(parseInt(workerId)),
+        );
+        // Backend worker detail V2 returns { worker: {...} }, not { data: {...} }
+        const raw = (response as any)?.worker || response?.data || null;
+        // Bug 2 fix: normalize specializations → skills so filteredCategories useMemo can filter correctly
+        if (raw && !raw.skills && raw.specializations) {
+          raw.skills = raw.specializations;
+        }
+        return raw;
+      },
+      enabled: !!workerId, // Only fetch when workerId is provided
     },
-    enabled: !!workerId, // Only fetch when workerId is provided
-  });
+  );
 
-  const getWorkerSkillSpecializationId = useCallback((skill: any): number | null => {
-    const rawId =
-      skill?.specializationId ??
-      skill?.specializationID ??
-      skill?.specialization_id ??
-      null;
+  const getWorkerSkillSpecializationId = useCallback(
+    (skill: any): number | null => {
+      const rawId =
+        skill?.specializationId ??
+        skill?.specializationID ??
+        skill?.specialization_id ??
+        null;
 
-    if (rawId === null || rawId === undefined) return null;
-    const parsed = Number(rawId);
-    return Number.isFinite(parsed) ? parsed : null;
-  }, []);
+      if (rawId === null || rawId === undefined) return null;
+      const parsed = Number(rawId);
+      return Number.isFinite(parsed) ? parsed : null;
+    },
+    [],
+  );
 
   // Filter categories by selected worker skills first (direct-hire), then search.
   const filteredCategories = React.useMemo(() => {
@@ -656,7 +803,13 @@ export default function CreateJobScreen() {
     }
 
     return list;
-  }, [workerId, workerDetailsData, categories, categorySearch, getWorkerSkillSpecializationId]);
+  }, [
+    workerId,
+    workerDetailsData,
+    categories,
+    categorySearch,
+    getWorkerSkillSpecializationId,
+  ]);
 
   // Auto-add skill slot when invite worker has exactly 1 skill
   useEffect(() => {
@@ -668,27 +821,40 @@ export default function CreateJobScreen() {
 
         if (!specializationId) {
           if (__DEV__) {
-            console.warn("[CreateJob] Unable to auto-add worker skill slot: missing specializationId", singleSkill);
+            console.warn(
+              "[CreateJob] Unable to auto-add worker skill slot: missing specializationId",
+              singleSkill,
+            );
           }
           return;
         }
 
         // Auto-add a slot for the worker's single skill
-        setSkillSlots([{
-          specialization_id: specializationId,
-          workers_needed: 1,
-          skill_level_required: null,
-        }]);
+        setSkillSlots([
+          {
+            specialization_id: specializationId,
+            workers_needed: 1,
+            skill_level_required: null,
+          },
+        ]);
         // Set budget from category's minimum_rate
         const matchingCat = categories.find((c) => c.id === specializationId);
         if (matchingCat && matchingCat.minimum_rate > 0) {
           setBudget(matchingCat.minimum_rate.toFixed(2));
         }
-        if (__DEV__) console.log(`[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`);
+        if (__DEV__)
+          console.log(
+            `[CreateJob] Auto-added worker's single skill as slot: ${singleSkill.name}`,
+          );
       }
     }
-  }, [workerId, workerDetailsData, categories, skillSlots.length, getWorkerSkillSpecializationId]);
-
+  }, [
+    workerId,
+    workerDetailsData,
+    categories,
+    skillSlots.length,
+    getWorkerSkillSpecializationId,
+  ]);
 
   const getSpecializationName = useCallback(
     (specId: number) => {
@@ -710,21 +876,23 @@ export default function CreateJobScreen() {
   const barangays = barangaysData || [];
 
   // Debug logging
-  if (__DEV__) console.log("[CreateJob] Barangays:", {
-    count: barangays.length,
-    loading: barangaysLoading,
-    error: barangaysError,
-    firstThree: barangays.slice(0, 3).map((b) => b.name),
-  });
+  if (__DEV__)
+    console.log("[CreateJob] Barangays:", {
+      count: barangays.length,
+      loading: barangaysLoading,
+      error: barangaysError,
+      firstThree: barangays.slice(0, 3).map((b) => b.name),
+    });
 
-  if (__DEV__) console.log(
-    "[CreateJob] Categories:",
-    categories,
-    "Type:",
-    typeof categories,
-    "IsArray:",
-    Array.isArray(categories),
-  );
+  if (__DEV__)
+    console.log(
+      "[CreateJob] Categories:",
+      categories,
+      "Type:",
+      typeof categories,
+      "IsArray:",
+      Array.isArray(categories),
+    );
 
   // Create job mutation
   const createJobMutation = useMutation({
@@ -787,7 +955,7 @@ export default function CreateJobScreen() {
         Alert.alert(
           "Success!",
           data.message ||
-          "Job request created successfully. The worker/agency will be notified.",
+            "Job request created successfully. The worker/agency will be notified.",
           [
             {
               text: "View Job",
@@ -892,12 +1060,12 @@ export default function CreateJobScreen() {
         return;
       }
       // Agency jobs require at least 1 total worker
-      const totalWorkers = skillSlots.reduce((sum, slot) => sum + slot.workers_needed, 0);
+      const totalWorkers = skillSlots.reduce(
+        (sum, slot) => sum + slot.workers_needed,
+        0,
+      );
       if (totalWorkers < 1) {
-        Alert.alert(
-          "Error",
-          "Agency jobs require at least 1 worker total.",
-        );
+        Alert.alert("Error", "Agency jobs require at least 1 worker total.");
         return;
       }
     }
@@ -906,9 +1074,10 @@ export default function CreateJobScreen() {
 
     // Check wallet balance
     if (hasInsufficientBalance) {
-      const paymentDesc = paymentModel === "PROJECT"
-        ? "50% downpayment"
-        : "100% escrow (daily rate × days)";
+      const paymentDesc =
+        paymentModel === "PROJECT"
+          ? "50% downpayment"
+          : "100% escrow (daily rate × days)";
       Alert.alert(
         "Insufficient Wallet Balance",
         `You need ₱${requiredDownpayment.toFixed(2)} for the ${paymentDesc}, but your wallet only has ₱${walletBalance.toFixed(2)}.\n\nYou're short by ₱${shortfallAmount.toFixed(2)}.\n\nWould you like to deposit funds now?`,
@@ -954,9 +1123,9 @@ export default function CreateJobScreen() {
       ...manualMaterials,
       ...(selectedMaterials.length > 0
         ? workerMaterials
-          .filter((m) => selectedMaterials.includes(m.id))
-          .map((m) => m.name)
-        : [])
+            .filter((m) => selectedMaterials.includes(m.id))
+            .map((m) => m.name)
+        : []),
     ];
 
     // Deduplicate materials to avoid sending duplicates to backend
@@ -987,10 +1156,10 @@ export default function CreateJobScreen() {
     }
     // Always include skill slots in payload (backend ignores for non-agency via is_team_job guard)
     if (skillSlots.length > 0) {
-      jobData.skill_slots = skillSlots.map(slot => ({
+      jobData.skill_slots = skillSlots.map((slot) => ({
         ...slot,
         // Preserve per-slot skill level if set; otherwise fall back to global skillLevel
-        skill_level_required: slot.skill_level_required ?? skillLevel
+        skill_level_required: slot.skill_level_required ?? skillLevel,
       }));
     }
 
@@ -1053,7 +1222,11 @@ export default function CreateJobScreen() {
           <View style={styles.content}>
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
-                <Ionicons name="document-text" size={20} color={Colors.primary} />
+                <Ionicons
+                  name="document-text"
+                  size={20}
+                  color={Colors.primary}
+                />
                 <Text style={styles.sectionTitleText}>
                   Job Details <Text style={{ color: Colors.error }}>*</Text>
                 </Text>
@@ -1062,22 +1235,33 @@ export default function CreateJobScreen() {
               {/* 3. Job Category (moved below description) */}
               <View style={[styles.inputGroup, { marginBottom: 0 }]}>
                 <View style={styles.labelRow}>
-                  <Text style={[styles.label, { marginBottom: 0 }]}>Job Category</Text>
+                  <Text style={[styles.label, { marginBottom: 0 }]}>
+                    Job Category
+                  </Text>
                   {!!agencyId && (
-                    <Text style={styles.categoryHintText}>2 or more workers required</Text>
+                    <Text style={styles.categoryHintText}>
+                      2 or more workers required
+                    </Text>
                   )}
                 </View>
                 <SearchBar
                   value={categorySearch}
                   onChangeText={setCategorySearch}
-                  placeholder={agencyId ? "Search specializations" : "Search categories"}
-                  style={{ marginBottom: Spacing.md, backgroundColor: Colors.white }}
+                  placeholder={
+                    agencyId ? "Search specializations" : "Search categories"
+                  }
+                  style={{
+                    marginBottom: Spacing.md,
+                    backgroundColor: Colors.white,
+                  }}
                 />
 
                 {categoriesLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.loadingText}>Loading categories...</Text>
+                    <Text style={styles.loadingText}>
+                      Loading categories...
+                    </Text>
                   </View>
                 ) : categoriesLoadError ? (
                   <View style={styles.emptyStateContainer}>
@@ -1105,14 +1289,18 @@ export default function CreateJobScreen() {
                   >
                     {filteredCategories.map((category) => {
                       const alreadySelected = skillSlots.some(
-                        (s) => s.specialization_id === category.id
+                        (s) => s.specialization_id === category.id,
                       );
                       return (
                         <TouchableOpacity
                           key={category.id}
                           style={[
                             styles.categoryChip,
-                            !agencyId && alreadySelected && { backgroundColor: Colors.primary, borderColor: Colors.primary },
+                            !agencyId &&
+                              alreadySelected && {
+                                backgroundColor: Colors.primary,
+                                borderColor: Colors.primary,
+                              },
                           ]}
                           onPress={() => {
                             if (agencyId) {
@@ -1128,11 +1316,13 @@ export default function CreateJobScreen() {
                               ]);
                             } else {
                               // Regular job: single-select, replace
-                              setSkillSlots([{
-                                specialization_id: category.id,
-                                workers_needed: 1,
-                                skill_level_required: null,
-                              }]);
+                              setSkillSlots([
+                                {
+                                  specialization_id: category.id,
+                                  workers_needed: 1,
+                                  skill_level_required: null,
+                                },
+                              ]);
                             }
                             // Set budget from category's minimum_rate if not already set or lower than min
                             if (category.minimum_rate > 0) {
@@ -1146,11 +1336,15 @@ export default function CreateJobScreen() {
                           <Text
                             style={[
                               styles.categoryChipText,
-                              agencyId && alreadySelected && styles.categoryChipTextSelected,
-                              !agencyId && alreadySelected && { color: Colors.white },
+                              agencyId &&
+                                alreadySelected &&
+                                styles.categoryChipTextSelected,
+                              !agencyId &&
+                                alreadySelected && { color: Colors.white },
                             ]}
                           >
-                            {agencyId && alreadySelected ? "✓ " : ""}{category.name}
+                            {agencyId && alreadySelected ? "✓ " : ""}
+                            {category.name}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -1167,12 +1361,25 @@ export default function CreateJobScreen() {
                       key={index}
                       style={[
                         styles.slotFlatRow,
-                        index < skillSlots.length - 1 && styles.slotFlatRowBorder,
+                        index < skillSlots.length - 1 &&
+                          styles.slotFlatRowBorder,
                       ]}
                     >
                       {/* ✕ + Category name + stepper all in one row */}
-                      <View style={[styles.slotHeader, { justifyContent: 'space-between' }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <View
+                        style={[
+                          styles.slotHeader,
+                          { justifyContent: "space-between" },
+                        ]}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            flex: 1,
+                          }}
+                        >
                           <TouchableOpacity
                             onPress={() => removeSkillSlot(index)}
                             style={styles.removeSlotBtn}
@@ -1180,46 +1387,84 @@ export default function CreateJobScreen() {
                           >
                             <Text style={styles.removeSlotXText}>✕</Text>
                           </TouchableOpacity>
-                          <Text style={[styles.breakdownTitle, { flex: 1 }]} numberOfLines={1}>
+                          <Text
+                            style={[styles.breakdownTitle, { flex: 1 }]}
+                            numberOfLines={1}
+                          >
                             {getSpecializationName(slot.specialization_id)}
                           </Text>
                         </View>
                         <View style={styles.workerStepper}>
                           <TouchableOpacity
-                            style={[styles.stepperBtn, slot.workers_needed <= 0 && styles.stepperBtnDisabled]}
+                            style={[
+                              styles.stepperBtn,
+                              slot.workers_needed <= 0 &&
+                                styles.stepperBtnDisabled,
+                            ]}
                             onPress={() =>
                               slot.workers_needed > 0 &&
                               setSkillSlots((prev) =>
                                 prev.map((s, i) =>
-                                  i === index ? { ...s, workers_needed: s.workers_needed - 1 } : s
-                                )
+                                  i === index
+                                    ? {
+                                        ...s,
+                                        workers_needed: s.workers_needed - 1,
+                                      }
+                                    : s,
+                                ),
                               )
                             }
                             disabled={slot.workers_needed <= 0}
                           >
-                            <Text style={[styles.stepperBtnText, slot.workers_needed <= 0 && styles.stepperBtnTextDisabled]}>−</Text>
+                            <Text
+                              style={[
+                                styles.stepperBtnText,
+                                slot.workers_needed <= 0 &&
+                                  styles.stepperBtnTextDisabled,
+                              ]}
+                            >
+                              −
+                            </Text>
                           </TouchableOpacity>
                           <Text
                             style={[
                               styles.stepperCount,
-                              slot.workers_needed === 0 && styles.stepperCountZero,
+                              slot.workers_needed === 0 &&
+                                styles.stepperCountZero,
                             ]}
                           >
                             {slot.workers_needed}
                           </Text>
                           <TouchableOpacity
-                            style={[styles.stepperBtn, slot.workers_needed >= 10 && styles.stepperBtnDisabled]}
+                            style={[
+                              styles.stepperBtn,
+                              slot.workers_needed >= 10 &&
+                                styles.stepperBtnDisabled,
+                            ]}
                             onPress={() =>
                               slot.workers_needed < 10 &&
                               setSkillSlots((prev) =>
                                 prev.map((s, i) =>
-                                  i === index ? { ...s, workers_needed: s.workers_needed + 1 } : s
-                                )
+                                  i === index
+                                    ? {
+                                        ...s,
+                                        workers_needed: s.workers_needed + 1,
+                                      }
+                                    : s,
+                                ),
                               )
                             }
                             disabled={slot.workers_needed >= 10}
                           >
-                            <Text style={[styles.stepperBtnText, slot.workers_needed >= 10 && styles.stepperBtnTextDisabled]}>+</Text>
+                            <Text
+                              style={[
+                                styles.stepperBtnText,
+                                slot.workers_needed >= 10 &&
+                                  styles.stepperBtnTextDisabled,
+                              ]}
+                            >
+                              +
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -1228,11 +1473,19 @@ export default function CreateJobScreen() {
                 </View>
               )}
 
-
               {/* 1. Job Title */}
               <View style={[styles.inputGroup, { marginTop: Spacing.md }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={[styles.label, { marginBottom: 0 }]}>Job Title</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={[styles.label, { marginBottom: 0 }]}>
+                    Job Title
+                  </Text>
                   <Text style={styles.charCount}>{title.length}/100</Text>
                 </View>
                 <TextInput
@@ -1246,9 +1499,11 @@ export default function CreateJobScreen() {
 
                 {/* Title Suggestions - Database-driven */}
                 <SuggestionBubbles
-                  suggestions={titleSuggestions.length > 0
-                    ? titleSuggestions
-                    : suggestions.map((s) => ({ text: s, frequency: 0 }))}
+                  suggestions={
+                    titleSuggestions.length > 0
+                      ? titleSuggestions
+                      : suggestions.map((s) => ({ text: s, frequency: 0 }))
+                  }
                   onSelect={setTitle}
                   isLoading={false}
                   label="Suggestions"
@@ -1259,8 +1514,17 @@ export default function CreateJobScreen() {
 
               {/* 2. Description */}
               <View style={styles.inputGroup}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={[styles.label, { marginBottom: 0 }]}>Description</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={[styles.label, { marginBottom: 0 }]}>
+                    Description
+                  </Text>
                   <Text style={styles.charCount}>{description.length}/500</Text>
                 </View>
                 <TextInput
@@ -1294,9 +1558,7 @@ export default function CreateJobScreen() {
 
               {/* Barangay */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Barangay
-                </Text>
+                <Text style={styles.label}>Barangay</Text>
                 {barangaysLoading ? (
                   <View style={styles.pickerContainer}>
                     <View style={[styles.picker, styles.pickerLoading]}>
@@ -1348,9 +1610,7 @@ export default function CreateJobScreen() {
 
               {/* Street Address */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Street Address
-                </Text>
+                <Text style={styles.label}>Street Address</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., 123 Bonifacio Street"
@@ -1400,7 +1660,7 @@ export default function CreateJobScreen() {
                           style={[
                             styles.barangayItemText,
                             barangay === item.name &&
-                            styles.barangayItemTextSelected,
+                              styles.barangayItemTextSelected,
                           ]}
                         >
                           {item.name}
@@ -1426,7 +1686,9 @@ export default function CreateJobScreen() {
               <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>{agencyId ? 'Add Skill Slot' : 'Select Worker Type'}</Text>
+                    <Text style={styles.modalTitle}>
+                      {agencyId ? "Add Skill Slot" : "Select Worker Type"}
+                    </Text>
                     <TouchableOpacity
                       onPress={() => setShowAddSlotModal(false)}
                       style={styles.modalCloseButton}
@@ -1464,7 +1726,7 @@ export default function CreateJobScreen() {
                               style={[
                                 styles.categoryChip,
                                 newSlotSpecializationId === category.id &&
-                                styles.categoryChipActive,
+                                  styles.categoryChipActive,
                               ]}
                               onPress={() =>
                                 setNewSlotSpecializationId(category.id)
@@ -1474,7 +1736,7 @@ export default function CreateJobScreen() {
                                 style={[
                                   styles.categoryChipText,
                                   newSlotSpecializationId === category.id &&
-                                  styles.categoryChipTextActive,
+                                    styles.categoryChipTextActive,
                                 ]}
                               >
                                 {category.name}
@@ -1493,9 +1755,12 @@ export default function CreateJobScreen() {
                           <TouchableOpacity
                             style={styles.workerBtn}
                             onPress={() => {
-                              const current = parseInt(newSlotWorkersNeeded) || 1;
+                              const current =
+                                parseInt(newSlotWorkersNeeded) || 1;
                               if (current > 1)
-                                setNewSlotWorkersNeeded((current - 1).toString());
+                                setNewSlotWorkersNeeded(
+                                  (current - 1).toString(),
+                                );
                             }}
                           >
                             <Text style={styles.workerBtnText}>−</Text>
@@ -1506,9 +1771,12 @@ export default function CreateJobScreen() {
                           <TouchableOpacity
                             style={styles.workerBtn}
                             onPress={() => {
-                              const current = parseInt(newSlotWorkersNeeded) || 1;
+                              const current =
+                                parseInt(newSlotWorkersNeeded) || 1;
                               if (current < 10)
-                                setNewSlotWorkersNeeded((current + 1).toString());
+                                setNewSlotWorkersNeeded(
+                                  (current + 1).toString(),
+                                );
                             }}
                           >
                             <Text style={styles.workerBtnText}>+</Text>
@@ -1523,7 +1791,7 @@ export default function CreateJobScreen() {
                     style={[
                       styles.addSlotConfirmBtn,
                       !newSlotSpecializationId &&
-                      styles.addSlotConfirmBtnDisabled,
+                        styles.addSlotConfirmBtnDisabled,
                     ]}
                     onPress={addSkillSlot}
                     disabled={!newSlotSpecializationId}
@@ -1541,7 +1809,8 @@ export default function CreateJobScreen() {
               <View style={styles.sectionTitle}>
                 <Ionicons name="time" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>
-                  Timing & Urgency<Text style={{ color: Colors.error }}> *</Text>
+                  Timing & Urgency
+                  <Text style={{ color: Colors.error }}> *</Text>
                 </Text>
               </View>
 
@@ -1556,7 +1825,9 @@ export default function CreateJobScreen() {
                         styles.urgencyButton,
                         urgency === level && styles.urgencyButtonActive,
                       ]}
-                      onPress={() => setUrgency(urgency === level ? null : level)}
+                      onPress={() =>
+                        setUrgency(urgency === level ? null : level)
+                      }
                     >
                       <Text
                         style={[
@@ -1579,11 +1850,12 @@ export default function CreateJobScreen() {
               <View style={styles.datesRow}>
                 {/* Start Date */}
                 <View style={[styles.inputGroup, styles.dateHalf]}>
-                  <Text style={styles.label}>
-                    Start Date
-                  </Text>
+                  <Text style={styles.label}>Start Date</Text>
                   <TouchableOpacity
-                    style={[styles.dateButton, !startDate && { borderColor: Colors.border }]}
+                    style={[
+                      styles.dateButton,
+                      !startDate && { borderColor: Colors.border },
+                    ]}
                     onPress={() => setShowDatePicker(true)}
                   >
                     <Ionicons
@@ -1591,7 +1863,13 @@ export default function CreateJobScreen() {
                       size={18}
                       color={startDate ? Colors.textSecondary : Colors.textHint}
                     />
-                    <Text style={[styles.dateButtonText, styles.dateButtonTextSmall, !startDate && { color: Colors.textHint }]}>
+                    <Text
+                      style={[
+                        styles.dateButtonText,
+                        styles.dateButtonTextSmall,
+                        !startDate && { color: Colors.textHint },
+                      ]}
+                    >
                       {startDate
                         ? startDate.toLocaleDateString()
                         : "Select date"}
@@ -1607,7 +1885,10 @@ export default function CreateJobScreen() {
                         setShowDatePicker(Platform.OS === "ios");
                         if (selectedDate) {
                           setStartDate(selectedDate);
-                          if (scheduledEndDate && scheduledEndDate < selectedDate) {
+                          if (
+                            scheduledEndDate &&
+                            scheduledEndDate < selectedDate
+                          ) {
                             setScheduledEndDate(null);
                           }
                         }
@@ -1618,16 +1899,24 @@ export default function CreateJobScreen() {
 
                 {/* End Date */}
                 <View style={[styles.inputGroup, styles.dateHalf]}>
-                  <Text style={[styles.label, isOneDayJob && { color: Colors.textHint }]}>
+                  <Text
+                    style={[
+                      styles.label,
+                      isOneDayJob && { color: Colors.textHint },
+                    ]}
+                  >
                     End Date{" "}
-                    {isOneDayJob
-                      ? <Text style={{ color: Colors.textHint }}>(N/A)</Text>
-                      : <Text style={{ color: Colors.textHint }}></Text>}
+                    {isOneDayJob ? (
+                      <Text style={{ color: Colors.textHint }}>(N/A)</Text>
+                    ) : (
+                      <Text style={{ color: Colors.textHint }}></Text>
+                    )}
                   </Text>
                   <TouchableOpacity
                     style={[
                       styles.dateButton,
-                      !isOneDayJob && !scheduledEndDate && { borderColor: Colors.border },
+                      !isOneDayJob &&
+                        !scheduledEndDate && { borderColor: Colors.border },
                       isOneDayJob && styles.dateButtonDisabled,
                     ]}
                     onPress={() => !isOneDayJob && setShowEndDatePicker(true)}
@@ -1648,7 +1937,8 @@ export default function CreateJobScreen() {
                       style={[
                         styles.dateButtonText,
                         styles.dateButtonTextSmall,
-                        !isOneDayJob && !scheduledEndDate && { color: Colors.textHint },
+                        !isOneDayJob &&
+                          !scheduledEndDate && { color: Colors.textHint },
                         isOneDayJob && { color: Colors.textHint },
                       ]}
                     >
@@ -1691,12 +1981,19 @@ export default function CreateJobScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <View style={[styles.checkbox, isOneDayJob && styles.checkboxChecked]}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    isOneDayJob && styles.checkboxChecked,
+                  ]}
+                >
                   {isOneDayJob && (
                     <Ionicons name="checkmark" size={14} color="#fff" />
                   )}
                 </View>
-                <Text style={styles.checkboxLabel}>This job is one day or less</Text>
+                <Text style={styles.checkboxLabel}>
+                  This job is one day or less
+                </Text>
               </TouchableOpacity>
 
               {/* Expected Duration - always visible for regular jobs; agency shows only for one-day */}
@@ -1711,12 +2008,13 @@ export default function CreateJobScreen() {
                     placeholderTextColor={Colors.textHint}
                   />
                   <SuggestionBubbles
-                    suggestions={durationSuggestions.filter(s =>
-                      !s.text.toLowerCase().includes("1 day") &&
-                      !s.text.toLowerCase().includes("2 days")
+                    suggestions={durationSuggestions.filter(
+                      (s) =>
+                        !s.text.toLowerCase().includes("1 day") &&
+                        !s.text.toLowerCase().includes("2 days"),
                     )}
                     onSelect={setDuration}
-                    isLoading={loadingSuggestionFields.has('duration')}
+                    isLoading={loadingSuggestionFields.has("duration")}
                     label="Common durations"
                     icon="time-outline"
                   />
@@ -1726,13 +2024,20 @@ export default function CreateJobScreen() {
             {/* Job Options Section */}
             <View style={styles.section}>
               <TouchableOpacity
-                style={[styles.sectionTitle, { justifyContent: 'space-between' }]}
+                style={[
+                  styles.sectionTitle,
+                  { justifyContent: "space-between" },
+                ]}
                 onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
                 activeOpacity={0.7}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <Ionicons name="settings" size={20} color={Colors.primary} />
-                  <Text style={styles.sectionTitleText}>Job Options (Optional)</Text>
+                  <Text style={styles.sectionTitleText}>
+                    Job Options (Optional)
+                  </Text>
                 </View>
                 <Ionicons
                   name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"}
@@ -1743,8 +2048,6 @@ export default function CreateJobScreen() {
 
               {isJobOptionsExpanded && (
                 <View>
-
-
                   {/* Skill Level Required */}
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Skill Level Required</Text>
@@ -1760,15 +2063,20 @@ export default function CreateJobScreen() {
                           key={level.value}
                           style={[
                             styles.urgencyButton,
-                            skillLevel === level.value && styles.urgencyButtonActive,
+                            skillLevel === level.value &&
+                              styles.urgencyButtonActive,
                           ]}
-                          onPress={() => setSkillLevel(skillLevel === level.value ? null : level.value)}
+                          onPress={() =>
+                            setSkillLevel(
+                              skillLevel === level.value ? null : level.value,
+                            )
+                          }
                         >
                           <Text
                             style={[
                               styles.urgencyText,
                               skillLevel === level.value &&
-                              styles.urgencyTextActive,
+                                styles.urgencyTextActive,
                             ]}
                           >
                             {level.label}
@@ -1793,14 +2101,20 @@ export default function CreateJobScreen() {
                           key={scope.value}
                           style={[
                             styles.urgencyButton,
-                            jobScope === scope.value && styles.urgencyButtonActive,
+                            jobScope === scope.value &&
+                              styles.urgencyButtonActive,
                           ]}
-                          onPress={() => setJobScope(jobScope === scope.value ? null : scope.value)}
+                          onPress={() =>
+                            setJobScope(
+                              jobScope === scope.value ? null : scope.value,
+                            )
+                          }
                         >
                           <Text
                             style={[
                               styles.urgencyText,
-                              jobScope === scope.value && styles.urgencyTextActive,
+                              jobScope === scope.value &&
+                                styles.urgencyTextActive,
                             ]}
                           >
                             {scope.label}
@@ -1825,15 +2139,20 @@ export default function CreateJobScreen() {
                           key={env.value}
                           style={[
                             styles.urgencyButton,
-                            workEnvironment === env.value && styles.urgencyButtonActive,
+                            workEnvironment === env.value &&
+                              styles.urgencyButtonActive,
                           ]}
-                          onPress={() => setWorkEnvironment(workEnvironment === env.value ? null : env.value)}
+                          onPress={() =>
+                            setWorkEnvironment(
+                              workEnvironment === env.value ? null : env.value,
+                            )
+                          }
                         >
                           <Text
                             style={[
                               styles.urgencyText,
                               workEnvironment === env.value &&
-                              styles.urgencyTextActive,
+                                styles.urgencyTextActive,
                             ]}
                           >
                             {env.label}
@@ -1846,8 +2165,14 @@ export default function CreateJobScreen() {
                   {/* Materials Section */}
                   <View style={{ marginTop: 16 }}>
                     <View style={styles.sectionTitle}>
-                      <Ionicons name="construct" size={20} color={Colors.primary} />
-                      <Text style={styles.sectionTitleText}>Materials Needed (Optional)</Text>
+                      <Ionicons
+                        name="construct"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.sectionTitleText}>
+                        Materials Needed (Optional)
+                      </Text>
                     </View>
 
                     {/* Manual Material Input */}
@@ -1860,7 +2185,10 @@ export default function CreateJobScreen() {
                         placeholderTextColor={Colors.textHint}
                         onSubmitEditing={() => {
                           if (materialInput.trim()) {
-                            setManualMaterials(prev => [...prev, materialInput.trim()]);
+                            setManualMaterials((prev) => [
+                              ...prev,
+                              materialInput.trim(),
+                            ]);
                             setMaterialInput("");
                           }
                         }}
@@ -1869,7 +2197,10 @@ export default function CreateJobScreen() {
                         style={styles.materialAddBtn}
                         onPress={() => {
                           if (materialInput.trim()) {
-                            setManualMaterials(prev => [...prev, materialInput.trim()]);
+                            setManualMaterials((prev) => [
+                              ...prev,
+                              materialInput.trim(),
+                            ]);
                             setMaterialInput("");
                           }
                         }}
@@ -1880,14 +2211,35 @@ export default function CreateJobScreen() {
 
                     {/* Manual Materials List */}
                     {manualMaterials.length > 0 && (
-                      <View style={[styles.materialsContainer, { marginBottom: workerId && workerMaterials.length > 0 ? 16 : 0 }]}>
+                      <View
+                        style={[
+                          styles.materialsContainer,
+                          {
+                            marginBottom:
+                              workerId && workerMaterials.length > 0 ? 16 : 0,
+                          },
+                        ]}
+                      >
                         {manualMaterials.map((item, index) => (
-                          <View key={`manual-${index}`} style={styles.manualMaterialTag}>
-                            <Text style={styles.manualMaterialText}>{item}</Text>
+                          <View
+                            key={`manual-${index}`}
+                            style={styles.manualMaterialTag}
+                          >
+                            <Text style={styles.manualMaterialText}>
+                              {item}
+                            </Text>
                             <TouchableOpacity
-                              onPress={() => setManualMaterials(prev => prev.filter((_, i) => i !== index))}
+                              onPress={() =>
+                                setManualMaterials((prev) =>
+                                  prev.filter((_, i) => i !== index),
+                                )
+                              }
                             >
-                              <Ionicons name="close-circle" size={18} color={Colors.error} />
+                              <Ionicons
+                                name="close-circle"
+                                size={18}
+                                color={Colors.error}
+                              />
                             </TouchableOpacity>
                           </View>
                         ))}
@@ -1897,11 +2249,18 @@ export default function CreateJobScreen() {
                     {/* Worker Materials (if selected) */}
                     {workerId && (
                       <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Select from Worker's List:</Text>
+                        <Text style={styles.label}>
+                          Select from Worker's List:
+                        </Text>
                         {materialsLoading ? (
                           <View style={styles.loadingCategories}>
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                            <Text style={styles.loadingText}>Loading materials...</Text>
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.primary}
+                            />
+                            <Text style={styles.loadingText}>
+                              Loading materials...
+                            </Text>
                           </View>
                         ) : workerMaterials.length > 0 ? (
                           <View style={styles.materialsContainer}>
@@ -1911,7 +2270,7 @@ export default function CreateJobScreen() {
                                 style={[
                                   styles.materialCard,
                                   selectedMaterials.includes(material.id) &&
-                                  styles.materialCardSelected,
+                                    styles.materialCardSelected,
                                 ]}
                                 onPress={() => {
                                   setSelectedMaterials((prev) =>
@@ -1923,22 +2282,37 @@ export default function CreateJobScreen() {
                               >
                                 <View style={styles.materialCardContent}>
                                   <View style={styles.materialInfo}>
-                                    <Text style={styles.materialName}>{material.name}</Text>
+                                    <Text style={styles.materialName}>
+                                      {material.name}
+                                    </Text>
                                     {material.description && (
-                                      <Text style={styles.materialDesc} numberOfLines={1}>
+                                      <Text
+                                        style={styles.materialDesc}
+                                        numberOfLines={1}
+                                      >
                                         {material.description}
                                       </Text>
                                     )}
                                     <Text style={styles.materialPrice}>
-                                      ₱{material.price.toLocaleString()} / {material.priceUnit}
+                                      ₱{material.price.toLocaleString()} /{" "}
+                                      {material.priceUnit}
                                     </Text>
                                   </View>
-                                  <View style={[
-                                    styles.materialCheckbox,
-                                    selectedMaterials.includes(material.id) && styles.materialCheckboxSelected
-                                  ]}>
-                                    {selectedMaterials.includes(material.id) && (
-                                      <Ionicons name="checkmark" size={16} color={Colors.white} />
+                                  <View
+                                    style={[
+                                      styles.materialCheckbox,
+                                      selectedMaterials.includes(material.id) &&
+                                        styles.materialCheckboxSelected,
+                                    ]}
+                                  >
+                                    {selectedMaterials.includes(
+                                      material.id,
+                                    ) && (
+                                      <Ionicons
+                                        name="checkmark"
+                                        size={16}
+                                        color={Colors.white}
+                                      />
                                     )}
                                   </View>
                                 </View>
@@ -1983,7 +2357,7 @@ export default function CreateJobScreen() {
                       style={[
                         styles.optionButtonText,
                         paymentModel === "PROJECT" &&
-                        styles.optionButtonTextActive,
+                          styles.optionButtonTextActive,
                       ]}
                     >
                       Fixed Budget
@@ -2002,7 +2376,7 @@ export default function CreateJobScreen() {
                       style={[
                         styles.optionButtonText,
                         paymentModel === "DAILY" &&
-                        styles.optionButtonTextActive,
+                          styles.optionButtonTextActive,
                         isOneDayJob && styles.optionButtonTextDisabled,
                       ]}
                     >
@@ -2033,7 +2407,9 @@ export default function CreateJobScreen() {
                     <TextInput
                       style={styles.budgetTextInput}
                       placeholder={
-                        effectiveCategoryId ? "0.00" : "Add a worker requirement first"
+                        effectiveCategoryId
+                          ? "0.00"
+                          : "Add a worker requirement first"
                       }
                       value={budget}
                       onChangeText={setBudget}
@@ -2067,7 +2443,9 @@ export default function CreateJobScreen() {
                       <TextInput
                         style={styles.budgetTextInput}
                         placeholder={
-                          effectiveCategoryId ? "0.00" : "Add a worker requirement first"
+                          effectiveCategoryId
+                            ? "0.00"
+                            : "Add a worker requirement first"
                         }
                         value={dailyRate}
                         onChangeText={setDailyRate}
@@ -2083,16 +2461,23 @@ export default function CreateJobScreen() {
                     <TextInput
                       style={[
                         styles.input,
-                        (!effectiveCategoryId || (startDate && (scheduledEndDate || isOneDayJob))) && styles.inputDisabled,
+                        (!effectiveCategoryId ||
+                          (startDate && (scheduledEndDate || isOneDayJob))) &&
+                          styles.inputDisabled,
                       ]}
                       placeholder={
-                        effectiveCategoryId ? "e.g., 5" : "Add a worker requirement first"
+                        effectiveCategoryId
+                          ? "e.g., 5"
+                          : "Add a worker requirement first"
                       }
                       value={durationDays}
                       onChangeText={setDurationDays}
                       keyboardType="number-pad"
                       placeholderTextColor={Colors.textHint}
-                      editable={!!effectiveCategoryId && !(startDate && (scheduledEndDate || isOneDayJob))}
+                      editable={
+                        !!effectiveCategoryId &&
+                        !(startDate && (scheduledEndDate || isOneDayJob))
+                      }
                     />
                     <Text style={styles.hint}>
                       {startDate && (scheduledEndDate || isOneDayJob)
@@ -2104,152 +2489,175 @@ export default function CreateJobScreen() {
               )}
 
               {/* AI Price Suggestion Card - Only for PROJECT model */}
-              {paymentModel === "PROJECT" &&
-                effectiveCategoryId && (
-                  <PriceSuggestionCard
-                    minPrice={pricePrediction?.min_price}
-                    suggestedPrice={pricePrediction?.suggested_price}
-                    maxPrice={pricePrediction?.max_price}
-                    confidence={pricePrediction?.confidence}
-                    source={pricePrediction?.source}
-                    isLoading={isPredictingPrice}
-                    error={pricePredictionError?.message}
-                    onApplySuggested={handleApplySuggestedPrice}
-                  />
-                )}
+              {paymentModel === "PROJECT" && effectiveCategoryId && (
+                <PriceSuggestionCard
+                  minPrice={pricePrediction?.min_price}
+                  suggestedPrice={pricePrediction?.suggested_price}
+                  maxPrice={pricePrediction?.max_price}
+                  confidence={pricePrediction?.confidence}
+                  source={pricePrediction?.source}
+                  isLoading={isPredictingPrice}
+                  error={pricePredictionError?.message}
+                  onApplySuggested={handleApplySuggestedPrice}
+                />
+              )}
 
               {/* Payment Summary - PROJECT Model */}
-              {paymentModel === "PROJECT" && budget && parseFloat(budget) > 0 && (
-                <View style={styles.paymentSummary}>
-                  <Text style={styles.summaryTitle}>Payment Summary</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Total Budget (Worker Receives)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{parseFloat(budget).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      50% Escrow (Downpayment)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(budget) * 0.5).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Platform Fee (10% of total)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(budget) * 0.10).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                    <Text style={styles.summaryLabelTotal}>Due Now</Text>
-                    <Text style={styles.summaryValueTotal}>
-                      ₱{(parseFloat(budget) * 0.5 + parseFloat(budget) * 0.10).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.walletBalanceRow}>
-                    {walletLoading ? (
-                      <Text style={styles.walletLabel}>
-                        Loading wallet balance...
+              {paymentModel === "PROJECT" &&
+                budget &&
+                parseFloat(budget) > 0 && (
+                  <View style={styles.paymentSummary}>
+                    <Text style={styles.summaryTitle}>Payment Summary</Text>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Total Budget (Worker Receives)
                       </Text>
-                    ) : (
-                      <>
+                      <Text style={styles.summaryValue}>
+                        ₱{parseFloat(budget).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        50% Escrow (Downpayment)
+                      </Text>
+                      <Text style={styles.summaryValue}>
+                        ₱{(parseFloat(budget) * 0.5).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Platform Fee (10% of total)
+                      </Text>
+                      <Text style={styles.summaryValue}>
+                        ₱{(parseFloat(budget) * 0.1).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                      <Text style={styles.summaryLabelTotal}>Due Now</Text>
+                      <Text style={styles.summaryValueTotal}>
+                        ₱
+                        {(
+                          parseFloat(budget) * 0.5 +
+                          parseFloat(budget) * 0.1
+                        ).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.walletBalanceRow}>
+                      {walletLoading ? (
                         <Text style={styles.walletLabel}>
-                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                          Loading wallet balance...
                         </Text>
-                        {hasInsufficientBalance && (
-                          <Text style={styles.insufficientText}>
-                            (Need ₱{shortfallAmount.toFixed(2)} more)
+                      ) : (
+                        <>
+                          <Text style={styles.walletLabel}>
+                            Wallet Balance: ₱{walletBalance.toFixed(2)}
                           </Text>
-                        )}
-                      </>
-                    )}
+                          {hasInsufficientBalance && (
+                            <Text style={styles.insufficientText}>
+                              (Need ₱{shortfallAmount.toFixed(2)} more)
+                            </Text>
+                          )}
+                        </>
+                      )}
+                    </View>
                   </View>
-                </View>
-              )}
+                )}
 
               {/* Payment Summary - DAILY Model */}
-              {paymentModel === "DAILY" && dailyRate && durationDays && parseFloat(dailyRate) > 0 && parseInt(durationDays) > 0 && (
-                <View style={styles.paymentSummary}>
-                  <Text style={styles.summaryTitle}>Payment Summary</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Daily Rate per Worker
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{parseFloat(dailyRate).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Duration
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      {parseInt(durationDays)} day{parseInt(durationDays) !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Total Worker Payment
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays)).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>
-                      Platform Fee (10% of total)
-                    </Text>
-                    <Text style={styles.summaryValue}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 0.10).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-                    <Text style={styles.summaryLabelTotal}>Due Now (100% Escrow)</Text>
-                    <Text style={styles.summaryValueTotal}>
-                      ₱{(parseFloat(dailyRate) * parseInt(durationDays) * 1.10).toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={styles.walletBalanceRow}>
-                    {walletLoading ? (
-                      <Text style={styles.walletLabel}>
-                        Loading wallet balance...
+              {paymentModel === "DAILY" &&
+                dailyRate &&
+                durationDays &&
+                parseFloat(dailyRate) > 0 &&
+                parseInt(durationDays) > 0 && (
+                  <View style={styles.paymentSummary}>
+                    <Text style={styles.summaryTitle}>Payment Summary</Text>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Daily Rate per Worker
                       </Text>
-                    ) : (
-                      <>
+                      <Text style={styles.summaryValue}>
+                        ₱{parseFloat(dailyRate).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Duration</Text>
+                      <Text style={styles.summaryValue}>
+                        {parseInt(durationDays)} day
+                        {parseInt(durationDays) !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Total Worker Payment
+                      </Text>
+                      <Text style={styles.summaryValue}>
+                        ₱
+                        {(
+                          parseFloat(dailyRate) * parseInt(durationDays)
+                        ).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>
+                        Platform Fee (10% of total)
+                      </Text>
+                      <Text style={styles.summaryValue}>
+                        ₱
+                        {(
+                          parseFloat(dailyRate) *
+                          parseInt(durationDays) *
+                          0.1
+                        ).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                      <Text style={styles.summaryLabelTotal}>
+                        Due Now (100% Escrow)
+                      </Text>
+                      <Text style={styles.summaryValueTotal}>
+                        ₱
+                        {(
+                          parseFloat(dailyRate) *
+                          parseInt(durationDays) *
+                          1.1
+                        ).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.walletBalanceRow}>
+                      {walletLoading ? (
                         <Text style={styles.walletLabel}>
-                          Wallet Balance: ₱{walletBalance.toFixed(2)}
+                          Loading wallet balance...
                         </Text>
-                        {hasInsufficientBalance && (
-                          <Text style={styles.insufficientText}>
-                            (Need ₱{shortfallAmount.toFixed(2)} more)
+                      ) : (
+                        <>
+                          <Text style={styles.walletLabel}>
+                            Wallet Balance: ₱{walletBalance.toFixed(2)}
                           </Text>
-                        )}
-                      </>
-                    )}
+                          {hasInsufficientBalance && (
+                            <Text style={styles.insufficientText}>
+                              (Need ₱{shortfallAmount.toFixed(2)} more)
+                            </Text>
+                          )}
+                        </>
+                      )}
+                    </View>
+                    <Text style={styles.dailyNote}>
+                      Daily jobs require 100% escrow upfront. Workers confirm
+                      attendance daily.
+                    </Text>
                   </View>
-                  <Text style={styles.dailyNote}>
-                    Daily jobs require 100% escrow upfront. Workers confirm attendance daily.
-                  </Text>
-                </View>
-              )}
+                )}
             </View>
 
             {/* Payment Method Section */}
             <View style={styles.section}>
-
               {/* Wallet Balance Card */}
               <View
                 style={[
                   styles.walletBalanceCard,
                   hasInsufficientBalance &&
-                  budget &&
-                  styles.walletBalanceCardWarning,
+                    budget &&
+                    styles.walletBalanceCardWarning,
                 ]}
               >
                 <View style={styles.walletBalanceHeader}>
@@ -2270,8 +2678,8 @@ export default function CreateJobScreen() {
                   style={[
                     styles.walletBalanceAmount,
                     hasInsufficientBalance &&
-                    budget &&
-                    styles.walletBalanceAmountWarning,
+                      budget &&
+                      styles.walletBalanceAmountWarning,
                   ]}
                 >
                   ₱{walletBalance.toFixed(2)}
@@ -2335,9 +2743,9 @@ export default function CreateJobScreen() {
                   <Text style={styles.infoText}>
                     {workerId || agencyId
                       ? // INVITE job - immediate deduction
-                      `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
+                        `• 50% downpayment will be deducted immediately\n• Funds held in escrow until job completion\n• Worker/Agency completes the job\n• You approve completion\n• Remaining 50% is released`
                       : // LISTING job - reservation
-                      `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
+                        `• 50% downpayment will be reserved (not deducted)\n• Funds are held when a worker is accepted\n• Worker completes the job\n• You approve completion\n• Remaining 50% is released`}
                   </Text>
                 </View>
               </View>

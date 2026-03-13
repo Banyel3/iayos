@@ -56,6 +56,18 @@ interface MyJob {
   team_fill_percentage?: number;
   // Application count for client navigation
   application_count?: number;
+  worker_marked_on_the_way?: boolean;
+  worker_marked_on_the_way_at?: string | null;
+  worker_marked_job_started?: boolean;
+  worker_marked_job_started_at?: string | null;
+  client_confirmed_work_started?: boolean;
+  client_confirmed_work_started_at?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by_role?: string | null;
+  cancellation_stage?: string | null;
+  cancellation_reason?: string | null;
+  client_refund_amount?: number;
+  worker_compensation_amount?: number;
 }
 
 interface MyJobsResponse {
@@ -569,6 +581,14 @@ export default function JobsScreen() {
     }
   };
 
+  const formatCancellationStage = (stage?: string | null) => {
+    if (!stage) return "Cancelled";
+    return stage
+      .split("_")
+      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+      .join(" ");
+  };
+
   const renderJobCard = (job: MyJob) => {
     const urgencyColors = getUrgencyColor(job.urgency_level);
     const statusColors = getStatusBadgeColor(job.status);
@@ -682,6 +702,59 @@ export default function JobsScreen() {
         <Text style={styles.jobDescription} numberOfLines={2}>
           {job.description}
         </Text>
+
+        {(job.worker_marked_on_the_way ||
+          job.worker_marked_job_started ||
+          job.client_confirmed_work_started) &&
+          job.status !== "COMPLETED" &&
+          job.status !== "CANCELLED" && (
+            <View style={styles.lifecycleRow}>
+              {job.worker_marked_on_the_way && (
+                <View style={styles.lifecycleBadge}>
+                  <Ionicons name="navigate" size={12} color={Colors.primary} />
+                  <Text style={styles.lifecycleText}>On the way</Text>
+                </View>
+              )}
+              {job.worker_marked_job_started && (
+                <View style={styles.lifecycleBadge}>
+                  <Ionicons
+                    name="play-circle"
+                    size={12}
+                    color={Colors.warning}
+                  />
+                  <Text style={styles.lifecycleText}>Job started</Text>
+                </View>
+              )}
+              {job.client_confirmed_work_started && (
+                <View style={styles.lifecycleBadge}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={12}
+                    color={Colors.success}
+                  />
+                  <Text style={styles.lifecycleText}>Arrival confirmed</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+        {job.status === "CANCELLED" && (
+          <View style={styles.cancellationInfoCard}>
+            <Text style={styles.cancellationInfoTitle}>
+              {formatCancellationStage(job.cancellation_stage)}
+            </Text>
+            {(job.client_refund_amount || 0) > 0 && (
+              <Text style={styles.cancellationInfoText}>
+                Client refund: PHP {Number(job.client_refund_amount || 0).toFixed(2)}
+              </Text>
+            )}
+            {(job.worker_compensation_amount || 0) > 0 && (
+              <Text style={styles.cancellationInfoText}>
+                Worker compensation: PHP {Number(job.worker_compensation_amount || 0).toFixed(2)}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Worker/Client Info */}
         {isClient && job.worker_name && (
@@ -1602,6 +1675,47 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     lineHeight: 20,
     marginBottom: Spacing.md,
+  },
+  lifecycleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  lifecycleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  lifecycleText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  cancellationInfoCard: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  cancellationInfoTitle: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "700",
+    color: "#9A3412",
+    marginBottom: 2,
+  },
+  cancellationInfoText: {
+    fontSize: Typography.fontSize.xs,
+    color: "#9A3412",
   },
   userInfoContainer: {
     flexDirection: "row",
