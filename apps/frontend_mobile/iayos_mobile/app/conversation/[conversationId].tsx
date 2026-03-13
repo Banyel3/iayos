@@ -781,19 +781,39 @@ export default function ChatScreen() {
   const handleCancelJob = () => {
     if (!conversation) return;
 
+    const chooseCancellationReason = (onSelect: (reason: string) => void) => {
+      Alert.alert("Select Cancellation Reason", "A reason is required to cancel this job.", [
+        {
+          text: "No Longer Needed",
+          onPress: () => onSelect("Client no longer needs the service"),
+        },
+        {
+          text: "Budget Constraints",
+          onPress: () => onSelect("Client cancelled due to budget constraints"),
+        },
+        {
+          text: "Scheduling Conflict",
+          onPress: () => onSelect("Client cancelled due to scheduling conflict"),
+        },
+        { text: "Back", style: "cancel" },
+      ]);
+    };
+
     Alert.alert(
       "Cancel Job",
-      "Are you sure you want to cancel this job? Refund/release will follow platform cancellation rules.",
+      "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
       [
         { text: "Keep Job", style: "cancel" },
         {
           text: "Cancel Job",
           style: "destructive",
           onPress: () => {
-            cancelJobMutation.mutate({
-              jobId: conversation.job.id,
-              reason: "Cancelled by client from conversation",
-            });
+            chooseCancellationReason((reason) =>
+              cancelJobMutation.mutate({
+                jobId: conversation.job.id,
+                reason,
+              }),
+            );
           },
         },
       ],

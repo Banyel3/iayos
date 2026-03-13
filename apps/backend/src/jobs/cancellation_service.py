@@ -1,5 +1,5 @@
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from django.db import transaction as db_transaction
 from django.utils import timezone
@@ -15,18 +15,10 @@ def _q(value: Decimal) -> Decimal:
 
 
 def _actor_role_for_job(job: Job, actor_account) -> Optional[str]:
-    if (
-        job.clientID
-        and job.clientID.profileID
-        and job.clientID.profileID.accountFK == actor_account
-    ):
+    if job.clientID and job.clientID.profileID and job.clientID.profileID.accountFK == actor_account:
         return "CLIENT"
 
-    if (
-        job.assignedWorkerID
-        and job.assignedWorkerID.profileID
-        and job.assignedWorkerID.profileID.accountFK == actor_account
-    ):
+    if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK == actor_account:
         return "WORKER"
 
     if job.assignedAgencyFK and job.assignedAgencyFK.accountFK == actor_account:
@@ -45,14 +37,7 @@ def _worker_recipient_account(job: Job):
     return None
 
 
-def _credit_wallet(
-    account,
-    amount: Decimal,
-    tx_type: str,
-    description: str,
-    job: Job,
-    reference: str,
-) -> None:
+def _credit_wallet(account, amount: Decimal, tx_type: str, description: str, job: Job, reference: str) -> None:
     if amount <= 0:
         return
 
@@ -72,9 +57,7 @@ def _credit_wallet(
     )
 
 
-def cancel_job_with_scenarios(
-    job: Job, actor_account, reason: Optional[str] = None
-) -> Dict:
+def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = None) -> Dict:
     """
     Centralized cancellation logic for project jobs.
 
@@ -87,6 +70,9 @@ def cancel_job_with_scenarios(
     actor_role = _actor_role_for_job(job, actor_account)
     if actor_role is None:
         raise PermissionError("You are not authorized to cancel this job")
+
+    if not reason or not reason.strip():
+        raise ValueError("Cancellation reason is required")
 
     if job.status == Job.JobStatus.CANCELLED:
         raise ValueError("This job is already cancelled")
@@ -103,11 +89,7 @@ def cancel_job_with_scenarios(
     client_account = job.clientID.profileID.accountFK
     worker_recipient = _worker_recipient_account(job)
 
-    escrow_pool = _q(
-        job.escrowAmount
-        if job.escrowAmount and job.escrowAmount > 0
-        else (job.budget * Decimal("0.5"))
-    )
+    escrow_pool = _q(job.escrowAmount if job.escrowAmount and job.escrowAmount > 0 else (job.budget * Decimal("0.5")))
     platform_fee = _q(Decimal(str(job.budget)) * Decimal("0.10"))
 
     cancellation_stage = "BEFORE_WORK_START"
@@ -137,7 +119,7 @@ def cancel_job_with_scenarios(
         cancellation_stage = "AFTER_ARRIVAL_NO_RECIPIENT_FALLBACK"
 
     now = timezone.now()
-    reason_text = (reason or "Cancelled by participant").strip() or "Cancelled by participant"
+    reason_text = reason.strip()
     reference_suffix = now.strftime("%Y%m%d%H%M%S")
 
     with db_transaction.atomic():
@@ -193,13 +175,27 @@ def cancel_job_with_scenarios(
             jobID=job,
             notes=(
                 f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Job cancelled by {actor_role}. "
-                f"Stage={cancellation_stage}; client_refund=PHP {job.clientRefundAmount}; "
-                f"worker_compensation=PHP {job.workerCompensationAmount}; reason={reason_text}"
+                f"Stage={cancellation_stage}; client_refund=₱{job.clientRefundAmount}; "
+                f"worker_compensation=₱{job.workerCompensationAmount}; reason={reason_text}"
             ),
             changedBy=actor_account,
             oldStatus=old_status,
             newStatus=job.status,
         )
+
+        # Close related conversation when cancellation is finalized.
+        try:
+            from profiles.models import Conversation
+            from profiles.conversation_service import archive_conversation
+
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=["status", "updatedAt"])
+                archive_conversation(conversation)
+        except Exception:
+            # Cancellation must not fail if conversation closure/archive fails.
+            pass
 
     # Notifications outside atomic write block for clarity.
     involved_accounts = {client_account.accountID: client_account}
@@ -213,8 +209,9 @@ def cancel_job_with_scenarios(
             title="Job Cancelled",
             message=(
                 f"Job '{job.title}' was cancelled. "
-                f"Client refund: PHP {job.clientRefundAmount}. "
-                f"Worker compensation: PHP {job.workerCompensationAmount}."
+                f"Reason: {reason_text}. "
+                f"Client refund: ₱{job.clientRefundAmount}. "
+                f"Worker compensation: ₱{job.workerCompensationAmount}."
             ),
             relatedJobID=job.jobID,
         )
