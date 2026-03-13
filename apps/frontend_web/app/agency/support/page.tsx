@@ -25,8 +25,6 @@ import {
   Shield,
   CreditCard,
   Users,
-  Search,
-  ExternalLink,
   LifeBuoy,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api/config";
@@ -96,7 +94,6 @@ export default function AgencySupportPage() {
   const router = useRouter();
   const [expandedCategory, setExpandedCategory] = useState<string | null>("kyc");
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketSubmitted, setTicketSubmitted] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);

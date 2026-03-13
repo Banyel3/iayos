@@ -138,6 +138,7 @@ export default function AgencySettingsPage() {
       "This will clear all locally saved settings and preferences. Are you sure you want to continue?"
     );
     if (!isConfirmed) return;
+
     toast.promise(
       new Promise((resolve) => {
         localStorage.clear();
