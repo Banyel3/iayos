@@ -645,7 +645,6 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         cancellation_stage = getattr(job, 'cancellationStage', None)
         client_refund_amount = getattr(job, 'clientRefundAmount', Decimal('0.00'))
         worker_compensation_amount = getattr(job, 'workerCompensationAmount', Decimal('0.00'))
-
         job_data = {
             'id': job.jobID,
             'title': job.title,
