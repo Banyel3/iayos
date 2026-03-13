@@ -11,8 +11,9 @@ from .schemas import (
     CreateJobPostingSchema, CreateJobPostingMobileSchema, JobPostingResponseSchema, 
     JobApplicationSchema, SubmitReviewSchema, ApproveJobCompletionSchema,
     LogAttendanceSchema, RequestExtensionSchema, RequestRateChangeSchema, CancelDailyJobSchema,
-    RequestSkipDaySchema, ReviewSkipDaySchema, QASkipNextDaySchema
+    RequestSkipDaySchema, ReviewSkipDaySchema, QASkipNextDaySchema, CancelJobSchema
 )
+from .cancellation_service import cancel_job_with_scenarios
 from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
@@ -46,6 +47,25 @@ def get_user_profile(request):
     else:
         # Fallback for single profile users
         return Profile.objects.filter(accountFK=request.auth).first()
+
+
+def _resolve_worker_or_agency_actor_for_job(job: JobPosting, account):
+    """Resolve whether current account can act as worker-side actor for a job."""
+    if (
+        job.assignedWorkerID
+        and job.assignedWorkerID.profileID
+        and job.assignedWorkerID.profileID.accountFK == account
+    ):
+        worker_name = (
+            f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}"
+        ).strip()
+        return True, worker_name or account.email, "WORKER"
+
+    if job.assignedAgencyFK and job.assignedAgencyFK.accountFK == account:
+        agency_name = job.assignedAgencyFK.businessName or "Agency"
+        return True, agency_name, "AGENCY"
+
+    return False, None, None
 
 
 def _is_daily_job_participant(job: Job, user) -> bool:
@@ -1975,34 +1995,16 @@ def get_job_posting(request, job_id: int):
         )
 
 
-@router.patch("/{job_id}/cancel", auth=cookie_auth)
+@router.patch("/{job_id}/cancel", auth=dual_auth)
 @require_kyc
-def cancel_job_posting(request, job_id: int):
+def cancel_job_posting(request, job_id: int, data: Optional[CancelJobSchema] = None):
     """
-    Cancel a job posting (update status to CANCELLED)
-    Only the client who created the job can cancel it
-    Only ACTIVE jobs can be cancelled
+    Cancel a job posting using centralized scenario rules.
+    Supports participant cancellation (client/worker/agency) with payout routing.
     """
     try:
         print(f"🚫 Cancelling job {job_id} for {request.auth.email}")
-        
-        # Get user's profile
-        profile = get_user_profile(request)
-        if profile is None:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
-        
-        # Get client profile
-        try:
-            client_profile = ClientProfile.objects.get(profileID=profile)
-        except ClientProfile.DoesNotExist:
-            return Response(
-                {"error": "Only clients can cancel job postings"},
-                status=403
-            )
-        
+
         # Get the job posting
         try:
             job = JobPosting.objects.get(jobID=job_id)
@@ -2011,110 +2013,55 @@ def cancel_job_posting(request, job_id: int):
                 {"error": "Job posting not found"},
                 status=404
             )
-        
-        # Verify this client owns the job
-        if job.clientID.profileID.profileID != client_profile.profileID.profileID:
-            return Response(
-                {"error": "You can only cancel your own job postings"},
-                status=403
-            )
-        
-        # Check if job is already cancelled or completed
-        if job.status == JobPosting.JobStatus.CANCELLED:
-            return Response(
-                {"error": "This job is already cancelled"},
-                status=400
-            )
-        
-        if job.status == JobPosting.JobStatus.COMPLETED:
-            return Response(
-                {"error": "Cannot cancel a completed job"},
-                status=400
-            )
-        
-        if job.status == JobPosting.JobStatus.IN_PROGRESS:
-            return Response(
-                {"error": "Cannot cancel a job that is in progress"},
-                status=400
-            )
-        
-        # Get client's wallet
-        wallet = Wallet.objects.get(accountFK=request.auth)
-        
-        # Handle refund/release based on escrowPaid status
-        refund_amount = Decimal('0.00')
-        released_amount = Decimal('0.00')
-        
-        # Use database transaction for atomicity
-        with db_transaction.atomic():
-            if job.escrowPaid and job.escrowAmount > 0:
-                # Escrow was actually deducted (direct hire) - refund to balance
-                print(f"💰 Refunding escrow amount: ₱{job.escrowAmount}")
-                
-                # Add escrow back to wallet
-                wallet.balance += job.escrowAmount
-                wallet.save()
-                
-                # Create refund transaction
-                refund_transaction = Transaction.objects.create(
-                    walletID=wallet,
-                    transactionType=Transaction.TransactionType.REFUND,
-                    amount=job.escrowAmount,
-                    balanceAfter=wallet.balance,
-                    status=Transaction.TransactionStatus.COMPLETED,
-                    description=f"Escrow refund for cancelled job: {job.title}",
-                    relatedJobPosting=job,
-                    referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
-                )
-                
-                refund_amount = job.escrowAmount
-                
-                print(f"✅ Refunded ₱{job.escrowAmount} to wallet")
-                print(f"💳 New balance: ₱{wallet.balance}")
-                print(f"📝 Refund transaction created: ID={refund_transaction.transactionID}")
-            
-            elif not job.escrowPaid:
-                # Escrow was reserved but not deducted (LISTING job) - release from reservedBalance
-                # Calculate the total reserved (escrow + platform fee)
-                escrow_amount = job.escrowAmount
-                platform_fee = Decimal(str(job.budget)) * Decimal('0.10')
-                total_reserved = escrow_amount + platform_fee
-                
-                print(f"🔓 Releasing reserved funds: ₱{total_reserved}")
-                
-                # Release from reserved balance
-                wallet.reservedBalance -= total_reserved
-                if wallet.reservedBalance < 0:
-                    wallet.reservedBalance = Decimal('0.00')  # Safety check
-                wallet.save()
-                
-                released_amount = total_reserved
-                
-                # Cancel the pending transactions
-                Transaction.objects.filter(
-                    relatedJobPosting=job,
-                    status=Transaction.TransactionStatus.PENDING
-                ).update(status=Transaction.TransactionStatus.CANCELLED)
-                
-                print(f"✅ Released ₱{total_reserved} from reserved balance")
-                print(f"💳 Available balance now: ₱{wallet.availableBalance}")
-            
-            # Update status to CANCELLED
-            job.status = JobPosting.JobStatus.CANCELLED
-            job.save()
-        
-        print(f"✅ Job {job_id} cancelled successfully")
-        
+        reason_parts: List[str] = []
+        if data and data.reason:
+            cleaned_reason = data.reason.strip()
+            if cleaned_reason:
+                reason_parts.append(cleaned_reason)
+        if data and data.actor_notes:
+            cleaned_notes = data.actor_notes.strip()
+            if cleaned_notes:
+                reason_parts.append(f"Notes: {cleaned_notes}")
+
+        reason = " | ".join(reason_parts) if reason_parts else None
+
+        result = cancel_job_with_scenarios(
+            job=job,
+            actor_account=request.auth,
+            reason=reason,
+        )
+
+        print(f"✅ Job {job_id} cancelled successfully via scenario service")
+
+        broadcast_job_status_update(job_id, {
+            'event': 'job_cancelled',
+            'job_id': job_id,
+            'status': JobPosting.JobStatus.CANCELLED,
+            'cancellation_stage': result.get("cancellation_stage"),
+            'cancelled_by_role': result.get("cancelled_by_role"),
+            'client_refund_amount': result.get("client_refund_amount", 0.0),
+            'worker_compensation_amount': result.get("worker_compensation_amount", 0.0),
+            'timestamp': timezone.now().isoformat(),
+        })
+
         return {
             "success": True,
-            "message": "Job posting cancelled successfully",
+            "message": result.get("message", "Job posting cancelled successfully"),
             "job_id": job_id,
-            "refund_amount": float(refund_amount),
-            "released_amount": float(released_amount),
-            "refunded": refund_amount > 0,
-            "released": released_amount > 0,
-            "available_balance": float(wallet.availableBalance)
+            "refund_amount": result.get("client_refund_amount", 0.0),
+            "released_amount": result.get("reserved_release_amount", 0.0),
+            "worker_compensation_amount": result.get("worker_compensation_amount", 0.0),
+            "refunded": (result.get("client_refund_amount", 0.0) or 0.0) > 0,
+            "released": (result.get("reserved_release_amount", 0.0) or 0.0) > 0,
+            "available_balance": result.get("available_balance", 0.0),
+            "cancellation_stage": result.get("cancellation_stage"),
+            "cancelled_by_role": result.get("cancelled_by_role"),
         }
+
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+    except ValueError as e:
+        return Response({"error": str(e)}, status=400)
         
     except Exception as e:
         print(f"❌ Error cancelling job posting: {str(e)}")
@@ -3645,15 +3592,176 @@ def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...
         )
 
 
+@router.post("/{job_id}/mark-on-the-way", auth=dual_auth)
+@require_kyc
+def worker_mark_on_the_way(request, job_id: int):
+    """Worker or agency marks that they are on the way to the job site."""
+    try:
+        job = JobPosting.objects.select_related(
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK__accountFK',
+            'clientID__profileID__accountFK',
+        ).get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    is_authorized, actor_name, actor_type = _resolve_worker_or_agency_actor_for_job(job, request.auth)
+    if not is_authorized:
+        return Response({"error": "You are not authorized for this job"}, status=403)
+
+    if job.status != JobPosting.JobStatus.IN_PROGRESS:
+        return Response(
+            {"error": f"Job must be IN_PROGRESS. Current status: {job.status}"},
+            status=400,
+        )
+
+    if job.workerMarkedOnTheWay:
+        return Response(
+            {
+                "error": "Worker has already been marked as on the way",
+                "marked_at": job.workerMarkedOnTheWayAt.isoformat() if job.workerMarkedOnTheWayAt else None,
+            },
+            status=400,
+        )
+
+    now = timezone.now()
+    job.workerMarkedOnTheWay = True
+    job.workerMarkedOnTheWayAt = now
+    job.save(update_fields=['workerMarkedOnTheWay', 'workerMarkedOnTheWayAt', 'updatedAt'])
+
+    JobLog.objects.create(
+        jobID=job,
+        notes=f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] {actor_type} {actor_name} marked on the way",
+        changedBy=request.auth,
+        oldStatus=job.status,
+        newStatus=job.status,
+    )
+
+    Notification.objects.create(
+        accountFK=job.clientID.profileID.accountFK,
+        notificationType=Notification.NotificationType.SYSTEM,
+        title="Worker On The Way",
+        message=f"{actor_name} is on the way for '{job.title}'.",
+        relatedJobID=job.jobID,
+    )
+
+    broadcast_job_status_update(job_id, {
+        'event': 'worker_marked_on_the_way',
+        'job_id': job_id,
+        'worker_marked_on_the_way': True,
+        'timestamp': now.isoformat(),
+        'actor_type': actor_type,
+    })
+
+    return {
+        "success": True,
+        "message": "Worker marked as on the way",
+        "job_id": job_id,
+        "actor_type": actor_type,
+        "worker_marked_on_the_way": True,
+        "worker_marked_on_the_way_at": now.isoformat(),
+    }
+
+
+@router.post("/{job_id}/mark-job-started", auth=dual_auth)
+@require_kyc
+def worker_mark_job_started(request, job_id: int):
+    """Worker or agency marks that job execution has started on-site."""
+    try:
+        job = JobPosting.objects.select_related(
+            'assignedWorkerID__profileID__accountFK',
+            'assignedAgencyFK__accountFK',
+            'clientID__profileID__accountFK',
+        ).get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    is_authorized, actor_name, actor_type = _resolve_worker_or_agency_actor_for_job(job, request.auth)
+    if not is_authorized:
+        return Response({"error": "You are not authorized for this job"}, status=403)
+
+    if job.status != JobPosting.JobStatus.IN_PROGRESS:
+        return Response(
+            {"error": f"Job must be IN_PROGRESS. Current status: {job.status}"},
+            status=400,
+        )
+
+    if job.workerMarkedJobStarted:
+        return Response(
+            {
+                "error": "Job has already been marked as started",
+                "marked_at": job.workerMarkedJobStartedAt.isoformat() if job.workerMarkedJobStartedAt else None,
+            },
+            status=400,
+        )
+
+    if not job.workerMarkedOnTheWay:
+        return Response(
+            {"error": "You must mark on the way before marking job started"},
+            status=400,
+        )
+
+    if not job.clientConfirmedWorkStarted:
+        return Response(
+            {"error": "Client must confirm worker arrival before marking job started"},
+            status=400,
+        )
+
+    now = timezone.now()
+    update_fields = ['workerMarkedJobStarted', 'workerMarkedJobStartedAt', 'updatedAt']
+
+    job.workerMarkedJobStarted = True
+    job.workerMarkedJobStartedAt = now
+
+    job.save(update_fields=update_fields)
+
+    JobLog.objects.create(
+        jobID=job,
+        notes=f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] {actor_type} {actor_name} marked job started",
+        changedBy=request.auth,
+        oldStatus=job.status,
+        newStatus=job.status,
+    )
+
+    Notification.objects.create(
+        accountFK=job.clientID.profileID.accountFK,
+        notificationType=Notification.NotificationType.JOB_STARTED,
+        title="Job Started",
+        message=f"{actor_name} marked '{job.title}' as started.",
+        relatedJobID=job.jobID,
+    )
+
+    broadcast_job_status_update(job_id, {
+        'event': 'worker_marked_job_started',
+        'job_id': job_id,
+        'worker_marked_job_started': True,
+        'worker_marked_on_the_way': job.workerMarkedOnTheWay,
+        'timestamp': now.isoformat(),
+        'actor_type': actor_type,
+    })
+
+    return {
+        "success": True,
+        "message": "Job marked as started",
+        "job_id": job_id,
+        "actor_type": actor_type,
+        "worker_marked_job_started": True,
+        "worker_marked_job_started_at": now.isoformat(),
+        "worker_marked_on_the_way": job.workerMarkedOnTheWay,
+        "worker_marked_on_the_way_at": job.workerMarkedOnTheWayAt.isoformat() if job.workerMarkedOnTheWayAt else None,
+        "auto_marked_on_the_way": False,
+    }
+
+
 @router.post("/{job_id}/confirm-work-started", auth=dual_auth)
 @require_kyc
 def client_confirm_work_started(request, job_id: int):
     """
-    Client confirms that worker has arrived and begun work
-    This must be done before worker can mark job as complete
+    Client confirms that worker has arrived on-site.
+    This confirmation is required before worker can mark job started.
     """
     try:
-        print(f"✅ Client confirming work started for job {job_id}")
+        print(f"✅ Client confirming worker arrival for job {job_id}")
         
         # Get client's profile
         try:
@@ -3697,19 +3805,33 @@ def client_confirm_work_started(request, job_id: int):
                 {"error": "Work start has already been confirmed"},
                 status=400
             )
+
+        # Enforce sequence: worker must mark on the way before client confirmation
+        if not job.workerMarkedOnTheWay:
+            return Response(
+                {"error": "Worker must mark on the way before client can confirm arrival"},
+                status=400
+            )
+
+        # Client confirmation must occur before worker marks job started
+        if job.workerMarkedJobStarted:
+            return Response(
+                {"error": "Worker already marked job started; confirmation step is already passed"},
+                status=400
+            )
         
-        # Confirm work has started
+        # Confirm worker arrival (stored in existing field for backward compatibility)
         job.clientConfirmedWorkStarted = True
         job.clientConfirmedWorkStartedAt = timezone.now()
         job.save()
 
-        print(f"✅ Client confirmed work started for job {job_id}")
+        print(f"✅ Client confirmed worker arrival for job {job_id}")
         
         # Log this action for admin verification and audit trail
         confirmation_time = timezone.now()
         JobLog.objects.create(
             jobID=job,
-            notes=f"[{confirmation_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Client {client_profile.profileID.firstName} {client_profile.profileID.lastName} confirmed that worker has arrived and work has started",
+            notes=f"[{confirmation_time.strftime('%Y-%m-%d %I:%M:%S %p')}] Client {client_profile.profileID.firstName} {client_profile.profileID.lastName} confirmed that worker has arrived on-site",
             changedBy=request.auth,
             oldStatus=job.status,
             newStatus=job.status  # Status stays IN_PROGRESS
@@ -3722,11 +3844,11 @@ def client_confirm_work_started(request, job_id: int):
             Notification.objects.create(
                 accountFK=job.assignedWorkerID.profileID.accountFK,
                 notificationType="WORK_STARTED_CONFIRMED",
-                title=f"Work Start Confirmed",
-                message=f"{client_name} has confirmed you have arrived and started work on '{job.title}'. You can now mark the job as complete when finished.",
+                title=f"Arrival Confirmed",
+                message=f"{client_name} has confirmed your arrival for '{job.title}'. You can now mark job started.",
                 relatedJobID=job.jobID
             )
-            print(f"📬 Work started notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
+            print(f"📬 Arrival confirmation notification sent to worker {job.assignedWorkerID.profileID.accountFK.email}")
 
         # Broadcast job status update via WebSocket
         broadcast_job_status_update(job_id, {
@@ -3738,7 +3860,7 @@ def client_confirm_work_started(request, job_id: int):
         
         return {
             "success": True,
-            "message": "Work start confirmed. Worker can now mark job as complete.",
+            "message": "Worker arrival confirmed. Worker can now mark job started.",
             "job_id": job_id,
             "client_confirmed_work_started": True,
             "client_confirmed_work_started_at": job.clientConfirmedWorkStartedAt.isoformat()
@@ -3892,6 +4014,12 @@ def worker_mark_job_complete(request, job_id: int):
             if not job.clientConfirmedWorkStarted:
                 return Response(
                     {"error": "Client must confirm that work has started before you can mark it as complete"},
+                    status=400
+                )
+
+            if not job.workerMarkedJobStarted:
+                return Response(
+                    {"error": "You must mark job started before marking it complete"},
                     status=400
                 )
         
