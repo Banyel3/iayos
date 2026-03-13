@@ -308,6 +308,31 @@ export default function CreateJobScreen() {
   const workerMaterials = workerMaterialsData || agencyMaterialsData || [];
   const isMaterialsLoading = materialsLoading || agencyMaterialsLoading;
 
+  // Fetch agency details if agencyId is provided
+  const { data: agencyDetailData, isLoading: agencyDetailLoading } = useQuery({
+    queryKey: ["agency-detail", agencyId],
+    queryFn: async () => {
+      if (!agencyId) return null;
+      const response = await fetchJson<{
+        success: boolean;
+        agency: {
+          id: number;
+          name: string;
+          specializations: string[];
+            workers: {
+              id: number;
+              firstName: string;
+              lastName: string;
+              specialization: string;
+              specializations: string[];
+            }[];
+        };
+      }>(ENDPOINTS.AGENCY_DETAIL(Number(agencyId)));
+      return response.agency;
+    },
+    enabled: !!agencyId,
+  });
+
   // AI Price Prediction Hook
   const {
     mutate: predictPrice,
@@ -638,16 +663,76 @@ export default function CreateJobScreen() {
       return [];
     }
 
+    // If hiring for an agency and still loading, return empty to prevent flicker
+    if (agencyId && agencyDetailLoading) {
+      return [];
+    }
+
     let list = categories;
 
     if (workerId && workerDetailsData?.skills?.length) {
       const workerSkillIds = new Set(
         workerDetailsData.skills
-          .map((skill) => getWorkerSkillSpecializationId(skill))
-          .filter((id): id is number => id !== null),
+          .map((skill: any) => getWorkerSkillSpecializationId(skill))
+          .filter((id: number | null): id is number => id !== null),
       );
 
       list = list.filter((cat) => workerSkillIds.has(cat.id));
+    }
+
+    // Filter by agency specializations + workers' skills if agencyId is present
+    if (agencyId && agencyDetailData) {
+      const agencySpecs = new Set<string>();
+
+      // Global agency specializations
+      if (agencyDetailData.specializations) {
+        agencyDetailData.specializations.forEach((s) =>
+          agencySpecs.add(s.toLowerCase()),
+        );
+      }
+
+      if (agencyDetailData.workers) {
+        agencyDetailData.workers.forEach((w) => {
+          // Process legacy specialization string
+          if (w.specialization) {
+            // Split by comma, semicolon, or slash
+            w.specialization.split(/[,,;;\/]/).forEach((s: string) => {
+              const trimmed = s.trim();
+              if (trimmed) agencySpecs.add(trimmed.toLowerCase());
+            });
+          }
+          // Process new specializations list
+          if (w.specializations && Array.isArray(w.specializations)) {
+            w.specializations.forEach((s: string) => {
+              if (s) agencySpecs.add(s.toLowerCase().trim());
+            });
+          }
+        });
+      }
+
+      if (agencySpecs.size > 0) {
+        const specsArray = Array.from(agencySpecs);
+        list = list.filter((cat) => {
+          const catName = cat.name.toLowerCase();
+          return specsArray.some((spec) => {
+            if (!spec) return false;
+            // Very permissive matching:
+            // 1. Category name contains skill (e.g. "HVAC (Aircon Services)" contains "HVAC")
+            // 2. Skill contains category name (e.g. "General Plumbing" contains "Plumbing")
+            // 3. Word-based intersection (if any word matches)
+            if (catName.includes(spec) || spec.includes(catName)) return true;
+
+            const catWords = catName.split(/\s+/);
+            const specWords = spec.split(/\s+/);
+            return specWords.some(
+              (sw) => sw.length > 2 && catWords.includes(sw),
+            );
+          });
+        });
+      } else {
+        // If no skills found, show nothing
+        list = [];
+      }
     }
 
     if (categorySearch.trim()) {
@@ -656,7 +741,16 @@ export default function CreateJobScreen() {
     }
 
     return list;
-  }, [workerId, workerDetailsData, categories, categorySearch, getWorkerSkillSpecializationId]);
+  }, [
+    workerId,
+    workerDetailsData,
+    agencyId,
+    agencyDetailData,
+    agencyDetailLoading,
+    categories,
+    categorySearch,
+    getWorkerSkillSpecializationId,
+  ]);
 
   // Auto-add skill slot when invite worker has exactly 1 skill
   useEffect(() => {
@@ -1074,7 +1168,7 @@ export default function CreateJobScreen() {
                   style={{ marginBottom: Spacing.md, backgroundColor: Colors.white }}
                 />
 
-                {categoriesLoading ? (
+                {categoriesLoading || agencyDetailLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.loadingText}>Loading categories...</Text>
@@ -1439,7 +1533,7 @@ export default function CreateJobScreen() {
                     {/* Specialization Selection */}
                     <View style={styles.inputGroup}>
                       <Text style={styles.label}>Specialization</Text>
-                      {categoriesLoading ? (
+                      {categoriesLoading || agencyDetailLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator
                             size="small"

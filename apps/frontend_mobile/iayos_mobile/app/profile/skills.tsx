@@ -233,7 +233,7 @@ export default function SkillsScreen() {
             if (isAtSkillLimit) {
               Alert.alert(
                 "Skill Limit Reached",
-                `You can only have up to ${MAX_WORKER_SKILLS} skills. Remove one skill before adding a new one.",
+                `You can only have up to ${MAX_WORKER_SKILLS} skills. Remove one skill before adding a new one.`
               );
               return;
             }
@@ -681,7 +681,7 @@ export default function SkillsScreen() {
                   // Navigate with skill ID as query parameter
                   if (justAddedSkillId) {
                     router.push(
-                      `/profile/skills/${justAddedSkillId}/certifications` as any,
+                      `/profile/skills/${justAddedSkillId}/certifications` as any
                     );
                   }
                 }}
