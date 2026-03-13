@@ -825,6 +825,14 @@ export default function JobDetailScreen() {
   const handleApply = () => {
     if (!job) return;
 
+    if (job.is_team_job) {
+      Alert.alert(
+        "Team Job",
+        "Please apply through a specific skill slot for this team job.",
+      );
+      return;
+    }
+
     setProposedBudget(job.budget.replace(/[^0-9.]/g, ""));
     setBudgetOption("ACCEPT");
     setProposalMessage("");
@@ -839,6 +847,14 @@ export default function JobDetailScreen() {
   };
 
   const handleSubmitApplication = () => {
+    if (job?.is_team_job) {
+      Alert.alert(
+        "Invalid Submission",
+        "Team jobs require selecting a skill slot before applying.",
+      );
+      return;
+    }
+
     if (!proposalMessage.trim()) {
       Alert.alert("Error", "Please provide a proposal message");
       return;
@@ -3185,63 +3201,67 @@ export default function JobDetailScreen() {
       </ScrollView>
 
       {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
-      {isWorker && job?.jobType !== "INVITE" && job?.status === "ACTIVE" && !isCurrentWorkerAssigned && (
-        <View style={styles.applyButtonContainer} pointerEvents="box-none">
-          {hasApplied ? (
-            <View style={styles.appliedContainer}>
-              <View style={styles.appliedRow}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color={Colors.success}
-                />
-                <Text style={styles.appliedText}>
-                  You have already applied to this job
-                </Text>
-              </View>
-              {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
-                <TouchableOpacity
-                  style={styles.viewChatButton}
-                  onPress={handleViewChat}
-                  activeOpacity={0.8}
-                >
+      {isWorker &&
+        job?.jobType !== "INVITE" &&
+        !isTeamJob &&
+        job?.status === "ACTIVE" &&
+        !isCurrentWorkerAssigned && (
+          <View style={styles.applyButtonContainer} pointerEvents="box-none">
+            {hasApplied ? (
+              <View style={styles.appliedContainer}>
+                <View style={styles.appliedRow}>
                   <Ionicons
-                    name="chatbubble-outline"
-                    size={18}
-                    color={Colors.white}
+                    name="checkmark-circle"
+                    size={24}
+                    color={Colors.success}
                   />
-                  <Text style={styles.viewChatButtonText}>View Chat</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={[
-                styles.applyButton,
-                (!user?.kycVerified || hasApplied) &&
-                  styles.applyButtonDisabled,
-              ]}
-              onPress={handleApply}
-              activeOpacity={0.8}
-              disabled={!user?.kycVerified || hasApplied}
-            >
-              <Text
+                  <Text style={styles.appliedText}>
+                    You have already applied to this job
+                  </Text>
+                </View>
+                {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
+                  <TouchableOpacity
+                    style={styles.viewChatButton}
+                    onPress={handleViewChat}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={18}
+                      color={Colors.white}
+                    />
+                    <Text style={styles.viewChatButtonText}>View Chat</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <TouchableOpacity
                 style={[
-                  styles.applyButtonText,
+                  styles.applyButton,
                   (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonTextDisabled,
+                    styles.applyButtonDisabled,
                 ]}
+                onPress={handleApply}
+                activeOpacity={0.8}
+                disabled={!user?.kycVerified || hasApplied}
               >
-                {!user?.kycVerified
-                  ? "KYC Verification Required"
-                  : hasApplied
-                    ? "Already Applied"
-                    : "Apply for this Job"}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+                <Text
+                  style={[
+                    styles.applyButtonText,
+                    (!user?.kycVerified || hasApplied) &&
+                      styles.applyButtonTextDisabled,
+                  ]}
+                >
+                  {!user?.kycVerified
+                    ? "KYC Verification Required"
+                    : hasApplied
+                      ? "Already Applied"
+                      : "Apply for this Job"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
       {/* Image Modal */}
       <Modal visible={showImageModal} transparent animationType="fade">

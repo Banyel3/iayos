@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Job Duplicate Apply Button Removal**
+  - Hidden the generic bottom apply button on team job detail screens.
+  - Kept only per-skill-slot apply actions as the valid team application entry point.
+  - Added defensive checks to block generic apply submission paths for team jobs.
+  - **Impact**: Team applications are now always tied to a specific skill slot, preventing invalid slot-less submissions.
+
 - **Worker Calendar -> Job Details Freeze on Expo Go**
   - Refactored worker calendar date details from a nested modal into a single-modal overlay flow.
   - Hardened Android back handling so date-details closes first before dismissing the calendar sheet.
