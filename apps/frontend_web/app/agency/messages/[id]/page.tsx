@@ -24,6 +24,7 @@ import {
 } from "@/lib/hooks/useAgencyDailyAttendance";
 import {
   useConfirmBackjobStarted,
+  useConfirmBackjobScheduledDate,
   useMarkBackjobComplete,
   useApproveBackjobCompletion,
 } from "@/lib/hooks/useAgencyBackjobActions";
@@ -118,7 +119,9 @@ export default function AgencyChatScreen() {
     refetch: realRefetch,
   } = useAgencyMessages(isDummy ? null : conversationId);
 
-  const conversation = isDummy ? DUMMY_CONVERSATION_DETAILS[conversationId] : realConversation;
+  const conversation = isDummy
+    ? DUMMY_CONVERSATION_DETAILS[conversationId]
+    : realConversation;
   const isLoading = isDummy ? false : isRealLoading;
   const refetch = isDummy ? () => {} : realRefetch;
 
@@ -132,6 +135,7 @@ export default function AgencyChatScreen() {
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
   const markBackjobCompleteMutation = useMarkBackjobComplete();
   const approveBackjobCompletionMutation = useApproveBackjobCompletion();
 
@@ -237,7 +241,10 @@ export default function AgencyChatScreen() {
   const handleStartCall = async () => {
     const started = await initiateCall(
       conversationId,
-      Boolean(conversation?.assigned_employees && conversation.assigned_employees.length > 1),
+      Boolean(
+        conversation?.assigned_employees &&
+          conversation.assigned_employees.length > 1,
+      ),
     );
     if (!started) {
       toast.error(callError || "Could not start voice call.");
@@ -463,6 +470,26 @@ export default function AgencyChatScreen() {
     );
   };
 
+  // Handle confirm backjob scheduled date (AGENCY/assigned worker side)
+  const handleConfirmBackjobScheduledDate = () => {
+    if (!conversation?.job.id) return;
+
+    const hasConfirmed = window.confirm(
+      "Confirm the client-proposed backjob schedule date?",
+    );
+    if (!hasConfirmed) return;
+
+    confirmBackjobScheduledDateMutation.mutate(conversation.job.id, {
+      onSuccess: () => {
+        refetch();
+        toast.success("Backjob schedule confirmed");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to confirm backjob schedule");
+      },
+    });
+  };
+
   // Handle approve backjob completion (CLIENT only - but agencies shouldn't see this)
   const handleApproveBackjobCompletion = () => {
     if (!conversation?.job.id) return;
@@ -590,8 +617,8 @@ export default function AgencyChatScreen() {
         </div>
 
         {/* Scrollable Message Area */}
-        <div 
-          ref={messagesContainerRef} 
+        <div
+          ref={messagesContainerRef}
           className="flex-1 overflow-y-auto px-4 pb-4 scroll-smooth"
         >
           <div className="max-w-4xl mx-auto space-y-4 pt-2">
@@ -600,32 +627,83 @@ export default function AgencyChatScreen() {
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-1">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span className="text-sm font-bold text-amber-800">Active Backjob Request</span>
+                  <span className="text-sm font-bold text-amber-800">
+                    Active Backjob Request
+                  </span>
                 </div>
                 <p className="text-xs text-amber-700 mb-2">
                   {conversation.backjob.reason || "Backjob work required"}
                 </p>
-                {conversation.backjob.status === "UNDER_REVIEW" && conversation.my_role === "AGENCY" && (
-                  <div className="mt-2">
-                    {!conversation.backjob.backjob_started ? (
-                      <div className="text-xs text-gray-500 italic">Waiting for client to confirm...</div>
-                    ) : !conversation.backjob.worker_marked_complete && (
-                      <Button size="sm" className="w-full bg-green-600 hover:bg-green-700" onClick={() => setShowBackjobCompleteModal(true)}>
-                        <CheckCircle className="h-3 w-3 mr-1" /> Mark Complete
-                      </Button>
-                    )}
-                  </div>
-                )}
+                {conversation.backjob.status === "IN_NEGOTIATION" &&
+                  conversation.my_role === "AGENCY" && (
+                    <div className="mt-2">
+                      {conversation.backjob.scheduled_date &&
+                      !conversation.backjob.worker_schedule_confirmed ? (
+                        <Button
+                          size="sm"
+                          className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+                          onClick={handleConfirmBackjobScheduledDate}
+                          disabled={
+                            confirmBackjobScheduledDateMutation.isPending
+                          }
+                        >
+                          {confirmBackjobScheduledDateMutation.isPending ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                          )}
+                          Confirm Scheduled Date
+                        </Button>
+                      ) : (
+                        <div className="text-xs text-gray-500 italic">
+                          Waiting for client to set schedule...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                {conversation.backjob.status === "UNDER_REVIEW" &&
+                  conversation.my_role === "AGENCY" && (
+                    <div className="mt-2">
+                      {!conversation.backjob.backjob_started ? (
+                        <div className="text-xs text-gray-500 italic">
+                          Waiting for client to confirm...
+                        </div>
+                      ) : (
+                        !conversation.backjob.worker_marked_complete && (
+                          <Button
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={() => setShowBackjobCompleteModal(true)}
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" /> Mark
+                            Complete
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  )}
               </div>
             )}
 
-            {job.status === "IN_PROGRESS" && job.payment_model === "PROJECT" && assigned_employees?.length > 0 && (
+            {job.status === "IN_PROGRESS" &&
+              job.payment_model === "PROJECT" &&
+              assigned_employees?.length > 0 &&
               (() => {
-                const allDispatched = assigned_employees.every((e: AssignedEmployee) => e.dispatched);
-                const allArrived = assigned_employees.every((e: AssignedEmployee) => e.clientConfirmedArrival);
-                const allComplete = assigned_employees.every((e: AssignedEmployee) => e.agencyMarkedComplete);
-                const dispatchedCount = assigned_employees.filter((e: AssignedEmployee) => e.dispatched).length;
-                const arrivedCount = assigned_employees.filter((e: AssignedEmployee) => e.clientConfirmedArrival).length;
+                const allDispatched = assigned_employees.every(
+                  (e: AssignedEmployee) => e.dispatched,
+                );
+                const allArrived = assigned_employees.every(
+                  (e: AssignedEmployee) => e.clientConfirmedArrival,
+                );
+                const allComplete = assigned_employees.every(
+                  (e: AssignedEmployee) => e.agencyMarkedComplete,
+                );
+                const dispatchedCount = assigned_employees.filter(
+                  (e: AssignedEmployee) => e.dispatched,
+                ).length;
+                const arrivedCount = assigned_employees.filter(
+                  (e: AssignedEmployee) => e.clientConfirmedArrival,
+                ).length;
                 const totalCount = assigned_employees.length;
 
                 if (!allDispatched) {
@@ -633,17 +711,35 @@ export default function AgencyChatScreen() {
                     <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
                       <CardContent className="p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-blue-900">Dispatch Pending ({dispatchedCount}/{totalCount})</span>
+                          <span className="text-xs font-bold text-blue-900">
+                            Dispatch Pending ({dispatchedCount}/{totalCount})
+                          </span>
                         </div>
                         <div className="space-y-1.5 text-xs">
-                          {assigned_employees.map((e: AssignedEmployee) => !e.dispatched && (
-                            <div key={e.employeeId} className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100">
-                              <span>{e.name}</span>
-                              <Button size="sm" className="h-6 px-3 bg-[#00BAF1] text-[10px]" onClick={() => dispatchProjectMutation.mutate({ jobId: job.id, employeeId: e.employeeId, conversationId })}>
-                                Dispatch
-                              </Button>
-                            </div>
-                          ))}
+                          {assigned_employees.map(
+                            (e: AssignedEmployee) =>
+                              !e.dispatched && (
+                                <div
+                                  key={e.employeeId}
+                                  className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                                >
+                                  <span>{e.name}</span>
+                                  <Button
+                                    size="sm"
+                                    className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                    onClick={() =>
+                                      dispatchProjectMutation.mutate({
+                                        jobId: job.id,
+                                        employeeId: e.employeeId,
+                                        conversationId,
+                                      })
+                                    }
+                                  >
+                                    Dispatch
+                                  </Button>
+                                </div>
+                              ),
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -652,26 +748,37 @@ export default function AgencyChatScreen() {
                 if (!allArrived) {
                   return (
                     <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
-                      Waiting for client to confirm arrivals ({arrivedCount}/{totalCount})
+                      Waiting for client to confirm arrivals ({arrivedCount}/
+                      {totalCount})
                     </div>
                   );
                 }
                 if (!allComplete) {
                   return (
                     <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-900">Ready to complete</span>
-                      <Button size="sm" className="bg-green-600 px-3 h-7 text-[10px]" onClick={() => setShowMarkCompleteModal(true)}>Complete Job</Button>
+                      <span className="text-xs font-bold text-blue-900">
+                        Ready to complete
+                      </span>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 px-3 h-7 text-[10px]"
+                        onClick={() => setShowMarkCompleteModal(true)}
+                      >
+                        Complete Job
+                      </Button>
                     </div>
                   );
                 }
                 return null;
-              })()
-            )}
+              })()}
 
             {/* Message Map */}
             {messages.map((message: AgencyMessage, index: number) => {
               const currentDate = new Date(message.created_at);
-              const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : undefined;
+              const previousDate =
+                index > 0
+                  ? new Date(messages[index - 1].created_at)
+                  : undefined;
 
               return (
                 <div key={`${message.message_id}-${index}`}>
@@ -681,26 +788,46 @@ export default function AgencyChatScreen() {
                       {message.message_text} — {format(currentDate, "h:mm a")}
                     </div>
                   ) : (
-                    <div className={`flex mb-4 ${message.is_mine ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`flex mb-4 ${message.is_mine ? "justify-end" : "justify-start"}`}
+                    >
                       {!message.is_mine && (
                         <Avatar className="h-8 w-8 mr-2 flex-shrink-0 mt-1">
                           <AvatarImage src={message.sender_avatar || ""} />
-                          <AvatarFallback className="text-[10px] font-bold">{getInitials(message.sender_name)}</AvatarFallback>
+                          <AvatarFallback className="text-[10px] font-bold">
+                            {getInitials(message.sender_name)}
+                          </AvatarFallback>
                         </Avatar>
                       )}
-                      <div className={`max-w-[75%] space-y-1 ${message.is_mine ? "items-end" : "items-start"}`}>
-                        <div className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm ${
-                          message.is_mine 
-                            ? "bg-[#00BAF1] text-white rounded-br-none" 
-                            : "bg-white border border-gray-100 text-gray-800 rounded-bl-none"
-                        }`}>
-                          {message.message_type === "IMAGE" && message.message_text ? (
-                            <img src={message.message_text} alt="Shared" className="rounded-lg max-w-full cursor-pointer hover:opacity-95" onClick={() => setShowImageModal(message.message_text)} />
+                      <div
+                        className={`max-w-[75%] space-y-1 ${message.is_mine ? "items-end" : "items-start"}`}
+                      >
+                        <div
+                          className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm ${
+                            message.is_mine
+                              ? "bg-[#00BAF1] text-white rounded-br-none"
+                              : "bg-white border border-gray-100 text-gray-800 rounded-bl-none"
+                          }`}
+                        >
+                          {message.message_type === "IMAGE" &&
+                          message.message_text ? (
+                            <img
+                              src={message.message_text}
+                              alt="Shared"
+                              className="rounded-lg max-w-full cursor-pointer hover:opacity-95"
+                              onClick={() =>
+                                setShowImageModal(message.message_text)
+                              }
+                            />
                           ) : (
-                            <p className="whitespace-pre-wrap leading-relaxed">{message.message_text}</p>
+                            <p className="whitespace-pre-wrap leading-relaxed">
+                              {message.message_text}
+                            </p>
                           )}
                         </div>
-                        <p className={`text-[10px] font-medium px-1 ${message.is_mine ? "text-right text-gray-400" : "text-left text-gray-400"}`}>
+                        <p
+                          className={`text-[10px] font-medium px-1 ${message.is_mine ? "text-right text-gray-400" : "text-left text-gray-400"}`}
+                        >
                           {format(currentDate, "h:mm a")}
                         </p>
                       </div>
@@ -727,7 +854,9 @@ export default function AgencyChatScreen() {
         {/* Message Input - Floating Style */}
         <div className="p-4 bg-transparent mt-auto z-10">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {job.clientMarkedComplete && job.workerReviewed && job.clientReviewed ? (
+            {job.clientMarkedComplete &&
+            job.workerReviewed &&
+            job.clientReviewed ? (
               <div className="p-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-widest">
                 Conversation Closed
               </div>
@@ -738,7 +867,9 @@ export default function AgencyChatScreen() {
                 onImageSelect={handleImageSelect}
                 disabled={!isConnected || sendMutation.isPending}
                 isUploading={isUploading}
-                placeholder={isConnected ? "Type a message..." : "Reconnecting..."}
+                placeholder={
+                  isConnected ? "Type a message..." : "Reconnecting..."
+                }
               />
             )}
           </div>
@@ -749,20 +880,30 @@ export default function AgencyChatScreen() {
       <div className="w-[380px] p-4 bg-transparent hidden lg:flex flex-col h-full">
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-y-auto p-6 space-y-8">
           <div>
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 px-1">Job Information</h3>
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 px-1">
+              Job Information
+            </h3>
             <div className="space-y-6">
               {[
                 { icon: Briefcase, label: "Title", value: job.title },
                 { icon: MapPin, label: "Location", value: job.location },
-                { icon: DollarSign, label: "Budget", value: `₱${(job.budget ?? 0).toLocaleString()}` }
+                {
+                  icon: DollarSign,
+                  label: "Budget",
+                  value: `₱${(job.budget ?? 0).toLocaleString()}`,
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-4">
                   <div className="p-2.5 bg-blue-50/50 rounded-xl">
                     <item.icon className="h-4 w-4 text-[#00BAF1]" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight mb-0.5">{item.label}</p>
-                    <p className="text-sm font-semibold text-gray-900 leading-tight">{item.value}</p>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight mb-0.5">
+                      {item.label}
+                    </p>
+                    <p className="text-sm font-semibold text-gray-900 leading-tight">
+                      {item.value}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -770,19 +911,35 @@ export default function AgencyChatScreen() {
           </div>
 
           <div className="pt-8 border-t border-gray-100">
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">Assigned Workers</h3>
+            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6">
+              Assigned Workers
+            </h3>
             <div className="space-y-3">
-              {(assigned_employees?.length > 0 ? assigned_employees : (assigned_employee ? [assigned_employee] : [])).map((emp: any, i: number) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-gray-100 transition-colors">
+              {(assigned_employees?.length > 0
+                ? assigned_employees
+                : assigned_employee
+                  ? [assigned_employee]
+                  : []
+              ).map((emp: any, i: number) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-gray-100 transition-colors"
+                >
                   <Avatar className="h-9 w-9 border-2 border-white ">
-                    <AvatarFallback className="bg-blue-50 text-[#00BAF1] text-[10px] font-bold">{getInitials(emp.name)}</AvatarFallback>
+                    <AvatarFallback className="bg-blue-50 text-[#00BAF1] text-[10px] font-bold">
+                      {getInitials(emp.name)}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-gray-900 truncate">{emp.name} {emp.isPrimaryContact && "★"}</p>
+                    <p className="text-sm font-bold text-gray-900 truncate">
+                      {emp.name} {emp.isPrimaryContact && "★"}
+                    </p>
                     {emp.rating && (
                       <div className="flex items-center gap-1 mt-0.5">
                         <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-                        <span className="text-[10px] font-bold text-gray-500">{emp.rating.toFixed(1)}</span>
+                        <span className="text-[10px] font-bold text-gray-500">
+                          {emp.rating.toFixed(1)}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -803,13 +960,21 @@ export default function AgencyChatScreen() {
                 {incomingCall?.callerName || "Unknown Caller"}
               </h3>
               <div className="flex items-center justify-center gap-3">
-                <Button variant="outline" className="border-red-500 text-red-700 hover:bg-red-50" onClick={rejectCall}>
+                <Button
+                  variant="outline"
+                  className="border-red-500 text-red-700 hover:bg-red-50"
+                  onClick={rejectCall}
+                >
                   <PhoneOff className="h-4 w-4 mr-1" /> Decline
                 </Button>
-                <Button className="bg-green-600 hover:bg-green-700" onClick={async () => {
-                  const accepted = await acceptCall();
-                  if (!accepted) toast.error(callError || "Failed to accept call.");
-                }}>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={async () => {
+                    const accepted = await acceptCall();
+                    if (!accepted)
+                      toast.error(callError || "Failed to accept call.");
+                  }}
+                >
                   <Phone className="h-4 w-4 mr-1" /> Answer
                 </Button>
               </div>
@@ -818,17 +983,40 @@ export default function AgencyChatScreen() {
         </div>
       )}
 
-      {(callStatus === "connecting" || callStatus === "connected" || callStatus === "ringing") && (
+      {(callStatus === "connecting" ||
+        callStatus === "connected" ||
+        callStatus === "ringing") && (
         <div className="fixed bottom-4 right-4 z-40">
           <Card className="shadow-xl border-green-200">
             <CardContent className="py-3 px-4 flex items-center gap-3">
               <Badge className="bg-green-600 font-bold uppercase tracking-tighter text-[10px]">
-                {callStatus === "connected" ? `In call ${formatCallDuration(durationSeconds)}` : callStatus === "ringing" ? "Ringing..." : "Connecting..."}
+                {callStatus === "connected"
+                  ? `In call ${formatCallDuration(durationSeconds)}`
+                  : callStatus === "ringing"
+                    ? "Ringing..."
+                    : "Connecting..."}
               </Badge>
-              <Button variant="outline" size="icon" onClick={() => setIsMuted(toggleMute())} className="h-9 w-9">
-                {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsMuted(toggleMute())}
+                className="h-9 w-9"
+              >
+                {isMuted ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
               </Button>
-              <Button variant="destructive" size="icon" onClick={() => { endCall(); setIsMuted(false); }} className="h-9 w-9">
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={() => {
+                  endCall();
+                  setIsMuted(false);
+                }}
+                className="h-9 w-9"
+              >
                 <PhoneOff className="h-4 w-4" />
               </Button>
             </CardContent>
@@ -837,9 +1025,21 @@ export default function AgencyChatScreen() {
       )}
 
       {showImageModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50" onClick={() => setShowImageModal(null)}>
-          <img src={showImageModal || undefined} alt="View" className="max-w-full max-h-full object-contain" />
-          <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white hover:bg-white/10" onClick={() => setShowImageModal(null)}>
+        <div
+          className="fixed inset-0 bg-black/95 flex items-center justify-center z-50"
+          onClick={() => setShowImageModal(null)}
+        >
+          <img
+            src={showImageModal || undefined}
+            alt="View"
+            className="max-w-full max-h-full object-contain"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-4 right-4 text-white hover:bg-white/10"
+            onClick={() => setShowImageModal(null)}
+          >
             <X className="h-6 w-6" />
           </Button>
         </div>
@@ -850,29 +1050,61 @@ export default function AgencyChatScreen() {
           <Card className="w-full max-w-md shadow-2xl overflow-hidden rounded-3xl">
             <CardHeader className="pb-2 pt-6">
               <h3 className="text-lg font-bold">Complete Job</h3>
-              <p className="text-sm text-gray-500 font-medium">Verify completion for "{job.title}"</p>
+              <p className="text-sm text-gray-500 font-medium">
+                Verify completion for "{job.title}"
+              </p>
             </CardHeader>
             <CardContent className="space-y-5 pb-8">
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Notes</label>
-                <textarea className="w-full border-gray-100 border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-[#00BAF1] outline-none bg-gray-50/30 transition-all" rows={3} placeholder="What was accomplished?" value={completionNotes} onChange={(e) => setCompletionNotes(e.target.value)} />
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+                  Notes
+                </label>
+                <textarea
+                  className="w-full border-gray-100 border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-[#00BAF1] outline-none bg-gray-50/30 transition-all"
+                  rows={3}
+                  placeholder="What was accomplished?"
+                  value={completionNotes}
+                  onChange={(e) => setCompletionNotes(e.target.value)}
+                />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Proof of Work (Max 10)</label>
-                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handlePhotoSelect} className="hidden" />
-                
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+                  Proof of Work (Max 10)
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoSelect}
+                  className="hidden"
+                />
+
                 <div className="grid grid-cols-4 gap-2">
                   {photoPreviewUrls.map((url, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden group border border-gray-100">
-                      <img src={url} alt="Preview" className="w-full h-full object-cover" />
-                      <button onClick={() => handleRemovePhoto(i)} className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div
+                      key={i}
+                      className="relative aspect-square rounded-xl overflow-hidden group border border-gray-100"
+                    >
+                      <img
+                        src={url}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => handleRemovePhoto(i)}
+                        className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
                         <X className="h-3 w-3" />
                       </button>
                     </div>
                   ))}
                   {completionPhotos.length < 10 && (
-                    <button onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-[#00BAF1] hover:bg-blue-50/50 transition-all text-gray-400 hover:text-[#00BAF1]">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-[#00BAF1] hover:bg-blue-50/50 transition-all text-gray-400 hover:text-[#00BAF1]"
+                    >
                       <Camera className="h-5 w-5 mb-1" />
                       <span className="text-[10px] font-bold">Add</span>
                     </button>
@@ -883,16 +1115,40 @@ export default function AgencyChatScreen() {
               {isUploadingPhotos && (
                 <div className="space-y-2">
                   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-[#00BAF1] h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                    <div
+                      className="bg-[#00BAF1] h-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
                   </div>
-                  <p className="text-[10px] text-center font-bold text-[#00BAF1] uppercase tracking-tighter">Uploading {Math.round(uploadProgress)}%</p>
+                  <p className="text-[10px] text-center font-bold text-[#00BAF1] uppercase tracking-tighter">
+                    Uploading {Math.round(uploadProgress)}%
+                  </p>
                 </div>
               )}
 
               <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1 rounded-2xl h-12 font-bold" onClick={() => { setShowMarkCompleteModal(false); setCompletionPhotos([]); setPhotoPreviewUrls([]); }} disabled={isUploadingPhotos}>Cancel</Button>
-                <Button className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12 font-bold" onClick={handleMarkComplete} disabled={markCompleteMutation.isPending || isUploadingPhotos}>
-                  {isUploadingPhotos || markCompleteMutation.isPending ? <Loader2 className="animate-spin h-5 w-5" /> : "Confirm Complete"}
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-2xl h-12 font-bold"
+                  onClick={() => {
+                    setShowMarkCompleteModal(false);
+                    setCompletionPhotos([]);
+                    setPhotoPreviewUrls([]);
+                  }}
+                  disabled={isUploadingPhotos}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12 font-bold"
+                  onClick={handleMarkComplete}
+                  disabled={markCompleteMutation.isPending || isUploadingPhotos}
+                >
+                  {isUploadingPhotos || markCompleteMutation.isPending ? (
+                    <Loader2 className="animate-spin h-5 w-5" />
+                  ) : (
+                    "Confirm Complete"
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -905,30 +1161,78 @@ export default function AgencyChatScreen() {
           <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-none">
             <CardHeader className="pb-4 pt-8 text-center">
               <h3 className="text-xl font-bold text-gray-900">Rate Client</h3>
-              <p className="text-sm text-gray-500 font-medium mt-1">Share your experience with {client.name}</p>
+              <p className="text-sm text-gray-500 font-medium mt-1">
+                Share your experience with {client.name}
+              </p>
             </CardHeader>
             <CardContent className="space-y-6 px-10 pb-10">
               {[
-                { label: "📋 Clarity", value: ratingQuality, setter: setRatingQuality },
-                { label: "💬 Communication", value: ratingCommunication, setter: setRatingCommunication },
-                { label: "💳 Payment", value: ratingPunctuality, setter: setRatingPunctuality },
-                { label: "👔 Professionalism", value: ratingProfessionalism, setter: setRatingProfessionalism }
+                {
+                  label: "📋 Clarity",
+                  value: ratingQuality,
+                  setter: setRatingQuality,
+                },
+                {
+                  label: "💬 Communication",
+                  value: ratingCommunication,
+                  setter: setRatingCommunication,
+                },
+                {
+                  label: "💳 Payment",
+                  value: ratingPunctuality,
+                  setter: setRatingPunctuality,
+                },
+                {
+                  label: "👔 Professionalism",
+                  value: ratingProfessionalism,
+                  setter: setRatingProfessionalism,
+                },
               ].map((criteria) => (
                 <div key={criteria.label} className="space-y-2">
-                  <label className="block text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{criteria.label}</label>
+                  <label className="block text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
+                    {criteria.label}
+                  </label>
                   <div className="flex justify-center gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <button key={star} onClick={() => criteria.setter(star)} className="focus:outline-none scale-110">
-                        <Star className={`h-6 w-6 transition-all ${star <= criteria.value ? "fill-[#00BAF1] text-[#00BAF1]" : "text-gray-200 hover:text-[#00BAF1]/40"}`} />
+                      <button
+                        key={star}
+                        onClick={() => criteria.setter(star)}
+                        className="focus:outline-none scale-110"
+                      >
+                        <Star
+                          className={`h-6 w-6 transition-all ${star <= criteria.value ? "fill-[#00BAF1] text-[#00BAF1]" : "text-gray-200 hover:text-[#00BAF1]/40"}`}
+                        />
                       </button>
                     ))}
                   </div>
                 </div>
               ))}
               <div className="pt-4 flex gap-3">
-                <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setShowReviewModal(false)}>Cancel</Button>
-                <Button className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12" onClick={handleSubmitReview} disabled={!ratingQuality || !ratingCommunication || !ratingPunctuality || !ratingProfessionalism || submitReviewMutation.isPending}>
-                  {submitReviewMutation.isPending ? <Loader2 className="animate-spin" /> : <div className="flex items-center gap-2"><Star className="h-4 w-4" /> Submit</div>}
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-2xl h-12"
+                  onClick={() => setShowReviewModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12"
+                  onClick={handleSubmitReview}
+                  disabled={
+                    !ratingQuality ||
+                    !ratingCommunication ||
+                    !ratingPunctuality ||
+                    !ratingProfessionalism ||
+                    submitReviewMutation.isPending
+                  }
+                >
+                  {submitReviewMutation.isPending ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Star className="h-4 w-4" /> Submit
+                    </div>
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -944,14 +1248,36 @@ export default function AgencyChatScreen() {
                 <AlertTriangle className="h-6 w-6 text-amber-500" />
               </div>
               <h3 className="text-lg font-bold">Backjob Completed</h3>
-              <p className="text-sm text-gray-500 font-medium">Verify that all requested corrections are done.</p>
+              <p className="text-sm text-gray-500 font-medium">
+                Verify that all requested corrections are done.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4 px-8 pb-10">
-              <textarea className="w-full border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-400 outline-none" rows={3} placeholder="Notes about the fix..." value={backjobNotes} onChange={(e) => setBackjobNotes(e.target.value)} />
+              <textarea
+                className="w-full border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+                rows={3}
+                placeholder="Notes about the fix..."
+                value={backjobNotes}
+                onChange={(e) => setBackjobNotes(e.target.value)}
+              />
               <div className="flex gap-3 pt-2">
-                <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={() => setShowBackjobCompleteModal(false)}>Cancel</Button>
-                <Button className="flex-1 bg-green-600 hover:bg-green-700 rounded-2xl h-12" onClick={handleMarkBackjobComplete} disabled={markBackjobCompleteMutation.isPending}>
-                  {markBackjobCompleteMutation.isPending ? <Loader2 className="animate-spin" /> : "Mark Complete"}
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-2xl h-12"
+                  onClick={() => setShowBackjobCompleteModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 rounded-2xl h-12"
+                  onClick={handleMarkBackjobComplete}
+                  disabled={markBackjobCompleteMutation.isPending}
+                >
+                  {markBackjobCompleteMutation.isPending ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    "Mark Complete"
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -959,6 +1285,5 @@ export default function AgencyChatScreen() {
         </div>
       )}
     </div>
-
   );
 }

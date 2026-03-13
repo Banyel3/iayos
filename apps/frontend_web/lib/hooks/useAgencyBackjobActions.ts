@@ -28,7 +28,9 @@ export function useConfirmBackjobStarted() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(error, "Failed to confirm backjob started"));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm backjob started"),
+        );
       }
 
       return response.json();
@@ -66,7 +68,9 @@ export function useMarkBackjobComplete() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(error, "Failed to mark backjob complete"));
+        throw new Error(
+          getErrorMessage(error, "Failed to mark backjob complete"),
+        );
       }
 
       return response.json();
@@ -104,7 +108,9 @@ export function useApproveBackjobCompletion() {
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(error, "Failed to approve backjob completion"));
+        throw new Error(
+          getErrorMessage(error, "Failed to approve backjob completion"),
+        );
       }
 
       return response.json();
@@ -115,6 +121,44 @@ export function useApproveBackjobCompletion() {
     },
     onError: (error: Error) => {
       console.error("Failed to approve backjob completion:", error.message);
+    },
+  });
+}
+
+/**
+ * Agency/worker confirms client-proposed backjob scheduled date.
+ * This transitions dispute from IN_NEGOTIATION to UNDER_REVIEW.
+ */
+export function useConfirmBackjobScheduledDate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${jobId}/backjob/confirm-scheduled-date`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm backjob schedule"),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["agency-backjobs"] });
+    },
+    onError: (error: Error) => {
+      console.error("Failed to confirm backjob schedule:", error.message);
     },
   });
 }

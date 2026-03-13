@@ -89,6 +89,11 @@ class ApproveJobCompletionSchema(Schema):
     payment_method: Optional[str] = "WALLET"  # WALLET or CASH only
 
 
+class CancelJobSchema(Schema):
+    reason: Optional[str] = None
+    actor_notes: Optional[str] = None
+
+
 # ===========================================================================
 # TEAM MODE SCHEMAS - Multi-Skill Multi-Worker Support
 # ===========================================================================
