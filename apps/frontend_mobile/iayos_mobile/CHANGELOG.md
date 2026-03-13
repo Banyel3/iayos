@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Worker Skills Cap + Primary Skill Enforcement**
+  - Added backend enforcement to block adding a 6th skill (`max 5` per worker).
+  - Preserved and hardened primary-skill behavior so workers maintain one primary skill when skills exist.
+  - Updated mobile Skills screen to show `x/5` counter and disable add action at limit with clear messaging.
+  - Updated admin worker views to show skill cap context and primary-skill count for audit visibility.
+  - **Impact**: Consistent skill policy across API and UI, clearer UX at limits, and safer primary-skill state management.
+
 - **DAILY Worker Checkout Confirmation Update**
   - Removed the backend 2-hour minimum work-duration blocker for worker checkout in DAILY jobs.
   - Added a 6-second delayed confirmation dialog before worker checkout to prevent accidental checkouts.

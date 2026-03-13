@@ -40,6 +40,8 @@ interface Skill {
   name: string;
   experience_years: number;
   certification: string;
+  skill_type?: "PRIMARY" | "SECONDARY";
+  is_primary?: boolean;
 }
 
 interface Address {
@@ -669,6 +671,26 @@ export default function WorkerDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {worker.skills && worker.skills.length > 0 && (
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                        {worker.skills.length}/5 skills
+                      </span>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                        {
+                          worker.skills.filter(
+                            (skill) => skill.is_primary || skill.skill_type === "PRIMARY",
+                          ).length
+                        }
+                        /1 primary
+                      </span>
+                      {worker.skills.length > 5 && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                          Grandfathered above limit
+                        </span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {worker.skills && worker.skills.length > 0 ? (
                       worker.skills.map((skill, i) => (
@@ -676,7 +698,14 @@ export default function WorkerDetailPage() {
                           key={i}
                           className="px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg"
                         >
-                          <p className="font-semibold text-sm">{skill.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm">{skill.name}</p>
+                            {(skill.is_primary || skill.skill_type === "PRIMARY") && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700">
+                                Primary
+                              </span>
+                            )}
+                          </div>
                           {skill.experience_years > 0 && (
                             <p className="text-xs text-blue-600">
                               {skill.experience_years} years exp

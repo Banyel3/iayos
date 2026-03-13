@@ -554,6 +554,18 @@ export default function WorkersPage() {
                               {worker.email}
                             </td>
                             <td className="px-4 py-2">
+                              {worker.skills && worker.skills.length > 0 && (
+                                <div className="mb-1 flex items-center gap-1.5">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700">
+                                    {worker.skills.length}/5 skills
+                                  </span>
+                                  {worker.skills.length > 5 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
+                                      Grandfathered above limit
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               <div className="flex flex-wrap gap-1">
                                 {worker.skills && worker.skills.length > 0 ? (
                                   <>

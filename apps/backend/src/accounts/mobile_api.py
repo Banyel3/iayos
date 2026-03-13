@@ -42,6 +42,7 @@ from zoneinfo import ZoneInfo
 
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
+MAX_WORKER_SKILLS = 5
 
 
 def _get_ph_current_time():
@@ -1627,10 +1628,29 @@ def mobile_add_skill(request, payload: AddSkillSchema):
                 {"error": f"You already have '{specialization.specializationName}' as a skill"},
                 status=400
             )
+
+        # Enforce max skills while grandfathering existing records above cap.
+        current_skill_count = workerSpecialization.objects.filter(workerID=worker_profile).count()
+        if current_skill_count >= MAX_WORKER_SKILLS:
+            return Response(
+                {
+                    "error": f"Maximum {MAX_WORKER_SKILLS} skills allowed per worker",
+                    "current_count": current_skill_count,
+                    "max_allowed": MAX_WORKER_SKILLS,
+                },
+                status=400,
+            )
         
-        # First skill is always primary. Subsequent skills are secondary unless explicitly set.
-        has_existing_skills = workerSpecialization.objects.filter(workerID=worker_profile).exists()
-        skill_type_to_set = 'PRIMARY' if not has_existing_skills else requested_skill_type
+        # Ensure we always keep a primary skill once at least one skill exists.
+        has_existing_skills = current_skill_count > 0
+        has_primary_skill = workerSpecialization.objects.filter(
+            workerID=worker_profile,
+            skillType='PRIMARY'
+        ).exists()
+
+        # First skill is always primary. If data drift exists with no primary,
+        # promote the next added skill to PRIMARY automatically.
+        skill_type_to_set = 'PRIMARY' if not has_existing_skills or not has_primary_skill else requested_skill_type
 
         # If setting a new primary skill, demote existing primary.
         if skill_type_to_set == 'PRIMARY':
@@ -1742,6 +1762,21 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
             ).exclude(id=worker_skill.id).update(skillType='SECONDARY')
             worker_skill.skillType = 'PRIMARY'
         elif requested_skill_type == 'SECONDARY':
+            is_current_primary = worker_skill.skillType == 'PRIMARY'
+            if is_current_primary:
+                replacement_primary = workerSpecialization.objects.filter(
+                    workerID=worker_profile
+                ).exclude(id=worker_skill.id).first()
+
+                if not replacement_primary:
+                    return Response(
+                        {"error": "At least one primary skill is required"},
+                        status=400
+                    )
+
+                replacement_primary.skillType = 'PRIMARY'
+                replacement_primary.save(update_fields=['skillType'])
+
             worker_skill.skillType = 'SECONDARY'
 
         worker_skill.save()
@@ -1810,6 +1845,7 @@ def mobile_remove_skill(request, skill_id: int):
             )
         
         skill_name = worker_skill.specializationID.specializationName
+        removed_primary = worker_skill.skillType == 'PRIMARY'
         
         # Check for linked certifications
         linked_certs_count = WorkerCertification.objects.filter(
@@ -1818,7 +1854,22 @@ def mobile_remove_skill(request, skill_id: int):
         ).count()
         
         # Delete the skill (will cascade delete linked certifications)
-        worker_skill.delete()
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            worker_skill.delete()
+
+            # Preserve invariant: when skills remain, keep exactly one PRIMARY.
+            if removed_primary:
+                replacement_primary = workerSpecialization.objects.filter(
+                    workerID=worker_profile
+                ).first()
+                if replacement_primary:
+                    workerSpecialization.objects.filter(
+                        workerID=worker_profile,
+                        skillType='PRIMARY'
+                    ).exclude(id=replacement_primary.id).update(skillType='SECONDARY')
+                    replacement_primary.skillType = 'PRIMARY'
+                    replacement_primary.save(update_fields=['skillType'])
         
         print(f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)")
         

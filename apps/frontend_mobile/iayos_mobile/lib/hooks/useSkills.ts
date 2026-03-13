@@ -52,6 +52,12 @@ interface AddSkillResponse {
   };
 }
 
+interface AddSkillErrorResponse {
+  error?: string;
+  current_count?: number;
+  max_allowed?: number;
+}
+
 interface UpdateSkillResponse {
   success: boolean;
   message: string;
@@ -124,11 +130,15 @@ export function useAddSkill() {
         body: JSON.stringify(payload),
       });
 
-      const data = (await response.json()) as AddSkillResponse & {
-        error?: string;
-      };
+      const data = (await response.json()) as AddSkillResponse &
+        AddSkillErrorResponse;
 
       if (!response.ok) {
+        if (data.current_count !== undefined && data.max_allowed !== undefined) {
+          throw new Error(
+            `${data.error || "Maximum skills reached"} (${data.current_count}/${data.max_allowed})`,
+          );
+        }
         throw new Error(getErrorMessage(data, "Failed to add skill"));
       }
 
