@@ -678,11 +678,9 @@ export default function SkillsScreen() {
                 style={styles.suggestionButtonPrimary}
                 onPress={() => {
                   setShowCertificationSuggestion(false);
-                  // Navigate with skill ID as query parameter
                   if (justAddedSkillId) {
-                    router.push(
-                      `/profile/skills/${justAddedSkillId}/certifications`
-                    );
+                    const skillPath = `/profile/skills/${justAddedSkillId}/certifications`;
+                    router.push(skillPath as any);
                   }
                 }}
               >

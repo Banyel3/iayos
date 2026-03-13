@@ -3498,6 +3498,22 @@ export default function JobDetailScreen() {
             </View>
 
             {/* Submit Button */}
+            <Text style={styles.termsText}>
+              By proceeding you agree to our{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/terms")}
+              >
+                terms
+              </Text>{" "}
+              and{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/privacy")}
+              >
+                policy
+              </Text>
+            </Text>
             <TouchableOpacity
               style={[
                 styles.submitButton,
@@ -3736,6 +3752,22 @@ export default function JobDetailScreen() {
             </View>
 
             {/* Submit Button */}
+            <Text style={styles.termsText}>
+              By proceeding you agree to our{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/terms")}
+              >
+                terms
+              </Text>{" "}
+              and{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/privacy")}
+              >
+                policy
+              </Text>
+            </Text>
             <TouchableOpacity
               style={[
                 styles.submitButton,
@@ -5087,5 +5119,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.primary,
+  },
+  termsText: {
+    fontSize: 11,
+    color: Colors.textHint,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  termsLink: {
+    color: Colors.primary,
+    textDecorationLine: "underline",
   },
 });

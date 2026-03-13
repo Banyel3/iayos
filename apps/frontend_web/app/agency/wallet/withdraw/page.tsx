@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/form_button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/generic_button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -19,6 +19,9 @@ import {
   Building2,
   Smartphone,
   Info,
+  ChevronRight,
+  ShieldCheck,
+  Banknote,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api/config";
 import { useWalletBalance } from "@/lib/hooks/useHomeData";
@@ -67,7 +70,6 @@ export default function AgencyWithdrawPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Show all payment methods (no verification check - admins process manually)
         const methods = data.payment_methods || [];
         setPaymentMethods(methods);
         // Auto-select primary method
@@ -104,7 +106,7 @@ export default function AgencyWithdrawPage() {
   const getMethodIcon = (type: string) => {
     switch (type) {
       case "GCASH":
-        return <Smartphone className="h-5 w-5 text-blue-600" />;
+        return <Smartphone className="h-5 w-5 text-[#00BAF1]" />;
       case "BANK":
         return <Building2 className="h-5 w-5 text-gray-600" />;
       case "PAYPAL":
@@ -202,64 +204,54 @@ export default function AgencyWithdrawPage() {
   // Success Screen
   if (showSuccess && withdrawResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-8">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md border-0 shadow-2xl overflow-hidden">
+          <div className="h-2 bg-[#00BAF1]" />
           <CardContent className="p-8 text-center">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="h-10 w-10 text-green-600" />
+            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Withdrawal Submitted!</h2>
-            <p className="text-gray-600 mb-6">
-              Your withdrawal request has been submitted for admin approval.
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Submitted</h2>
+            <p className="text-gray-500 mb-8 text-sm">
+              Your withdrawal request is being processed.
             </p>
 
-            {/* Receipt Card */}
-            <div className="bg-gray-50 rounded-lg p-4 text-left space-y-3 mb-6">
-              <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                <span className="text-gray-600">Amount</span>
-                <span className="font-semibold text-lg">{formatCurrency(withdrawResult.amount)}</span>
+            {/* Receipt Details */}
+            <div className="bg-gray-50 rounded-2xl p-6 text-left space-y-4 mb-8 border border-gray-100">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</span>
+                <span className="font-bold text-xl text-gray-900">{formatCurrency(withdrawResult.amount)}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                <span className="text-gray-600">To</span>
-                <span className="font-medium">{withdrawResult.recipient_name}</span>
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Recipient</span>
+                <span className="font-bold text-sm text-gray-900">{withdrawResult.recipient_name}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                <span className="text-gray-600">Account</span>
-                <span className="font-medium">{withdrawResult.recipient}</span>
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Account</span>
+                <span className="font-bold text-sm text-gray-900">{withdrawResult.recipient}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                <span className="text-gray-600">Status</span>
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Status</span>
                 <div className="flex items-center gap-1.5 text-yellow-600">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-medium">Pending Approval</span>
+                  <Clock className="h-3 w-3" />
+                  <span className="font-bold text-[10px] uppercase tracking-wider">Pending Approval</span>
                 </div>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                <span className="text-gray-600">Transaction ID</span>
-                <span className="font-mono text-sm">#{withdrawResult.transaction_id}</span>
-              </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-gray-600">New Balance</span>
-                <span className="font-semibold text-green-600">
-                  {formatCurrency(withdrawResult.new_balance)}
-                </span>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Reference</span>
+                <span className="font-mono text-xs text-gray-900 font-bold">#{withdrawResult.transaction_id}</span>
               </div>
             </div>
 
-            {/* Processing Info */}
-            <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-start gap-3 text-left">
-              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-700">
-                <p className="font-medium">Processing Time</p>
-                <p className="mt-1">
-                  Your withdrawal will be processed within 24 hours after admin approval.
-                  You&apos;ll receive a notification once the payment is sent.
-                </p>
+            <div className="bg-sky-50 rounded-xl p-4 mb-8 flex items-start gap-3 text-left border border-sky-100">
+              <Info className="h-5 w-5 text-[#00BAF1] flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-sky-900 leading-relaxed font-medium">
+                Requests are processed within 1-24 hours. You&apos;ll be notified once the funds are sent.
               </div>
             </div>
 
             <Button
-              className="w-full bg-green-600 hover:bg-green-700"
+              className="w-full h-12 bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white font-bold rounded-xl"
               onClick={() => router.push("/agency/wallet")}
             >
               Back to Wallet
@@ -271,241 +263,243 @@ export default function AgencyWithdrawPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 to-green-700 text-white">
-        <div className="absolute inset-0 bg-grid-white/[0.05] pointer-events-none" />
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-green-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative px-8 py-10">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.back()}
-              className="text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="p-3 bg-white/10 backdrop-blur-sm rounded-xl">
-              <Send className="h-8 w-8" />
+    <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
+       {/* Header */}
+       <div className="pb-6 border-b border-gray-100">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="text-gray-500 hover:text-[#00BAF1] hover:bg-[#00BAF1]/5"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <Banknote className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Withdraw Funds</h1>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold">Withdraw Funds</h1>
-              <p className="text-green-100 mt-1">Request a payout to your payment account</p>
-            </div>
+            <p className="text-gray-500 text-sm sm:text-base">
+              Transfer your earnings to your connected account
+            </p>
           </div>
+        </div>
+      </div>
 
-          {/* Current Balance */}
-          <Card className="mt-6 bg-white/10 border-white/20 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm">Available Balance</p>
-                  <p className="text-2xl font-bold">{formatCurrency(walletBalance)}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Form */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border-0 shadow-lg overflow-hidden">
+            <CardHeader className="bg-white border-b border-gray-50">
+              <CardTitle className="text-lg">Withdrawal Amount</CardTitle>
+              <CardDescription>Enter the amount you wish to withdraw to your selected account</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              {/* Amount Input */}
+              <div>
+                <div className="relative group">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-3xl font-bold text-gray-300 group-focus-within:text-[#00BAF1] transition-colors">
+                    ₱
+                  </span>
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-14 text-4xl h-20 font-extrabold border-gray-100 focus:border-[#00BAF1] focus:ring-4 focus:ring-sky-100 rounded-2xl transition-all"
+                    min="100"
+                    max={walletBalance}
+                  />
                 </div>
-                <Wallet className="h-8 w-8 text-green-200" />
+                <div className="flex items-center justify-between mt-4 px-2">
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                     Available: <span className="text-gray-900">{formatCurrency(walletBalance)}</span>
+                   </p>
+                   {amount && parseFloat(amount) > walletBalance && (
+                     <p className="text-[10px] font-bold text-red-500 uppercase">Insufficient balance</p>
+                   )}
+                </div>
+              </div>
+
+              {/* Quick Select */}
+              <div className="space-y-4">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-2">Quick Select</p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {PRESET_AMOUNTS.map((presetAmount) => (
+                    <Button
+                      key={presetAmount}
+                      variant="outline"
+                      onClick={() => handlePresetClick(presetAmount)}
+                      disabled={presetAmount > walletBalance}
+                      className={`h-12 font-bold rounded-xl border-gray-100 transition-all ${
+                        amount === presetAmount.toString()
+                          ? "bg-[#00BAF1]/10 border-[#00BAF1] text-[#00BAF1] shadow-sm"
+                          : "hover:border-[#00BAF1] hover:text-[#00BAF1] hover:bg-[#00BAF1]/5"
+                      }`}
+                    >
+                      ₱{presetAmount.toLocaleString()}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div className="space-y-4 pt-4 border-t border-gray-50">
+                 <div className="flex items-center justify-between px-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Select Account</p>
+                    <button 
+                       onClick={() => router.push("/agency/profile?tab=payment-methods")}
+                       className="text-[10px] font-bold text-[#00BAF1] uppercase hover:underline"
+                    >
+                       Manage Accounts
+                    </button>
+                 </div>
+
+                 {isLoadingMethods ? (
+                    <div className="h-40 bg-gray-50 rounded-2xl flex items-center justify-center">
+                       <Loader2 className="h-8 w-8 animate-spin text-gray-200" />
+                    </div>
+                 ) : paymentMethods.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
+                       <AlertCircle className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                       <h3 className="text-sm font-bold text-gray-900">No payment accounts</h3>
+                       <p className="text-[10px] text-gray-400 mt-1 max-w-xs mx-auto">Add a GCash or Bank account in your profile settings to enable withdrawals.</p>
+                       <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-6 rounded-xl font-bold text-[10px] uppercase border-[#00BAF1] text-[#00BAF1] hover:bg-[#00BAF1]/5"
+                          onClick={() => router.push("/agency/profile?tab=payment-methods")}
+                       >
+                          Add Account Now
+                       </Button>
+                    </div>
+                 ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                       {paymentMethods.map((method) => (
+                          <div
+                             key={method.id}
+                             onClick={() => setSelectedMethodId(method.id)}
+                             className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-4 ${
+                                selectedMethodId === method.id
+                                   ? "border-[#00BAF1] bg-[#00BAF1]/5 shadow-sm"
+                                   : "border-gray-50 bg-white hover:border-[#00BAF1]/30"
+                             }`}
+                          >
+                             <div className={`p-3 rounded-xl bg-white shadow-sm border border-gray-50 ${selectedMethodId === method.id ? "text-[#00BAF1]" : "text-gray-400"}`}>
+                                {getMethodIcon(method.type)}
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                   <p className="text-sm font-bold text-gray-900 truncate">{method.account_name}</p>
+                                   {method.is_primary && (
+                                      <div className="bg-[#00BAF1]/10 text-[#00BAF1] text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase">Primary</div>
+                                   )}
+                                </div>
+                                <p className="text-[10px] font-medium text-gray-400">
+                                   {getMethodLabel(method)} • {method.account_number}
+                                </p>
+                             </div>
+                             {selectedMethodId === method.id && (
+                                <div className="h-5 w-5 rounded-full bg-[#00BAF1] flex items-center justify-center">
+                                   <CheckCircle className="h-3.5 w-3.5 text-white" />
+                                </div>
+                             )}
+                          </div>
+                       ))}
+                    </div>
+                 )}
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-3 pt-4 border-t border-gray-50">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-2">Reference Note (Optional)</p>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Weekly agency payout..."
+                  className="resize-none border-gray-100 rounded-xl focus:border-[#00BAF1] focus:ring-sky-100 min-h-[80px]"
+                />
               </div>
             </CardContent>
           </Card>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="px-8 py-8 max-w-2xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-green-600" />
-              Withdrawal Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Amount Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Withdrawal Amount (min ₱100)
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl text-gray-500">
-                  ₱
-                </span>
-                <Input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="pl-10 text-2xl h-14 font-bold"
-                  min="100"
-                  max={walletBalance}
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Available: {formatCurrency(walletBalance)}
-              </p>
-            </div>
-
-            {/* Preset Amounts */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quick Select
-              </label>
-              <div className="grid grid-cols-5 gap-2">
-                {PRESET_AMOUNTS.map((presetAmount) => (
-                  <Button
-                    key={presetAmount}
-                    variant={amount === presetAmount.toString() ? "default" : "outline"}
-                    onClick={() => handlePresetClick(presetAmount)}
-                    disabled={presetAmount > walletBalance}
-                    className={
-                      amount === presetAmount.toString()
-                        ? "bg-green-600 hover:bg-green-700"
-                        : presetAmount > walletBalance
-                          ? "opacity-50 cursor-not-allowed"
-                          : ""
-                    }
-                  >
-                    ₱{presetAmount.toLocaleString()}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Payment Method Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Withdraw To
-              </label>
-              {isLoadingMethods ? (
-                <div className="flex items-center justify-center py-8 bg-gray-50 rounded-lg">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        {/* Sidebar Info */}
+        <div className="space-y-6">
+          {/* Summary Card */}
+          <Card className="border-0 shadow-lg overflow-hidden">
+             <div className="h-1 bg-[#00BAF1]" />
+             <CardHeader>
+                <CardTitle className="text-lg">Order Summary</CardTitle>
+             </CardHeader>
+             <CardContent className="space-y-6">
+                <div className="space-y-4 py-4 border-y border-gray-50">
+                   <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">Selected Amount</span>
+                      <span className="font-bold text-gray-900">{amount ? formatCurrency(parseFloat(amount)) : "₱0.00"}</span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 font-medium">Processing Fee</span>
+                      <span className="font-bold text-green-600">FREE</span>
+                   </div>
+                   <div className="flex justify-between items-center pt-2">
+                       <span className="text-xs font-bold text-gray-400 uppercase">You will receive</span>
+                       <span className="font-extrabold text-[#00BAF1] text-lg">{amount ? formatCurrency(parseFloat(amount)) : "₱0.00"}</span>
+                   </div>
                 </div>
-              ) : paymentMethods.length === 0 ? (
-                <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                  <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600 font-medium">No payment methods</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    You need to add a payment account to withdraw funds
-                  </p>
-                  <Button
-                    variant="link"
-                    className="mt-2 text-green-600"
-                    onClick={() => router.push("/agency/profile?tab=payment-methods")}
-                  >
-                    Add Payment Method →
-                  </Button>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 rounded-xl border border-sky-100">
+                    <ShieldCheck className="h-4 w-4 text-[#00BAF1]" />
+                    <span className="text-[10px] font-bold text-sky-900 uppercase">Secure Transaction</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
+                    <Clock className="h-4 w-4 text-gray-400" />
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">ETA: 1-24 HOURS</span>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {paymentMethods.map((method) => (
-                    <div
-                      key={method.id}
-                      onClick={() => setSelectedMethodId(method.id)}
-                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                        selectedMethodId === method.id
-                          ? "border-green-500 bg-green-50"
-                          : "border-gray-200 hover:border-gray-300 bg-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {getMethodIcon(method.type)}
-                          <div>
-                            <p className="font-medium text-gray-900">{method.account_name}</p>
-                            <p className="text-sm text-gray-500">
-                              {getMethodLabel(method)} • {method.account_number}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {method.is_primary && (
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                              Primary
-                            </span>
-                          )}
-                          {selectedMethodId === method.id && (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          )}
-                        </div>
-                      </div>
+
+                <Button
+                  onClick={handleWithdraw}
+                  disabled={
+                    isLoading ||
+                    !amount ||
+                    parseFloat(amount) < 100 ||
+                    parseFloat(amount) > walletBalance ||
+                    !selectedMethodId
+                  }
+                  className="w-full h-14 bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white font-bold rounded-2xl shadow-xl shadow-sky-100 group transition-all"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <div className="flex items-center justify-center gap-2">
+                      <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                      <span>Confirm Withdrawal</span>
                     </div>
-                  ))}
+                  )}
+                </Button>
+
+                <p className="text-[10px] text-center text-gray-400 font-medium leading-relaxed">
+                  By confirming, you agree to our financial policy. Your funds will be sent to the selected account after verification.
+                </p>
+             </CardContent>
+          </Card>
+
+          {/* Tips Card */}
+          <Card className="border-0 bg-[#00BAF1]/5 border-2 border-[#00BAF1]/10">
+             <CardContent className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Info className="h-4 w-4 text-[#00BAF1]" />
+                  <span className="text-xs font-bold text-[#00BAF1] uppercase tracking-widest">Withdrawal Tip</span>
                 </div>
-              )}
-            </div>
-
-            {/* Notes (Optional) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notes (Optional)
-              </label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes for admin reference..."
-                className="resize-none"
-                rows={2}
-              />
-            </div>
-
-            {/* Preview */}
-            {amount && parseFloat(amount) >= 100 && parseFloat(amount) <= walletBalance && (
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm text-gray-600 mb-2">After withdrawal:</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-700">New Balance</span>
-                  <span className="text-xl font-bold text-green-600">
-                    {formatCurrency(walletBalance - parseFloat(amount))}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Processing Info */}
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start gap-3">
-                <Clock className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-blue-900">Processing Time</p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Withdrawal requests are reviewed and processed within 24 hours.
-                    You&apos;ll receive a notification once the payment is sent to your selected account.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <Button
-              onClick={handleWithdraw}
-              disabled={
-                isLoading ||
-                !amount ||
-                parseFloat(amount) < 100 ||
-                parseFloat(amount) > walletBalance ||
-                !selectedMethodId ||
-                paymentMethods.length === 0
-              }
-              className="w-full h-12 bg-green-600 hover:bg-green-700 text-lg"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Send className="h-5 w-5 mr-2" />
-                  Request Withdrawal
-                </>
-              )}
-            </Button>
-
-            <p className="text-xs text-center text-gray-500">
-              By requesting a withdrawal, you agree to our payment terms and conditions.
-            </p>
-          </CardContent>
-        </Card>
+                <p className="text-xs text-sky-900 leading-relaxed font-medium">
+                  To ensure faster processing, please make sure your account details match your official registration on the selected platform.
+                </p>
+             </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

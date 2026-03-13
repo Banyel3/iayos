@@ -4,7 +4,13 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { API_BASE } from "@/lib/api/config";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { 
+  Card, 
+  CardHeader, 
+  CardTitle, 
+  CardContent, 
+  CardDescription 
+} from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/form_button";
+import { Button } from "@/components/ui/generic_button";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
@@ -31,23 +37,20 @@ import {
   Edit2,
   Save,
   X,
-  Wallet,
-  ArrowUpRight,
-  ArrowDownLeft,
-  RefreshCw,
-  TrendingUp,
-  Banknote,
   CreditCard,
   Plus,
   Trash2,
   Star,
   Smartphone,
+  ShieldCheck,
+  ChevronRight,
+  User,
+  Settings,
+  ArrowLeft,
+  Briefcase,
+  Layers,
 } from "lucide-react";
-import {
-  useWalletBalance,
-  useWalletTransactions,
-} from "@/lib/hooks/useHomeData";
-import { Transaction } from "@/lib/api/wallet";
+import { Badge } from "@/components/ui/badge";
 
 interface AgencyProfile {
   account_id: number;
@@ -92,12 +95,7 @@ export default function AgencyProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "transactions" | "payment-methods"
-  >("overview");
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "payment-methods">("overview");
 
   // Payment methods state
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -106,25 +104,11 @@ export default function AgencyProfilePage() {
   const [newAccountName, setNewAccountName] = useState("");
   const [newAccountNumber, setNewAccountNumber] = useState("");
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<
-    number | null
-  >(null);
-  const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<
-    number | null
-  >(null);
+  const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<number | null>(null);
 
   // Edit form states
   const [editBusinessDesc, setEditBusinessDesc] = useState("");
   const [editContactNumber, setEditContactNumber] = useState("");
-
-  // Wallet hooks
-  const {
-    data: walletBalance = 0,
-    isLoading: isLoadingWallet,
-    refetch: refetchWallet,
-  } = useWalletBalance(true);
-  const { data: transactions = [], isLoading: isLoadingTransactions } =
-    useWalletTransactions(true);
 
   const fetchProfile = async (signal?: AbortSignal) => {
     try {
@@ -136,11 +120,8 @@ export default function AgencyProfilePage() {
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
-        // Initialize edit form values
         setEditBusinessDesc(data.business_description || "");
         setEditContactNumber(data.contact_number || "");
-      } else {
-        toast.error("Failed to fetch profile");
       }
     } catch (error: any) {
       if (error.name === 'AbortError') return;
@@ -157,45 +138,13 @@ export default function AgencyProfilePage() {
     return () => controller.abort();
   }, []);
 
-  // Honor deep-link tab query (e.g. /agency/profile?tab=payment-methods)
   useEffect(() => {
     const requestedTab = searchParams.get("tab");
-    if (
-      requestedTab === "overview" ||
-      requestedTab === "transactions" ||
-      requestedTab === "payment-methods"
-    ) {
+    if (requestedTab === "overview" || requestedTab === "payment-methods") {
       setActiveTab(requestedTab);
     }
   }, [searchParams]);
 
-  // Handle GCash verification callback from PayMongo
-  useEffect(() => {
-    const verifyStatus = searchParams.get("verify");
-    const methodId = searchParams.get("method_id");
-
-    if (verifyStatus === "success") {
-      toast.success(
-        "GCash account verified successfully! ₱1 has been credited to your wallet.",
-      );
-      // Switch to payment methods tab to show the verified method
-      setActiveTab("payment-methods");
-      // Clean up URL params
-      router.replace("/agency/profile");
-      // Refresh payment methods and wallet
-      fetchPaymentMethods();
-      refetchWallet();
-    } else if (verifyStatus === "failed") {
-      toast.error(
-        "GCash verification failed. Please try adding your payment method again.",
-      );
-      setActiveTab("payment-methods");
-      router.replace("/agency/profile");
-      fetchPaymentMethods();
-    }
-  }, [searchParams, router, refetchWallet]);
-
-  // Fetch payment methods when tab changes
   useEffect(() => {
     if (activeTab === "payment-methods") {
       fetchPaymentMethods();
@@ -211,8 +160,6 @@ export default function AgencyProfilePage() {
       if (res.ok) {
         const data = await res.json();
         setPaymentMethods(data.payment_methods || []);
-      } else {
-        toast.error("Failed to fetch payment methods");
       }
     } catch (error) {
       console.error("Error fetching payment methods:", error);
@@ -222,10 +169,9 @@ export default function AgencyProfilePage() {
   };
 
   const handleAddPaymentMethod = async () => {
-    // Validate GCash number format
     const cleanNumber = newAccountNumber.replace(/\s/g, "").replace(/-/g, "");
     if (!cleanNumber.startsWith("09") || cleanNumber.length !== 11) {
-      toast.error("Invalid GCash number (must be 11 digits starting with 09)");
+      toast.error("Invalid GCash number (11 digits starting with 09)");
       return;
     }
     if (!newAccountName.trim()) {
@@ -249,19 +195,11 @@ export default function AgencyProfilePage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Check if verification is required (new production-ready flow)
         if (data.verification_required && data.checkout_url) {
-          toast.info("Redirecting to PayMongo for GCash verification...");
-          setShowAddPaymentModal(false);
-          setNewAccountName("");
-          setNewAccountNumber("");
-
-          // Redirect to PayMongo checkout for verification
-          // The ₱1 payment will verify ownership of the GCash account
+          toast.info("Redirecting for verification...");
           window.location.href = data.checkout_url;
         } else {
-          // Legacy flow (if any)
-          toast.success("GCash account added successfully!");
+          toast.success("Account added successfully");
           setShowAddPaymentModal(false);
           setNewAccountName("");
           setNewAccountNumber("");
@@ -272,7 +210,7 @@ export default function AgencyProfilePage() {
       }
     } catch (error) {
       console.error("Error adding payment method:", error);
-      toast.error(getErrorMessage(error, "Failed to add payment method"));
+      toast.error("Failed to add payment method");
     } finally {
       setIsAddingPaymentMethod(false);
     }
@@ -280,100 +218,50 @@ export default function AgencyProfilePage() {
 
   const handleDeletePaymentMethod = async (methodId: number) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/api/agency/payment-methods/${methodId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/agency/payment-methods/${methodId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
 
       if (res.ok) {
         toast.success("Payment method removed");
         fetchPaymentMethods();
-        // Clear selection if deleted method was selected
-        if (selectedPaymentMethodId === methodId) {
-          setSelectedPaymentMethodId(null);
-        }
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Failed to remove payment method");
       }
     } catch (error) {
       console.error("Error deleting payment method:", error);
-      toast.error(getErrorMessage(error, "Failed to remove payment method"));
+      toast.error("Failed to remove payment method");
     }
   };
 
   const handleSetPrimaryPaymentMethod = async (methodId: number) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/api/agency/payment-methods/${methodId}/set-primary`,
-        {
-          method: "POST",
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${API_BASE}/api/agency/payment-methods/${methodId}/set-primary`, {
+        method: "POST",
+        credentials: "include",
+      });
 
       if (res.ok) {
-        toast.success("Primary payment method updated");
+        toast.success("Primary method updated");
         fetchPaymentMethods();
-      } else {
-        const data = await res.json();
-        toast.error(data.error || "Failed to update primary method");
       }
     } catch (error) {
-      console.error("Error setting primary payment method:", error);
-      toast.error(
-        getErrorMessage(error, "Failed to set primary payment method"),
-      );
+      console.error("Error setting primary method:", error);
+      toast.error("Failed to update primary method");
     }
   };
 
-  // Format GCash number for display
   const formatGcashNumber = (number: string) => {
     if (!number) return "";
-    // Format as 0912 345 6789
     return `${number.slice(0, 4)} ${number.slice(4, 7)} ${number.slice(7)}`;
-  };
-
-  const handleEditClick = () => {
-    if (profile) {
-      setEditBusinessDesc(profile.business_description || "");
-      setEditContactNumber(profile.contact_number || "");
-      setIsEditing(true);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    if (profile) {
-      setEditBusinessDesc(profile.business_description || "");
-      setEditContactNumber(profile.contact_number || "");
-    }
   };
 
   const handleSaveProfile = async () => {
     if (!profile) return;
-
     setIsSaving(true);
     try {
       const formData = new FormData();
-
-      // Only append non-empty values
-      if (editBusinessDesc && editBusinessDesc.trim()) {
-        formData.append("business_description", editBusinessDesc.trim());
-      }
-      if (editContactNumber && editContactNumber.trim()) {
-        formData.append("contact_number", editContactNumber.trim());
-      }
-
-      if (process.env.NODE_ENV === "development") {
-        console.log("Sending update:", {
-          business_description: editBusinessDesc,
-          contact_number: editContactNumber,
-        });
-      }
+      if (editBusinessDesc.trim()) formData.append("business_description", editBusinessDesc.trim());
+      if (editContactNumber.trim()) formData.append("contact_number", editContactNumber.trim());
 
       const res = await fetch(`${API_BASE}/api/agency/profile/update`, {
         method: "POST",
@@ -382,13 +270,8 @@ export default function AgencyProfilePage() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        if (process.env.NODE_ENV === "development") {
-          console.log("Update response:", data);
-        }
-        toast.success("Profile updated successfully");
+        toast.success("Profile updated");
         setIsEditing(false);
-        // Refresh profile data
         await fetchProfile();
       } else {
         const error = await res.json();
@@ -406,68 +289,48 @@ export default function AgencyProfilePage() {
     switch (status) {
       case "APPROVED":
         return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-            <CheckCircle className="h-4 w-4" />
+          <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+            <ShieldCheck className="h-3 w-3 mr-1.5" />
             Verified
-          </span>
+          </Badge>
         );
       case "PENDING":
         return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
-            <Clock className="h-4 w-4" />
+          <Badge className="bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+            <Clock className="h-3 w-3 mr-1.5" />
             Pending Review
-          </span>
+          </Badge>
         );
       case "REJECTED":
         return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
-            <XCircle className="h-4 w-4" />
+          <Badge className="bg-red-50 text-red-600 border-red-100 hover:bg-red-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+            <XCircle className="h-3 w-3 mr-1.5" />
             Rejected
-          </span>
+          </Badge>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-            <Clock className="h-4 w-4" />
+          <Badge className="bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider">
+            <Clock className="h-3 w-3 mr-1.5" />
             Not Started
-          </span>
+          </Badge>
         );
     }
   };
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
   if (loading) {
     return (
-      <div>
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold">Agency Profile</h1>
+      <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
+        <div className="animate-pulse flex items-center gap-4 mb-10">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl" />
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-gray-100 rounded-lg" />
+            <div className="h-4 w-32 bg-gray-100 rounded-lg" />
           </div>
-
-          <div className="space-y-4">
-            {/* Loading skeleton for profile cards */}
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <div className="h-6 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="h-64 bg-gray-50 rounded-2xl" />
+          <div className="h-64 bg-gray-50 rounded-2xl" />
         </div>
       </div>
     );
@@ -475,936 +338,388 @@ export default function AgencyProfilePage() {
 
   if (!profile) {
     return (
-      <div>
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl font-bold mb-4">Agency Profile</h1>
-          <div className="text-sm text-red-500">Failed to load profile</div>
-        </div>
+      <div className="max-w-7xl mx-auto pt-40 px-4 text-center">
+        <XCircle className="h-8 w-8 text-red-400 mx-auto mb-4" />
+        <p className="text-sm font-bold text-gray-700 mb-2">Profile not found</p>
+        <p className="text-xs font-medium text-gray-400 mb-6">Unable to load your agency profile. Please try again.</p>
+        <Button
+          onClick={() => window.location.reload()}
+          className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white rounded-xl px-6 h-11 font-bold text-[10px] uppercase tracking-wider shadow-lg shadow-sky-100"
+        >
+          Retry
+        </Button>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Agency Profile</h1>
-          {!isEditing && (
-            <Button
-              onClick={handleEditClick}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Edit2 className="h-4 w-4" />
-              Edit Profile
-            </Button>
-          )}
-        </div>
-
-        {/* Wallet Balance Card */}
-        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                  <Wallet className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-emerald-100 text-sm font-medium">
-                    Platform Wallet
-                  </p>
-                  <h2 className="text-3xl font-bold">
-                    {isLoadingWallet ? (
-                      <span className="text-emerald-200">Loading...</span>
-                    ) : (
-                      `₱${walletBalance.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
-                    )}
-                  </h2>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => refetchWallet()}
-                  className="bg-white/20 hover:bg-white/30 text-white border-0 h-10 w-10 p-0"
-                  disabled={isLoadingWallet}
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${isLoadingWallet ? "animate-spin" : ""}`}
-                  />
-                </Button>
-                <Button
-                  onClick={() => {
-                    fetchPaymentMethods();
-                    setShowWithdrawModal(true);
-                  }}
-                  className="bg-white text-emerald-600 hover:bg-emerald-50 font-semibold"
-                >
-                  <Banknote className="h-4 w-4 mr-2" />
-                  Withdraw
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/20">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-200" />
-                <div>
-                  <p className="text-emerald-200 text-xs">Total Earnings</p>
-                  <p className="font-semibold">
-                    ₱
-                    {transactions
-                      .filter((t: Transaction) =>
-                        [
-                          "DEPOSIT",
-                          "EARNING",
-                          "PENDING_EARNING",
-                          "REFUND",
-                        ].includes(t.type),
-                      )
-                      .reduce(
-                        (sum: number, t: Transaction) => sum + t.amount,
-                        0,
-                      )
-                      .toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <ArrowUpRight className="h-4 w-4 text-emerald-200" />
-                <div>
-                  <p className="text-emerald-200 text-xs">Total Withdrawn</p>
-                  <p className="font-semibold">
-                    ₱
-                    {transactions
-                      .filter((t: Transaction) => t.type === "WITHDRAWAL")
-                      .reduce(
-                        (sum: number, t: Transaction) =>
-                          sum + Math.abs(t.amount),
-                        0,
-                      )
-                      .toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tabs for Overview / Transactions / Payment Methods */}
-        <div className="flex border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === "overview"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab("transactions")}
-            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === "transactions"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-          >
-            Transactions
-          </button>
-          <button
-            onClick={() => setActiveTab("payment-methods")}
-            className={`flex-1 px-2 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === "payment-methods"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-          >
-            Pay Methods
-          </button>
-        </div>
-
-        {activeTab === "transactions" ? (
-          /* Transaction History */
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5" />
-                Transaction History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingTransactions ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg animate-pulse"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-                        <div>
-                          <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                          <div className="h-3 bg-gray-200 rounded w-24"></div>
-                        </div>
-                      </div>
-                      <div className="h-5 bg-gray-200 rounded w-20"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : transactions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Wallet className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p className="font-medium">No transactions yet</p>
-                  <p className="text-sm">
-                    Transactions will appear here when you complete jobs
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                  {transactions.map((tx: Transaction) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`p-2 rounded-full ${tx.type === "WITHDRAWAL"
-                              ? "bg-red-100 text-red-600"
-                              : "bg-green-100 text-green-600"
-                            }`}
-                        >
-                          {tx.type === "WITHDRAWAL" ? (
-                            <ArrowUpRight className="h-4 w-4" />
-                          ) : (
-                            <ArrowDownLeft className="h-4 w-4" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {tx.description || tx.type}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(tx.created_at).toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                                hour: "numeric",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`font-semibold ${tx.type === "WITHDRAWAL"
-                              ? "text-red-600"
-                              : "text-green-600"
-                            }`}
-                        >
-                          {tx.type === "WITHDRAWAL" ? "-" : "+"}₱
-                          {Math.abs(tx.amount).toLocaleString("en-PH", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </p>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${tx.status === "COMPLETED"
-                              ? "bg-green-100 text-green-700"
-                              : tx.status === "PENDING"
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-gray-100 text-gray-700"
-                            }`}
-                        >
-                          {tx.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : activeTab === "payment-methods" ? (
-          /* Payment Methods Management */
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Payment Methods
-                </CardTitle>
-                <Button
-                  onClick={() => setShowAddPaymentModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add GCash
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoadingPaymentMethods ? (
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg animate-pulse"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gray-200 rounded-xl"></div>
-                        <div>
-                          <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-                          <div className="h-3 bg-gray-200 rounded w-24"></div>
-                        </div>
-                      </div>
-                      <div className="h-8 bg-gray-200 rounded w-20"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : paymentMethods.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Smartphone className="h-8 w-8 text-blue-500" />
-                  </div>
-                  <p className="font-medium text-gray-900">
-                    No payment methods yet
-                  </p>
-                  <p className="text-sm mb-4">
-                    Add a GCash account to receive withdrawals
-                  </p>
-                  <Button
-                    onClick={() => setShowAddPaymentModal(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add GCash Account
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {paymentMethods.map((method) => (
-                    <div
-                      key={method.id}
-                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${method.is_primary
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300 bg-white"
-                        }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        {/* GCash Icon */}
-                        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-                          G
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-gray-900">
-                              {method.account_name}
-                            </p>
-                            {method.is_primary && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                <Star className="h-3 w-3" />
-                                Primary
-                              </span>
-                            )}
-                            {method.is_verified && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                                <CheckCircle className="h-3 w-3" />
-                                Verified
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600 font-mono">
-                            {formatGcashNumber(method.account_number)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!method.is_primary && (
-                          <Button
-                            onClick={() =>
-                              handleSetPrimaryPaymentMethod(method.id)
-                            }
-                            className="bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs"
-                          >
-                            Set Primary
-                          </Button>
-                        )}
-                        <Button
-                          onClick={() => setPendingDeleteMethodId(method.id)}
-                          className="bg-red-50 text-red-600 hover:bg-red-100 p-2"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* Business Information Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Business Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Business Name
-                  </label>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {profile.business_name || "Not provided"}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">
-                    Description
-                  </label>
-                  {isEditing ? (
-                    <textarea
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
-                      value={editBusinessDesc}
-                      onChange={(e) => setEditBusinessDesc(e.target.value)}
-                      placeholder="Enter business description"
-                    />
-                  ) : (
-                    <p className="text-gray-700">
-                      {profile.business_description ||
-                        "No description provided"}
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  <div className="flex items-start gap-2">
-                    <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <label className="text-sm font-medium text-gray-500">
-                        Email
-                      </label>
-                      <p className="text-gray-900">{profile.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
-                    <div className="w-full">
-                      <label className="text-sm font-medium text-gray-500">
-                        Contact Number
-                      </label>
-                      {isEditing ? (
-                        <Input
-                          type="tel"
-                          value={editContactNumber}
-                          onChange={(e) => setEditContactNumber(e.target.value)}
-                          placeholder="Enter contact number"
-                          maxLength={11}
-                        />
-                      ) : (
-                        <p className="text-gray-900">
-                          {profile.contact_number || "Not provided"}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {isEditing && (
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      onClick={handleSaveProfile}
-                      disabled={isSaving}
-                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <Save className="h-4 w-4" />
-                      {isSaving ? "Saving..." : "Save Changes"}
-                    </Button>
-                    <Button
-                      onClick={handleCancelEdit}
-                      disabled={isSaving}
-                      className="flex items-center gap-2 bg-gray-500 hover:bg-gray-600 text-white"
-                    >
-                      <X className="h-4 w-4" />
-                      Cancel
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Address Card */}
-            {profile.address && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Business Address
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-900">
-                    {profile.address.street && `${profile.address.street}, `}
-                    {profile.address.city && `${profile.address.city}, `}
-                    {profile.address.province && `${profile.address.province} `}
-                    {profile.address.postal_code}
-                  </p>
-                  <p className="text-gray-600 mt-1">
-                    {profile.address.country}
-                  </p>
-                </CardContent>
-              </Card>
+    <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
+      {/* Header */}
+      <div className="pb-6 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="flex items-center gap-4">
+             <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-gray-900" />
+             <div>
+               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{profile.business_name || "Agency Profile"}</h1>
+               <div className="flex items-center gap-3 mt-1">
+                 <p className="text-gray-500 text-sm">{profile.email}</p>
+                 <div className="w-1 h-1 bg-gray-300 rounded-full" />
+                 <p className="text-gray-500 text-sm">Joined {new Date(profile.created_at).getFullYear()}</p>
+               </div>
+             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {!isEditing && (
+              <Button
+                onClick={() => setIsEditing(true)}
+                className="bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-100 rounded-xl px-4 font-bold text-[10px] uppercase tracking-wider h-11 transition-all"
+              >
+                <Edit2 className="h-3 w-3 mr-2 text-[#00BAF1]" />
+                Edit Settings
+              </Button>
             )}
-
-            {/* KYC Status Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Verification Status</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">
-                    KYC Status
-                  </span>
-                  {getKycStatusBadge(profile.kyc_status)}
-                </div>
-                {profile.kyc_submitted_at && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      Submitted on {formatDate(profile.kyc_submitted_at)}
-                    </span>
-                  </div>
-                )}
-                {profile.kyc_status === "REJECTED" && (
-                  <Link
-                    href="/agency/kyc"
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                  >
-                    Resubmit KYC Documents
-                  </Link>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Account Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="h-4 w-4" />
-                  <span>Member since {formatDate(profile.created_at)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
-
-      {/* Withdraw Modal */}
-      {showWithdrawModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Withdraw Funds
-              </h3>
-              <button
-                onClick={() => {
-                  setShowWithdrawModal(false);
-                  setWithdrawAmount("");
-                  setSelectedPaymentMethodId(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Available Balance</p>
-              <p className="text-2xl font-bold text-emerald-600">
-                ₱
-                {walletBalance.toLocaleString("en-PH", {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-            </div>
-
-            {/* Payment Method Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Withdraw to
-              </label>
-              {paymentMethods.length === 0 ? (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-800 mb-2">
-                    No GCash account found
-                  </p>
-                  <Button
-                    onClick={() => {
-                      setShowWithdrawModal(false);
-                      setActiveTab("payment-methods");
-                      setTimeout(() => setShowAddPaymentModal(true), 300);
-                    }}
-                    className="bg-amber-600 hover:bg-amber-700 text-white text-sm"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add GCash Account
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {paymentMethods.map((method) => (
-                    <button
-                      key={method.id}
-                      onClick={() => setSelectedPaymentMethodId(method.id)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left ${selectedPaymentMethodId === method.id
-                          ? "border-emerald-500 bg-emerald-50"
-                          : "border-gray-200 hover:border-gray-300"
-                        }`}
-                    >
-                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
-                        G
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 text-sm">
-                          {method.account_name}
-                        </p>
-                        <p className="text-xs text-gray-500 font-mono">
-                          {formatGcashNumber(method.account_number)}
-                        </p>
-                      </div>
-                      {selectedPaymentMethodId === method.id && (
-                        <CheckCircle className="h-5 w-5 text-emerald-600" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Amount to Withdraw
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                  ₱
-                </span>
-                <Input
-                  type="number"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="pl-8"
-                  min={100}
-                  max={walletBalance}
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Minimum withdrawal: ₱100.00
-              </p>
-            </div>
-
-            {/* Quick amount buttons */}
-            <div className="flex gap-2 mb-6">
-              {[500, 1000, 2000].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setWithdrawAmount(amt.toString())}
-                  disabled={walletBalance < amt}
-                  className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${walletBalance >= amt
-                      ? "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
-                      : "border-gray-200 text-gray-400 cursor-not-allowed"
-                    }`}
-                >
-                  ₱{amt.toLocaleString()}
-                </button>
-              ))}
-              <button
-                onClick={() => setWithdrawAmount(walletBalance.toString())}
-                disabled={walletBalance < 100}
-                className={`flex-1 py-2 text-sm rounded-lg border transition-colors ${walletBalance >= 100
-                    ? "border-emerald-300 text-emerald-600 hover:bg-emerald-50"
-                    : "border-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
-              >
-                All
-              </button>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setShowWithdrawModal(false);
-                  setWithdrawAmount("");
-                }}
-                className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!selectedPaymentMethodId && paymentMethods.length > 0) {
-                    toast.error("Please select a payment method");
-                    return;
-                  }
-                  if (paymentMethods.length === 0) {
-                    toast.error("Please add a GCash account first");
-                    return;
-                  }
-                  const amount = parseFloat(withdrawAmount);
-                  if (!amount || amount < 100) {
-                    toast.error("Minimum withdrawal is ₱100.00");
-                    return;
-                  }
-                  if (amount > walletBalance) {
-                    toast.error("Insufficient balance");
-                    return;
-                  }
-
-                  // Must select a payment method
-                  const methodId =
-                    selectedPaymentMethodId || paymentMethods[0]?.id;
-                  if (!methodId) {
-                    toast.error("Please select a GCash account");
-                    return;
-                  }
-
-                  setIsWithdrawing(true);
-                  try {
-                    // Use agency-specific withdrawal endpoint
-                    const res = await fetch(
-                      `${API_BASE}/api/agency/wallet/withdraw`,
-                      {
-                        method: "POST",
-                        credentials: "include",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          amount,
-                          payment_method_id: methodId,
-                        }),
-                      },
-                    );
-
-                    const data = await res.json();
-
-                    if (res.ok && data.success) {
-                      // Handle test mode with invoice URL
-                      if (data.invoice_url && data.test_mode) {
-                        toast.success(
-                          `TEST MODE: Withdrawal invoice created for ₱${amount.toLocaleString()}`,
-                          {
-                            description: "Opening invoice in new tab...",
-                            duration: 5000,
-                          },
-                        );
-                        // Open invoice URL in new tab
-                        window.open(data.invoice_url, "_blank");
-                      } else {
-                        toast.success(
-                          `Withdrawal of ₱${amount.toLocaleString()} submitted! ${data.message || "Funds will arrive in 1-3 business days."}`,
-                        );
-                      }
-                      setShowWithdrawModal(false);
-                      setWithdrawAmount("");
-                      setSelectedPaymentMethodId(null);
-                      refetchWallet();
-                    } else {
-                      toast.error(data.error || "Failed to request withdrawal");
-                    }
-                  } catch (error) {
-                    console.error("Withdrawal error:", error);
-                    toast.error(
-                      getErrorMessage(error, "Failed to request withdrawal"),
-                    );
-                  } finally {
-                    setIsWithdrawing(false);
-                  }
-                }}
-                disabled={
-                  isWithdrawing ||
-                  !withdrawAmount ||
-                  parseFloat(withdrawAmount) < 100 ||
-                  paymentMethods.length === 0 ||
-                  (!selectedPaymentMethodId && paymentMethods.length > 0)
-                }
-                className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-300"
-              >
-                {isWithdrawing ? "Processing..." : "Withdraw via GCash"}
-              </Button>
-            </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* Tabs Layout */}
+      <div className="space-y-8 mt-6">
+         <div className="flex items-center gap-1 p-1.5 bg-gray-50 rounded-2xl border border-gray-100 w-fit">
+            <button
+               onClick={() => setActiveTab("overview")}
+               className={`px-6 py-2.5 rounded-xl text-[10px] font-extrabold uppercase tracking-widest transition-all flex items-center gap-2 ${
+                  activeTab === "overview" 
+                  ? "bg-white text-[#00BAF1] shadow-sm ring-1 ring-gray-100" 
+                  : "text-gray-400 hover:text-gray-600"
+               }`}
+            >
+               <User className="h-3.5 w-3.5" />
+               Business Profile
+            </button>
+            <button
+               onClick={() => setActiveTab("payment-methods")}
+               className={`px-6 py-2.5 rounded-xl text-[10px] font-extrabold uppercase tracking-widest transition-all flex items-center gap-2 ${
+                  activeTab === "payment-methods" 
+                  ? "bg-white text-[#00BAF1] shadow-sm ring-1 ring-gray-100" 
+                  : "text-gray-400 hover:text-gray-600"
+               }`}
+            >
+               <CreditCard className="h-3.5 w-3.5" />
+               Payout Methods
+            </button>
+         </div>
+
+         {activeTab === "overview" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+               {/* Left Side: General Info */}
+               <div className="lg:col-span-2 space-y-8">
+                  <Card className="border-0 shadow-xl overflow-hidden group">
+                     <CardHeader className="bg-white border-b border-gray-50 pb-4">
+                        <div className="flex items-center justify-between">
+                           <div>
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                 <Building2 className="h-5 w-5 text-[#00BAF1]" />
+                                 Organization Details
+                              </CardTitle>
+                              <CardDescription>Manage your public agency identity</CardDescription>
+                           </div>
+                        </div>
+                     </CardHeader>
+                     <CardContent className="p-8 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                           <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Business Name</label>
+                              <p className="text-gray-900 font-bold">{profile.business_name || "---"}</p>
+                           </div>
+                           <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Email Address</label>
+                              <p className="text-gray-900 font-bold">{profile.email}</p>
+                           </div>
+                           <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contact Number</label>
+                              {isEditing ? (
+                                 <Input 
+                                    className="bg-gray-50 border-gray-100 rounded-xl"
+                                    value={editContactNumber} 
+                                    onChange={(e) => setEditContactNumber(e.target.value)} 
+                                 />
+                              ) : (
+                                 <p className="text-gray-900 font-bold">{profile.contact_number || "Not provided"}</p>
+                              )}
+                           </div>
+                           <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Verification Status</label>
+                              <div className="pt-1">{getKycStatusBadge(profile.kyc_status)}</div>
+                           </div>
+                        </div>
+
+                        <div className="space-y-2.5 pt-4 border-t border-gray-50">
+                           <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">About the Agency</label>
+                           {isEditing ? (
+                              <textarea
+                                 className="w-full min-h-[120px] bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#00BAF1]/20 transition-all font-medium"
+                                 value={editBusinessDesc}
+                                 onChange={(e) => setEditBusinessDesc(e.target.value)}
+                                 placeholder="Tell us about your agency's expertise..."
+                              />
+                           ) : (
+                              <p className="text-gray-600 text-sm leading-relaxed font-medium">
+                                 {profile.business_description || "No description provided yet."}
+                              </p>
+                           )}
+                        </div>
+
+                        {isEditing && (
+                           <div className="flex items-center gap-3 pt-6">
+                              <Button 
+                                 onClick={handleSaveProfile} 
+                                 disabled={isSaving}
+                                 className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white px-8 rounded-xl h-11 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
+                              >
+                                 {isSaving ? "Saving..." : "Save Profile"}
+                              </Button>
+                              <Button 
+                                 variant="outline" 
+                                 onClick={() => setIsEditing(false)}
+                                 className="border-gray-100 hover:bg-gray-50 rounded-xl h-11 font-bold text-[10px] uppercase tracking-widest"
+                              >
+                                 Cancel
+                              </Button>
+                           </div>
+                        )}
+                     </CardContent>
+                  </Card>
+
+                  {/* Address Section */}
+                  <Card className="border-0 shadow-xl overflow-hidden">
+                     <CardHeader className="bg-white border-b border-gray-50 pb-4">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                           <MapPin className="h-5 w-5 text-[#00BAF1]" />
+                           HQ Location
+                        </CardTitle>
+                     </CardHeader>
+                     <CardContent className="p-8">
+                        {profile.address ? (
+                           <div className="flex items-start gap-4">
+                              <div className="p-3 bg-gray-50 rounded-xl">
+                                 <MapPin className="h-6 w-6 text-gray-300" />
+                              </div>
+                              <div className="space-y-1">
+                                 <p className="text-gray-900 font-bold">
+                                    {profile.address.street}, {profile.address.city}
+                                 </p>
+                                 <p className="text-gray-500 text-sm">
+                                    {profile.address.province}, {profile.address.country} {profile.address.postal_code}
+                                 </p>
+                              </div>
+                           </div>
+                        ) : (
+                           <div className="text-center py-6 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
+                             <p className="text-sm text-gray-400 font-bold uppercase tracking-widest">Address not verified yet</p>
+                           </div>
+                        )}
+                     </CardContent>
+                  </Card>
+               </div>
+
+               {/* Right Side: Stats & KYC */}
+               <div className="space-y-8">
+
+                  {/* KYC Upsell */}
+                  {profile.kyc_status !== "APPROVED" && (
+                    <Card className="border-0 shadow-2xl bg-gradient-to-br from-[#00BAF1] to-[#0092c1] text-white">
+                      <CardContent className="p-8 space-y-4">
+                        <ShieldCheck className="h-10 w-10 text-white/50" />
+                        <div>
+                          <h3 className="text-lg font-bold">Complete KYC</h3>
+                          <p className="text-white/80 text-sm mt-1 leading-relaxed">
+                            Verify your agency to unlock higher withdrawal limits and premium trust badges.
+                          </p>
+                        </div>
+                        <Button 
+                          onClick={() => router.push("/agency/kyc")}
+                          className="w-full bg-white text-[#00BAF1] hover:bg-white/90 font-bold text-[10px] uppercase tracking-widest rounded-xl h-11 border-0 shadow-lg"
+                        >
+                          Verify Now
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+               </div>
+            </div>
+         )}
+
+         {activeTab === "payment-methods" && (
+            <div className="max-w-4xl space-y-8">
+               <div className="flex items-start justify-between">
+                  <div>
+                     <h2 className="text-2xl font-bold text-gray-900">Payout Settings</h2>
+                     <p className="text-gray-500 text-sm mt-1">Manage where your earnings are sent</p>
+                  </div>
+                  <Button 
+                     onClick={() => setShowAddPaymentModal(true)}
+                     className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white rounded-xl h-12 px-6 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
+                  >
+                     <Plus className="h-4 w-4 mr-2" />
+                     Add GCash
+                  </Button>
+               </div>
+
+               {isLoadingPaymentMethods ? (
+                  <div className="space-y-4">
+                     {[1, 2].map(id => <div key={id} className="h-24 bg-gray-50 animate-pulse rounded-2xl" />)}
+                  </div>
+               ) : paymentMethods.length === 0 ? (
+                  <div className="text-center py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100">
+                     <div className="p-4 bg-white rounded-2xl w-fit mx-auto shadow-sm mb-4">
+                        <Smartphone className="h-8 w-8 text-[#00BAF1]" />
+                     </div>
+                     <h3 className="text-lg font-bold text-gray-900">No payment methods found</h3>
+                     <p className="text-gray-400 text-sm mt-1">Connect your GCash account to start receiving earnings.</p>
+                     <Button 
+                        variant="outline" 
+                        onClick={() => setShowAddPaymentModal(true)}
+                        className="mt-6 border-[#00BAF1] text-[#00BAF1] hover:bg-[#00BAF1]/5 rounded-xl px-8 h-12 font-bold text-[10px] uppercase tracking-widest"
+                     >
+                        Link GCash Now
+                     </Button>
+                  </div>
+               ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                     {paymentMethods.map((method) => (
+                        <Card 
+                           key={method.id} 
+                           className={`border-0 shadow-lg group hover:shadow-xl transition-all overflow-hidden ${method.is_primary ? "bg-white ring-2 ring-[#00BAF1]" : "bg-white"}`}
+                        >
+                           <CardContent className="p-6">
+                              <div className="flex items-center justify-between gap-6">
+                                 <div className="flex items-center gap-5">
+                                    <div className="w-16 h-16 bg-[#00BAF1] rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-sky-100">
+                                       G
+                                    </div>
+                                    <div className="space-y-1">
+                                       <div className="flex items-center gap-3">
+                                          <p className="text-lg font-bold text-gray-900">{method.account_name}</p>
+                                          {method.is_primary && (
+                                             <Badge className="bg-sky-50 text-[#00BAF1] border-sky-100 text-[8px] font-black tracking-tighter uppercase px-2 py-0.5">Primary</Badge>
+                                          )}
+                                       </div>
+                                       <p className="text-gray-500 font-bold tracking-widest text-[13px]">{formatGcashNumber(method.account_number)}</p>
+                                    </div>
+                                 </div>
+                                 <div className="flex items-center gap-3">
+                                    {!method.is_primary && (
+                                       <Button 
+                                          variant="ghost"
+                                          onClick={() => handleSetPrimaryPaymentMethod(method.id)}
+                                          className="text-[#00BAF1] hover:bg-[#00BAF1]/5 font-bold text-[10px] uppercase tracking-widest px-4 h-10 rounded-xl"
+                                       >
+                                          Make Primary
+                                       </Button>
+                                    )}
+                                    <Button 
+                                       variant="ghost" 
+                                       onClick={() => setPendingDeleteMethodId(method.id)}
+                                       className="w-10 h-10 p-0 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                    >
+                                       <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                 </div>
+                              </div>
+                           </CardContent>
+                        </Card>
+                     ))}
+                  </div>
+               )}
+            </div>
+         )}
+      </div>
 
       {/* Add Payment Method Modal */}
       {showAddPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
-                  G
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Add GCash Account
-                </h3>
-              </div>
-              <button
-                onClick={() => {
-                  setShowAddPaymentModal(false);
-                  setNewAccountName("");
-                  setNewAccountNumber("");
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Account Name
-                </label>
-                <Input
-                  type="text"
-                  value={newAccountName}
-                  onChange={(e) => setNewAccountName(e.target.value)}
-                  placeholder="Juan Dela Cruz"
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Name registered on your GCash account
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  GCash Number
-                </label>
-                <div className="relative">
-                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md border-0 shadow-2xl overflow-hidden rounded-3xl animate-in fade-in zoom-in duration-200">
+            <CardHeader className="bg-[#00BAF1] text-white p-8">
+               <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                     <div className="p-2.5 bg-white/20 rounded-xl">
+                        <Smartphone className="h-5 w-5" />
+                     </div>
+                     <CardTitle className="text-xl">Add GCash</CardTitle>
+                  </div>
+                  <button onClick={() => setShowAddPaymentModal(false)} className="text-white/60 hover:text-white transition-colors">
+                     <X className="h-5 w-5" />
+                  </button>
+               </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Holder Name</label>
                   <Input
-                    type="tel"
-                    value={newAccountNumber}
-                    onChange={(e) => {
-                      // Only allow numbers
-                      const value = e.target.value.replace(/\D/g, "");
-                      if (value.length <= 11) {
-                        setNewAccountNumber(value);
-                      }
-                    }}
-                    placeholder="09123456789"
-                    className="pl-10"
-                    maxLength={11}
+                    className="h-12 border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold"
+                    value={newAccountName}
+                    onChange={(e) => setNewAccountName(e.target.value)}
+                    placeholder="Full name on GCash"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  11-digit number starting with 09
-                </p>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">GCash Mobile Number</label>
+                  <div className="relative">
+                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                    <Input
+                      className="h-12 pl-11 border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold tracking-widest"
+                      value={newAccountNumber}
+                      onChange={(e) => setNewAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                      placeholder="09XXXXXXXXX"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Validation feedback */}
-              {newAccountNumber && (
-                <div
-                  className={`flex items-center gap-2 text-sm ${newAccountNumber.startsWith("09") &&
-                      newAccountNumber.length === 11
-                      ? "text-green-600"
-                      : "text-amber-600"
-                    }`}
+              <div className="p-4 bg-sky-50 rounded-2xl border border-sky-100">
+                 <p className="text-[11px] text-[#00BAF1] leading-relaxed font-bold">
+                    Ownership verification: You will be redirected to confirm a small ₱1 transaction which will be credited back to your balance.
+                 </p>
+              </div>
+
+              <div className="flex flex-col gap-3 pt-4">
+                <Button
+                  onClick={handleAddPaymentMethod}
+                  disabled={isAddingPaymentMethod || !newAccountName.trim() || newAccountNumber.length !== 11}
+                  className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white h-12 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
                 >
-                  {newAccountNumber.startsWith("09") &&
-                    newAccountNumber.length === 11 ? (
-                    <>
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Valid GCash number format</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4" />
-                      <span>
-                        {!newAccountNumber.startsWith("09")
-                          ? "Must start with 09"
-                          : `${11 - newAccountNumber.length} more digit${11 - newAccountNumber.length !== 1 ? "s" : ""} needed`}
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Verification Info */}
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mt-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-blue-900">
-                      Secure Verification
-                    </h4>
-                    <p className="text-xs text-blue-700 mt-1">
-                      After clicking "Verify Account", you'll be redirected to
-                      PayMongo to pay ₱1 via GCash. This confirms you own the
-                      account. The ₱1 will be credited to your wallet!
-                    </p>
-                  </div>
-                </div>
+                  {isAddingPaymentMethod ? "Processing..." : "Verify & Add Account"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowAddPaymentModal(false)}
+                  className="text-gray-400 font-bold text-[10px] uppercase"
+                >
+                  Go Back
+                </Button>
               </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <Button
-                onClick={() => {
-                  setShowAddPaymentModal(false);
-                  setNewAccountName("");
-                  setNewAccountNumber("");
-                }}
-                className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAddPaymentMethod}
-                disabled={
-                  isAddingPaymentMethod ||
-                  !newAccountName.trim() ||
-                  !newAccountNumber.startsWith("09") ||
-                  newAccountNumber.length !== 11
-                }
-                className="flex-1 bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300"
-              >
-                {isAddingPaymentMethod ? "Verifying..." : "Verify Account"}
-              </Button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
-      {/* Confirm delete payment method dialog */}
+
+      {/* Delete Confirmation */}
       <AlertDialog
         open={pendingDeleteMethodId !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDeleteMethodId(null);
-        }}
+        onOpenChange={(open) => !open && setPendingDeleteMethodId(null)}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-3xl border-0 shadow-2xl p-8">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to remove this payment method? This action
-              cannot be undone.
+            <AlertDialogTitle className="text-xl font-bold text-gray-900">Remove Account?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-500 font-medium">
+              Are you sure you want to remove this GCash account? You will need to re-verify it to use it again for payouts.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingDeleteMethodId(null)}>
-              Cancel
-            </AlertDialogCancel>
+          <AlertDialogFooter className="pt-6">
+            <AlertDialogCancel className="rounded-xl border-gray-100 font-bold text-[10px] uppercase">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-[10px] uppercase px-8 h-10 border-0"
               onClick={() => {
                 if (pendingDeleteMethodId !== null) {
                   handleDeletePaymentMethod(pendingDeleteMethodId);
