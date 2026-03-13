@@ -49,6 +49,65 @@ export function useConfirmWorkStarted() {
 }
 
 /**
+ * Client cancels an ACTIVE project job
+ */
+export function useCancelJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      reason,
+      actorNotes,
+    }: {
+      jobId: number;
+      reason?: string;
+      actorNotes?: string;
+    }) => {
+      const response = await apiRequest(ENDPOINTS.CANCEL_JOB(jobId), {
+        method: "PATCH",
+        body: JSON.stringify({
+          reason: reason || "Cancelled by client",
+          actor_notes: actorNotes || "",
+        }),
+      });
+
+      if (!response.ok) {
+        const error = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        throw new Error(
+          getErrorMessage(error, "Failed to cancel job"),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Job Cancelled",
+        text2: "Funds were processed based on cancellation rules",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Cancel Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
  * Client confirms a team worker has arrived (for team jobs)
  */
 export function useConfirmTeamWorkerArrival() {
