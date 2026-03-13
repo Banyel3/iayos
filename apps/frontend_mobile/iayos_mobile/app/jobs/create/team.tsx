@@ -1333,6 +1333,22 @@ export default function CreateTeamJobScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
+          <Text style={styles.termsText}>
+            By proceeding you agree to our{" "}
+            <Text
+              style={styles.termsLink}
+              onPress={() => router.push("/legal/terms")}
+            >
+              terms
+            </Text>{" "}
+            and{" "}
+            <Text
+              style={styles.termsLink}
+              onPress={() => router.push("/legal/privacy")}
+            >
+              policy
+            </Text>
+          </Text>
           <TouchableOpacity
             style={[
               styles.submitButton,
@@ -2186,5 +2202,15 @@ const styles = StyleSheet.create({
   },
   activeButtonText: {
     color: Colors.white,
+  },
+  termsText: {
+    fontSize: 11,
+    color: Colors.textHint,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  termsLink: {
+    color: Colors.primary,
+    textDecorationLine: "underline",
   },
 });
