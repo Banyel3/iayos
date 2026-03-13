@@ -23,6 +23,71 @@ function invalidateConversationMessageQueries(
   });
 }
 
+function patchConversationJobStateFromWs(
+  queryClient: ReturnType<typeof useQueryClient>,
+  conversationId: number,
+  payload: any,
+) {
+  const update = payload?.data ?? payload ?? {};
+  const eventType = String(update?.event || "").toLowerCase();
+  const jobIdFromEvent = update?.job_id;
+
+  queryClient.setQueriesData(
+    {
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          Array.isArray(key) && key[0] === "messages" && key[1] === conversationId
+        );
+      },
+    },
+    (previous: any) => {
+      if (!previous?.job) {
+        return previous;
+      }
+
+      if (jobIdFromEvent && Number(previous.job.id) !== Number(jobIdFromEvent)) {
+        return previous;
+      }
+
+      const jobPatch: Record<string, any> = {};
+
+      if (eventType === "worker_marked_on_the_way" || update?.worker_marked_on_the_way === true) {
+        jobPatch.workerMarkedOnTheWay = true;
+        if (update?.timestamp) {
+          jobPatch.workerMarkedOnTheWayAt = update.timestamp;
+        }
+      }
+
+      if (eventType === "worker_marked_job_started" || update?.worker_marked_job_started === true) {
+        jobPatch.workerMarkedJobStarted = true;
+        if (update?.timestamp) {
+          jobPatch.workerMarkedJobStartedAt = update.timestamp;
+        }
+      }
+
+      if (eventType === "client_confirmed_work_started" || update?.client_confirmed_work_started === true) {
+        jobPatch.clientConfirmedWorkStarted = true;
+        if (update?.timestamp) {
+          jobPatch.clientConfirmedWorkStartedAt = update.timestamp;
+        }
+      }
+
+      if (Object.keys(jobPatch).length === 0) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        job: {
+          ...previous.job,
+          ...jobPatch,
+        },
+      };
+    },
+  );
+}
+
 /**
  * Hook to manage WebSocket connection state
  * Automatically connects on mount and disconnects on unmount
@@ -200,6 +265,9 @@ export function useMessageListener(conversationId?: number) {
       // Handle job status updates (worker marked complete, client approved, etc.)
       // Backend broadcasts these to chat_{conv_id} groups so InboxConsumer delivers them here
       if (data.type === "job_status_update") {
+        if (conversationId) {
+          patchConversationJobStateFromWs(queryClient, conversationId, data);
+        }
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         if (conversationId) {
           invalidateConversationMessageQueries(queryClient, conversationId);
