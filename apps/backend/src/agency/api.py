@@ -2161,6 +2161,34 @@ def get_agency_conversation_messages(request, conversation_id: int):
         from accounts.models import JobReview
         worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
         client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+
+        # Active backjob/dispute info for agency chat banners/actions.
+        from accounts.models import JobDispute
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+        ).order_by('-openedDate').first()
+
+        backjob_info = None
+        if active_dispute:
+            backjob_info = {
+                "has_backjob": True,
+                "dispute_id": active_dispute.disputeID,
+                "reason": active_dispute.reason,
+                "description": active_dispute.description,
+                "status": active_dispute.status,
+                "priority": active_dispute.priority,
+                "opened_date": active_dispute.openedDate.isoformat() if active_dispute.openedDate else None,
+                "backjob_started": active_dispute.backjobStarted,
+                "backjob_started_at": active_dispute.backjobStartedAt.isoformat() if active_dispute.backjobStartedAt else None,
+                "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
+                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
+                "client_confirmed": active_dispute.clientConfirmedBackjob,
+                "client_confirmed_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
+            }
         
         messages_list = []
         
@@ -2274,7 +2302,9 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "messages": messages_list,
             "total_messages": len(messages_list),
-            "status": conv.status
+            "status": conv.status,
+            "my_role": "AGENCY",
+            "backjob": backjob_info,
         })
         
     except Exception as e:
