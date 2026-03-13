@@ -6287,7 +6287,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             unarchive_conversation(conversation)
             Message.create_system_message(
                 conversation,
-                "Backjob requested and submitted for admin review. You may coordinate details here while waiting for admin decision."
+                "Backjob requested and submitted for admin review. Chat is temporarily locked while admin investigates. Negotiation chat will open once admin approves the case for negotiation."
             )
         
         return {

@@ -260,7 +260,9 @@ export default function AgencyMessagesPage() {
                       <p className="text-xs text-amber-700 font-medium mt-0.5">
                         Status:{" "}
                         {conversation.backjob.status === "UNDER_REVIEW"
-                          ? "Action Required"
+                          ? "Under Admin Review"
+                          : conversation.backjob.status === "OPEN"
+                            ? "Pending Admin Review"
                           : conversation.backjob.status === "IN_NEGOTIATION"
                             ? "In Negotiation"
                             : "Pending Review"}
