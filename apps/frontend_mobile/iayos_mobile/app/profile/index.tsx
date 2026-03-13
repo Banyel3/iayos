@@ -694,11 +694,7 @@ export default function ProfileScreen() {
                             certification={cert}
                             compact={true}
                             showActions={false}
-                            onPress={() =>
-                              router.push(
-                                `/profile/skills/${skill.id}/certifications` as any,
-                              )
-                            }
+                            onPress={() => router.push(`/profile/skills/${skill.id}/certifications` as any)}
                           />
                         </View>
                       ))
@@ -714,11 +710,7 @@ export default function ProfileScreen() {
                         </Text>
                         <Pressable
                           style={styles.addCertButton}
-                          onPress={() =>
-                            router.push(
-                              `/profile/skills/${skill.id}/certifications` as any,
-                            )
-                          }
+                          onPress={() => router.push(`/profile/skills/${skill.id}/certifications` as any)}
                         >
                           <Ionicons
                             name="add-circle"
