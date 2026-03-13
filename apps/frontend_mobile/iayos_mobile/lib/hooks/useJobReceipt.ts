@@ -21,6 +21,10 @@ export interface ReceiptPayment {
   platform_fee_rate: string;
   worker_earnings: number;
   total_client_paid: number;
+  expected_worker_earnings?: number;
+  actual_worker_earnings?: number;
+  expected_client_paid?: number;
+  actual_client_paid?: number;
   escrow_paid: boolean;
   escrow_paid_at: string | null;
   final_payment_paid: boolean;
@@ -54,6 +58,10 @@ export interface ReceiptTransaction {
   description: string | null;
   reference_number: string | null;
   payment_method: string | null;
+  affected_account_id?: number | null;
+  affected_role?: string | null;
+  affected_name?: string | null;
+  impact?: "CREDIT" | "DEBIT" | null;
   created_at: string | null;
   completed_at: string | null;
 }
@@ -61,6 +69,16 @@ export interface ReceiptTransaction {
 export interface ReceiptReviews {
   client_reviewed: boolean;
   worker_reviewed: boolean;
+}
+
+export interface ReceiptCancellation {
+  is_cancelled: boolean;
+  reason: string | null;
+  stage: string | null;
+  cancelled_by_role: string | null;
+  summary?: string | null;
+  client_refund_amount: number;
+  worker_compensation_amount: number;
 }
 
 export interface ReceiptMaterial {
@@ -90,6 +108,7 @@ export interface JobReceipt {
   worker_completed_at: string | null;
   client_approved_at: string | null;
   completed_at: string | null;
+  cancelled_at: string | null;
   
   // Payment breakdown
   payment: ReceiptPayment;
@@ -109,6 +128,9 @@ export interface JobReceipt {
 
   // Review status
   reviews: ReceiptReviews;
+
+  // Cancellation details (when status is CANCELLED)
+  cancellation?: ReceiptCancellation;
 }
 
 export interface JobReceiptResponse {

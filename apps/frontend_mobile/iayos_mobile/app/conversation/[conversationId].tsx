@@ -436,6 +436,7 @@ export default function ChatScreen() {
   ).toUpperCase();
   const normalizedJobStatus = (conversation?.job?.status || "").toUpperCase();
   const isJobCompleted = normalizedJobStatus === "COMPLETED";
+  const isJobCancelled = normalizedJobStatus === "CANCELLED";
   const isJobInProgress = normalizedJobStatus === "IN_PROGRESS";
   const isJobActive = normalizedJobStatus === "ACTIVE";
   const isJobAssigned = normalizedJobStatus === "ASSIGNED";
@@ -2636,8 +2637,8 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 )}
 
-              {/* View Receipt Button */}
-              {isJobCompleted && (
+              {/* View Receipt Button (Completed + Cancelled for payout transparency) */}
+              {(isJobCompleted || isJobCancelled) && (
                 <TouchableOpacity
                   style={{
                     backgroundColor: "#FFFFFF",
