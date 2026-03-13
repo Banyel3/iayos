@@ -60,28 +60,47 @@ export default function AgencyMessagesPage() {
     useAgencyConversationSearch(searchQuery);
 
   // Determine which conversations to display
+  const enableDummyMessages =
+    process.env.NEXT_PUBLIC_ENABLE_DUMMY_MESSAGES === "true";
+
   const displayedConversations = useMemo(() => {
     if (searchQuery.trim()) {
       return searchResults;
     }
+
     const realConversations = conversationsData?.conversations || [];
-    
-    // Add dummy messages based on filter
+
+    // In production (or when disabled), never mix in dummy records
+    if (!enableDummyMessages) {
+      return realConversations;
+    }
+
+    // Add dummy messages based on filter for UI preview only
     if (activeFilter === "active") {
       return [...DUMMY_MESSAGES, ...realConversations];
     }
-    
+
     if (activeFilter === "unread") {
-      const dummyUnread = DUMMY_MESSAGES.filter(m => m.unread_count > 0);
+      const dummyUnread = DUMMY_MESSAGES.filter(
+        (m) => m.unread_count > 0
+      );
       return [...dummyUnread, ...realConversations];
     }
-    
+
     return realConversations;
-  }, [searchQuery, searchResults, conversationsData, activeFilter]);
+  }, [
+    searchQuery,
+    searchResults,
+    conversationsData,
+    activeFilter,
+    enableDummyMessages,
+  ]);
 
   // Get unread count for badge - using AGENCY-SPECIFIC hook
   const { unreadCount: realUnreadCount } = useAgencyUnreadCount();
-  const dummyUnreadCount = DUMMY_MESSAGES.reduce((acc, msg) => acc + msg.unread_count, 0);
+  const dummyUnreadCount = enableDummyMessages
+    ? DUMMY_MESSAGES.reduce((acc, msg) => acc + msg.unread_count, 0)
+    : 0;
   const unreadCount = realUnreadCount + dummyUnreadCount;
 
   // Auto-refresh on WebSocket connection
