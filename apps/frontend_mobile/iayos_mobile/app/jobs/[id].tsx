@@ -810,10 +810,10 @@ export default function JobDetailScreen() {
   };
 
   const handleCancelJob = () => {
-    if (job?.status !== "ACTIVE" && job?.status !== "IN_PROGRESS") {
+    if (job?.status === "COMPLETED" || job?.status === "CANCELLED") {
       Alert.alert(
         "Cannot Cancel",
-        "Only active or in-progress jobs can be cancelled.",
+        "Completed or cancelled jobs can no longer be cancelled.",
       );
       return;
     }
@@ -1472,9 +1472,10 @@ export default function JobDetailScreen() {
               />
             </TouchableOpacity>
           )}
-          {/* Cancel button - for job owner on ACTIVE and IN_PROGRESS jobs */}
+          {/* Cancel button - for job owner on non-terminal project jobs */}
           {user?.accountID === job.postedBy?.id &&
-            (job.status === "ACTIVE" || job.status === "IN_PROGRESS") && (
+            job.status !== "COMPLETED" &&
+            job.status !== "CANCELLED" && (
             <TouchableOpacity
               onPress={handleCancelJob}
               style={styles.deleteButton}
