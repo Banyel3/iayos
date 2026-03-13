@@ -6,6 +6,32 @@ import { ENDPOINTS, apiRequest, API_BASE_URL } from "../api/config";
 import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 
+function patchConversationJobState(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  jobPatch: Record<string, any>,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.job || previous.job.id !== jobId) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        job: {
+          ...previous.job,
+          ...jobPatch,
+        },
+      };
+    },
+  );
+}
+
 /**
  * Client confirms worker has arrived and work has started
  */
@@ -27,6 +53,12 @@ export function useConfirmWorkStarted() {
       return response.json();
     },
     onSuccess: (_, jobId) => {
+      const nowIso = new Date().toISOString();
+      patchConversationJobState(queryClient, jobId, {
+        clientConfirmedWorkStarted: true,
+        clientConfirmedWorkStartedAt: nowIso,
+      });
+
       Toast.show({
         type: "success",
         text1: "Work Started Confirmed",
@@ -49,7 +81,112 @@ export function useConfirmWorkStarted() {
 }
 
 /**
- * Client cancels an ACTIVE project job
+ * Worker marks that they are on the way to the job site
+ */
+export function useMarkOnTheWay() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest(ENDPOINTS.MARK_ON_THE_WAY(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        throw new Error(getErrorMessage(error, "Failed to mark on the way"));
+      }
+
+      return response.json() as Promise<{
+        worker_marked_on_the_way_at?: string;
+      }>;
+    },
+    onSuccess: (data, jobId) => {
+      patchConversationJobState(queryClient, jobId, {
+        workerMarkedOnTheWay: true,
+        workerMarkedOnTheWayAt:
+          data?.worker_marked_on_the_way_at || new Date().toISOString(),
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Status Updated",
+        text2: "Marked as on the way",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Update Failed",
+        text2: error.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+    },
+  });
+}
+
+/**
+ * Worker marks that they have started the job
+ */
+export function useMarkJobStarted() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest(ENDPOINTS.MARK_JOB_STARTED(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        throw new Error(getErrorMessage(error, "Failed to mark job started"));
+      }
+
+      return response.json() as Promise<{
+        worker_marked_job_started_at?: string;
+      }>;
+    },
+    onSuccess: (data, jobId) => {
+      patchConversationJobState(queryClient, jobId, {
+        workerMarkedOnTheWay: true,
+        workerMarkedJobStarted: true,
+        workerMarkedJobStartedAt:
+          data?.worker_marked_job_started_at || new Date().toISOString(),
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Status Updated",
+        text2: "Marked as job started",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Update Failed",
+        text2: error.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+    },
+  });
+}
+
+/**
+ * Client cancels a regular project job (ACTIVE or IN_PROGRESS)
  */
 export function useCancelJob() {
   const queryClient = useQueryClient();
