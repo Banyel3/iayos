@@ -87,9 +87,11 @@ export function middleware(request: NextRequest) {
     const profileType = payload.profile_type?.toUpperCase() || "";
 
     // 1. Admin and Agency users can access everything
-    // 2. If we can't find role/accountType in JWT (common for live backends), 
-    //    let them pass so the Layouts can do a proper server-side check.
-    if (role === "ADMIN" || accountType === "agency" || (!role && !accountType)) {
+    // 2. If we can't find any relevant claims in the JWT (role, accountType, AND profileType
+    //    are all missing), let the request pass so the Layouts can do a proper server-side check.
+    //    We must include !profileType here; otherwise WORKER/CLIENT users whose tokens lack
+    //    role/account_type (but still carry profile_type) would bypass mobile-only enforcement.
+    if (role === "ADMIN" || accountType === "agency" || (!role && !accountType && !profileType)) {
       return NextResponse.next();
     }
 

@@ -90,7 +90,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
       // Use token from localStorage if available (helps with CORS/Local-to-Prod dev)
-      const token = localStorage.getItem("ws_token");
+      // Only attach Bearer header in development to avoid stale tokens overriding valid cookies in production
+      const token = process.env.NODE_ENV === "development" ? localStorage.getItem("ws_token") : null;
       const headers: HeadersInit = {};
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
@@ -184,21 +185,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Store access token and set cookies manually
-      // This is CRITICAL when proxying live backends that return HttpOnly cookies with 'Domain' restrictions
+      // This is ONLY for Local-to-Prod dev where the backend sets Domain-restricted HttpOnly cookies
+      // that don't apply to localhost. In production, cookies are set by the server directly.
       if (loginData.access) {
         localStorage.setItem("ws_token", loginData.access);
-        // Manually set cookies so they apply to localhost
-        Cookies.set("access", loginData.access, { expires: 1, path: "/" });
+        // Manually set cookies so they apply to localhost (dev only)
+        if (process.env.NODE_ENV === "development") {
+          Cookies.set("access", loginData.access, { expires: 1, path: "/" });
+        }
       }
-      if (loginData.refresh) {
+      if (loginData.refresh && process.env.NODE_ENV === "development") {
         Cookies.set("refresh", loginData.refresh, { expires: 7, path: "/" });
       }
 
       // Login successful - now fetch user data
+      // Only include Bearer header when loginData.access is actually present
       const userDataResponse = await fetch(`${API_BASE}/api/accounts/me`, {
-        headers: {
-          Authorization: `Bearer ${loginData.access}`,
-        },
+        headers: loginData.access
+          ? { Authorization: `Bearer ${loginData.access}` }
+          : {},
         credentials: "include",
       });
 
@@ -296,7 +301,11 @@ export const useAuthStatus = (): {
 
 export const useAuthenticatedFetch = () => {
   const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const token = localStorage.getItem("ws_token");
+    // Only attach Bearer token in development (Local-to-Prod proxy scenarios).
+    // In production, the HttpOnly cookie is sent automatically via credentials: "include".
+    // Unconditionally preferring a localStorage token can break cookie auth when the
+    // token is stale, because dual_auth evaluates Bearer before cookies.
+    const token = process.env.NODE_ENV === "development" ? localStorage.getItem("ws_token") : null;
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
       "Content-Type": "application/json",
