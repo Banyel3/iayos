@@ -264,7 +264,12 @@ def create_team_job(
         team_job_start_threshold=Decimal(str(team_start_threshold)),
         job_scope=job_scope,
         skill_level_required=skill_level_required,
-        work_environment=work_environment
+        work_environment=work_environment,
+        # Defensive initialization for worker timeline markers
+        workerMarkedOnTheWay=False,
+        workerMarkedOnTheWayAt=None,
+        workerMarkedJobStarted=False,
+        workerMarkedJobStartedAt=None,
     )
     
     # Create skill slots

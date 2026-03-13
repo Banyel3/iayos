@@ -1151,6 +1151,11 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     job_scope=job_data.get('job_scope'),
                     skill_level_required=job_data.get('skill_level_required'),
                     work_environment=job_data.get('work_environment'),
+                    # Defensive initialization for worker timeline markers
+                    workerMarkedOnTheWay=False,
+                    workerMarkedOnTheWayAt=None,
+                    workerMarkedJobStarted=False,
+                    workerMarkedJobStartedAt=None,
                 )
                 
                 # Create skill slots for multi-employee agency invites
