@@ -324,3 +324,8 @@ create_dummy_worker_test4.py
 maestro-install.sh
 start-web.sh
 fix_card_payment_check.patch
+
+# =============================================================================
+# USER CUSTOM IGNORES
+# =============================================================================
+apps/frontend_web/app/agency/jobs/backjobs/dummy_data.ts
