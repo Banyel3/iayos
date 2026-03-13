@@ -681,7 +681,7 @@ export default function SkillsScreen() {
                   // Navigate with skill ID as query parameter
                   if (justAddedSkillId) {
                     router.push(
-                      `/profile/skills/${justAddedSkillId}/certifications` as any
+                      `/profile/skills/${justAddedSkillId}/certifications`
                     );
                   }
                 }}
