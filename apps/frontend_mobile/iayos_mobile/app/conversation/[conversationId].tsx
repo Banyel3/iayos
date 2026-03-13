@@ -3372,7 +3372,7 @@ export default function ChatScreen() {
                                       setCountdownConfig({
                                         visible: true,
                                         title: "Confirm Attendance",
-                                        message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${conversation.job.daily_rate?.toLocaleString() || "0"} payment?`,
+                                        message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
                                         confirmLabel: "Confirm & Pay",
                                         countdownSeconds: 7,
                                         onConfirm: () => {

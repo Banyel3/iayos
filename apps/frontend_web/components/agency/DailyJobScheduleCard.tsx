@@ -9,17 +9,22 @@ interface DailyJobScheduleCardProps {
 }
 
 export function DailyJobScheduleCard({
-  dailyRate = 0,
-  durationDays = 0,
-  totalDaysWorked = 0,
-  dailyEscrowTotal = 0,
+  dailyRate,
+  durationDays,
+  totalDaysWorked,
+  dailyEscrowTotal,
   actualStartDate,
 }: DailyJobScheduleCardProps) {
-  const clampedDuration = Math.max(durationDays || 0, 0);
-  const clampedWorked = Math.max(totalDaysWorked || 0, 0);
+  const hasDuration = typeof durationDays === 'number';
+  const hasWorked = typeof totalDaysWorked === 'number';
+  const hasDailyRate = typeof dailyRate === 'number';
+  const hasEscrowTotal = typeof dailyEscrowTotal === 'number';
+
+  const clampedDuration = hasDuration ? Math.max(durationDays || 0, 0) : null;
+  const clampedWorked = hasWorked ? Math.max(totalDaysWorked || 0, 0) : null;
 
   const computedEndDate = (() => {
-    if (!actualStartDate || clampedDuration <= 0) return null;
+    if (!actualStartDate || !clampedDuration || clampedDuration <= 0) return null;
     const start = new Date(actualStartDate);
     if (Number.isNaN(start.getTime())) return null;
     const end = new Date(start);
@@ -36,16 +41,22 @@ export function DailyJobScheduleCard({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-gray-600">Daily Rate</p>
-            <p className="font-semibold text-lg">₱{dailyRate.toLocaleString()}/day</p>
+            <p className="font-semibold text-lg">
+              {hasDailyRate ? `₱${dailyRate!.toLocaleString()}/day` : 'N/A'}
+            </p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Expected Duration</p>
-            <p className="font-semibold text-lg">{clampedDuration} days</p>
+            <p className="font-semibold text-lg">
+              {clampedDuration !== null ? `${clampedDuration} days` : 'N/A'}
+            </p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Total Days Worked</p>
-            <p className="font-semibold text-lg">{clampedWorked} days</p>
-            {clampedDuration > 0 && (
+            <p className="font-semibold text-lg">
+              {clampedWorked !== null ? `${clampedWorked} days` : 'N/A'}
+            </p>
+            {clampedDuration !== null && clampedWorked !== null && clampedDuration > 0 && (
               <p className="text-xs text-gray-500">
                 Day {Math.min(clampedWorked + 1, clampedDuration)} of {clampedDuration}
               </p>
@@ -53,7 +64,9 @@ export function DailyJobScheduleCard({
           </div>
           <div>
             <p className="text-sm text-gray-600">Total Escrowed</p>
-            <p className="font-semibold text-lg">₱{dailyEscrowTotal.toLocaleString()}</p>
+            <p className="font-semibold text-lg">
+              {hasEscrowTotal ? `₱${dailyEscrowTotal!.toLocaleString()}` : 'N/A'}
+            </p>
           </div>
           {actualStartDate && (
             <div className="col-span-2">

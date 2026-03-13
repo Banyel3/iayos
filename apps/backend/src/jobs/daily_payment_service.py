@@ -218,6 +218,19 @@ class DailyPaymentService:
         For freelance workers, they confirm for themselves.
         For agency jobs, agency rep confirms.
         """
+        # Defense in depth: ensure only the correct worker-side actor can confirm.
+        if attendance.workerID:
+            if attendance.workerID.profileID.accountFK != user:
+                return {'success': False, 'error': 'Only the assigned worker can confirm attendance'}
+        elif attendance.assignmentID:
+            if attendance.assignmentID.workerID.profileID.accountFK != user:
+                return {'success': False, 'error': 'Only the assigned team worker can confirm attendance'}
+        elif attendance.employeeID:
+            if not attendance.jobID.assignedAgencyFK or attendance.jobID.assignedAgencyFK.accountFK != user:
+                return {'success': False, 'error': 'Only the assigned agency can confirm attendance for employees'}
+        else:
+            return {'success': False, 'error': 'Invalid attendance record'}
+
         if attendance.worker_confirmed:
             return {'success': False, 'error': 'Attendance already confirmed by worker'}
         
