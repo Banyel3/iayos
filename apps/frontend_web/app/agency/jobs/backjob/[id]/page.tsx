@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
+import { useConfirmBackjobScheduledDate } from "@/lib/hooks/useAgencyBackjobActions";
 
 interface BackjobDetail {
   has_backjob: boolean;
@@ -53,6 +54,8 @@ interface BackjobDetail {
     client_confirmed: boolean;
     client_confirmed_at: string | null;
     scheduled_date: string | null;
+    worker_schedule_confirmed: boolean;
+    worker_schedule_confirmed_at: string | null;
   } | null;
 }
 
@@ -106,6 +109,7 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
   const [completionNotes, setCompletionNotes] = useState("");
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const confirmBackjobScheduledDateMutation = useConfirmBackjobScheduledDate();
 
   useEffect(() => {
     if (jobId) {
@@ -222,6 +226,24 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleConfirmScheduledDate = () => {
+    if (!jobId) return;
+
+    if (!window.confirm("Confirm the client-proposed backjob schedule date?")) {
+      return;
+    }
+
+    confirmBackjobScheduledDateMutation.mutate(Number(jobId), {
+      onSuccess: async () => {
+        await fetchBackjobDetails();
+        toast.success("Backjob schedule confirmed");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to confirm backjob schedule");
+      },
+    });
+  };
+
   const statusClassMap: Record<
     string,
     { border: string; bg: string; text: string; badge: string }
@@ -256,6 +278,8 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
     switch (status) {
       case "OPEN":
         return { label: "Pending Review", color: "blue", icon: Clock };
+      case "IN_NEGOTIATION":
+        return { label: "In Negotiation", color: "blue", icon: Clock };
       case "UNDER_REVIEW":
         return { label: "Action Required", color: "amber", icon: AlertCircle };
       case "RESOLVED":
@@ -349,6 +373,32 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
             <p className="text-gray-500">Dispute #{dispute.dispute_id}</p>
           </div>
           {/* 3-Phase Backjob Workflow Buttons */}
+          {dispute.status === "IN_NEGOTIATION" && (
+            <div className="flex flex-col gap-2">
+              {dispute.scheduled_date && !dispute.worker_schedule_confirmed ? (
+                <Button
+                  onClick={handleConfirmScheduledDate}
+                  className="bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+                  disabled={confirmBackjobScheduledDateMutation.isPending}
+                >
+                  {confirmBackjobScheduledDateMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                  )}
+                  Confirm Scheduled Date
+                </Button>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-blue-600" />
+                  <p className="text-sm text-blue-800">
+                    Waiting for client to set or update the scheduled date...
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {dispute.status === "UNDER_REVIEW" && (
             <div className="flex flex-col gap-2">
               {/* Phase 1: Waiting for client to confirm work started */}
@@ -419,6 +469,8 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
               <p className="text-gray-600">
                 {dispute.status === "UNDER_REVIEW"
                   ? "Please review and complete the backjob work requested by the client."
+                  : dispute.status === "IN_NEGOTIATION"
+                    ? "Waiting for schedule confirmation to move backjob into action-required stage."
                   : dispute.status === "RESOLVED"
                     ? "This backjob has been completed successfully."
                     : "This backjob request is pending admin review."}
