@@ -587,16 +587,26 @@ export default function JobDetailScreen() {
     }
   };
 
-  // Delete job mutation (for clients only)
-  const deleteJobMutation = useMutation({
+  // Cancel job mutation (for clients only)
+  const cancelJobMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(ENDPOINTS.DELETE_JOB(parseInt(id)), {
-        method: "DELETE",
+      const response = await apiRequest(ENDPOINTS.CANCEL_JOB(parseInt(id)), {
+        method: "PATCH",
+        body: JSON.stringify({
+          reason: "Cancelled by client from job details",
+          actor_notes: "",
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as any;
+        throw new Error(errorData.error || "Failed to cancel job");
+      }
+
       return response;
     },
     onSuccess: () => {
-      Alert.alert("Deleted", "Job request has been deleted successfully.", [
+      Alert.alert("Cancelled", "Job has been cancelled successfully.", [
         {
           text: "OK",
           onPress: () => router.replace("/"),
@@ -605,7 +615,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
     onError: (error: Error) => {
-      Alert.alert("Error", `Failed to delete job: ${error.message}`);
+      Alert.alert("Error", `Failed to cancel job: ${error.message}`);
     },
   });
 
@@ -799,25 +809,25 @@ export default function JobDetailScreen() {
     });
   };
 
-  const handleDeleteJob = () => {
-    if (job?.status === "IN_PROGRESS") {
+  const handleCancelJob = () => {
+    if (job?.status !== "ACTIVE") {
       Alert.alert(
-        "Cannot Delete",
-        "You cannot delete a job that is currently in progress.",
+        "Cannot Cancel",
+        "Only active jobs can be cancelled.",
       );
       return;
     }
 
     setCountdownConfig({
       visible: true,
-      title: "Delete Job Request",
+      title: "Cancel Job",
       message:
-        "Are you sure you want to delete this job request? This action cannot be undone.",
-      confirmLabel: "Delete",
+        "Are you sure you want to cancel this job? Refund/release follows platform cancellation rules.",
+      confirmLabel: "Cancel Job",
       confirmStyle: "destructive",
       countdownSeconds: 5,
-      onConfirm: () => deleteJobMutation.mutate(),
-      icon: "trash",
+      onConfirm: () => cancelJobMutation.mutate(),
+      icon: "close-circle",
       iconColor: Colors.error,
     });
   };
@@ -1462,20 +1472,19 @@ export default function JobDetailScreen() {
               />
             </TouchableOpacity>
           )}
-          {/* Delete button - for job owner on non-active jobs */}
+          {/* Cancel button - for job owner on ACTIVE jobs */}
           {user?.accountID === job.postedBy?.id &&
-            job.status !== "IN_PROGRESS" &&
-            job.status !== "COMPLETED" && (
+            job.status === "ACTIVE" && (
               <TouchableOpacity
-                onPress={handleDeleteJob}
+                onPress={handleCancelJob}
                 style={styles.deleteButton}
-                disabled={deleteJobMutation.isPending}
+                disabled={cancelJobMutation.isPending}
               >
-                {deleteJobMutation.isPending ? (
+                {cancelJobMutation.isPending ? (
                   <ActivityIndicator size="small" color={Colors.error} />
                 ) : (
                   <Ionicons
-                    name="trash-outline"
+                    name="close-circle-outline"
                     size={24}
                     color={Colors.error}
                   />

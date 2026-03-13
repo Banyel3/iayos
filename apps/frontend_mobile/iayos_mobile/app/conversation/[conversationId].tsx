@@ -41,6 +41,7 @@ import {
   useConfirmWorkStarted,
   useMarkOnTheWay,
   useMarkJobStarted,
+  useCancelJob,
   useMarkComplete,
   useApproveCompletion,
   useConfirmTeamWorkerArrival,
@@ -463,6 +464,7 @@ export default function ChatScreen() {
   const confirmWorkStartedMutation = useConfirmWorkStarted();
   const markOnTheWayMutation = useMarkOnTheWay();
   const markJobStartedMutation = useMarkJobStarted();
+  const cancelJobMutation = useCancelJob();
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
   const submitReviewMutation = useSubmitReview();
@@ -698,6 +700,29 @@ export default function ChatScreen() {
           text: "Confirm",
           onPress: () => {
             markJobStartedMutation.mutate(conversation.job.id);
+          },
+        },
+      ],
+    );
+  };
+
+  // Handle cancel project job (CLIENT only)
+  const handleCancelJob = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Cancel Job",
+      "Are you sure you want to cancel this job? Refund/release will follow platform cancellation rules.",
+      [
+        { text: "Keep Job", style: "cancel" },
+        {
+          text: "Cancel Job",
+          style: "destructive",
+          onPress: () => {
+            cancelJobMutation.mutate({
+              jobId: conversation.job.id,
+              reason: "Cancelled by client from conversation",
+            });
           },
         },
       ],
@@ -4052,6 +4077,32 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "CLIENT" &&
+                conversation.job.status === "ACTIVE" &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.cancelJobButton]}
+                    onPress={handleCancelJob}
+                    disabled={cancelJobMutation.isPending}
+                  >
+                    {cancelJobMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="close-circle"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>Cancel Job</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model !== "DAILY" &&
+                conversation.my_role === "CLIENT" &&
                 (!conversation.job?.preferred_start_date ||
                   new Date() >=
                     (() => {
@@ -7341,6 +7392,9 @@ const styles = StyleSheet.create({
   },
   confirmWorkStartedButton: {
     backgroundColor: Colors.success,
+  },
+  cancelJobButton: {
+    backgroundColor: Colors.error,
   },
   markCompleteButton: {
     backgroundColor: Colors.primary,
