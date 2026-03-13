@@ -1492,10 +1492,6 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         current_account_id = getattr(request.auth, 'accountID', None)
         for msg in messages:
-            # Hide admin-authored negotiation messages from participant chat views.
-            if msg.sender_admin:
-                continue
-
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
@@ -1504,6 +1500,19 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
+            elif msg.sender_admin:
+                # Admin-authored negotiation message
+                is_mine = (
+                    current_account_id is not None
+                    and msg.sender_admin.accountID == current_account_id
+                )
+                sender_name = (
+                    f"{msg.sender_admin.firstName} {msg.sender_admin.lastName}".strip()
+                    or msg.sender_admin.email
+                    or "Admin"
+                )
+                sender_avatar = None
+                sender_type = "admin"
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner

@@ -141,6 +141,8 @@ export type AgencyConversationDetail = {
   }>;
   backjob?: BackjobInfo; // Optional backjob info
   my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
+  can_send_message?: boolean;
+  can_send_reason?: string | null;
 };
 
 /**
