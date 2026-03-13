@@ -191,6 +191,7 @@ export function useMessageListener(conversationId?: number) {
 export function useTypingIndicator(conversationId: number) {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUserId, setTypingUserId] = useState<number | null>(null);
+  const [typingUserName, setTypingUserName] = useState<string | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSentTimeRef = useRef<number>(0);
 
@@ -203,6 +204,7 @@ export function useTypingIndicator(conversationId: number) {
       ) {
         setTypingUserId(data.user_id || null);
         setIsTyping(data.is_typing || false);
+        setTypingUserName(data.user_name || null);
 
         // Auto-clear typing indicator after 5 seconds
         if (typingTimeoutRef.current) {
@@ -213,6 +215,7 @@ export function useTypingIndicator(conversationId: number) {
           typingTimeoutRef.current = setTimeout(() => {
             setIsTyping(false);
             setTypingUserId(null);
+            setTypingUserName(null);
           }, 5000);
         }
       }
@@ -240,6 +243,7 @@ export function useTypingIndicator(conversationId: number) {
   return {
     isTyping,
     typingUserId,
+    typingUserName,
     sendTyping,
   };
 }
