@@ -7812,6 +7812,50 @@ def get_job_receipt(request, job_id: int):
         client_refund_amount = Decimal(str(getattr(job, 'clientRefundAmount', Decimal('0.00')) or Decimal('0.00')))
         worker_compensation_amount = Decimal(str(getattr(job, 'workerCompensationAmount', Decimal('0.00')) or Decimal('0.00')))
 
+        if job.status == Job.JobStatus.CANCELLED and (
+            not cancellation_stage or
+            not cancelled_by_role or
+            client_refund_amount == Decimal('0.00') or
+            worker_compensation_amount == Decimal('0.00')
+        ):
+            try:
+                import re
+                from accounts.models import JobLog
+
+                cancel_log = JobLog.objects.filter(
+                    jobID=job,
+                    newStatus=Job.JobStatus.CANCELLED,
+                ).order_by('-createdAt').first()
+
+                if cancel_log and cancel_log.notes:
+                    notes = str(cancel_log.notes)
+
+                    if not cancelled_by_role:
+                        role_match = re.search(r"cancelled by\s+([A-Z_]+)", notes, re.IGNORECASE)
+                        if role_match:
+                            cancelled_by_role = role_match.group(1).upper()
+
+                    if not cancellation_stage:
+                        stage_match = re.search(r"Stage=([^;]+)", notes)
+                        if stage_match:
+                            cancellation_stage = stage_match.group(1).strip()
+
+                    if client_refund_amount == Decimal('0.00'):
+                        refund_match = re.search(r"client_refund=₱?([0-9]+(?:\.[0-9]+)?)", notes)
+                        if refund_match:
+                            client_refund_amount = Decimal(refund_match.group(1))
+
+                    if worker_compensation_amount == Decimal('0.00'):
+                        comp_match = re.search(r"worker_compensation=₱?([0-9]+(?:\.[0-9]+)?)", notes)
+                        if comp_match:
+                            worker_compensation_amount = Decimal(comp_match.group(1))
+
+                    if not cancellation_reason:
+                        reason_match = re.search(r"reason=(.+)$", notes)
+                        if reason_match:
+                            cancellation_reason = reason_match.group(1).strip()
+            except Exception:
+                pass
         # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
         if job.status == Job.JobStatus.CANCELLED:
             actual_worker_earnings = worker_compensation_amount
