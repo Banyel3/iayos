@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -33,6 +33,10 @@ export default function WorkerCalendarModal({
   const insets = useSafeAreaInsets();
   const { data, isLoading, error, refetch } = useWorkerSchedule();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [pendingNavigateJobId, setPendingNavigateJobId] = useState<
+    number | null
+  >(null);
+  const [isClosingForNavigation, setIsClosingForNavigation] = useState(false);
 
   const jobs = data?.jobs ?? [];
   const markedDates = buildMarkedDates(jobs);
@@ -61,6 +65,27 @@ export default function WorkerCalendarModal({
     : "";
 
   const today = new Date().toISOString().split("T")[0];
+
+  useEffect(() => {
+    // Keep internal state clean whenever parent closes the modal.
+    if (!visible) {
+      setSelectedDate(null);
+      setIsClosingForNavigation(false);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    // Navigate only after both calendar modals are fully closed.
+    if (!visible && !selectedDate && pendingNavigateJobId !== null) {
+      const targetId = pendingNavigateJobId;
+      const timer = setTimeout(() => {
+        router.push(`/jobs/${targetId}` as any);
+        setPendingNavigateJobId(null);
+      }, 180);
+
+      return () => clearTimeout(timer);
+    }
+  }, [visible, selectedDate, pendingNavigateJobId, router]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -202,7 +227,9 @@ export default function WorkerCalendarModal({
             <View style={styles.dateDetailsHeader}>
               <View style={styles.dateDetailsHeaderTextWrap}>
                 <Text style={styles.dateDetailsTitle}>Jobs on this date</Text>
-                <Text style={styles.dateDetailsSubtitle}>{selectedDateLabel}</Text>
+                <Text style={styles.dateDetailsSubtitle}>
+                  {selectedDateLabel}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setSelectedDate(null)}
@@ -213,7 +240,9 @@ export default function WorkerCalendarModal({
             </View>
 
             {selectedJobs.length === 0 ? (
-              <Text style={styles.noJobsText}>No jobs scheduled for this date</Text>
+              <Text style={styles.noJobsText}>
+                No jobs scheduled for this date
+              </Text>
             ) : (
               <ScrollView
                 style={styles.dateDetailsList}
@@ -223,10 +252,14 @@ export default function WorkerCalendarModal({
                   <TouchableOpacity
                     key={job.id}
                     style={styles.jobCard}
+                    disabled={isClosingForNavigation}
                     onPress={() => {
+                      if (isClosingForNavigation) return;
+                      // Sequence dismiss before route push to avoid stale touch-blocking overlays.
+                      setIsClosingForNavigation(true);
+                      setPendingNavigateJobId(job.id);
                       setSelectedDate(null);
                       onClose();
-                      router.push(`/jobs/${job.id}` as any);
                     }}
                   >
                     <View style={styles.jobCardInner}>
@@ -243,21 +276,19 @@ export default function WorkerCalendarModal({
                           {job.location}
                         </Text>
                         <Text style={styles.jobDates}>
-                          {new Date(job.preferred_start_date + "T00:00:00").toLocaleDateString(
-                            undefined,
-                            {
-                              month: "short",
-                              day: "numeric",
-                            },
-                          )}{" "}
+                          {new Date(
+                            job.preferred_start_date + "T00:00:00",
+                          ).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}{" "}
                           →{" "}
-                          {new Date(job.scheduled_end_date + "T00:00:00").toLocaleDateString(
-                            undefined,
-                            {
-                              month: "short",
-                              day: "numeric",
-                            },
-                          )}
+                          {new Date(
+                            job.scheduled_end_date + "T00:00:00",
+                          ).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
                         </Text>
                       </View>
                       <View style={styles.jobCardRight}>
@@ -265,7 +296,8 @@ export default function WorkerCalendarModal({
                           style={[
                             styles.statusBadge,
                             {
-                              backgroundColor: getStatusColor(job.status) + "22",
+                              backgroundColor:
+                                getStatusColor(job.status) + "22",
                             },
                           ]}
                         >
@@ -278,7 +310,9 @@ export default function WorkerCalendarModal({
                             {getStatusLabel(job.status)}
                           </Text>
                         </View>
-                        <Text style={styles.jobBudget}>₱{job.budget.toLocaleString()}</Text>
+                        <Text style={styles.jobBudget}>
+                          ₱{job.budget.toLocaleString()}
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
