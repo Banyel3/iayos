@@ -50,6 +50,8 @@ interface Skill {
   name: string;
   experienceYears: number;
   certificationCount: number;
+  skillType?: string; // "PRIMARY" or "SECONDARY"
+  isPrimary?: boolean;
 }
 
 interface WorkerProfile {
@@ -587,12 +589,20 @@ export default function ProfileScreen() {
               specializationId: s.specializationId,
               name: s.name,
               experienceYears: s.experienceYears,
+              skillType: s.skillType,
+              isPrimary: s.isPrimary,
               certificationCount: certifications.filter(
                 (c) => c.specializationId === s.id,
               ).length,
             }))
             : profile.skills
-          ).map((skill) => {
+          ).sort((a: any, b: any) => {
+            const aPrimary = a.skillType === "PRIMARY" || a.skillType === "primary" || a.isPrimary || a.is_primary || a.skill_type === "PRIMARY" || a.skill_type === "primary";
+            const bPrimary = b.skillType === "PRIMARY" || b.skillType === "primary" || b.isPrimary || b.is_primary || b.skill_type === "PRIMARY" || b.skill_type === "primary";
+            if (aPrimary && !bPrimary) return -1;
+            if (!aPrimary && bPrimary) return 1;
+            return 0;
+          }).map((skill) => {
             const isExpanded = expandedSkills.has(skill.id);
             const skillCertifications = certifications.filter(
               (cert) =>
@@ -622,6 +632,20 @@ export default function ProfileScreen() {
                       color={Colors.primary}
                     />
                     <View style={styles.skillHeaderText}>
+                      {skill.skillType === "PRIMARY" || 
+                       skill.skillType === "primary" || 
+                       (skill as any).skill_type === "PRIMARY" || 
+                       (skill as any).skill_type === "primary" || 
+                       skill.isPrimary || 
+                       (skill as any).is_primary ? (
+                        <View style={styles.primarySkillTag}>
+                          <Text style={styles.primarySkillTagText}>Primary Skill</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.secondarySkillTag}>
+                          <Text style={styles.secondarySkillTagText}>Secondary Skill</Text>
+                        </View>
+                      )}
                       <Text style={styles.skillName}>{skill.name}</Text>
                       <Text style={styles.skillMeta}>
                         {skill.experienceYears}{" "}
@@ -1345,5 +1369,37 @@ const styles = StyleSheet.create({
   },
   completionBannerDismiss: {
     padding: 4,
+  },
+  primarySkillTag: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#00BAF1", // Blue border
+    borderRadius: 20, // More rounded corners
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+    marginBottom: 4,
+  },
+  primarySkillTagText: {
+    color: "#00BAF1", // Blue text
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  secondarySkillTag: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#9CA3AF", // Grey border
+    borderRadius: 20, // More rounded corners
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+    marginBottom: 4,
+  },
+  secondarySkillTagText: {
+    color: "#4B5563", // Darker grey text
+    fontSize: 9,
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
 });

@@ -2360,7 +2360,9 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                     'specializationId': ws.specializationID.specializationID,
                     'name': ws.specializationID.specializationName,
                     'experienceYears': ws.experienceYears,
-                    'certificationCount': cert_count
+                    'certificationCount': cert_count,
+                    'skillType': ws.skillType,
+                    'isPrimary': ws.skillType == 'PRIMARY'
                 })
             
             # Calculate average rating from reviews
@@ -2491,7 +2493,9 @@ def get_worker_detail_mobile(user, worker_id):
                 'specializationId': ws.specializationID.specializationID,
                 'name': ws.specializationID.specializationName,
                 'experienceYears': ws.experienceYears,
-                'certificationCount': cert_count
+                'certificationCount': cert_count,
+                'skillType': ws.skillType,
+                'isPrimary': ws.skillType == 'PRIMARY'
             })
 
         # Build detailed worker data
@@ -2646,7 +2650,9 @@ def get_worker_detail_mobile_v2(user, worker_id):
                 'specializationId': ws.specializationID.specializationID,
                 'name': ws.specializationID.specializationName,
                 'experienceYears': ws.experienceYears,
-                'certificationCount': cert_count
+                'certificationCount': cert_count,
+                'skillType': ws.skillType,
+                'isPrimary': ws.skillType == 'PRIMARY'
             })
 
         # Calculate distance if user has location
