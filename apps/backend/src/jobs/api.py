@@ -2058,6 +2058,8 @@ def cancel_job_posting(request, job_id: int, data: Optional[CancelJobSchema] = N
             "available_balance": result.get("available_balance", 0.0),
             "cancellation_stage": result.get("cancellation_stage"),
             "cancelled_by_role": result.get("cancelled_by_role"),
+            "suspension_applied": result.get("suspension_applied", False),
+            "suspension_until": result.get("suspension_until"),
         }
 
     except PermissionError as e:
@@ -7801,13 +7803,22 @@ def get_job_receipt(request, job_id: int):
         expected_worker_earnings = budget + materials_cost
         expected_client_paid = budget + platform_fee + materials_cost
 
+        # Backward compatibility: some environments may not have cancellation
+        # accounting fields yet; fall back safely instead of crashing receipts.
+        cancelled_at = getattr(job, 'cancelledAt', None)
+        cancelled_by_role = getattr(job, 'cancelledByRole', None)
+        cancellation_stage = getattr(job, 'cancellationStage', None)
+        cancellation_reason = getattr(job, 'cancellationReason', None)
+        client_refund_amount = Decimal(str(getattr(job, 'clientRefundAmount', Decimal('0.00')) or Decimal('0.00')))
+        worker_compensation_amount = Decimal(str(getattr(job, 'workerCompensationAmount', Decimal('0.00')) or Decimal('0.00')))
+
         # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
         if job.status == Job.JobStatus.CANCELLED:
-            actual_worker_earnings = Decimal(str(job.workerCompensationAmount or Decimal('0.00')))
+            actual_worker_earnings = worker_compensation_amount
             if job.escrowPaid:
                 # What client effectively lost after refund + retained fee.
                 actual_client_paid = (
-                    max(Decimal('0.00'), escrow_amount - Decimal(str(job.clientRefundAmount or Decimal('0.00'))))
+                    max(Decimal('0.00'), escrow_amount - client_refund_amount)
                     + platform_fee
                 )
             else:
@@ -8015,7 +8026,7 @@ def get_job_receipt(request, job_id: int):
                 'worker_completed_at': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
                 'client_approved_at': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
                 'completed_at': job.completedAt.isoformat() if job.completedAt else None,
-                'cancelled_at': job.cancelledAt.isoformat() if job.cancelledAt else None,
+                'cancelled_at': cancelled_at.isoformat() if cancelled_at else None,
                 
                 # Payment breakdown (all in PHP)
                 'payment': {
@@ -8080,15 +8091,15 @@ def get_job_receipt(request, job_id: int):
                 # Cancellation settlement details (for cancelled jobs)
                 'cancellation': {
                     'is_cancelled': job.status == Job.JobStatus.CANCELLED,
-                    'reason': job.cancellationReason,
-                    'stage': job.cancellationStage,
-                    'cancelled_by_role': job.cancelledByRole,
+                    'reason': cancellation_reason,
+                    'stage': cancellation_stage,
+                    'cancelled_by_role': cancelled_by_role,
                     'summary': (
-                        f"Cancelled by {job.cancelledByRole or 'UNKNOWN'}"
-                        + (f" at {job.cancellationStage}" if job.cancellationStage else "")
+                        f"Cancelled by {cancelled_by_role or 'UNKNOWN'}"
+                        + (f" at {cancellation_stage}" if cancellation_stage else "")
                     ) if job.status == Job.JobStatus.CANCELLED else None,
-                    'client_refund_amount': float(job.clientRefundAmount or Decimal('0.00')),
-                    'worker_compensation_amount': float(job.workerCompensationAmount or Decimal('0.00')),
+                    'client_refund_amount': float(client_refund_amount),
+                    'worker_compensation_amount': float(worker_compensation_amount),
                 },
             }
         }
