@@ -75,7 +75,7 @@ export default function WorkerCalendarModal({
   }, [visible]);
 
   useEffect(() => {
-    // Navigate only after both calendar modals are fully closed.
+    // Navigate only after the calendar sheet is fully closed.
     if (!visible && !selectedDate && pendingNavigateJobId !== null) {
       const targetId = pendingNavigateJobId;
       const timer = setTimeout(() => {
@@ -118,7 +118,13 @@ export default function WorkerCalendarModal({
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (selectedDate) {
+          setSelectedDate(null);
+          return;
+        }
+        onClose();
+      }}
     >
       <View style={styles.overlay}>
         <View
@@ -137,7 +143,16 @@ export default function WorkerCalendarModal({
                   : `${jobs.length} calendar job${jobs.length !== 1 ? "s" : ""}`}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={() => {
+                if (selectedDate) {
+                  setSelectedDate(null);
+                  return;
+                }
+                onClose();
+              }}
+              style={styles.closeBtn}
+            >
               <Ionicons name="close" size={24} color={Colors.textPrimary} />
             </TouchableOpacity>
           </View>
@@ -206,122 +221,118 @@ export default function WorkerCalendarModal({
             </>
           )}
         </View>
-      </View>
-
-      <Modal
-        visible={!!selectedDate}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setSelectedDate(null)}
-      >
-        <TouchableOpacity
-          style={styles.dateDetailsOverlay}
-          activeOpacity={1}
-          onPress={() => setSelectedDate(null)}
-        >
-          <TouchableOpacity
-            style={styles.dateDetailsCard}
-            activeOpacity={1}
-            onPress={() => {}}
-          >
-            <View style={styles.dateDetailsHeader}>
-              <View style={styles.dateDetailsHeaderTextWrap}>
-                <Text style={styles.dateDetailsTitle}>Jobs on this date</Text>
-                <Text style={styles.dateDetailsSubtitle}>
-                  {selectedDateLabel}
-                </Text>
-              </View>
+        {!!selectedDate && (
+          <View style={styles.dateDetailsOverlayLayer} pointerEvents="box-none">
+            <TouchableOpacity
+              style={styles.dateDetailsOverlay}
+              activeOpacity={1}
+              onPress={() => setSelectedDate(null)}
+            >
               <TouchableOpacity
-                onPress={() => setSelectedDate(null)}
-                style={styles.closeBtn}
+                style={styles.dateDetailsCard}
+                activeOpacity={1}
+                onPress={() => {}}
               >
-                <Ionicons name="close" size={22} color={Colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedJobs.length === 0 ? (
-              <Text style={styles.noJobsText}>
-                No jobs scheduled for this date
-              </Text>
-            ) : (
-              <ScrollView
-                style={styles.dateDetailsList}
-                showsVerticalScrollIndicator={false}
-              >
-                {selectedJobs.map((job) => (
+                <View style={styles.dateDetailsHeader}>
+                  <View style={styles.dateDetailsHeaderTextWrap}>
+                    <Text style={styles.dateDetailsTitle}>Jobs on this date</Text>
+                    <Text style={styles.dateDetailsSubtitle}>
+                      {selectedDateLabel}
+                    </Text>
+                  </View>
                   <TouchableOpacity
-                    key={job.id}
-                    style={styles.jobCard}
-                    disabled={isClosingForNavigation}
-                    onPress={() => {
-                      if (isClosingForNavigation) return;
-                      // Sequence dismiss before route push to avoid stale touch-blocking overlays.
-                      setIsClosingForNavigation(true);
-                      setPendingNavigateJobId(job.id);
-                      setSelectedDate(null);
-                      onClose();
-                    }}
+                    onPress={() => setSelectedDate(null)}
+                    style={styles.closeBtn}
                   >
-                    <View style={styles.jobCardInner}>
-                      <View style={styles.jobCardLeft}>
-                        <Text style={styles.jobTitle} numberOfLines={1}>
-                          {job.title}
-                        </Text>
-                        <Text style={styles.jobLocation} numberOfLines={1}>
-                          <Ionicons
-                            name="location-outline"
-                            size={12}
-                            color={Colors.textSecondary}
-                          />{" "}
-                          {job.location}
-                        </Text>
-                        <Text style={styles.jobDates}>
-                          {new Date(
-                            job.preferred_start_date + "T00:00:00",
-                          ).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                          })}{" "}
-                          →{" "}
-                          {new Date(
-                            job.scheduled_end_date + "T00:00:00",
-                          ).toLocaleDateString(undefined, {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </Text>
-                      </View>
-                      <View style={styles.jobCardRight}>
-                        <View
-                          style={[
-                            styles.statusBadge,
-                            {
-                              backgroundColor:
-                                getStatusColor(job.status) + "22",
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.statusText,
-                              { color: getStatusColor(job.status) },
-                            ]}
-                          >
-                            {getStatusLabel(job.status)}
-                          </Text>
-                        </View>
-                        <Text style={styles.jobBudget}>
-                          ₱{job.budget.toLocaleString()}
-                        </Text>
-                      </View>
-                    </View>
+                    <Ionicons name="close" size={22} color={Colors.textPrimary} />
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+                </View>
+
+                {selectedJobs.length === 0 ? (
+                  <Text style={styles.noJobsText}>
+                    No jobs scheduled for this date
+                  </Text>
+                ) : (
+                  <ScrollView
+                    style={styles.dateDetailsList}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {selectedJobs.map((job) => (
+                      <TouchableOpacity
+                        key={job.id}
+                        style={styles.jobCard}
+                        disabled={isClosingForNavigation}
+                        onPress={() => {
+                          if (isClosingForNavigation) return;
+                          // Sequence dismiss before route push to avoid stale touch-blocking overlays.
+                          setIsClosingForNavigation(true);
+                          setPendingNavigateJobId(job.id);
+                          setSelectedDate(null);
+                          onClose();
+                        }}
+                      >
+                        <View style={styles.jobCardInner}>
+                          <View style={styles.jobCardLeft}>
+                            <Text style={styles.jobTitle} numberOfLines={1}>
+                              {job.title}
+                            </Text>
+                            <Text style={styles.jobLocation} numberOfLines={1}>
+                              <Ionicons
+                                name="location-outline"
+                                size={12}
+                                color={Colors.textSecondary}
+                              />{" "}
+                              {job.location}
+                            </Text>
+                            <Text style={styles.jobDates}>
+                              {new Date(
+                                job.preferred_start_date + "T00:00:00",
+                              ).toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                              })}{" "}
+                              ->{" "}
+                              {new Date(
+                                job.scheduled_end_date + "T00:00:00",
+                              ).toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </Text>
+                          </View>
+                          <View style={styles.jobCardRight}>
+                            <View
+                              style={[
+                                styles.statusBadge,
+                                {
+                                  backgroundColor:
+                                    getStatusColor(job.status) + "22",
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.statusText,
+                                  { color: getStatusColor(job.status) },
+                                ]}
+                              >
+                                {getStatusLabel(job.status)}
+                              </Text>
+                            </View>
+                            <Text style={styles.jobBudget}>
+                              ₱{job.budget.toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </Modal>
   );
 }
@@ -391,11 +402,23 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
   dateDetailsOverlay: {
-    flex: 1,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: Spacing.md,
+  },
+  dateDetailsOverlayLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50,
   },
   dateDetailsCard: {
     width: "100%",
