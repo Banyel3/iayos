@@ -388,6 +388,11 @@ export default function ChatScreen() {
     reviewModalMode === "edit"
       ? editableReviewTargets[currentEditableReviewIndex] || null
       : null;
+  const editableReviewTargetsRef = useRef<EditableReviewTarget[]>([]);
+
+  useEffect(() => {
+    editableReviewTargetsRef.current = editableReviewTargets;
+  }, [editableReviewTargets]);
 
   const resetReviewInputs = () => {
     setRatingQuality(0);
@@ -1272,9 +1277,53 @@ export default function ChatScreen() {
         {
           text: "Approve & Close",
           onPress: () => {
-            approveBackjobCompletionMutation.mutate({
-              jobId: conversation.job.id,
-            });
+            approveBackjobCompletionMutation.mutate(
+              {
+                jobId: conversation.job.id,
+              },
+              {
+                onSuccess: () => {
+                  const hadClientReview =
+                    !!conversation.job.clientReviewed ||
+                    editableReviewTargetsRef.current.length > 0;
+
+                  Alert.alert(
+                    "Backjob Completed",
+                    hadClientReview
+                      ? "The backjob has been resolved. Do you want to change your review?"
+                      : "The backjob has been resolved. Do you want to leave a review now?",
+                    [
+                      { text: "No", style: "cancel" },
+                      {
+                        text: hadClientReview
+                          ? "Yes, Change Review"
+                          : "Yes, Leave Review",
+                        onPress: () => {
+                          if (hadClientReview) {
+                            // Pull the latest conversation payload so the newly granted
+                            // backjob edit window is reflected before opening edit mode.
+                            void refetch().finally(() => {
+                              setTimeout(() => {
+                                if (
+                                  editableReviewTargetsRef.current.length > 0
+                                ) {
+                                  openReviewModalSafely("edit");
+                                } else {
+                                  openReviewModalSafely("submit");
+                                }
+                              }, 200);
+                            });
+                            return;
+                          }
+
+                          openReviewModalSafely("submit");
+                        },
+                      },
+                    ],
+                  );
+                },
+              },
+            );
           },
         },
       ],
