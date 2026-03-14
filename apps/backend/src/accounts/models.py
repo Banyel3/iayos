@@ -3197,6 +3197,23 @@ class DailyAttendance(models.Model):
         default=Decimal('0.00'),
         help_text='Amount earned for this day'
     )
+    absent_penalty_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('10.00'),
+        help_text='Penalty percent applied when day is marked ABSENT'
+    )
+    absent_penalty_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text='Penalty amount deducted from expected earnings for ABSENT day'
+    )
+    absent_penalty_applied = models.BooleanField(
+        default=False,
+        help_text='Whether absent penalty was already computed/applied for this attendance row'
+    )
+    absent_penalty_applied_at = models.DateTimeField(null=True, blank=True)
     payment_processed = models.BooleanField(
         default=False,
         help_text='Whether payment has been moved to pendingEarnings'

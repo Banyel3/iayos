@@ -9357,7 +9357,7 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
     """
     Client approves/rejects a DAILY skip-day request.
     """
-    from accounts.models import DailySkipDayRequest
+    from accounts.models import DailySkipDayRequest, DailyAttendance
 
     try:
         job = Job.objects.get(jobID=job_id)
@@ -9385,24 +9385,134 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
     if action not in ['approve', 'reject']:
         return Response({"error": "action must be 'approve' or 'reject'"}, status=400)
 
-    if action == 'approve':
-        skip_request.status = 'APPROVED'
-        skip_request.client_rejection_reason = None
-        message = 'Skip-day request approved'
-    else:
-        skip_request.status = 'REJECTED'
-        skip_request.client_rejection_reason = (data.reason or 'Client declined skip day request.').strip()
-        message = 'Skip-day request rejected'
+    processed_attendance_rows = []
+    with db_transaction.atomic():
+        if action == 'approve':
+            target_account_ids = list(skip_request.requested_account_ids or [])
+            if not target_account_ids and skip_request.requestedByUser_id:
+                target_account_ids = [int(skip_request.requestedByUser_id)]
 
-    skip_request.reviewedByUser = request.auth
-    skip_request.reviewedAt = timezone.now()
-    skip_request.save(update_fields=[
-        'status',
-        'client_rejection_reason',
-        'reviewedByUser',
-        'reviewedAt',
-        'updatedAt',
-    ])
+            target_workers = []
+            seen_worker_ids = set()
+
+            if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK_id in target_account_ids:
+                target_workers.append(job.assignedWorkerID)
+                seen_worker_ids.add(job.assignedWorkerID.workerProfileID)
+
+            if getattr(job, 'is_team_job', False):
+                assignment_workers = WorkerProfile.objects.filter(
+                    workerProfileID__in=JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        workerID__isnull=False,
+                        workerID__profileID__accountFK_id__in=target_account_ids,
+                        assignment_status__in=['ACTIVE', 'COMPLETED'],
+                    ).values_list('workerID_id', flat=True)
+                )
+
+                for worker in assignment_workers:
+                    if worker.workerProfileID in seen_worker_ids:
+                        continue
+                    target_workers.append(worker)
+                    seen_worker_ids.add(worker.workerProfileID)
+
+            if not target_workers and job.assignedWorkerID and not getattr(job, 'is_team_job', False):
+                target_workers = [job.assignedWorkerID]
+
+            if not target_workers:
+                return Response({
+                    "error": "No assigned worker found to mark absent for this skip day request"
+                }, status=400)
+
+            # Safety gate: reject the entire approval if any target worker already checked in.
+            # This prevents partial updates when one worker is not eligible for skip-day absent marking.
+            existing_attendance_by_worker = {
+                row.workerID_id: row
+                for row in DailyAttendance.objects.filter(
+                    jobID=job,
+                    date=skip_request.request_date,
+                    workerID__in=target_workers,
+                )
+            }
+            for worker in target_workers:
+                existing_row = existing_attendance_by_worker.get(worker.workerProfileID)
+                if existing_row and existing_row.time_in:
+                    worker_name = "Unknown Worker"
+                    if worker.profileID:
+                        worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}".strip()
+                    return Response({
+                        "error": f"Cannot approve skip day because {worker_name} already checked in for the requested date"
+                    }, status=400)
+
+            now = timezone.now()
+            for worker in target_workers:
+                attendance, _ = DailyAttendance.objects.get_or_create(
+                    jobID=job,
+                    workerID=worker,
+                    date=skip_request.request_date,
+                    defaults={
+                        'status': 'ABSENT',
+                        'amount_earned': Decimal('0.00'),
+                        'worker_confirmed': True,
+                        'worker_confirmed_at': now,
+                        'notes': f'Skip day approved by client (request #{skip_request.skipRequestID})',
+                    },
+                )
+
+                if not attendance.worker_confirmed:
+                    attendance.worker_confirmed = True
+                    attendance.worker_confirmed_at = attendance.worker_confirmed_at or now
+
+                attendance.status = 'ABSENT'
+                attendance.amount_earned = Decimal('0.00')
+                attendance.notes = f'Skip day approved by client (request #{skip_request.skipRequestID})'
+                attendance.save(update_fields=[
+                    'worker_confirmed',
+                    'worker_confirmed_at',
+                    'status',
+                    'amount_earned',
+                    'notes',
+                    'updatedAt',
+                ])
+
+                if not attendance.client_confirmed:
+                    confirm_result = DailyPaymentService.confirm_attendance_client(
+                        attendance,
+                        request.auth,
+                        approved_status='ABSENT',
+                    )
+                    if not confirm_result.get('success'):
+                        return Response({
+                            "error": confirm_result.get('error', 'Failed to confirm absent attendance')
+                        }, status=400)
+
+                processed_attendance_rows.append({
+                    "attendance_id": attendance.attendanceID,
+                    "worker_id": attendance.workerID_id,
+                    "worker_account_id": attendance.workerID.profileID.accountFK_id if attendance.workerID and attendance.workerID.profileID else None,
+                    "status": attendance.status,
+                    "client_confirmed": attendance.client_confirmed,
+                    "amount_earned": float(attendance.amount_earned),
+                    "payment_processed": attendance.payment_processed,
+                    "absent_penalty_amount": float(attendance.absent_penalty_amount or Decimal('0.00')),
+                })
+
+            skip_request.status = 'APPROVED'
+            skip_request.client_rejection_reason = None
+            message = 'Skip-day request approved. Worker marked absent for the requested day.'
+        else:
+            skip_request.status = 'REJECTED'
+            skip_request.client_rejection_reason = (data.reason or 'Client declined skip day request.').strip()
+            message = 'Skip-day request rejected'
+
+        skip_request.reviewedByUser = request.auth
+        skip_request.reviewedAt = timezone.now()
+        skip_request.save(update_fields=[
+            'status',
+            'client_rejection_reason',
+            'reviewedByUser',
+            'reviewedAt',
+            'updatedAt',
+        ])
 
     return {
         "success": True,
@@ -9412,15 +9522,17 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
             "status": skip_request.status,
             "client_rejection_reason": skip_request.client_rejection_reason,
             "reviewed_at": skip_request.reviewedAt.isoformat() if skip_request.reviewedAt else None,
-        }
+        },
+        "processed_attendance": processed_attendance_rows,
     }
 
 
 @router.post("/{job_id}/daily/qa/skip-next-day", auth=dual_auth)
+@router.post("/{job_id}/qa/skip-next-day", auth=dual_auth)
 @require_kyc
 def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     """
-    TESTING-only endpoint: client advances DAILY job by one effective day.
+    TESTING-only endpoint: client advances an eligible job by one effective day.
     This does not change server time and is blocked in production.
     """
     if not is_testing_mode_enabled():
@@ -9433,8 +9545,15 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     except Job.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)
 
-    if job.payment_model != 'DAILY':
-        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+    is_daily = getattr(job, 'payment_model', None) == 'DAILY'
+    is_project_multiday = (
+        getattr(job, 'payment_model', None) == 'PROJECT'
+        and int(getattr(job, 'duration_days', 0) or 0) > 1
+    )
+    if not is_daily and not is_project_multiday:
+        return Response({
+            "error": "QA skip-next-day is only available for DAILY or multi-day PROJECT jobs"
+        }, status=400)
 
     if job.status != 'IN_PROGRESS':
         return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
@@ -9628,6 +9747,60 @@ def extend_daily_job_one_day(request, job_id: int):
         'platform_fee': float(platform_fee),
         'total_required': float(total_required),
         'new_duration_days': int(job.duration_days or 0),
+    }
+
+
+@router.post("/{job_id}/project/extend-one-day", auth=dual_auth)
+@require_kyc
+def extend_project_job_one_day(request, job_id: int):
+    """
+    Client-only action to extend a PROJECT job by 1 day.
+    This updates duration tracking only and does not alter payment totals.
+    """
+    try:
+        job = Job.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'PROJECT':
+        return Response({"error": "This endpoint is only for PROJECT jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can extend this project"}, status=403)
+
+    old_duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    new_duration_days = max(old_duration_days, 1) + 1
+
+    with db_transaction.atomic():
+        job.duration_days = new_duration_days
+        job.save(update_fields=['duration_days', 'updatedAt'])
+
+        JobLog.objects.create(
+            jobID=job,
+            actionType=JobLog.ActionType.JOB_EDITED,
+            oldStatus=job.status,
+            newStatus=job.status,
+            changedBy=request.auth,
+            notes='[PROJECT] Client extended job by +1 day',
+            metadata={
+                'event': 'project_extend_one_day',
+                'additional_days': 1,
+                'old_duration_days': old_duration_days,
+                'new_duration_days': new_duration_days,
+                'payment_model': 'PROJECT',
+            },
+        )
+
+    return {
+        'success': True,
+        'message': 'Project extended by 1 day.',
+        'job_id': job.jobID,
+        'additional_days': 1,
+        'old_duration_days': old_duration_days,
+        'new_duration_days': new_duration_days,
     }
 
 

@@ -334,8 +334,7 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${id}/approve-completion`,
   CONFIRM_WORK_STARTED: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/confirm-work-started`,
-  MARK_ON_THE_WAY: (id: number) =>
-    `${API_BASE_URL}/jobs/${id}/mark-on-the-way`,
+  MARK_ON_THE_WAY: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-on-the-way`,
   MARK_JOB_STARTED: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/mark-job-started`,
   ACTIVE_JOBS: `${API_BASE_URL}/jobs/my-active-jobs`,
@@ -547,6 +546,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/extend-one-day`,
   DAILY_FINISH_JOB: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/finish`,
+  PROJECT_EXTEND_ONE_DAY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/project/extend-one-day`,
 
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,
@@ -695,6 +696,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/skip-day/request`,
   DAILY_SKIP_DAY_REVIEW: (jobId: number, skipRequestId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/skip-day/${skipRequestId}/review`,
+  JOB_QA_SKIP_NEXT_DAY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/qa/skip-next-day`,
   DAILY_QA_SKIP_NEXT_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/qa/skip-next-day`,
   // Cancellation

@@ -33,6 +33,37 @@ class DailyPaymentService:
     """Service class for handling daily payment operations."""
     
     PLATFORM_FEE_PERCENT = Decimal('0.10')  # 10% platform fee
+    ABSENT_PENALTY_PERCENT = Decimal('0.10')  # 10% expected-earnings penalty per absent day
+
+    @staticmethod
+    def calculate_absent_penalty(attendance: DailyAttendance) -> Decimal:
+        """Calculate absent penalty amount for one attendance row."""
+        daily_rate = attendance.jobID.daily_rate_agreed or Decimal('0.00')
+        penalty = (daily_rate * DailyPaymentService.ABSENT_PENALTY_PERCENT).quantize(Decimal('0.01'))
+        return penalty if penalty > 0 else Decimal('0.00')
+
+    @staticmethod
+    def apply_absent_penalty(attendance: DailyAttendance) -> Decimal:
+        """
+        Apply absent penalty idempotently on attendance row.
+        Penalty affects expected earnings metrics and is tracked per day.
+        """
+        if attendance.absent_penalty_applied:
+            return attendance.absent_penalty_amount or Decimal('0.00')
+
+        penalty = DailyPaymentService.calculate_absent_penalty(attendance)
+        attendance.absent_penalty_percent = (DailyPaymentService.ABSENT_PENALTY_PERCENT * Decimal('100')).quantize(Decimal('0.01'))
+        attendance.absent_penalty_amount = penalty
+        attendance.absent_penalty_applied = True
+        attendance.absent_penalty_applied_at = timezone.now()
+        attendance.save(update_fields=[
+            'absent_penalty_percent',
+            'absent_penalty_amount',
+            'absent_penalty_applied',
+            'absent_penalty_applied_at',
+            'updatedAt',
+        ])
+        return penalty
     
     @staticmethod
     def calculate_daily_escrow(daily_rate: Decimal, num_workers: int, num_days: int) -> Dict[str, Decimal]:
@@ -308,13 +339,18 @@ class DailyPaymentService:
             return {'success': False, 'error': 'Attendance not fully confirmed yet'}
         
         if attendance.status in ['ABSENT', 'PENDING', 'DISPUTED']:
+            penalty_amount = Decimal('0.00')
+            if attendance.status == 'ABSENT':
+                penalty_amount = DailyPaymentService.apply_absent_penalty(attendance)
+
             attendance.payment_processed = True
             attendance.payment_processed_at = timezone.now()
             attendance.save()
             return {
                 'success': True,
                 'message': f'No payment for {attendance.status} status',
-                'amount': 0
+                'amount': 0,
+                'absent_penalty_amount': float(penalty_amount),
             }
         
         job = attendance.jobID
@@ -799,6 +835,19 @@ class DailyPaymentService:
         days_present = attendance_records.filter(status='PRESENT').count()
         days_half = attendance_records.filter(status='HALF_DAY').count()
         days_absent = attendance_records.filter(status='ABSENT').count()
+
+        absent_penalty_total = attendance_records.filter(
+            status='ABSENT',
+            absent_penalty_applied=True
+        ).aggregate(total=Sum('absent_penalty_amount'))['total'] or Decimal('0.00')
+
+        gross_expected_earnings = (
+            (Decimal(days_present) * (job.daily_rate_agreed or Decimal('0.00')))
+            + (Decimal(days_half) * (job.daily_rate_agreed or Decimal('0.00')) / Decimal('2.00'))
+        )
+        net_expected_earnings = gross_expected_earnings - absent_penalty_total
+        if net_expected_earnings < Decimal('0.00'):
+            net_expected_earnings = Decimal('0.00')
         
         # Get pending extensions/rate changes
         pending_extensions = DailyJobExtension.objects.filter(
@@ -827,6 +876,9 @@ class DailyPaymentService:
                 'total_earned': float(total_earned),
                 'escrow_total': float(job.daily_escrow_total),
                 'escrow_remaining': float(job.daily_escrow_total - total_earned),
+                'gross_expected_earnings': float(gross_expected_earnings),
+                'absent_penalty_total': float(absent_penalty_total),
+                'net_expected_earnings': float(net_expected_earnings),
             },
             'pending_requests': {
                 'extensions': pending_extensions,

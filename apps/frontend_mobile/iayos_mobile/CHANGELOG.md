@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DAILY Skip-Day Absence Penalty + State Sync**
+  - Client-approved DAILY skip-day now updates conversation state immediately with optimistic cache sync to prevent stale buttons and duplicate-click rejections.
+  - Added attendance row patching for approved skip-day responses so ABSENT/payment-processed state appears without waiting for refetch.
+  - Daily summary card now shows `Absent Penalty (10%)` and `Net Expected Earnings` when penalty data is present.
+  - **Impact**: Prevents frontend/backend state mismatch for skip-day actions and makes absent-penalty effects visible in worker/client daily summaries.
+
+- **PROJECT Multi-Day End-Flow Controls (Team + Single Project)**
+  - Added PROJECT multi-day end-action card in conversation for clients when configured duration is reached.
+  - Added `Extend +1 Day` action for PROJECT jobs (team and non-team) using new backend endpoint.
+  - Added `Job Finished` action that routes to existing completion/payment flow:
+    - Team PROJECT: client uses approve-and-pay team flow after all assignments are marked complete.
+    - Single PROJECT: client uses approve completion/pay-final flow after worker marks complete.
+  - **Impact**: Multi-day PROJECT jobs now have explicit extend-or-finish controls similar to DAILY end-flow behavior, while preserving final payout at completion.
+
+- **QA Skip-Next-Day Support for Multi-Day PROJECT Jobs**
+  - Extended mobile QA skip-next-day control to eligible multi-day `PROJECT` jobs (team and non-team), while preserving existing `DAILY` behavior.
+  - Added backend eligibility support so QA day fast-forward works for `DAILY` and for `PROJECT` jobs with `duration_days > 1`.
+  - Added generic QA route support (`/api/jobs/{job_id}/qa/skip-next-day`) and switched mobile mutation to the generic endpoint.
+  - **Impact**: QA can fast-forward effective work day in multi-day project conversations without needing DAILY-only flow.
+
 - **Team PROJECT Multi-Day Attendance Flow (No Per-Day Payout)**
   - Enabled daily attendance UI in mobile conversation for multi-day TEAM `PROJECT` jobs (while keeping DAILY behavior intact).
   - Enabled worker "On The Way" and undo check-in actions for multi-day TEAM `PROJECT` jobs.

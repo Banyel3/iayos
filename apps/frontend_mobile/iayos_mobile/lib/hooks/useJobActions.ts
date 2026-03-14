@@ -269,7 +269,9 @@ export function useCancelJob() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
-      queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["jobDetails", variables.jobId],
+      });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
@@ -314,15 +316,10 @@ export function useConfirmTeamWorkerArrival() {
     },
     onSuccess: (data: any, { jobId, assignmentId }) => {
       const nowIso = new Date().toISOString();
-      patchConversationTeamAssignmentState(
-        queryClient,
-        jobId,
-        assignmentId,
-        {
-          client_confirmed_arrival: true,
-          client_confirmed_arrival_at: data?.confirmed_at || nowIso,
-        },
-      );
+      patchConversationTeamAssignmentState(queryClient, jobId, assignmentId, {
+        client_confirmed_arrival: true,
+        client_confirmed_arrival_at: data?.confirmed_at || nowIso,
+      });
 
       Toast.show({
         type: "success",
@@ -377,15 +374,10 @@ export function useMarkTeamAssignmentComplete() {
     },
     onSuccess: (data: any, { jobId, assignmentId }) => {
       const nowIso = new Date().toISOString();
-      patchConversationTeamAssignmentState(
-        queryClient,
-        jobId,
-        assignmentId,
-        {
-          worker_marked_complete: true,
-          worker_marked_complete_at: data?.completed_at || nowIso,
-        },
-      );
+      patchConversationTeamAssignmentState(queryClient, jobId, assignmentId, {
+        worker_marked_complete: true,
+        worker_marked_complete_at: data?.completed_at || nowIso,
+      });
 
       Toast.show({
         type: "success",
@@ -474,6 +466,54 @@ export function useApproveTeamJobCompletion() {
       Toast.show({
         type: "error",
         text1: "Approval Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Client extends a PROJECT job by one day (multi-day tracking only).
+ */
+export function useProjectExtendOneDay() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId }: { jobId: number }) => {
+      const response = await apiRequest(ENDPOINTS.PROJECT_EXTEND_ONE_DAY(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to extend project job"));
+      }
+
+      return response.json() as Promise<{
+        success: boolean;
+        message?: string;
+        new_duration_days?: number;
+      }>;
+    },
+    onSuccess: (data, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Project Extended",
+        text2:
+          data?.message ||
+          (data?.new_duration_days
+            ? `Duration updated to ${data.new_duration_days} day(s)`
+            : "Added 1 day to project duration"),
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Extend Failed",
         text2: error.message,
       });
     },

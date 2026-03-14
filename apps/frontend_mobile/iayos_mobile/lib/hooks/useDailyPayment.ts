@@ -42,7 +42,9 @@ function patchConversationOnTheWay(
               is_dispatched: true,
               worker_confirmed: true,
               worker_confirmed_at:
-                row?.worker_confirmed_at || payload?.worker_confirmed_at || nowIso,
+                row?.worker_confirmed_at ||
+                payload?.worker_confirmed_at ||
+                nowIso,
               time_in: null,
               time_out: null,
             };
@@ -127,13 +129,149 @@ function patchConversationAttendanceById(
   );
 }
 
+function patchConversationSkipRequestStatus(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  skipRequestId: number,
+  status: "PENDING" | "APPROVED" | "REJECTED",
+  clientRejectionReason?: string | null,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.job || Number(previous.job.id) !== Number(jobId)) {
+        return previous;
+      }
+
+      const skipRows = Array.isArray(previous.daily_skip_requests_today)
+        ? previous.daily_skip_requests_today
+        : [];
+
+      const updatedSkipRows = skipRows.map((row: any) => {
+        if (Number(row?.skip_request_id) !== Number(skipRequestId)) {
+          return row;
+        }
+
+        return {
+          ...row,
+          status,
+          client_rejection_reason:
+            status === "REJECTED" ? (clientRejectionReason ?? null) : null,
+        };
+      });
+
+      return {
+        ...previous,
+        daily_skip_requests_today: updatedSkipRows,
+      };
+    },
+  );
+}
+
+function patchConversationAttendanceRows(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  rows: Array<{
+    attendance_id: number;
+    worker_id?: number;
+    worker_account_id?: number;
+    status: string;
+    client_confirmed: boolean;
+    amount_earned: number;
+    payment_processed: boolean;
+    absent_penalty_amount?: number;
+  }>,
+) {
+  if (!rows.length) {
+    return;
+  }
+
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.job || Number(previous.job.id) !== Number(jobId)) {
+        return previous;
+      }
+
+      const existingRows = Array.isArray(previous.attendance_today)
+        ? previous.attendance_today
+        : [];
+
+      const byId = new Map<number, any>();
+      for (const row of existingRows) {
+        byId.set(Number(row?.attendance_id), row);
+      }
+
+      const nowIso = new Date().toISOString();
+      for (const updated of rows) {
+        const key = Number(updated.attendance_id);
+        const current = byId.get(key);
+        if (current) {
+          byId.set(key, {
+            ...current,
+            status: updated.status,
+            is_dispatched: false,
+            client_confirmed: updated.client_confirmed,
+            client_confirmed_at: current?.client_confirmed_at || nowIso,
+            amount_earned: updated.amount_earned,
+            payment_processed: updated.payment_processed,
+            absent_penalty_amount: updated.absent_penalty_amount ?? current?.absent_penalty_amount ?? 0,
+          });
+        } else {
+          byId.set(key, {
+            attendance_id: updated.attendance_id,
+            worker_id: updated.worker_id,
+            worker_account_id: updated.worker_account_id,
+            worker_name: "Worker",
+            worker_avatar: null,
+            date: previous.effective_work_date || nowIso.split("T")[0],
+            time_in: null,
+            time_out: null,
+            status: updated.status,
+            is_dispatched: false,
+            worker_confirmed: true,
+            worker_confirmed_at: nowIso,
+            client_confirmed: updated.client_confirmed,
+            client_confirmed_at: nowIso,
+            amount_earned: updated.amount_earned,
+            payment_processed: updated.payment_processed,
+            absent_penalty_amount: updated.absent_penalty_amount ?? 0,
+            notes: "Skip day approved by client",
+          });
+        }
+      }
+
+      return {
+        ...previous,
+        attendance_today: Array.from(byId.values()),
+      };
+    },
+  );
+}
+
 // ============================================================================
 // Types
 // ============================================================================
 
-export type AttendanceStatus = "DISPATCHED" | "PENDING" | "PRESENT" | "HALF_DAY" | "ABSENT" | "DISPUTED";
+export type AttendanceStatus =
+  | "DISPATCHED"
+  | "PENDING"
+  | "PRESENT"
+  | "HALF_DAY"
+  | "ABSENT"
+  | "DISPUTED";
 export type ExtensionStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
-export type RateChangeStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type RateChangeStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED";
 export type RequestedBy = "CLIENT" | "WORKER" | "AGENCY";
 
 export interface DailyAttendance {
@@ -143,7 +281,7 @@ export interface DailyAttendance {
   worker_name: string;
   worker_id?: number;
   status: AttendanceStatus;
-  is_dispatched: boolean;  // True if employee is on the way but not yet arrived
+  is_dispatched: boolean; // True if employee is on the way but not yet arrived
   time_in?: string;
   time_out?: string;
   amount_earned: number;
@@ -181,6 +319,9 @@ export interface DailySummary {
     total_earned: number;
     escrow_total: number;
     escrow_remaining: number;
+    gross_expected_earnings?: number;
+    absent_penalty_total?: number;
+    net_expected_earnings?: number;
   };
   pending_requests: {
     extensions: number;
@@ -274,7 +415,7 @@ export interface RequestRateChangePayload {
  */
 export const useDailyAttendance = (
   jobId: number,
-  options?: { startDate?: string; endDate?: string; enabled?: boolean }
+  options?: { startDate?: string; endDate?: string; enabled?: boolean },
 ) => {
   const { startDate, endDate, enabled = true } = options || {};
 
@@ -309,7 +450,9 @@ export const useDailySummary = (jobId: number, enabled = true) => {
       const response = await apiRequest(ENDPOINTS.DAILY_SUMMARY(jobId));
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to fetch daily summary"));
+        throw new Error(
+          getErrorMessage(error, "Failed to fetch daily summary"),
+        );
       }
       return response.json() as Promise<DailySummary>;
     },
@@ -330,7 +473,10 @@ export const useDailyExtensions = (jobId: number, enabled = true) => {
         const error = await response.json();
         throw new Error(getErrorMessage(error, "Failed to fetch extensions"));
       }
-      return response.json() as Promise<{ success: boolean; extensions: DailyExtension[] }>;
+      return response.json() as Promise<{
+        success: boolean;
+        extensions: DailyExtension[];
+      }>;
     },
     enabled: enabled && !!jobId,
   });
@@ -348,7 +494,10 @@ export const useDailyRateChanges = (jobId: number, enabled = true) => {
         const error = await response.json();
         throw new Error(getErrorMessage(error, "Failed to fetch rate changes"));
       }
-      return response.json() as Promise<{ success: boolean; rate_changes: DailyRateChange[] }>;
+      return response.json() as Promise<{
+        success: boolean;
+        rate_changes: DailyRateChange[];
+      }>;
     },
     enabled: enabled && !!jobId,
   });
@@ -361,7 +510,7 @@ export const useDailyEscrowEstimate = (
   dailyRate: number,
   numWorkers: number,
   numDays: number,
-  enabled = true
+  enabled = true,
 ) => {
   return useQuery<EscrowEstimate>({
     queryKey: ["dailyEscrowEstimate", dailyRate, numWorkers, numDays],
@@ -372,11 +521,13 @@ export const useDailyEscrowEstimate = (
         num_days: numDays.toString(),
       });
       const response = await apiRequest(
-        `${ENDPOINTS.DAILY_ESCROW_ESTIMATE}?${params.toString()}`
+        `${ENDPOINTS.DAILY_ESCROW_ESTIMATE}?${params.toString()}`,
       );
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to get escrow estimate"));
+        throw new Error(
+          getErrorMessage(error, "Failed to get escrow estimate"),
+        );
       }
       return response.json() as Promise<EscrowEstimate>;
     },
@@ -409,8 +560,12 @@ export const useLogAttendance = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyAttendance", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
 
       Toast.show({
         type: "success",
@@ -437,10 +592,16 @@ export const useConfirmAttendanceWorker = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, attendanceId }: { jobId: number; attendanceId: number }): Promise<{ success: boolean; message?: string }> => {
+    mutationFn: async ({
+      jobId,
+      attendanceId,
+    }: {
+      jobId: number;
+      attendanceId: number;
+    }): Promise<{ success: boolean; message?: string }> => {
       const response = await apiRequest(
         ENDPOINTS.DAILY_ATTENDANCE_CONFIRM_WORKER(jobId, attendanceId),
-        { method: "POST" }
+        { method: "POST" },
       );
 
       if (!response.ok) {
@@ -450,8 +611,12 @@ export const useConfirmAttendanceWorker = () => {
       return response.json() as Promise<{ success: boolean; message?: string }>;
     },
     onSuccess: (data: { success: boolean; message?: string }, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyAttendance", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
 
       Toast.show({
         type: "success",
@@ -478,14 +643,18 @@ export const useConfirmAttendanceClient = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: ConfirmAttendancePayload): Promise<{ success: boolean; message?: string }> => {
+    mutationFn: async (
+      payload: ConfirmAttendancePayload,
+    ): Promise<{ success: boolean; message?: string }> => {
       const { jobId, attendanceId, approved_status } = payload;
       const response = await apiRequest(
         ENDPOINTS.DAILY_ATTENDANCE_CONFIRM_CLIENT(jobId, attendanceId),
         {
           method: "POST",
-          body: approved_status ? JSON.stringify({ approved_status }) : undefined,
-        }
+          body: approved_status
+            ? JSON.stringify({ approved_status })
+            : undefined,
+        },
       );
 
       if (!response.ok) {
@@ -495,14 +664,19 @@ export const useConfirmAttendanceClient = () => {
       return response.json() as Promise<{ success: boolean; message?: string }>;
     },
     onSuccess: (data: { success: boolean; message?: string }, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyAttendance", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
 
       Toast.show({
         type: "success",
         text1: "Attendance Confirmed",
-        text2: data.message || "Attendance has been confirmed and payment processed",
+        text2:
+          data.message || "Attendance has been confirmed and payment processed",
         position: "top",
       });
     },
@@ -526,10 +700,13 @@ export const useRequestExtension = () => {
   return useMutation({
     mutationFn: async (payload: RequestExtensionPayload) => {
       const { jobId, ...body } = payload;
-      const response = await apiRequest(ENDPOINTS.DAILY_EXTENSION_REQUEST(jobId), {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const response = await apiRequest(
+        ENDPOINTS.DAILY_EXTENSION_REQUEST(jobId),
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -538,8 +715,12 @@ export const useRequestExtension = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyExtensions", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyExtensions", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
 
       Toast.show({
         type: "success",
@@ -566,10 +747,16 @@ export const useApproveExtension = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, extensionId }: { jobId: number; extensionId: number }) => {
+    mutationFn: async ({
+      jobId,
+      extensionId,
+    }: {
+      jobId: number;
+      extensionId: number;
+    }) => {
       const response = await apiRequest(
         ENDPOINTS.DAILY_EXTENSION_APPROVE(jobId, extensionId),
-        { method: "POST" }
+        { method: "POST" },
       );
 
       if (!response.ok) {
@@ -579,8 +766,12 @@ export const useApproveExtension = () => {
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyExtensions", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyExtensions", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
 
       Toast.show({
         type: "success",
@@ -609,20 +800,29 @@ export const useRequestRateChange = () => {
   return useMutation({
     mutationFn: async (payload: RequestRateChangePayload) => {
       const { jobId, ...body } = payload;
-      const response = await apiRequest(ENDPOINTS.DAILY_RATE_CHANGE_REQUEST(jobId), {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const response = await apiRequest(
+        ENDPOINTS.DAILY_RATE_CHANGE_REQUEST(jobId),
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to request rate change"));
+        throw new Error(
+          getErrorMessage(error, "Failed to request rate change"),
+        );
       }
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyRateChanges", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyRateChanges", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
 
       Toast.show({
         type: "success",
@@ -649,21 +849,33 @@ export const useApproveRateChange = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, changeId }: { jobId: number; changeId: number }) => {
+    mutationFn: async ({
+      jobId,
+      changeId,
+    }: {
+      jobId: number;
+      changeId: number;
+    }) => {
       const response = await apiRequest(
         ENDPOINTS.DAILY_RATE_CHANGE_APPROVE(jobId, changeId),
-        { method: "POST" }
+        { method: "POST" },
       );
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to approve rate change"));
+        throw new Error(
+          getErrorMessage(error, "Failed to approve rate change"),
+        );
       }
       return response.json();
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyRateChanges", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyRateChanges", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
 
       Toast.show({
         type: "success",
@@ -690,7 +902,13 @@ export const useCancelDailyJob = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, reason }: { jobId: number; reason: string }): Promise<{ success: boolean; message?: string }> => {
+    mutationFn: async ({
+      jobId,
+      reason,
+    }: {
+      jobId: number;
+      reason: string;
+    }): Promise<{ success: boolean; message?: string }> => {
       const response = await apiRequest(ENDPOINTS.DAILY_CANCEL(jobId), {
         method: "POST",
         body: JSON.stringify({ reason }),
@@ -703,7 +921,9 @@ export const useCancelDailyJob = () => {
       return response.json() as Promise<{ success: boolean; message?: string }>;
     },
     onSuccess: (data: { success: boolean; message?: string }, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
 
@@ -830,9 +1050,12 @@ export const useWorkerCancelCheckIn = () => {
 
   return useMutation({
     mutationFn: async (jobId: number): Promise<CancelCheckInResponse> => {
-      const response = await apiRequest(ENDPOINTS.WORKER_CANCEL_CHECK_IN(jobId), {
-        method: "POST",
-      });
+      const response = await apiRequest(
+        ENDPOINTS.WORKER_CANCEL_CHECK_IN(jobId),
+        {
+          method: "POST",
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -963,14 +1186,18 @@ export const useClientConfirmAttendance = () => {
     },
     onSuccess: (data) => {
       const nowIso = new Date().toISOString();
-      patchConversationAttendanceById(queryClient, data.attendance_id, (row) => ({
-        ...row,
-        client_confirmed: true,
-        client_confirmed_at: row?.client_confirmed_at || nowIso,
-        status: data.status,
-        amount_earned: data.amount_earned,
-        payment_processed: data.payment_processed,
-      }));
+      patchConversationAttendanceById(
+        queryClient,
+        data.attendance_id,
+        (row) => ({
+          ...row,
+          client_confirmed: true,
+          client_confirmed_at: row?.client_confirmed_at || nowIso,
+          status: data.status,
+          amount_earned: data.amount_earned,
+          payment_processed: data.payment_processed,
+        }),
+      );
 
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
@@ -1011,9 +1238,12 @@ export const useClientMarkNoWork = () => {
       jobId: number;
       workerId?: number;
     }): Promise<ClientMarkNoWorkResponse> => {
-      const response = await apiRequest(ENDPOINTS.CLIENT_MARK_NO_WORK(jobId, workerId), {
-        method: "POST",
-      });
+      const response = await apiRequest(
+        ENDPOINTS.CLIENT_MARK_NO_WORK(jobId, workerId),
+        {
+          method: "POST",
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -1069,7 +1299,7 @@ export const useClientVerifyArrival = () => {
     mutationFn: async ({ jobId, attendanceId }) => {
       const response = await apiRequest(
         ENDPOINTS.CLIENT_VERIFY_ARRIVAL(jobId, attendanceId),
-        { method: "POST" }
+        { method: "POST" },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -1137,7 +1367,7 @@ export const useClientMarkCheckout = () => {
     mutationFn: async ({ jobId, attendanceId }) => {
       const response = await apiRequest(
         ENDPOINTS.CLIENT_MARK_CHECKOUT(jobId, attendanceId),
-        { method: "POST" }
+        { method: "POST" },
       );
       if (!response.ok) {
         const error = await response.json();
@@ -1188,11 +1418,52 @@ export interface RequestDailySkipDayPayload {
 }
 
 export interface ClientReviewDailySkipDayPayload {
+
+  interface SkipDayReviewResponse {
+    success: boolean;
+    message?: string;
+    skip_request?: {
+      skip_request_id: number;
+      status: "PENDING" | "APPROVED" | "REJECTED";
+      client_rejection_reason?: string | null;
+    };
+    processed_attendance?: Array<{
+      attendance_id: number;
+      worker_id?: number;
+      worker_account_id?: number;
+      status: string;
+      client_confirmed: boolean;
+      amount_earned: number;
+      payment_processed: boolean;
+      absent_penalty_amount?: number;
+    }>;
+  }
   jobId: number;
   skipRequestId: number;
   approve: boolean;
   reason?: string;
+      return response.json() as Promise<{
+        success: boolean;
+        message?: string;
+        skip_request?: {
+          skip_request_id?: number;
+          status?: "PENDING" | "APPROVED" | "REJECTED";
+          client_rejection_reason?: string | null;
+        };
+      }>;
 }
+
+      const skipRequestId = Number(data?.skip_request?.skip_request_id);
+      const status = data?.skip_request?.status;
+      if (skipRequestId && status) {
+        patchConversationSkipRequestStatus(
+          queryClient,
+          variables.jobId,
+          skipRequestId,
+          status,
+          data?.skip_request?.client_rejection_reason ?? null,
+        );
+      }
 
 export interface ClientQASkipNextDayPayload {
   jobId: number;
@@ -1226,10 +1497,13 @@ export const useRequestDailySkipDay = () => {
 
   return useMutation({
     mutationFn: async ({ jobId, request_date }: RequestDailySkipDayPayload) => {
-      const response = await apiRequest(ENDPOINTS.DAILY_SKIP_DAY_REQUEST(jobId), {
-        method: "POST",
-        body: JSON.stringify({ request_date }),
-      });
+      const response = await apiRequest(
+        ENDPOINTS.DAILY_SKIP_DAY_REQUEST(jobId),
+        {
+          method: "POST",
+          body: JSON.stringify({ request_date }),
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -1239,8 +1513,12 @@ export const useRequestDailySkipDay = () => {
       return response.json() as Promise<{ success: boolean; message?: string }>;
     },
     onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["dailyAttendance", variables.jobId] });
-      queryClient.invalidateQueries({ queryKey: ["dailySummary", variables.jobId] });
+      queryClient.invalidateQueries({
+        queryKey: ["dailyAttendance", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["dailySummary", variables.jobId],
+      });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
 
       Toast.show({
@@ -1284,12 +1562,33 @@ export const useClientReviewDailySkipDay = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Failed to review skip day request"));
+        throw new Error(
+          getErrorMessage(error, "Failed to review skip day request"),
+        );
       }
 
       return response.json() as Promise<{ success: boolean; message?: string }>;
     },
     onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      const response = data as SkipDayReviewResponse;
+      const skipStatus = response?.skip_request?.status;
+      if (skipStatus) {
+        patchConversationSkipRequestStatus(
+          queryClient,
+          variables.jobId,
+          variables.skipRequestId,
+          skipStatus,
+          response?.skip_request?.client_rejection_reason ?? null,
+        );
+      }
+
+      patchConversationAttendanceRows(
+        queryClient,
+        variables.jobId,
+        response?.processed_attendance || [],
+      );
+
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
@@ -1317,7 +1616,7 @@ export const useClientQASkipNextDay = () => {
 
   return useMutation({
     mutationFn: async ({ jobId, reason }: ClientQASkipNextDayPayload) => {
-      const response = await apiRequest(ENDPOINTS.DAILY_QA_SKIP_NEXT_DAY(jobId), {
+      const response = await apiRequest(ENDPOINTS.JOB_QA_SKIP_NEXT_DAY(jobId), {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
