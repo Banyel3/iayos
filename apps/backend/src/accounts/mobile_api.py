@@ -7572,16 +7572,10 @@ def worker_check_in(request, job_id: int):
 @require_kyc
 def worker_check_out(request, job_id: int):
     """
-    Worker clocks out for a daily job.
-    Updates attendance record with time_out.
-    
-    Constraints:
-    - Only between 6 AM and 8 PM
-    - Must have checked in today first
-    - Only once per day
+    Worker check-out is disabled for DAILY jobs.
+    Checkout ownership is client-only via client mark-checkout endpoint.
     """
-    from datetime import time as dt_time
-    from .models import Job, DailyAttendance, WorkerProfile, Profile
+    from .models import Job, WorkerProfile, Profile
     
     try:
         print(f"⏰ [MOBILE] Worker check-out request for job {job_id} by {request.auth.email}")
@@ -7595,28 +7589,6 @@ def worker_check_out(request, job_id: int):
         # Validate job is DAILY payment model
         if job.payment_model != 'DAILY':
             return Response({"error": "This is not a daily-rate job"}, status=400)
-        
-        # Validate time constraints: 6 AM - 8 PM
-        current_time = _get_ph_current_time()
-        start_time = dt_time(6, 0, 0)   # 6 AM
-        end_time = dt_time(20, 0, 0)    # 8 PM
-        
-        if current_time < start_time or current_time > end_time:
-            _log_mobile(
-                "worker_check_out_blocked_time_window",
-                account_id=getattr(request.auth, "accountID", None),
-                job_id=job_id,
-                current_time=current_time.strftime("%H:%M:%S"),
-                window_start="06:00:00",
-                window_end="20:00:00",
-                utc_now=timezone.now().strftime("%Y-%m-%d %H:%M:%S%z"),
-            )
-            return Response({
-                "error": "Check-out is only allowed between 6:00 AM and 8:00 PM",
-                "current_time": current_time.strftime("%H:%M"),
-                "allowed_start": "06:00",
-                "allowed_end": "20:00"
-            }, status=400)
         
         # Get worker's profile
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
@@ -7642,49 +7614,10 @@ def worker_check_out(request, job_id: int):
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
 
-        now = timezone.now()
-        today = _get_effective_work_date(job)
-        
-        # Get today's attendance record
-        try:
-            attendance = DailyAttendance.objects.get(
-                jobID=job,
-                workerID=worker,
-                date=today
-            )
-        except DailyAttendance.DoesNotExist:
-            return Response({"error": "No check-in found for today. Please check in first."}, status=400)
-        
-        # Check if already checked out
-        if attendance.time_out:
-            return Response({
-                "error": "Already checked out for today",
-                "attendance_id": attendance.attendanceID,
-                "time_out": attendance.time_out.isoformat()
-            }, status=400)
-        
-        # Update time_out
-        attendance.time_out = now
-        attendance.save()
-        
-        # Calculate hours worked
-        hours_worked = None
-        if attendance.time_in:
-            delta = now - attendance.time_in
-            hours_worked = round(delta.total_seconds() / 3600, 2)
-        
-        print(f"✅ [MOBILE] Worker checked out: attendance_id={attendance.attendanceID}, time_out={now}, hours={hours_worked}")
-        
-        return {
-            "success": True,
-            "attendance_id": attendance.attendanceID,
-            "time_in": attendance.time_in.isoformat() if attendance.time_in else None,
-            "time_out": now.isoformat(),
-            "hours_worked": hours_worked,
-            "date": str(today),
-            "message": "Successfully checked out. Awaiting client confirmation for payment.",
-            "awaiting_client_confirmation": not attendance.client_confirmed
-        }
+        return Response({
+            "error": "Worker check-out is disabled for daily jobs. Ask the client to mark check-out once work is done.",
+            "action_required": "CLIENT_MARK_CHECKOUT"
+        }, status=400)
         
     except Exception as e:
         print(f"❌ [MOBILE] Worker check-out error: {str(e)}")
