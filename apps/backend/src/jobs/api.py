@@ -9417,10 +9417,11 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
 
 
 @router.post("/{job_id}/daily/qa/skip-next-day", auth=dual_auth)
+@router.post("/{job_id}/qa/skip-next-day", auth=dual_auth)
 @require_kyc
 def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     """
-    TESTING-only endpoint: client advances DAILY job by one effective day.
+    TESTING-only endpoint: client advances an eligible job by one effective day.
     This does not change server time and is blocked in production.
     """
     if not is_testing_mode_enabled():
@@ -9433,8 +9434,15 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     except Job.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)
 
-    if job.payment_model != 'DAILY':
-        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+    is_daily = getattr(job, 'payment_model', None) == 'DAILY'
+    is_project_multiday = (
+        getattr(job, 'payment_model', None) == 'PROJECT'
+        and int(getattr(job, 'duration_days', 0) or 0) > 1
+    )
+    if not is_daily and not is_project_multiday:
+        return Response({
+            "error": "QA skip-next-day is only available for DAILY or multi-day PROJECT jobs"
+        }, status=400)
 
     if job.status != 'IN_PROGRESS':
         return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)

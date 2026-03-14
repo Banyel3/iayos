@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **QA Skip-Next-Day Support for Multi-Day PROJECT Jobs**
+  - Extended mobile QA skip-next-day control to eligible multi-day `PROJECT` jobs (team and non-team), while preserving existing `DAILY` behavior.
+  - Added backend eligibility support so QA day fast-forward works for `DAILY` and for `PROJECT` jobs with `duration_days > 1`.
+  - Added generic QA route support (`/api/jobs/{job_id}/qa/skip-next-day`) and switched mobile mutation to the generic endpoint.
+  - **Impact**: QA can fast-forward effective work day in multi-day project conversations without needing DAILY-only flow.
+
 - **Team PROJECT Multi-Day Attendance Flow (No Per-Day Payout)**
   - Enabled daily attendance UI in mobile conversation for multi-day TEAM `PROJECT` jobs (while keeping DAILY behavior intact).
   - Enabled worker "On The Way" and undo check-in actions for multi-day TEAM `PROJECT` jobs.

@@ -2646,6 +2646,13 @@ export default function ChatScreen() {
   const isTeamProjectAttendance =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "PROJECT";
+  const isProjectMultiDayJob =
+    conversation.job?.payment_model === "PROJECT" && configuredDurationDays > 1;
+  const canShowQASkipNextDay =
+    conversation.my_role === "CLIENT" &&
+    isTestingModeEnabled &&
+    conversation.job?.status === "IN_PROGRESS" &&
+    (conversation.job?.payment_model === "DAILY" || isProjectMultiDayJob);
   const showDailyEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
@@ -3022,6 +3029,67 @@ export default function ChatScreen() {
           {/* Action Buttons (replaces role banner) */}
           {isJobInProgress && !conversation.job.clientMarkedComplete && (
             <View style={styles.actionButtonsContainer}>
+              {canShowQASkipNextDay &&
+                (() => {
+                  const qaDayOffset = conversation.qa_day_offset || 0;
+                  const effectiveDate =
+                    conversation.effective_work_date ||
+                    new Date().toISOString().split("T")[0];
+                  const canAdvanceQaDay =
+                    !configuredDurationDays || qaDayOffset < qaMaxOffset;
+
+                  return (
+                    <View style={styles.qaTestingCard}>
+                      <Text style={styles.qaTestingLabel}>QA TESTING ONLY</Text>
+                      <Text style={styles.qaTestingText}>
+                        Effective day: {effectiveDate} (offset +{qaDayOffset})
+                      </Text>
+                      {canAdvanceQaDay ? (
+                        <TouchableOpacity
+                          style={styles.qaSkipNextDayButton}
+                          onPress={() =>
+                            Alert.alert(
+                              "[QA] Skip To Next Day",
+                              "Advance this job by 1 effective day for testing? This action is TESTING-only.",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Advance +1 Day",
+                                  onPress: () =>
+                                    clientQASkipNextDayMutation.mutate({
+                                      jobId: conversation.job.id,
+                                      reason: "QA client-triggered fast-forward",
+                                    }),
+                                },
+                              ],
+                            )
+                          }
+                          disabled={clientQASkipNextDayMutation.isPending}
+                        >
+                          {clientQASkipNextDayMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="play-forward"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.qaSkipNextDayButtonText}>
+                                [QA] Skip To Next Day
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : (
+                        <Text style={styles.qaSkipLimitText}>
+                          Reached configured duration. Extend by 1 day or finish the job below.
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })()}
+
               {/* Attendance Tracking Section (DAILY + team PROJECT) */}
               {(conversation.job?.payment_model === "DAILY" ||
                 isTeamProjectAttendance) && (
@@ -3534,78 +3602,6 @@ export default function ChatScreen() {
                             <Text style={styles.skipDayStatusText}>
                               {todaySkipRequest.client_rejection_reason ||
                                 "Request was declined."}
-                            </Text>
-                          )}
-                        </View>
-                      );
-                    })()}
-
-                  {conversation.my_role === "CLIENT" &&
-                    !isTeamProjectAttendance &&
-                    isTestingModeEnabled &&
-                    conversation.job?.status === "IN_PROGRESS" &&
-                    (() => {
-                      const qaDayOffset = conversation.qa_day_offset || 0;
-                      const effectiveDate =
-                        conversation.effective_work_date ||
-                        new Date().toISOString().split("T")[0];
-                      const canAdvanceQaDay =
-                        !configuredDurationDays || qaDayOffset < qaMaxOffset;
-
-                      return (
-                        <View style={styles.qaTestingCard}>
-                          <Text style={styles.qaTestingLabel}>
-                            QA TESTING ONLY
-                          </Text>
-                          <Text style={styles.qaTestingText}>
-                            Effective day: {effectiveDate} (offset +
-                            {qaDayOffset})
-                          </Text>
-                          {canAdvanceQaDay ? (
-                            <TouchableOpacity
-                              style={styles.qaSkipNextDayButton}
-                              onPress={() =>
-                                Alert.alert(
-                                  "[QA] Skip To Next Day",
-                                  "Advance this DAILY job by 1 effective day for testing? This action is TESTING-only.",
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    {
-                                      text: "Advance +1 Day",
-                                      onPress: () =>
-                                        clientQASkipNextDayMutation.mutate({
-                                          jobId: conversation.job.id,
-                                          reason:
-                                            "QA client-triggered fast-forward",
-                                        }),
-                                    },
-                                  ],
-                                )
-                              }
-                              disabled={clientQASkipNextDayMutation.isPending}
-                            >
-                              {clientQASkipNextDayMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="play-forward"
-                                    size={16}
-                                    color={Colors.white}
-                                  />
-                                  <Text style={styles.qaSkipNextDayButtonText}>
-                                    [QA] Skip To Next Day
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          ) : (
-                            <Text style={styles.qaSkipLimitText}>
-                              Reached configured DAILY duration. Extend by 1 day
-                              or finish the job below.
                             </Text>
                           )}
                         </View>

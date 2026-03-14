@@ -695,6 +695,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/skip-day/request`,
   DAILY_SKIP_DAY_REVIEW: (jobId: number, skipRequestId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/skip-day/${skipRequestId}/review`,
+  JOB_QA_SKIP_NEXT_DAY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/qa/skip-next-day`,
   DAILY_QA_SKIP_NEXT_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/qa/skip-next-day`,
   // Cancellation

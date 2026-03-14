@@ -1317,7 +1317,7 @@ export const useClientQASkipNextDay = () => {
 
   return useMutation({
     mutationFn: async ({ jobId, reason }: ClientQASkipNextDayPayload) => {
-      const response = await apiRequest(ENDPOINTS.DAILY_QA_SKIP_NEXT_DAY(jobId), {
+      const response = await apiRequest(ENDPOINTS.JOB_QA_SKIP_NEXT_DAY(jobId), {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
