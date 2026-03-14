@@ -6815,12 +6815,13 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
                 + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
             )
 
+        eligible_assignment_statuses = ['ACTIVE', 'COMPLETED']
         team_assignments = JobWorkerAssignment.objects.filter(
             jobID=job,
-            assignment_status='ACTIVE'
+            assignment_status__in=eligible_assignment_statuses,
         ).select_related('workerID__profileID__accountFK') if job.is_team_job else JobWorkerAssignment.objects.none()
 
-        # Notify all active team workers for team jobs, otherwise notify assigned worker/agency.
+        # Notify all eligible team workers for team jobs, otherwise notify assigned worker/agency.
         if job.is_team_job and team_assignments.exists():
             for assignment in team_assignments:
                 Notification.objects.create(
@@ -6905,14 +6906,15 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             employee__agency=request.auth
         ).first()
 
-        active_team_assignments = JobWorkerAssignment.objects.filter(
+        eligible_assignment_statuses = ['ACTIVE', 'COMPLETED']
+        eligible_team_assignments = JobWorkerAssignment.objects.filter(
             jobID=job,
-            assignment_status='ACTIVE'
+            assignment_status__in=eligible_assignment_statuses,
         ).select_related('workerID__profileID__accountFK') if job.is_team_job else JobWorkerAssignment.objects.none()
 
         requester_team_assignment = None
         if worker_profile and job.is_team_job:
-            requester_team_assignment = active_team_assignments.filter(
+            requester_team_assignment = eligible_team_assignments.filter(
                 workerID=worker_profile
             ).first()
 
@@ -6943,18 +6945,18 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 "status": "UNDER_REVIEW",
                 "scheduled_date": dispute.scheduled_date.isoformat(),
                 "worker_schedule_confirmed": True,
-                "team_schedule_total_workers": active_team_assignments.count() if job.is_team_job else 0,
-                "team_schedule_confirmed_count": active_team_assignments.count() if job.is_team_job else 0,
+                "team_schedule_total_workers": eligible_team_assignments.count() if job.is_team_job else 0,
+                "team_schedule_confirmed_count": eligible_team_assignments.count() if job.is_team_job else 0,
             }
 
         team_total_workers = 0
         team_confirmed_count = 0
         requester_confirmed = True
 
-        if job.is_team_job and active_team_assignments.exists() and not requester_employee_assignment:
-            team_total_workers = active_team_assignments.count()
+        if job.is_team_job and eligible_team_assignments.exists() and not requester_employee_assignment:
+            team_total_workers = eligible_team_assignments.count()
             if not requester_team_assignment:
-                return Response({"error": "Only active assigned team workers can confirm this schedule"}, status=403)
+                return Response({"error": "Only assigned team workers can confirm this schedule"}, status=403)
 
             confirmation, created = BackjobScheduleConfirmation.objects.get_or_create(
                 disputeID=dispute,
@@ -6970,7 +6972,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 confirmation.confirmedAt = timezone.now()
                 confirmation.save(update_fields=["confirmed", "confirmedBy", "confirmedAt", "updatedAt"])
 
-            active_assignment_ids = list(active_team_assignments.values_list('assignmentID', flat=True))
+            active_assignment_ids = list(eligible_team_assignments.values_list('assignmentID', flat=True))
             team_confirmed_count = BackjobScheduleConfirmation.objects.filter(
                 disputeID=dispute,
                 assignmentID_id__in=active_assignment_ids,
@@ -7535,8 +7537,8 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
     Create a new team job with multiple skill slot requirements.
     
     Team jobs require:
-    - At least one skill slot
-    - At least 1 worker total across all slots
+    - At least 2 skill slots
+    - At least 2 workers total across all slots
     - Budget and allocation type
     
     Escrow (50% of total budget) is held on creation.
@@ -8791,21 +8793,8 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
             "time_out": attendance.time_out.isoformat()
         }, status=400)
     
-    # Enforce minimum work duration before checkout (applies in QA and production).
-    now = timezone.now()
-    elapsed_seconds = (now - attendance.time_in).total_seconds()
-    minimum_seconds = 2 * 3600
-    if elapsed_seconds < minimum_seconds:
-        remaining_minutes = int((minimum_seconds - elapsed_seconds + 59) // 60)
-        return Response({
-            "error": "Checkout is allowed only after 2 hours of work",
-            "minimum_hours": 2,
-            "remaining_minutes": remaining_minutes,
-            "time_in": attendance.time_in.isoformat(),
-        }, status=400)
-
     # Set time_out (work ends now)
-    attendance.time_out = now
+    attendance.time_out = timezone.now()
     attendance.worker_confirmed = True  # Auto-confirm on checkout
     attendance.save()
     
@@ -9431,9 +9420,17 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     if not job.clientID or job.clientID.profileID.accountFK != request.auth:
         return Response({"error": "Only the job client can advance QA day"}, status=403)
 
-    old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    stored_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    old_offset = max(stored_offset, 0)
     duration_days = int(getattr(job, 'duration_days', 0) or 0)
     max_offset = max(duration_days - 1, 0) if duration_days > 0 else None
+
+    # Self-heal previously persisted out-of-range values from older QA builds.
+    if max_offset is not None and old_offset > max_offset:
+        old_offset = max_offset
+        if stored_offset != old_offset:
+            job.qa_day_offset = old_offset
+            job.save(update_fields=['qa_day_offset', 'updatedAt'])
 
     if max_offset is not None and old_offset >= max_offset:
         return Response({

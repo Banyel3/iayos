@@ -164,13 +164,13 @@ def create_team_job(
     """
     from datetime import datetime
     
-    # Validate skill slots
-    if not skill_slots_data or len(skill_slots_data) == 0:
-        return {'success': False, 'error': 'At least one skill slot is required'}
+    # Validate minimum team size requirements
+    if not skill_slots_data or len(skill_slots_data) < 2:
+        return {'success': False, 'error': 'Team jobs require at least 2 skill slots'}
     
     total_workers = sum(slot.get('workers_needed', 1) for slot in skill_slots_data)
-    if total_workers < 1:
-        return {'success': False, 'error': 'Team jobs require at least 1 worker total'}
+    if total_workers < 2:
+        return {'success': False, 'error': 'Team jobs require at least 2 workers total'}
     
     # Validate specializations exist
     spec_ids = [slot['specialization_id'] for slot in skill_slots_data]
