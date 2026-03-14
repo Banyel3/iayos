@@ -5134,11 +5134,13 @@ export default function ChatScreen() {
           )}
 
           {/* Backjob Banners - Request or Edit Feedback */}
-          {/* Request Backjob Banner - CLIENT ONLY - Only if no backjob ever requested */}
+          {/* Request Backjob Banner - CLIENT ONLY - requires completed reviews */}
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
             !conversation.backjob?.has_backjob &&
-            isConversationClosed && (
+            isConversationClosed &&
+            viewerHasReviewed &&
+            counterpartyHasReviewed && (
               <TouchableOpacity
                 style={styles.requestBackjobBanner}
                 onPress={() =>
@@ -5199,6 +5201,76 @@ export default function ChatScreen() {
                     )}
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#EF6C00" />
+                </View>
+              </TouchableOpacity>
+            )}
+
+          {/* Review Reminder Banner - CLIENT ONLY - show when reviews are required before backjob */}
+          {conversation.my_role === "CLIENT" &&
+            (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
+            !conversation.backjob?.has_backjob &&
+            isConversationClosed &&
+            (!viewerHasReviewed || !counterpartyHasReviewed) && (
+              <TouchableOpacity
+                style={styles.requestBackjobBanner}
+                onPress={() => {
+                  if (!viewerHasReviewed) {
+                    openReviewModalSafely("submit");
+                    return;
+                  }
+
+                  Alert.alert(
+                    "Waiting For Worker Review",
+                    "You have completed your review. The worker still needs to finish theirs before a backjob can be requested.",
+                  );
+                }}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.requestBackjobContent,
+                    {
+                      backgroundColor: "#FFF8E1",
+                      borderColor: "#FFECB3",
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.requestBackjobIconContainer,
+                      {
+                        backgroundColor: "#F9A825",
+                      },
+                    ]}
+                  >
+                    <Ionicons name="alert-circle" size={24} color={Colors.white} />
+                  </View>
+                  <View style={styles.requestBackjobText}>
+                    <Text
+                      style={[styles.requestBackjobTitle, { color: "#5D4037" }]}
+                    >
+                      Still broken?
+                    </Text>
+                    <Text
+                      style={[
+                        styles.requestBackjobSubtitle,
+                        { color: "#6D4C41" },
+                      ]}
+                    >
+                      To request a backjob, complete reviews first.
+                    </Text>
+                    {!viewerHasReviewed && (
+                      <Text
+                        style={[
+                          styles.requestBackjobSubtitle,
+                          { color: "#5D4037", marginTop: 2, fontWeight: "600" },
+                        ]}
+                      >
+                        Tap here to leave your review now.
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#6D4C41" />
                 </View>
               </TouchableOpacity>
             )}
