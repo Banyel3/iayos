@@ -7537,7 +7537,7 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
     Create a new team job with multiple skill slot requirements.
     
     Team jobs require:
-    - At least 2 skill slots
+    - At least 1 skill slot
     - At least 2 workers total across all slots
     - Budget and allocation type
     
@@ -8793,21 +8793,8 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
             "time_out": attendance.time_out.isoformat()
         }, status=400)
     
-    # Enforce minimum work duration before checkout (applies in QA and production).
-    now = timezone.now()
-    elapsed_seconds = (now - attendance.time_in).total_seconds()
-    minimum_seconds = 2 * 3600
-    if elapsed_seconds < minimum_seconds:
-        remaining_minutes = int((minimum_seconds - elapsed_seconds + 59) // 60)
-        return Response({
-            "error": "Checkout is allowed only after 2 hours of work",
-            "minimum_hours": 2,
-            "remaining_minutes": remaining_minutes,
-            "time_in": attendance.time_in.isoformat(),
-        }, status=400)
-
     # Set time_out (work ends now)
-    attendance.time_out = now
+    attendance.time_out = timezone.now()
     attendance.worker_confirmed = True  # Auto-confirm on checkout
     attendance.save()
     
