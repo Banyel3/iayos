@@ -9357,7 +9357,7 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
     """
     Client approves/rejects a DAILY skip-day request.
     """
-    from accounts.models import DailySkipDayRequest
+    from accounts.models import DailySkipDayRequest, DailyAttendance
 
     try:
         job = Job.objects.get(jobID=job_id)
@@ -9385,24 +9385,119 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
     if action not in ['approve', 'reject']:
         return Response({"error": "action must be 'approve' or 'reject'"}, status=400)
 
-    if action == 'approve':
-        skip_request.status = 'APPROVED'
-        skip_request.client_rejection_reason = None
-        message = 'Skip-day request approved'
-    else:
-        skip_request.status = 'REJECTED'
-        skip_request.client_rejection_reason = (data.reason or 'Client declined skip day request.').strip()
-        message = 'Skip-day request rejected'
+    processed_attendance_rows = []
+    with db_transaction.atomic():
+        if action == 'approve':
+            target_account_ids = list(skip_request.requested_account_ids or [])
+            if not target_account_ids and skip_request.requestedByUser_id:
+                target_account_ids = [int(skip_request.requestedByUser_id)]
 
-    skip_request.reviewedByUser = request.auth
-    skip_request.reviewedAt = timezone.now()
-    skip_request.save(update_fields=[
-        'status',
-        'client_rejection_reason',
-        'reviewedByUser',
-        'reviewedAt',
-        'updatedAt',
-    ])
+            target_workers = []
+            seen_worker_ids = set()
+
+            if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK_id in target_account_ids:
+                target_workers.append(job.assignedWorkerID)
+                seen_worker_ids.add(job.assignedWorkerID.workerProfileID)
+
+            if getattr(job, 'is_team_job', False):
+                assignment_workers = WorkerProfile.objects.filter(
+                    workerProfileID__in=JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        workerID__isnull=False,
+                        workerID__profileID__accountFK_id__in=target_account_ids,
+                        assignment_status__in=['ACTIVE', 'COMPLETED'],
+                    ).values_list('workerID_id', flat=True)
+                )
+
+                for worker in assignment_workers:
+                    if worker.workerProfileID in seen_worker_ids:
+                        continue
+                    target_workers.append(worker)
+                    seen_worker_ids.add(worker.workerProfileID)
+
+            if not target_workers and job.assignedWorkerID and not getattr(job, 'is_team_job', False):
+                target_workers = [job.assignedWorkerID]
+
+            if not target_workers:
+                return Response({
+                    "error": "No assigned worker found to mark absent for this skip day request"
+                }, status=400)
+
+            now = timezone.now()
+            for worker in target_workers:
+                attendance, _ = DailyAttendance.objects.get_or_create(
+                    jobID=job,
+                    workerID=worker,
+                    date=skip_request.request_date,
+                    defaults={
+                        'status': 'ABSENT',
+                        'amount_earned': Decimal('0.00'),
+                        'worker_confirmed': True,
+                        'worker_confirmed_at': now,
+                        'notes': f'Skip day approved by client (request #{skip_request.skipRequestID})',
+                    },
+                )
+
+                if attendance.time_in:
+                    return Response({
+                        "error": "Cannot approve skip day because a worker already checked in for the requested date"
+                    }, status=400)
+
+                if not attendance.worker_confirmed:
+                    attendance.worker_confirmed = True
+                    attendance.worker_confirmed_at = attendance.worker_confirmed_at or now
+
+                attendance.status = 'ABSENT'
+                attendance.amount_earned = Decimal('0.00')
+                attendance.notes = f'Skip day approved by client (request #{skip_request.skipRequestID})'
+                attendance.save(update_fields=[
+                    'worker_confirmed',
+                    'worker_confirmed_at',
+                    'status',
+                    'amount_earned',
+                    'notes',
+                    'updatedAt',
+                ])
+
+                if not attendance.client_confirmed:
+                    confirm_result = DailyPaymentService.confirm_attendance_client(
+                        attendance,
+                        request.auth,
+                        approved_status='ABSENT',
+                    )
+                    if not confirm_result.get('success'):
+                        return Response({
+                            "error": confirm_result.get('error', 'Failed to confirm absent attendance')
+                        }, status=400)
+
+                processed_attendance_rows.append({
+                    "attendance_id": attendance.attendanceID,
+                    "worker_id": attendance.workerID_id,
+                    "worker_account_id": attendance.workerID.profileID.accountFK_id if attendance.workerID and attendance.workerID.profileID else None,
+                    "status": attendance.status,
+                    "client_confirmed": attendance.client_confirmed,
+                    "amount_earned": float(attendance.amount_earned),
+                    "payment_processed": attendance.payment_processed,
+                    "absent_penalty_amount": float(attendance.absent_penalty_amount or Decimal('0.00')),
+                })
+
+            skip_request.status = 'APPROVED'
+            skip_request.client_rejection_reason = None
+            message = 'Skip-day request approved. Worker marked absent for the requested day.'
+        else:
+            skip_request.status = 'REJECTED'
+            skip_request.client_rejection_reason = (data.reason or 'Client declined skip day request.').strip()
+            message = 'Skip-day request rejected'
+
+        skip_request.reviewedByUser = request.auth
+        skip_request.reviewedAt = timezone.now()
+        skip_request.save(update_fields=[
+            'status',
+            'client_rejection_reason',
+            'reviewedByUser',
+            'reviewedAt',
+            'updatedAt',
+        ])
 
     return {
         "success": True,
@@ -9412,7 +9507,8 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
             "status": skip_request.status,
             "client_rejection_reason": skip_request.client_rejection_reason,
             "reviewed_at": skip_request.reviewedAt.isoformat() if skip_request.reviewedAt else None,
-        }
+        },
+        "processed_attendance": processed_attendance_rows,
     }
 
 

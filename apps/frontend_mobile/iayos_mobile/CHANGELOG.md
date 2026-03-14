@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DAILY Skip-Day Absence Penalty + State Sync**
+  - Client-approved DAILY skip-day now updates conversation state immediately with optimistic cache sync to prevent stale buttons and duplicate-click rejections.
+  - Added attendance row patching for approved skip-day responses so ABSENT/payment-processed state appears without waiting for refetch.
+  - Daily summary card now shows `Absent Penalty (10%)` and `Net Expected Earnings` when penalty data is present.
+  - **Impact**: Prevents frontend/backend state mismatch for skip-day actions and makes absent-penalty effects visible in worker/client daily summaries.
+
 - **PROJECT Multi-Day End-Flow Controls (Team + Single Project)**
   - Added PROJECT multi-day end-action card in conversation for clients when configured duration is reached.
   - Added `Extend +1 Day` action for PROJECT jobs (team and non-team) using new backend endpoint.

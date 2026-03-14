@@ -118,6 +118,25 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
               ₱{summary.payments.escrow_remaining.toLocaleString()}
             </Text>
           </View>
+
+          {typeof summary.payments.absent_penalty_total === "number" &&
+            summary.payments.absent_penalty_total > 0 && (
+              <View style={styles.escrowDetailItem}>
+                <Text style={styles.escrowDetailLabel}>Absent Penalty (10%)</Text>
+                <Text style={[styles.escrowDetailValue, { color: Colors.error }]}>
+                  -₱{summary.payments.absent_penalty_total.toLocaleString()}
+                </Text>
+              </View>
+            )}
+
+          {typeof summary.payments.net_expected_earnings === "number" && (
+            <View style={styles.escrowDetailItem}>
+              <Text style={styles.escrowDetailLabel}>Net Expected Earnings</Text>
+              <Text style={[styles.escrowDetailValue, { color: Colors.primary }]}>
+                ₱{summary.payments.net_expected_earnings.toLocaleString()}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
