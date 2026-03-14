@@ -865,7 +865,7 @@ export default function AgencyChatScreen() {
         {/* Message Input - Floating Style */}
         <div className="p-4 bg-transparent mt-auto z-10">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {isConversationClosed ? (
+            {!isConnected && !isConversationClosed && (`n              <div className="px-4 pt-3 text-xs text-amber-700 bg-amber-50 border-b border-amber-100 flex items-center gap-2">`n                <WifiOff className="h-3.5 w-3.5" />`n                Live updates reconnecting. You can still send messages.`n              </div>`n            )}`n`n            {isConversationClosed ? (
               <div className="p-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-widest">
                 Conversation Closed
               </div>
@@ -1307,3 +1307,4 @@ export default function AgencyChatScreen() {
     </div>
   );
 }
+
