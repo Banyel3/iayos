@@ -17,12 +17,15 @@ from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from .content_filter import censor_contact_info
 
 
 router = Router()
 
 __all__ = ["router"]
+
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
 
 
 def _get_user_profile(request) -> Profile:
@@ -56,7 +59,8 @@ def _get_clamped_qa_day_offset(job) -> int:
 
 
 def _get_effective_work_date(job):
-    base_date = timezone.now().date()
+    # Keep QA effective date consistent with mobile daily attendance endpoints.
+    base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
     if not _is_testing_mode_enabled():
         return base_date
 
