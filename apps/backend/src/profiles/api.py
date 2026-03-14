@@ -1222,12 +1222,27 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                                 confirmed=True,
                             ).exists()
 
+            # Backward compatibility for legacy backjobs:
+            # Some older records remain OPEN even after worker confirmation/execution.
+            # Normalize these to UNDER_REVIEW in payload so chat/UIs don't stay admin-locked.
+            normalized_active_status = active_dispute.status
+            if (
+                active_dispute.status == 'OPEN'
+                and (
+                    active_dispute.workerScheduleConfirmed
+                    or active_dispute.backjobStarted
+                    or active_dispute.workerMarkedBackjobComplete
+                    or active_dispute.clientConfirmedBackjob
+                )
+            ):
+                normalized_active_status = 'UNDER_REVIEW'
+
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
                 "total_backjobs_for_job": total_backjobs_for_job,
-                "latest_dispute_status": latest_dispute.status if latest_dispute else active_dispute.status,
-                "status": active_dispute.status,
+                "latest_dispute_status": latest_dispute.status if latest_dispute else normalized_active_status,
+                "status": normalized_active_status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 # Backjob workflow tracking fields
@@ -2000,12 +2015,27 @@ def get_conversation_messages(request, conversation_id: int):
                                 confirmed=True,
                             ).exists()
 
+            # Backward compatibility for legacy backjobs:
+            # Some older records remain OPEN even after worker confirmation/execution.
+            # Normalize these to UNDER_REVIEW in payload so chat/UIs don't stay admin-locked.
+            normalized_active_status = active_dispute.status
+            if (
+                active_dispute.status == 'OPEN'
+                and (
+                    active_dispute.workerScheduleConfirmed
+                    or active_dispute.backjobStarted
+                    or active_dispute.workerMarkedBackjobComplete
+                    or active_dispute.clientConfirmedBackjob
+                )
+            ):
+                normalized_active_status = 'UNDER_REVIEW'
+
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
                 "total_backjobs_for_job": total_backjobs_for_job,
-                "latest_dispute_status": latest_dispute.status if latest_dispute else active_dispute.status,
-                "status": active_dispute.status,
+                "latest_dispute_status": latest_dispute.status if latest_dispute else normalized_active_status,
+                "status": normalized_active_status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 "description": active_dispute.description,
