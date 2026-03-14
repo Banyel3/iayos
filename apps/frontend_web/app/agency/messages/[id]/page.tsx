@@ -568,9 +568,20 @@ export default function AgencyChatScreen() {
     conversation.backjob?.status === "UNDER_REVIEW" ||
     conversation.backjob?.status === "RESOLVED";
 
+  // Legacy compatibility: old jobs may keep completed job flags set even when
+  // an active backjob cycle is still running. Keep conversation open until the
+  // active backjob is actually finalized.
+  const hasActiveBackjobCycle =
+    !!conversation.backjob?.has_backjob &&
+    !conversation.backjob?.client_confirmed_complete &&
+    conversation.backjob?.status !== "RESOLVED";
+
   const isConversationClosed =
-    conversation.status === "COMPLETED" ||
-    (job.clientMarkedComplete && job.workerReviewed && job.clientReviewed);
+    (conversation.status === "COMPLETED" && !hasActiveBackjobCycle) ||
+    (job.clientMarkedComplete &&
+      job.workerReviewed &&
+      job.clientReviewed &&
+      !hasActiveBackjobCycle);
 
   const backjobStatus = conversation.backjob?.status;
   const isBackjobReviewLocked =
