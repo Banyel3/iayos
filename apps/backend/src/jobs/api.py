@@ -6815,12 +6815,13 @@ def set_backjob_scheduled_date_by_client(request, job_id: int):
                 + (" Negotiation reopened." if old_dispute_status == "UNDER_REVIEW" else "")
             )
 
+        eligible_assignment_statuses = ['ACTIVE', 'COMPLETED']
         team_assignments = JobWorkerAssignment.objects.filter(
             jobID=job,
-            assignment_status='ACTIVE'
+            assignment_status__in=eligible_assignment_statuses,
         ).select_related('workerID__profileID__accountFK') if job.is_team_job else JobWorkerAssignment.objects.none()
 
-        # Notify all active team workers for team jobs, otherwise notify assigned worker/agency.
+        # Notify all eligible team workers for team jobs, otherwise notify assigned worker/agency.
         if job.is_team_job and team_assignments.exists():
             for assignment in team_assignments:
                 Notification.objects.create(
@@ -6905,14 +6906,15 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             employee__agency=request.auth
         ).first()
 
-        active_team_assignments = JobWorkerAssignment.objects.filter(
+        eligible_assignment_statuses = ['ACTIVE', 'COMPLETED']
+        eligible_team_assignments = JobWorkerAssignment.objects.filter(
             jobID=job,
-            assignment_status='ACTIVE'
+            assignment_status__in=eligible_assignment_statuses,
         ).select_related('workerID__profileID__accountFK') if job.is_team_job else JobWorkerAssignment.objects.none()
 
         requester_team_assignment = None
         if worker_profile and job.is_team_job:
-            requester_team_assignment = active_team_assignments.filter(
+            requester_team_assignment = eligible_team_assignments.filter(
                 workerID=worker_profile
             ).first()
 
@@ -6943,18 +6945,18 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 "status": "UNDER_REVIEW",
                 "scheduled_date": dispute.scheduled_date.isoformat(),
                 "worker_schedule_confirmed": True,
-                "team_schedule_total_workers": active_team_assignments.count() if job.is_team_job else 0,
-                "team_schedule_confirmed_count": active_team_assignments.count() if job.is_team_job else 0,
+                "team_schedule_total_workers": eligible_team_assignments.count() if job.is_team_job else 0,
+                "team_schedule_confirmed_count": eligible_team_assignments.count() if job.is_team_job else 0,
             }
 
         team_total_workers = 0
         team_confirmed_count = 0
         requester_confirmed = True
 
-        if job.is_team_job and active_team_assignments.exists() and not requester_employee_assignment:
-            team_total_workers = active_team_assignments.count()
+        if job.is_team_job and eligible_team_assignments.exists() and not requester_employee_assignment:
+            team_total_workers = eligible_team_assignments.count()
             if not requester_team_assignment:
-                return Response({"error": "Only active assigned team workers can confirm this schedule"}, status=403)
+                return Response({"error": "Only assigned team workers can confirm this schedule"}, status=403)
 
             confirmation, created = BackjobScheduleConfirmation.objects.get_or_create(
                 disputeID=dispute,
@@ -6970,7 +6972,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 confirmation.confirmedAt = timezone.now()
                 confirmation.save(update_fields=["confirmed", "confirmedBy", "confirmedAt", "updatedAt"])
 
-            active_assignment_ids = list(active_team_assignments.values_list('assignmentID', flat=True))
+            active_assignment_ids = list(eligible_team_assignments.values_list('assignmentID', flat=True))
             team_confirmed_count = BackjobScheduleConfirmation.objects.filter(
                 disputeID=dispute,
                 assignmentID_id__in=active_assignment_ids,
