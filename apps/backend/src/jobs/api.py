@@ -4923,7 +4923,13 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 
                 if existing_employee_review:
                     return Response(
-                        {"error": f"You have already reviewed {employee.name}"},
+                        {
+                            "error": f"You have already reviewed {employee.name}",
+                            "error_code": "REVIEW_ALREADY_EXISTS",
+                            "existing_review_id": existing_employee_review.reviewID,
+                            "review_target": "EMPLOYEE",
+                            "employee_id": employee.employeeID,
+                        },
                         status=400
                     )
                 
@@ -5047,7 +5053,12 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 
                 if existing_agency_review:
                     return Response(
-                        {"error": "You have already reviewed this agency"},
+                        {
+                            "error": "You have already reviewed this agency",
+                            "error_code": "REVIEW_ALREADY_EXISTS",
+                            "existing_review_id": existing_agency_review.reviewID,
+                            "review_target": "AGENCY",
+                        },
                         status=400
                     )
                 
@@ -5168,7 +5179,11 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             
             if existing_review:
                 return Response(
-                    {"error": "You have already submitted a review for this job"},
+                    {
+                        "error": "You have already submitted a review for this job",
+                        "error_code": "REVIEW_ALREADY_EXISTS",
+                        "existing_review_id": existing_review.reviewID,
+                    },
                     status=400
                 )
             
@@ -5282,7 +5297,12 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             
             if existing_review:
                 return Response(
-                    {"error": "You have already submitted a review for this person on this job"},
+                    {
+                        "error": "You have already submitted a review for this person on this job",
+                        "error_code": "REVIEW_ALREADY_EXISTS",
+                        "existing_review_id": existing_review.reviewID,
+                        "reviewee_account_id": reviewee_profile.accountFK.accountID,
+                    },
                     status=400
                 )
             
