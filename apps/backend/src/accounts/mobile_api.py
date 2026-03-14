@@ -7434,10 +7434,10 @@ def cleanup_maestro_test_data(request):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DAILY ATTENDANCE ENDPOINTS - Worker Clock In/Out + Client Confirmation
+# DAILY ATTENDANCE ENDPOINTS - Worker On-The-Way + Client Arrival/Checkout Confirmation
 # ══════════════════════════════════════════════════════════════════════════════
 # These endpoints provide simplified daily attendance tracking for the chat screen.
-# Time constraints: Check-in allowed starting 6 AM (no evening cutoff); check-out remains 6 AM - 8 PM.
+# Worker "on the way" has no time gate; client verify-arrival sets the actual time_in.
 # Auto-payment triggers when client confirms worker has gone home.
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -7449,16 +7449,14 @@ def worker_check_in(request, job_id: int):
     Creates/updates attendance in DISPATCHED state (no time_in yet).
     
     Constraints:
-    - Only from 6 AM onwards (except QA testing day-offset flow)
     - Only for IN_PROGRESS daily-rate jobs
     - Only once per day per worker
     """
-    from datetime import time as dt_time
     from decimal import Decimal
     from .models import Job, DailyAttendance, WorkerProfile, Profile
     
     try:
-        print(f"⏰ [MOBILE] Worker check-in request for job {job_id} by {request.auth.email}")
+        print(f"⏰ [MOBILE] Worker on-the-way request for job {job_id} by {request.auth.email}")
         
         # Get job
         try:
@@ -7473,30 +7471,6 @@ def worker_check_in(request, job_id: int):
         # Validate job is IN_PROGRESS
         if job.status != 'IN_PROGRESS':
             return Response({"error": f"Job must be in progress. Current status: {job.status}"}, status=400)
-        
-        # Validate time constraint: from 6 AM onwards.
-        # QA/testing fast-forwarded day flow may check in at any time.
-        current_time = _get_ph_current_time()
-        start_time = dt_time(6, 0, 0)   # 6 AM
-        qa_day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
-        is_qa_offset_checkin = _is_testing_mode_enabled() and qa_day_offset > 0
-        
-        if current_time < start_time and not is_qa_offset_checkin:
-            _log_mobile(
-                "worker_check_in_blocked_time_window",
-                account_id=getattr(request.auth, "accountID", None),
-                job_id=job_id,
-                current_time=current_time.strftime("%H:%M:%S"),
-                window_start="06:00:00",
-                window_end=None,
-                utc_now=timezone.now().strftime("%Y-%m-%d %H:%M:%S%z"),
-            )
-            return Response({
-                "error": "Check-in is only allowed starting 6:00 AM",
-                "current_time": current_time.strftime("%H:%M"),
-                "allowed_start": "06:00",
-                "allowed_end": None
-            }, status=400)
         
         # Get worker's profile
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
@@ -7540,10 +7514,10 @@ def worker_check_in(request, job_id: int):
                 "status": existing_attendance.status,
             }, status=400)
 
-        # Legacy compatibility: already checked in by older flow
+        # Arrival already verified by client for this day
         if existing_attendance and existing_attendance.time_in:
             return Response({
-                "error": "Already checked in for today",
+                "error": "Arrival already verified for today",
                 "attendance_id": existing_attendance.attendanceID,
                 "time_in": existing_attendance.time_in.isoformat() if existing_attendance.time_in else None
             }, status=400)
@@ -7576,10 +7550,10 @@ def worker_check_in(request, job_id: int):
         }
         
     except Exception as e:
-        print(f"❌ [MOBILE] Worker check-in error: {str(e)}")
+        print(f"❌ [MOBILE] Worker on-the-way error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return Response({"error": f"Check-in failed: {str(e)}"}, status=500)
+        return Response({"error": f"Mark on-the-way failed: {str(e)}"}, status=500)
 
 
 @mobile_router.post("/daily-attendance/{job_id}/worker-check-out", auth=dual_auth)
