@@ -560,6 +560,14 @@ export default function AgencyChatScreen() {
   // Agency conversation uses client, assigned_employee(s), and job
   const { client, assigned_employee, assigned_employees, job, messages } =
     conversation;
+
+  const isAgencyBackjob =
+    conversation.backjob?.has_backjob && conversation.my_role === "AGENCY";
+  const isBackjobExecutionPhase =
+    !!conversation.backjob?.backjob_started ||
+    conversation.backjob?.status === "UNDER_REVIEW" ||
+    conversation.backjob?.status === "RESOLVED";
+
   const isConversationClosed =
     conversation.status === "COMPLETED" ||
     (job.clientMarkedComplete && job.workerReviewed && job.clientReviewed);
@@ -672,15 +680,26 @@ export default function AgencyChatScreen() {
                       )}
                     </div>
                   )}
-                {conversation.backjob.status === "UNDER_REVIEW" &&
-                  conversation.my_role === "AGENCY" && (
-                    <div className="mt-2">
-                      <div className="text-xs text-gray-500 italic">
-                        Waiting for admin investigation. Chat and actions unlock
-                        after negotiation is approved.
-                      </div>
-                    </div>
-                  )}
+                {isAgencyBackjob && (
+                  <div className="mt-2">
+                      {!isBackjobExecutionPhase &&
+                      conversation.backjob.worker_schedule_confirmed ? (
+                        <div className="text-xs text-gray-500 italic">
+                          Waiting for client to confirm...
+                        </div>
+                      ) : isBackjobExecutionPhase &&
+                        !conversation.backjob.worker_marked_complete ? (
+                        <Button
+                          size="sm"
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          onClick={() => setShowBackjobCompleteModal(true)}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" /> Mark
+                          Complete
+                        </Button>
+                      ) : null}
+                  </div>
+                )}
               </div>
             )}
 
