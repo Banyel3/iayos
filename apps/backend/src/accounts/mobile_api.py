@@ -7453,7 +7453,7 @@ def worker_check_in(request, job_id: int):
     - Only once per day per worker
     """
     from decimal import Decimal
-    from .models import Job, DailyAttendance, WorkerProfile, Profile
+    from .models import Job, DailyAttendance, WorkerProfile, Profile, Notification
     
     try:
         print(f"⏰ [MOBILE] Worker on-the-way request for job {job_id} by {request.auth.email}")
@@ -7538,10 +7538,38 @@ def worker_check_in(request, job_id: int):
         )
         
         print(f"✅ [MOBILE] Worker marked on the way: attendance_id={attendance.attendanceID}, at={now}")
+
+        # Notify client and broadcast a live update so both conversation views refresh quickly.
+        try:
+            Notification.objects.create(
+                accountFK=job.clientID.profileID.accountFK,
+                notificationType=Notification.NotificationType.SYSTEM,
+                title="Worker On The Way",
+                message=f"Worker is on the way for '{job.title}'.",
+                relatedJobID=job.jobID,
+            )
+        except Exception as notif_error:
+            print(f"⚠️ [MOBILE] Worker on-the-way notification failed: {str(notif_error)}")
+
+        try:
+            from jobs.api import broadcast_job_status_update
+
+            broadcast_job_status_update(job.jobID, {
+                "job_id": job.jobID,
+                "event": "worker_marked_on_the_way",
+                "worker_marked_on_the_way": True,
+                "timestamp": now.isoformat(),
+                "daily_attendance_id": attendance.attendanceID,
+                "daily_attendance_status": attendance.status,
+            })
+        except Exception as ws_error:
+            print(f"⚠️ [MOBILE] Worker on-the-way websocket broadcast failed: {str(ws_error)}")
         
         return {
             "success": True,
             "attendance_id": attendance.attendanceID,
+            "worker_id": getattr(worker, "workerProfileID", None),
+            "worker_account_id": getattr(request.auth, "accountID", None),
             "time_in": None,
             "date": str(today),
             "status": attendance.status,

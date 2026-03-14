@@ -17,12 +17,15 @@ from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from .content_filter import censor_contact_info
 
 
 router = Router()
 
 __all__ = ["router"]
+
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
 
 
 def _get_user_profile(request) -> Profile:
@@ -56,7 +59,8 @@ def _get_clamped_qa_day_offset(job) -> int:
 
 
 def _get_effective_work_date(job):
-    base_date = timezone.now().date()
+    # Keep QA effective date consistent with mobile daily attendance endpoints.
+    base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
     if not _is_testing_mode_enabled():
         return base_date
 
@@ -2139,25 +2143,30 @@ def get_conversation_messages(request, conversation_id: int):
                 worker_name = "Unknown Worker"
                 worker_avatar = None
                 worker_id = None
+                worker_account_id = None
                 
                 if record.workerID:  # Freelance worker
                     profile = record.workerID.profileID
                     worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
                     worker_avatar = profile.profileImg
                     worker_id = record.workerID_id
+                    worker_account_id = profile.accountFK_id
                 elif record.employeeID:  # Agency employee
                     worker_name = record.employeeID.name or "Employee"
                     worker_avatar = record.employeeID.avatar
                     worker_id = record.employeeID.employeeID
+                    worker_account_id = getattr(record.employeeID, 'accountFK_id', None)
                 elif record.assignmentID:  # Team worker (via JobWorkerAssignment)
                     profile = record.assignmentID.workerID.profileID
                     worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
                     worker_avatar = profile.profileImg
                     worker_id = record.assignmentID.workerID_id
+                    worker_account_id = profile.accountFK_id
                 
                 attendance_today.append({
                     "attendance_id": record.attendanceID,
                     "worker_id": worker_id,
+                    "worker_account_id": worker_account_id,
                     "worker_name": worker_name,
                     "worker_avatar": worker_avatar,
                     "date": record.date.isoformat(),

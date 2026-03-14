@@ -224,6 +224,7 @@ export type ConversationDetail = {
   attendance_today?: Array<{
     attendance_id: number;
     worker_id?: number;
+    worker_account_id?: number;
     worker_name?: string;
     worker_avatar?: string;
     date: string;
