@@ -32,6 +32,51 @@ function patchConversationJobState(
   );
 }
 
+function patchConversationTeamAssignmentState(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  assignmentId: number,
+  assignmentPatch: Record<string, any>,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.job || previous.job.id !== jobId) {
+        return previous;
+      }
+
+      const assignments = Array.isArray(previous?.team_worker_assignments)
+        ? previous.team_worker_assignments
+        : [];
+      let hasChange = false;
+
+      const updatedAssignments = assignments.map((assignment: any) => {
+        if (Number(assignment?.assignment_id) !== Number(assignmentId)) {
+          return assignment;
+        }
+
+        hasChange = true;
+        return {
+          ...assignment,
+          ...assignmentPatch,
+        };
+      });
+
+      if (!hasChange) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        team_worker_assignments: updatedAssignments,
+      };
+    },
+  );
+}
+
 /**
  * Client confirms worker has arrived and work has started
  */
@@ -267,7 +312,18 @@ export function useConfirmTeamWorkerArrival() {
 
       return response.json();
     },
-    onSuccess: (data: any, { jobId }) => {
+    onSuccess: (data: any, { jobId, assignmentId }) => {
+      const nowIso = new Date().toISOString();
+      patchConversationTeamAssignmentState(
+        queryClient,
+        jobId,
+        assignmentId,
+        {
+          client_confirmed_arrival: true,
+          client_confirmed_arrival_at: data?.confirmed_at || nowIso,
+        },
+      );
+
       Toast.show({
         type: "success",
         text1: "Worker Arrival Confirmed",
@@ -319,7 +375,18 @@ export function useMarkTeamAssignmentComplete() {
 
       return response.json();
     },
-    onSuccess: (data: any, { jobId }) => {
+    onSuccess: (data: any, { jobId, assignmentId }) => {
+      const nowIso = new Date().toISOString();
+      patchConversationTeamAssignmentState(
+        queryClient,
+        jobId,
+        assignmentId,
+        {
+          worker_marked_complete: true,
+          worker_marked_complete_at: data?.completed_at || nowIso,
+        },
+      );
+
       Toast.show({
         type: "success",
         text1: "Assignment Marked Complete",
@@ -385,6 +452,13 @@ export function useApproveTeamJobCompletion() {
       return response.json();
     },
     onSuccess: (data: any, { jobId }) => {
+      const nowIso = new Date().toISOString();
+      patchConversationJobState(queryClient, jobId, {
+        status: "COMPLETED",
+        clientMarkedComplete: true,
+        clientMarkedCompleteAt: data?.approved_at || nowIso,
+      });
+
       Toast.show({
         type: "success",
         text1: "Team Job Completed!",

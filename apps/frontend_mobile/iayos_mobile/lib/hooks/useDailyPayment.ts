@@ -78,6 +78,55 @@ function patchConversationOnTheWay(
   );
 }
 
+function patchConversationAttendanceById(
+  queryClient: ReturnType<typeof useQueryClient>,
+  attendanceId: number,
+  updater: (row: any) => any,
+  jobId?: number,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.attendance_today) {
+        return previous;
+      }
+
+      if (
+        Number.isFinite(jobId) &&
+        (!previous?.job || Number(previous.job.id) !== Number(jobId))
+      ) {
+        return previous;
+      }
+
+      const rows = Array.isArray(previous.attendance_today)
+        ? previous.attendance_today
+        : [];
+      let hasChange = false;
+
+      const updatedRows = rows.map((row: any) => {
+        if (Number(row?.attendance_id) !== Number(attendanceId)) {
+          return row;
+        }
+
+        hasChange = true;
+        return updater(row);
+      });
+
+      if (!hasChange) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        attendance_today: updatedRows,
+      };
+    },
+  );
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -700,6 +749,7 @@ export interface CheckInOutResponse {
 
 export interface CancelCheckInResponse {
   success: boolean;
+  attendance_id?: number;
   date: string;
   message: string;
 }
@@ -791,6 +841,20 @@ export const useWorkerCancelCheckIn = () => {
       return response.json() as Promise<CancelCheckInResponse>;
     },
     onSuccess: (data, jobId) => {
+      if (data?.attendance_id) {
+        patchConversationAttendanceById(
+          queryClient,
+          data.attendance_id,
+          (row) => ({
+            ...row,
+            is_dispatched: false,
+            worker_confirmed: false,
+            worker_confirmed_at: null,
+          }),
+          jobId,
+        );
+      }
+
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance", jobId] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary", jobId] });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
@@ -834,6 +898,17 @@ export const useWorkerCheckOut = () => {
       return response.json() as Promise<CheckInOutResponse>;
     },
     onSuccess: (data, jobId) => {
+      patchConversationAttendanceById(
+        queryClient,
+        data.attendance_id,
+        (row) => ({
+          ...row,
+          status: row?.status === "DISPATCHED" ? "PENDING" : row?.status,
+          time_out: data?.time_out || row?.time_out,
+        }),
+        jobId,
+      );
+
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance", jobId] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary", jobId] });
       queryClient.invalidateQueries({ queryKey: ["messages"] }); // Refresh chat to show updated attendance
@@ -887,6 +962,16 @@ export const useClientConfirmAttendance = () => {
       return response.json() as Promise<ClientConfirmResponse>;
     },
     onSuccess: (data) => {
+      const nowIso = new Date().toISOString();
+      patchConversationAttendanceById(queryClient, data.attendance_id, (row) => ({
+        ...row,
+        client_confirmed: true,
+        client_confirmed_at: row?.client_confirmed_at || nowIso,
+        status: data.status,
+        amount_earned: data.amount_earned,
+        payment_processed: data.payment_processed,
+      }));
+
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
       queryClient.invalidateQueries({ queryKey: ["messages"] }); // Refresh chat to show updated attendance
@@ -970,7 +1055,7 @@ export interface VerifyArrivalResponse {
   attendance_id: number;
   employee_name: string;
   time_in: string;
-  status: string;
+  status: AttendanceStatus;
 }
 
 export const useClientVerifyArrival = () => {
@@ -992,7 +1077,19 @@ export const useClientVerifyArrival = () => {
       }
       return response.json() as Promise<VerifyArrivalResponse>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, { jobId, attendanceId }) => {
+      patchConversationAttendanceById(
+        queryClient,
+        attendanceId,
+        (row) => ({
+          ...row,
+          is_dispatched: false,
+          status: data.status,
+          time_in: data.time_in || row?.time_in,
+        }),
+        jobId,
+      );
+
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
 
@@ -1026,7 +1123,7 @@ export interface MarkCheckoutResponse {
   employee_name: string;
   time_in: string;
   time_out: string;
-  status: string;
+  status: AttendanceStatus;
 }
 
 export const useClientMarkCheckout = () => {
@@ -1048,7 +1145,18 @@ export const useClientMarkCheckout = () => {
       }
       return response.json() as Promise<MarkCheckoutResponse>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, { jobId, attendanceId }) => {
+      patchConversationAttendanceById(
+        queryClient,
+        attendanceId,
+        (row) => ({
+          ...row,
+          status: data.status,
+          time_out: data.time_out || row?.time_out,
+        }),
+        jobId,
+      );
+
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
 
