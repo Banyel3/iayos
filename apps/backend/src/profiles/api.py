@@ -1197,9 +1197,10 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             if job.is_team_job:
                 from accounts.models import JobWorkerAssignment, BackjobScheduleConfirmation
 
+                eligible_assignment_statuses = ['ACTIVE', 'COMPLETED']
                 active_assignments = JobWorkerAssignment.objects.filter(
                     jobID=job,
-                    assignment_status='ACTIVE'
+                    assignment_status__in=eligible_assignment_statuses,
                 )
                 team_schedule_total_workers = active_assignments.count()
 
