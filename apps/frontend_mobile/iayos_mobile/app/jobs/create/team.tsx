@@ -46,6 +46,7 @@ import type { JobSuggestion } from "@/lib/hooks/useJobSuggestions";
 import PriceSuggestionCard from "@/components/PriceSuggestionCard";
 import SuggestionBubbles from "@/components/SuggestionBubbles";
 import SearchBar from "@/components/ui/SearchBar";
+import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 
 interface Specialization {
   id: number;
@@ -116,6 +117,10 @@ export default function CreateTeamJobScreen() {
   const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isOneDayJob, setIsOneDayJob] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [pendingTeamJobData, setPendingTeamJobData] = useState<any | null>(
+    null,
+  );
   const [materials, setMaterials] = useState<string[]>([]);
   const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
   const [materialInput, setMaterialInput] = useState("");
@@ -552,7 +557,8 @@ export default function CreateTeamJobScreen() {
       payment_method: "WALLET",
     };
 
-    createJobMutation.mutate(payload);
+    setPendingTeamJobData(payload);
+    setShowSubmitConfirm(true);
   };
 
   return (
@@ -989,6 +995,32 @@ export default function CreateTeamJobScreen() {
                       </>
                     )}
                   </View>
+
+                  {!walletError && !walletLoading && !hasEnoughBalance && (
+                    <View style={styles.walletTopUpSection}>
+                      <Text style={styles.walletTopUpHint}>
+                        Insufficient balance to post this team job.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.depositButton}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/payments/deposit",
+                            params: {
+                              amount: Math.ceil(totalDue - walletBalance).toString(),
+                            },
+                          } as any)
+                        }
+                      >
+                        <Ionicons
+                          name="add-circle"
+                          size={18}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.depositButtonText}>Deposit Funds</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -1443,6 +1475,24 @@ export default function CreateTeamJobScreen() {
             }}
           />
         )}
+
+        <CountdownConfirmModal
+          visible={showSubmitConfirm}
+          title="Confirm Submission"
+          message="Are you sure you want to submit this team job post?"
+          confirmLabel="Submit"
+          countdownSeconds={5}
+          onConfirm={() => {
+            if (pendingTeamJobData) {
+              createJobMutation.mutate(pendingTeamJobData);
+            }
+            setShowSubmitConfirm(false);
+          }}
+          onCancel={() => setShowSubmitConfirm(false)}
+          isLoading={createJobMutation.isPending}
+          icon="people"
+          iconColor={Colors.primary}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1866,6 +1916,31 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.error,
     marginLeft: Spacing.xs,
+  },
+  walletTopUpSection: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  walletTopUpHint: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  depositButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  depositButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
   },
   thresholdSlider: {
     flexDirection: "row",
