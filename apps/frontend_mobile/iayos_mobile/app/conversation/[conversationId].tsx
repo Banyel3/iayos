@@ -65,6 +65,7 @@ import { useSubmitReview, useEditReview } from "../../lib/hooks/useReviews";
 import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import {
+  useCancelDailyJob,
   useWorkerCheckIn,
   useWorkerCancelCheckIn,
   useClientConfirmAttendance,
@@ -618,6 +619,7 @@ export default function ChatScreen() {
   const clientMarkNoWorkMutation = useClientMarkNoWork();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
+  const cancelDailyJobMutation = useCancelDailyJob();
   const requestDailySkipDayMutation = useRequestDailySkipDay();
   const clientReviewDailySkipDayMutation = useClientReviewDailySkipDay();
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
@@ -879,6 +881,55 @@ export default function ChatScreen() {
           onPress: () => {
             chooseCancellationReason((reason) =>
               cancelJobMutation.mutate({
+                jobId: conversation.job.id,
+                reason,
+              }),
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  // Handle cancel daily job (CLIENT only)
+  const handleCancelDailyJob = () => {
+    if (!conversation) return;
+
+    const chooseCancellationReason = (onSelect: (reason: string) => void) => {
+      Alert.alert(
+        "Select Cancellation Reason",
+        "A reason is required to cancel this job.",
+        [
+          {
+            text: "No Longer Needed",
+            onPress: () => onSelect("Client no longer needs the service"),
+          },
+          {
+            text: "Budget Constraints",
+            onPress: () =>
+              onSelect("Client cancelled due to budget constraints"),
+          },
+          {
+            text: "Scheduling Conflict",
+            onPress: () =>
+              onSelect("Client cancelled due to scheduling conflict"),
+          },
+          { text: "Back", style: "cancel" },
+        ],
+      );
+    };
+
+    Alert.alert(
+      "Cancel Daily Job",
+      "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
+      [
+        { text: "Keep Job", style: "cancel" },
+        {
+          text: "Cancel Daily Job",
+          style: "destructive",
+          onPress: () => {
+            chooseCancellationReason((reason) =>
+              cancelDailyJobMutation.mutate({
                 jobId: conversation.job.id,
                 reason,
               }),
@@ -2541,17 +2592,21 @@ export default function ChatScreen() {
   });
   const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
   const hasCheckedOutToday = Boolean(myWorkerAttendanceToday?.time_out);
-  const checkInElapsedSeconds = myWorkerAttendanceToday?.time_in
+  const hasMarkedOnTheWayToday = Boolean(
+    myWorkerAttendanceToday?.is_dispatched && !myWorkerAttendanceToday?.time_in,
+  );
+  const onTheWayMarkedAt =
+    myWorkerAttendanceToday?.worker_confirmed_at || myWorkerAttendanceToday?.time_in;
+  const undoElapsedSeconds = onTheWayMarkedAt
     ? Math.floor(
-        (currentTimeMs - new Date(myWorkerAttendanceToday.time_in).getTime()) /
-          1000,
+        (currentTimeMs - new Date(onTheWayMarkedAt).getTime()) / 1000,
       )
     : 0;
   const canUndoCheckIn =
-    hasCheckedInToday &&
+    (hasMarkedOnTheWayToday || hasCheckedInToday) &&
     !hasCheckedOutToday &&
-    checkInElapsedSeconds >= 0 &&
-    checkInElapsedSeconds <= 10;
+    undoElapsedSeconds >= 0 &&
+    undoElapsedSeconds <= 10;
   const hasAnyCheckedInToday = Boolean(
     conversation.attendance_today?.some((a) => Boolean(a.time_in)),
   );
@@ -3078,14 +3133,61 @@ export default function ChatScreen() {
                     </Text>
                   </View>
 
-                  {/* Worker View: Check-in/Check-out buttons */}
+                  {/* Worker View: On-the-way / attendance status */}
                   {conversation.my_role === "WORKER" && (
                     <View style={styles.dailyWorkerActions}>
                       {(() => {
                         const todayAttendance = myWorkerAttendanceToday;
 
-                        // No attendance yet - show check-in button
+                        // No attendance yet - worker marks on the way first
                         if (!todayAttendance || !todayAttendance.time_in) {
+                          if (todayAttendance?.is_dispatched) {
+                            return (
+                              <View style={styles.dailyStatusContainer}>
+                                <View style={styles.checkedInBadge}>
+                                  <Ionicons
+                                    name="car"
+                                    size={16}
+                                    color={Colors.primary}
+                                  />
+                                  <Text style={styles.checkedInText}>
+                                    On the way
+                                    {todayAttendance.worker_confirmed_at
+                                      ? ` at ${format(new Date(todayAttendance.worker_confirmed_at), "h:mm a")}`
+                                      : ""}
+                                  </Text>
+                                </View>
+                                {canUndoCheckIn && (
+                                  <TouchableOpacity
+                                    style={styles.undoCheckInButton}
+                                    onPress={() =>
+                                      workerCancelCheckInMutation.mutate(
+                                        conversation.job.id,
+                                      )
+                                    }
+                                    disabled={
+                                      workerCancelCheckInMutation.isPending
+                                    }
+                                  >
+                                    {workerCancelCheckInMutation.isPending ? (
+                                      <ActivityIndicator
+                                        size="small"
+                                        color={Colors.white}
+                                      />
+                                    ) : (
+                                      <Text style={styles.undoCheckInButtonText}>
+                                        Undo On The Way ({10 - undoElapsedSeconds}s)
+                                      </Text>
+                                    )}
+                                  </TouchableOpacity>
+                                )}
+                                <Text style={styles.awaitingConfirmText}>
+                                  Waiting for client to verify your arrival.
+                                </Text>
+                              </View>
+                            );
+                          }
+
                           return (
                             <TouchableOpacity
                               style={[
@@ -3107,12 +3209,12 @@ export default function ChatScreen() {
                               ) : (
                                 <>
                                   <Ionicons
-                                    name="log-in-outline"
+                                    name="car-outline"
                                     size={20}
                                     color={Colors.white}
                                   />
                                   <Text style={styles.actionButtonText}>
-                                    Check In
+                                    On The Way
                                   </Text>
                                 </>
                               )}
@@ -3160,14 +3262,14 @@ export default function ChatScreen() {
                                     />
                                   ) : (
                                     <Text style={styles.undoCheckInButtonText}>
-                                      Undo Check-In (
-                                      {10 - checkInElapsedSeconds}s)
+                                      Undo Check-In ({10 - undoElapsedSeconds}s)
                                     </Text>
                                   )}
                                 </TouchableOpacity>
                               )}
                               <Text style={styles.awaitingConfirmText}>
-                                Ask the client to mark check-out when work is done.
+                                Ask the client to mark check-out when work is
+                                done.
                               </Text>
                             </View>
                           );
@@ -4365,6 +4467,35 @@ export default function ChatScreen() {
                           color={Colors.white}
                         />
                         <Text style={styles.actionButtonText}>Cancel Job</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {/* CLIENT: Cancel Daily Job Button */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model === "DAILY" &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job?.status !== "COMPLETED" &&
+                conversation.job?.status !== "CANCELLED" && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.cancelJobButton]}
+                    onPress={handleCancelDailyJob}
+                    disabled={cancelDailyJobMutation.isPending}
+                  >
+                    {cancelDailyJobMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="close-circle"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Cancel Daily Job
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>

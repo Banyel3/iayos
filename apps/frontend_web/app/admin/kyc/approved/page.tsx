@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import {
   Card,
@@ -139,18 +139,6 @@ export default function ApprovedKYCPage() {
   const [expandedRecords, setExpandedRecords] = useState<Record<string, boolean>>({});
   const [kycFilesMap, setKycFilesMap] = useState<Record<string, KYCFiles>>({});
   const [loadingFiles, setLoadingFiles] = useState<Record<string, boolean>>({});
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const isMounted = useRef(true);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
 
   // Fetch approved KYC using /kyc/all endpoint
   useEffect(() => {
@@ -158,29 +146,18 @@ export default function ApprovedKYCPage() {
   }, []);
 
   const fetchApprovedKYC = async () => {
-    if (!isMounted.current) return;
     setIsLoading(true);
     try {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
       const response = await fetch(
         `${API_BASE}/api/adminpanel/kyc/all`,
         {
           credentials: "include",
-          signal: controller.signal,
         },
       );
 
       if (!response.ok) {
         throw new Error("Failed to fetch KYC records");
       }
-      
-      if (!isMounted.current) return;
 
       const data = await response.json();
 
@@ -266,8 +243,7 @@ export default function ApprovedKYCPage() {
         });
 
       setApprovedKYC([...userKYC, ...agencyKYC]);
-    } catch (error: any) {
-      if (!isMounted.current || error.name === "AbortError") return;
+    } catch (error) {
       console.error("Error fetching approved KYC:", error);
       showToast({
         type: "error",
@@ -279,9 +255,7 @@ export default function ApprovedKYCPage() {
         duration: 5000,
       });
     } finally {
-      if (isMounted.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   };
 
@@ -360,8 +334,6 @@ export default function ApprovedKYCPage() {
 
       const signedUrls = await response.json();
 
-      if (!isMounted.current) return;
-      
       const files: KYCFiles = {
         frontId: signedUrls.frontIDLink || null,
         backId: signedUrls.backIDLink || null,

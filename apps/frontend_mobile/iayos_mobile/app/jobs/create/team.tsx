@@ -499,8 +499,8 @@ export default function CreateTeamJobScreen() {
   const validateForm = () => {
     if (!title.trim()) return "Please enter a job title";
     if (!description.trim()) return "Please enter a job description";
-    if (skillSlots.length < 1)
-      return "Please add at least 1 skill requirement";
+    if (skillSlots.length < 2)
+      return "Please add at least 2 skill requirements";
     if (totalWorkersNeeded < 2)
       return "Team jobs require at least 2 workers total";
     if (!totalBudget || budgetNum < 100) return "Minimum budget is ₱100";
@@ -666,7 +666,7 @@ export default function CreateTeamJobScreen() {
                 Title, description, and price suggestions are based on the first selected skill requirement.
               </Text>
               <Text style={styles.hint}>
-                Team jobs require at least 2 workers total.
+                Team jobs require at least 2 skill requirements and at least 2 workers total.
               </Text>
 
               {specsLoading ? (
@@ -1389,7 +1389,7 @@ export default function CreateTeamJobScreen() {
             style={[
               styles.submitButton,
               (!hasEnoughBalance ||
-                skillSlots.length < 1 ||
+                skillSlots.length < 2 ||
                 totalWorkersNeeded < 2 ||
                 createJobMutation.isPending) &&
                 styles.submitButtonDisabled,
@@ -1397,7 +1397,7 @@ export default function CreateTeamJobScreen() {
             onPress={handleSubmit}
             disabled={
               !hasEnoughBalance ||
-              skillSlots.length < 1 ||
+              skillSlots.length < 2 ||
               totalWorkersNeeded < 2 ||
               createJobMutation.isPending
             }

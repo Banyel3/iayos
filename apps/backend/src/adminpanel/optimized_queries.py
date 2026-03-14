@@ -912,9 +912,7 @@ def get_reviews_list_optimized(
     page_size: int = 20,
     status: Optional[str] = None,
     reviewer_type: Optional[str] = None,
-    min_rating: Optional[float] = None,
-    reviewee_id: Optional[str] = None,
-    reviewer_id: Optional[str] = None
+    min_rating: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Get paginated reviews with all related data in minimal queries.
@@ -934,12 +932,6 @@ def get_reviews_list_optimized(
     
     if min_rating is not None:
         queryset = queryset.filter(rating__gte=min_rating)
-
-    if reviewee_id is not None and str(reviewee_id).lower() != 'all':
-        queryset = queryset.filter(revieweeID_id=reviewee_id)
-
-    if reviewer_id is not None and str(reviewer_id).lower() != 'all':
-        queryset = queryset.filter(reviewerID_id=reviewer_id)
     
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)

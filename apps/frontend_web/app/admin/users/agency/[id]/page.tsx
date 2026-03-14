@@ -102,11 +102,6 @@ export default function AgencyDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  // Reviews state
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("details");
-
   useEffect(() => {
     async function fetchAgency() {
       try {
@@ -139,41 +134,6 @@ export default function AgencyDetailPage() {
     }
     if (id) fetchAgency();
   }, [id]);
-
-  const fetchReviews = async () => {
-    try {
-      setReviewsLoading(true);
-      const res = await fetch(
-        `${API_BASE}/api/adminpanel/reviews/all?reviewee_id=${id}`,
-        {
-          credentials: "include",
-        },
-      );
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch reviews");
-      }
-
-      const data = await res.json();
-      if (data.success) {
-        setReviews(data.reviews || []);
-      }
-    } catch (err: any) {
-      console.error("Error fetching reviews:", err);
-    } finally {
-      setReviewsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setReviews([]);
-  }, [id]);
-
-  useEffect(() => {
-    if (id && activeTab === "reviews") {
-      fetchReviews();
-    }
-  }, [id, activeTab]);
 
   const refetchAgency = async () => {
     try {
@@ -315,63 +275,6 @@ export default function AgencyDetailPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<
-      string,
-      { bg: string; text: string; label: string }
-    > = {
-      active: { bg: "bg-green-100", text: "text-green-800", label: "Active" },
-      inactive: { bg: "bg-gray-100", text: "text-gray-800", label: "Inactive" },
-      suspended: { bg: "bg-red-100", text: "text-red-800", label: "Suspended" },
-      banned: { bg: "bg-red-100", text: "text-red-800", label: "Banned" },
-    };
-    const config = variants[status?.toLowerCase()] || variants.inactive;
-    return (
-      <span
-        className={`px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
-      >
-        {config.label}
-      </span>
-    );
-  };
-
-  const getKYCBadge = (status: string) => {
-    const variants: Record<
-      string,
-      { bg: string; text: string; icon: React.ReactNode }
-    > = {
-      APPROVED: {
-        bg: "bg-green-100",
-        text: "text-green-800",
-        icon: <CheckCircle className="h-3 w-3" />,
-      },
-      PENDING: {
-        bg: "bg-yellow-100",
-        text: "text-yellow-800",
-        icon: <Clock className="h-3 w-3" />,
-      },
-      REJECTED: {
-        bg: "bg-red-100",
-        text: "text-red-800",
-        icon: <XCircle className="h-3 w-3" />,
-      },
-      NOT_SUBMITTED: {
-        bg: "bg-gray-100",
-        text: "text-gray-600",
-        icon: <AlertCircle className="h-3 w-3" />,
-      },
-    };
-    const config = variants[status] || variants.NOT_SUBMITTED;
-    return (
-      <span
-        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
-      >
-        {config.icon}
-        {status?.replace(/_/g, " ")}
-      </span>
-    );
-  };
-
   const mainClass = useMainContentClass("p-6 min-h-screen");
   const loadingClass = useMainContentClass("flex items-center justify-center min-h-screen");
 
@@ -414,373 +317,69 @@ export default function AgencyDetailPage() {
       : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50/50">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar />
       <main className={mainClass}>
-        {/* Header with Back Button */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Header */}
+        <div className="mb-6">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => router.push("/admin/users/agency")}
-            className="text-gray-600 hover:text-[#00BAF1] -ml-2 w-fit"
+            className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Agencies
           </Button>
-          <div className="flex gap-2">
-            {getStatusBadge(agency.status)}
-            {getKYCBadge(agency.kyc_status)}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Main Column */}
-          <div className="lg:col-span-9 space-y-6">
-            {/* Main Header Container */}
-            <Card className="border-none shadow-sm overflow-hidden bg-white">
-              <CardContent className="p-8">
-                <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
-                  <div className="relative">
-                    <div className="h-28 w-28 rounded-2xl bg-blue-50 flex items-center justify-center text-[#00BAF1] shadow-sm border-2 border-[#00BAF1]/20">
-                      <Building2 className="h-14 w-14" />
-                    </div>
-                    {agency.is_verified && (
-                      <div className="absolute bottom-1 right-1 h-8 w-8 bg-[#00BAF1] rounded-full flex items-center justify-center border-4 border-white shadow-sm">
-                        <CheckCircle className="h-4 w-4 text-white" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 space-y-4 pt-2">
-                    <div>
-                      <h2 className="text-sm font-medium text-[#00BAF1] mb-1">Agency Profile</h2>
-                      <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-                        {agency.business_name}
-                      </h1>
-                      <p className="text-gray-400 text-sm mt-1">Agency ID: {agency.agency_id || agency.id}</p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-[#00BAF1]" />
-                        Joined {new Date(agency.join_date).toLocaleDateString()}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold text-gray-900">{agency.rating?.toFixed(1) || "0.0"}</span>
-                        <span className="text-gray-400">({agency.review_count} reviews)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-[#00BAF1]" />
-                        <span className="text-gray-900 font-medium">{agency.employee_stats?.total_employees || 0} Employees</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Combined Stats Container at the bottom */}
-                <div className="mt-8 pt-6 border-t border-gray-100/50 flex flex-wrap items-center gap-x-8 gap-y-4">
-                  {[
-                    { label: "Total Jobs", value: agency.job_stats?.total_jobs || 0 },
-                    { label: "Active", value: agency.job_stats?.active_jobs || 0 },
-                    { label: "Completed", value: agency.job_stats?.completed_jobs || 0 },
-                    { label: "Employees", value: agency.employee_stats?.total_employees || 0 },
-                  ].map((stat, i) => (
-                    <React.Fragment key={i}>
-                      <div className="flex flex-col">
-                        <p className="text-[10px] text-gray-400 font-bold tracking-wider mb-0.5 uppercase">{stat.label}</p>
-                        <p className="text-lg font-bold text-gray-900">{stat.value}</p>
-                      </div>
-                      {i < 3 && <div className="hidden md:block h-8 w-[1px] bg-gray-200" />}
-                    </React.Fragment>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Tabs Section */}
-            <Tabs defaultValue="details" value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="bg-white p-1 rounded-xl shadow-sm inline-flex mb-6 border-none">
-                <TabsTrigger 
-                  value="details" 
-                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Agency Profile
+              </h1>
+              <p className="text-gray-500 mt-1">ID: {agency.id}</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              {/* Status Badges */}
+              <div className="flex gap-2">
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${agency.status === "active"
+                    ? "bg-green-100 text-green-800"
+                    : agency.status === "inactive"
+                      ? "bg-gray-100 text-gray-800"
+                      : "bg-red-100 text-red-800"
+                    }`}
                 >
-                  Details
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="employees" 
-                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
+                  {(agency.status || "inactive").toUpperCase()}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${agency.kyc_status === "APPROVED"
+                    ? "bg-green-100 text-green-800"
+                    : agency.kyc_status === "PENDING"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : agency.kyc_status === "REJECTED"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
                 >
-                  Employees
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="jobs" 
-                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
-                >
-                  Job History
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="reviews" 
-                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
-                >
-                  Reviews
-                </TabsTrigger>
-              </TabsList>
+                  {agency.kyc_status === "APPROVED" && (
+                    <CheckCircle className="h-3 w-3" />
+                  )}
+                  {agency.kyc_status === "PENDING" && (
+                    <Clock className="h-3 w-3" />
+                  )}
+                  {agency.kyc_status === "REJECTED" && (
+                    <XCircle className="h-3 w-3" />
+                  )}
+                  {agency.kyc_status}
+                </span>
+              </div>
 
-              <TabsContent value="details">
-                <Card className="border-none shadow-sm bg-white">
-                  <CardContent className="p-8 space-y-10">
-                    {/* About Section */}
-                    <section>
-                      <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-[#00BAF1]" />
-                        About Agency
-                      </h3>
-                      <p className="text-gray-600 leading-relaxed">
-                        {agency.business_description || "No description provided."}
-                      </p>
-                    </section>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                      {/* Contact Info Section */}
-                      <section>
-                        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-[#00BAF1]" />
-                          Contact Information
-                        </h3>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">Email Address</span>
-                            <span className="font-medium text-gray-900">{agency.email}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">Phone Number</span>
-                            <span className="font-medium text-gray-900">{agency.phone || "Not provided"}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">Business Verified</span>
-                            <span className={`font-bold text-xs ${agency.is_verified ? "text-green-600" : "text-red-500"}`}>
-                              {agency.is_verified ? "YES" : "NO"}
-                            </span>
-                          </div>
-                        </div>
-                      </section>
-
-                      {/* Address Section */}
-                      <section>
-                        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-[#00BAF1]" />
-                          Business Address
-                        </h3>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">Street</span>
-                            <span className="font-medium text-gray-900">{agency.address?.street || "N/A"}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">City</span>
-                            <span className="font-medium text-gray-900">{agency.address?.city || "N/A"}</span>
-                          </div>
-                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
-                            <span className="text-gray-500 text-sm">Province</span>
-                            <span className="font-medium text-gray-900">{agency.address?.province || "N/A"}</span>
-                          </div>
-                        </div>
-                      </section>
-                    </div>
-
-                    {/* KYC Info Section */}
-                    <section className="pt-2">
-                      <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-[#00BAF1]" />
-                        KYC Information
-                      </h3>
-                      <div className="bg-gray-50/80 rounded-2xl p-6 border border-gray-100/50">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                          <div className="space-y-1">
-                            <p className="text-[10px] text-gray-400 font-bold tracking-wider uppercase">Current KYC Status</p>
-                            <div className="flex items-center gap-3">
-                              {getKYCBadge(agency.kyc_status)}
-                            </div>
-                          </div>
-                          {agency.kyc_status !== "APPROVED" && (
-                            <Button variant="outline" size="sm" className="w-full md:w-auto bg-white hover:bg-gray-50" onClick={() => router.push("/admin/kyc/pending")}>
-                              <ExternalLink className="h-3.5 w-3.5 mr-2" />
-                              Review Documents
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </section>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="employees">
-                <Card className="border-none shadow-sm bg-white">
-                  <CardContent className="p-8">
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 uppercase tracking-wider">
-                        <Users className="h-4 w-4 text-[#00BAF1]" />
-                        Registered Employees
-                      </h3>
-                      <Badge variant="secondary" className="bg-blue-50 text-[#00BAF1] border-none font-bold">
-                        {agency.employee_stats?.employees?.length || 0} Total
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {agency.employee_stats?.employees && agency.employee_stats.employees.length > 0 ? (
-                        agency.employee_stats.employees.map((employee) => (
-                          <div
-                            key={employee.id}
-                            className="flex items-center justify-between p-4 bg-gray-50/50 border border-gray-100/50 rounded-2xl hover:shadow-md transition-all group"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="h-12 w-12 rounded-xl bg-white flex items-center justify-center text-[#00BAF1] font-black border border-gray-100 shadow-sm group-hover:scale-105 transition-transform">
-                                {employee.name?.charAt(0)}
-                              </div>
-                              <div>
-                                <p className="font-bold text-gray-900">{employee.name}</p>
-                                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                                  {employee.role} • {employee.email}
-                                </p>
-                              </div>
-                            </div>
-                            {employee.rating > 0 && (
-                              <div className="flex flex-col items-end">
-                                <div className="flex items-center gap-1 text-[#00BAF1]">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 border-none" />
-                                  <span className="text-sm font-black italic">
-                                    {employee.rating.toFixed(1)}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="col-span-full text-center py-20 grayscale opacity-40">
-                          <Users className="h-20 w-20 mx-auto mb-4 text-gray-300" />
-                          <p className="font-black text-lg text-gray-400">NO EMPLOYEES REGISTERED</p>
-                          <p className="text-xs mt-1">Employees will appear here once they are onboarded.</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="jobs">
-                <Card className="border-none shadow-sm bg-white">
-                  <CardContent className="py-20 text-center">
-                    <Briefcase className="h-16 w-16 text-gray-200 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Job History</h3>
-                    <p className="text-gray-500">integration with jobs module coming soon.</p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="reviews">
-                <Card className="border-none shadow-sm bg-white overflow-hidden">
-                  <CardHeader className="border-b border-gray-50 bg-white py-6 px-8">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-xl font-bold text-gray-900">Agency Reviews</CardTitle>
-                        <p className="text-sm text-gray-500 mt-1">Feedback from clients who have hired this agency</p>
-                      </div>
-                      <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
-                        <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-                        <span className="text-lg font-bold text-[#00BAF1]">{agency.rating?.toFixed(1) || "0.0"}</span>
-                        <span className="text-xs text-[#00BAF1]/70 font-medium">/ 5.0</span>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    {reviewsLoading ? (
-                      <div className="py-20 text-center">
-                        <Loader2 className="h-10 w-10 animate-spin text-[#00BAF1] mx-auto mb-4" />
-                        <p className="text-gray-500 font-medium">Fetching reviews...</p>
-                      </div>
-                    ) : reviews.length > 0 ? (
-                      <div className="divide-y divide-gray-50">
-                        {reviews.map((review) => (
-                          <div key={review.id} className="p-8 hover:bg-gray-50/50 transition-colors">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex gap-4">
-                                <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-[#00BAF1] font-bold border border-blue-100">
-                                  {review.reviewer_name?.charAt(0)}
-                                </div>
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-gray-900">{review.reviewer_name}</h4>
-                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider py-0 px-2 bg-white">
-                                      {review.reviewer_type || "Client"}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {[...Array(5)].map((_, i) => (
-                                      <Star 
-                                        key={i} 
-                                        className={`h-3.5 w-3.5 ${i < Math.floor(review.rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`} 
-                                      />
-                                    ))}
-                                    <span className="text-xs text-gray-400 ml-1 font-medium">
-                                      {new Date(review.created_at).toLocaleDateString(undefined, { 
-                                        year: 'numeric', 
-                                        month: 'short', 
-                                        day: 'numeric' 
-                                      })}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase mb-1">Related Job</p>
-                                <p className="text-xs font-semibold text-[#00BAF1] hover:underline cursor-pointer flex items-center justify-end gap-1">
-                                  {review.job_title}
-                                  <ExternalLink className="h-3 w-3" />
-                                </p>
-                              </div>
-                            </div>
-                            <div className="mt-4 ml-16">
-                              <p className="text-gray-600 leading-relaxed bg-gray-50/50 p-4 rounded-xl border border-gray-100/50 italic">
-                                &ldquo;{review.comment || "No comment provided."}&rdquo;
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="py-20 text-center">
-                        <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                          <Star className="h-10 w-10 text-gray-200" />
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">No reviews yet</h3>
-                        <p className="text-gray-500 max-w-xs mx-auto leading-relaxed">
-                          This agency hasn&apos;t received any feedback from clients yet.
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          {/* Sidebar Column: Action Buttons */}
-          <div className="lg:col-span-3 space-y-6">
-            <Card className="border-none shadow-sm bg-white overflow-hidden">
-              <CardHeader className="border-b border-gray-50 pb-4">
-                <CardTitle className="text-sm font-bold text-gray-900 tracking-widest uppercase">
-                  Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 flex flex-col gap-3">
+              {/* Account Action Buttons */}
+              <div className="flex gap-2">
                 {!agency.is_banned && (
                   <Button
                     variant={agency.is_suspended ? "default" : "outline"}
-                    className={agency.is_suspended ? "w-full shadow-sm" : "w-full border-orange-100 text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-all font-medium"}
+                    size="sm"
                     onClick={() =>
                       agency.is_suspended
                         ? setShowActivateModal(true)
@@ -788,300 +387,633 @@ export default function AgencyDetailPage() {
                     }
                   >
                     {agency.is_suspended ? (
-                      <><CheckCircle className="h-4 w-4 mr-2" /> Unsuspend Account</>
+                      <>
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Unsuspend
+                      </>
                     ) : (
-                      <><Clock className="h-4 w-4 mr-2" /> Suspend Account</>
+                      <>
+                        <Clock className="h-3 w-3 mr-1" />
+                        Suspend
+                      </>
                     )}
                   </Button>
                 )}
-                
                 {!agency.is_suspended && !agency.is_banned && (
                   <Button
-                    variant="outline"
-                    className="w-full border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all font-medium"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => setShowBanModal(true)}
                   >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    ban account
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Ban
                   </Button>
                 )}
-
                 {agency.is_banned && (
                   <Button
                     variant="default"
-                    className="w-full bg-green-600 hover:bg-green-700 shadow-sm font-medium"
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
                     onClick={() => setShowActivateModal(true)}
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    unban account
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Unban
                   </Button>
                 )}
-
                 <Button
                   variant="outline"
-                  className="w-full border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all mt-2 text-sm font-medium"
+                  size="sm"
                   onClick={() => setShowDeleteModal(true)}
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  delete profile
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Delete
                 </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Overview Card */}
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+              {/* Avatar */}
+              <div className="relative">
+                <div className="h-24 w-24 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white shadow-lg">
+                  <Building2 className="h-12 w-12" />
+                </div>
+                {agency.is_verified && (
+                  <div className="absolute -bottom-1 -right-1 h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center border-4 border-white">
+                    <CheckCircle className="h-4 w-4 text-white" />
+                  </div>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {agency.business_name}
+                    </h2>
+                    <p className="text-sm text-blue-600 font-medium mt-1">
+                      🏢 Business Agency •{" "}
+                      {agency.employee_stats?.total_employees || 0} employees
+                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-1">
+                        <Mail className="h-4 w-4" />
+                        {agency.email}
+                      </div>
+                      {agency.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-4 w-4" />
+                          {agency.phone}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Rating */}
+                  <div className="text-center">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                      <span className="text-2xl font-bold text-gray-900">
+                        {agency.rating?.toFixed(1) || "N/A"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {agency.review_count} reviews
+                    </p>
+                  </div>
+                </div>
+
+                {/* Additional Info Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Joined</p>
+                    <div className="flex items-center gap-1 text-sm font-medium">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      {new Date(agency.join_date).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Location</p>
+                    <div className="flex items-center gap-1 text-sm font-medium">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                      {agency.address.city && agency.address.province
+                        ? `${agency.address.city}, ${agency.address.province}`
+                        : agency.address.city ||
+                        agency.address.province ||
+                        "Not provided"}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Employees</p>
+                    <div className="flex items-center gap-1 text-sm font-medium text-blue-600">
+                      <Users className="h-4 w-4" />
+                      {agency.employee_stats?.total_employees || 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Total Jobs</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {agency.job_stats?.total_jobs || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Briefcase className="h-6 w-6 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Active</p>
+                  <p className="text-3xl font-bold text-orange-600">
+                    {agency.job_stats?.active_jobs || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Clock className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Completed</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {agency.job_stats?.completed_jobs || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Success Rate</p>
+                  <p className="text-3xl font-bold text-purple-600">
+                    {completionRate.toFixed(0)}%
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Tabs Section */}
+        <Tabs defaultValue="details" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="employees">Employees</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="details" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Contact Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Contact Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Email</span>
+                    <span className="font-medium">{agency.email}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Phone</span>
+                    <span className="font-medium">
+                      {agency.phone || "Not provided"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Business Verified</span>
+                    <span
+                      className={`font-medium ${agency.is_verified ? "text-green-600" : "text-red-600"}`}
+                    >
+                      {agency.is_verified ? "Yes" : "No"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Address */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Business Address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Street</span>
+                    <span className="font-medium">
+                      {agency.address?.street || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">City</span>
+                    <span className="font-medium">
+                      {agency.address?.city || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">Province</span>
+                    <span className="font-medium">
+                      {agency.address?.province || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Country</span>
+                    <span className="font-medium">
+                      {agency.address?.country || "Philippines"}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* KYC Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    KYC & Account Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-gray-600">KYC Status</span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${agency.kyc_status === "APPROVED"
+                        ? "bg-green-100 text-green-800"
+                        : agency.kyc_status === "PENDING"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : agency.kyc_status === "REJECTED"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                    >
+                      {agency.kyc_status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Account Status</span>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${agency.status === "active"
+                        ? "bg-green-100 text-green-800"
+                        : agency.status === "inactive"
+                          ? "bg-gray-100 text-gray-800"
+                          : "bg-red-100 text-red-800"
+                        }`}
+                    >
+                      {(agency.status || "inactive").toUpperCase()}
+                    </span>
+                  </div>
+                  {agency.kyc_status !== "APPROVED" && (
+                    <Button variant="outline" className="w-full mt-2">
+                      View KYC Documents
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Business Description */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    About
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700">
+                    {agency.business_description || "No description provided."}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="employees">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Agency Employees</span>
+                  <Badge variant="secondary">
+                    {agency.employee_stats?.employees?.length || 0} Total
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {agency.employee_stats?.employees &&
+                    agency.employee_stats.employees.length > 0 ? (
+                    agency.employee_stats.employees.map(
+                      (employee: Employee) => (
+                        <div
+                          key={employee.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold">
+                              {employee.name?.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-medium">{employee.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {employee.email} • {employee.role}
+                              </p>
+                            </div>
+                          </div>
+                          {employee.rating > 0 && (
+                            <div className="flex items-center gap-1 text-yellow-500">
+                              <Star className="h-4 w-4 fill-yellow-500" />
+                              <span className="text-sm font-medium">
+                                {employee.rating.toFixed(1)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      ),
+                    )
+                  ) : (
+                    <div className="text-center py-12 text-gray-500">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>No employees registered</p>
+                      <p className="text-sm mt-2">
+                        Employees will appear here once they register
+                      </p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
+          </TabsContent>
+        </Tabs>
 
-            {/* Performance Card */}
-            <Card className="border-none shadow-sm bg-white overflow-hidden">
-               <CardContent className="p-6">
-                  <div className="flex justify-between items-end mb-4">
-                    <div>
-                      <p className="text-xs text-gray-400 font-bold tracking-wider mb-1 uppercase">Success Rate</p>
-                      <p className="text-3xl font-black text-gray-900">{completionRate.toFixed(0)}%</p>
-                    </div>
-                    <TrendingUp className="h-8 w-8 text-[#00BAF1] opacity-20" />
+        {/* Suspend Modal */}
+        {showSuspendModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-start gap-4 mb-4">
+                <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    Suspend Agency Account
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This will temporarily suspend the agency&apos;s account. All
+                    employees under this agency will be affected.
+                  </p>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Reason for Suspension *
+                    </label>
+                    <textarea
+                      value={actionReason}
+                      onChange={(e) => setActionReason(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      rows={3}
+                      placeholder="Enter reason for suspension..."
+                    />
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                     <div 
-                        className="bg-[#00BAF1] h-2 rounded-full transition-all duration-1000" 
-                        style={{ width: `${completionRate}%` }}
-                      ></div>
-                  </div>
-               </CardContent>
-            </Card>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowSuspendModal(false);
+                    setActionReason("");
+                  }}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSuspend}
+                  disabled={actionLoading}
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Suspending...
+                    </>
+                  ) : (
+                    "Confirm Suspension"
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Ban Modal */}
+        {showBanModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-start gap-4 mb-4">
+                <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-red-600">
+                    Ban Agency Account
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    ⚠️ <strong>PERMANENT ACTION:</strong> This will permanently
+                    ban the agency and all associated employees.
+                  </p>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This action cannot be easily reversed.
+                  </p>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Reason for Ban *
+                    </label>
+                    <textarea
+                      value={actionReason}
+                      onChange={(e) => setActionReason(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                      rows={3}
+                      placeholder="Enter reason for permanent ban..."
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowBanModal(false);
+                    setActionReason("");
+                  }}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleBan}
+                  disabled={actionLoading}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Banning...
+                    </>
+                  ) : (
+                    "Confirm Ban"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Activate Modal */}
+        {showActivateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-start gap-4 mb-4">
+                <AlertCircle className="h-6 w-6 text-green-500 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    {agency?.is_banned ? "Unban" : "Unsuspend"} Agency Account
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    This will reactivate the agency&apos;s account and restore
+                    access for all employees.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowActivateModal(false)}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleActivate}
+                  disabled={actionLoading}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {agency?.is_banned ? "Unbanning..." : "Unsuspending..."}
+                    </>
+                  ) : agency?.is_banned ? (
+                    "Confirm Unban"
+                  ) : (
+                    "Confirm Unsuspend"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-start gap-4 mb-4">
+                <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-2 text-red-600">
+                    Delete Agency Account
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    🚨 <strong>IRREVERSIBLE ACTION:</strong> This will
+                    permanently delete:
+                  </p>
+                  <ul className="text-sm text-gray-600 mb-4 ml-6 list-disc">
+                    <li>Agency profile and business information</li>
+                    <li>All employee accounts</li>
+                    <li>Job history and earnings</li>
+                    <li>Transaction records</li>
+                    <li>Reviews and ratings</li>
+                  </ul>
+                  <p className="text-sm font-semibold text-red-600 mb-4">
+                    This action CANNOT be undone.
+                  </p>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Type <strong>DELETE</strong> to confirm
+                    </label>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                      placeholder="Type DELETE"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeleteConfirmText("");
+                  }}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDelete}
+                  disabled={actionLoading || deleteConfirmText !== "DELETE"}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete Permanently"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
-
-      {/* Modals - Outside main to overlay entire page */}
-      {/* Suspend Modal */}
-      {showSuspendModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-orange-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Suspend Agency Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  This will temporarily suspend the agency&apos;s account. All
-                  employees under this agency will be affected.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for Suspension *
-                  </label>
-                  <textarea
-                    value={actionReason}
-                    onChange={(e) => setActionReason(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    rows={3}
-                    placeholder="Enter reason for suspension..."
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowSuspendModal(false);
-                  setActionReason("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSuspend}
-                disabled={actionLoading}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Suspending...
-                  </>
-                ) : (
-                  "Confirm Suspension"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Ban Modal */}
-      {showBanModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-red-50">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-red-600">
-                  Ban Agency Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  ⚠️ <strong>PERMANENT ACTION:</strong> This will permanently
-                  ban the agency and all associated employees.
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  This action cannot be easily reversed.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for Ban *
-                  </label>
-                  <textarea
-                    value={actionReason}
-                    onChange={(e) => setActionReason(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    rows={3}
-                    placeholder="Enter reason for permanent ban..."
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowBanModal(false);
-                  setActionReason("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleBan}
-                disabled={actionLoading}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Banning...
-                  </>
-                ) : (
-                  "Confirm Ban"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Activate Modal */}
-      {showActivateModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-green-50">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-green-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {agency?.is_banned ? "Unban" : "Unsuspend"} Agency Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  This will reactivate the agency&apos;s account and restore
-                  access for all employees.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowActivateModal(false)}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleActivate}
-                disabled={actionLoading}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {agency?.is_banned ? "Unbanning..." : "Unsuspending..."}
-                  </>
-                ) : agency?.is_banned ? (
-                  "Confirm Unban"
-                ) : (
-                  "Confirm Unsuspend"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-red-100">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-red-600">
-                  Delete Agency Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  🚨 <strong>IRREVERSIBLE ACTION:</strong> This will
-                  permanently delete:
-                </p>
-                <ul className="text-sm text-gray-600 mb-4 ml-6 list-disc">
-                  <li>Agency profile and business information</li>
-                  <li>All employee accounts</li>
-                  <li>Job history and earnings</li>
-                  <li>Transaction records</li>
-                  <li>Reviews and ratings</li>
-                </ul>
-                <p className="text-sm font-semibold text-red-600 mb-4">
-                  This action CANNOT be undone.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type <strong>DELETE</strong> to confirm
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Type DELETE"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteConfirmText("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={actionLoading || deleteConfirmText !== "DELETE"}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete Permanently"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

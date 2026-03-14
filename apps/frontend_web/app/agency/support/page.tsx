@@ -107,6 +107,10 @@ export default function AgencySupportPage() {
 
   const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.subject.trim() || !formData.description.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
     if (formData.description.trim().length < 20) {
       toast.error("Please provide at least 20 characters in the description");
       return;
@@ -251,7 +255,7 @@ export default function AgencySupportPage() {
                    </div>
                    <h3 className="text-lg font-bold text-gray-900 mb-2">Request Received</h3>
                    <p className="text-sm font-medium text-gray-500 mb-6 leading-relaxed">
-                       We've assigned ID <span className="text-[#00BAF1] font-bold">{ticketId?.includes('-') ? ticketId.split('-')[1] : ticketId}</span> to your ticket. A support agent will respond within 24 hours.
+                      We've assigned ID <span className="text-[#00BAF1] font-bold">{ticketId}</span> to your ticket. A support agent will respond within 24 hours.
                    </p>
                    <Button
                       onClick={() => setTicketSubmitted(false)}

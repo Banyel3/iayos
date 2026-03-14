@@ -7445,8 +7445,8 @@ def cleanup_maestro_test_data(request):
 @require_kyc
 def worker_check_in(request, job_id: int):
     """
-    Worker clocks in for a daily job.
-    Creates attendance record with time_in and marks worker_confirmed=True.
+    Worker marks "on the way" for a daily job.
+    Creates/updates attendance in DISPATCHED state (no time_in yet).
     
     Constraints:
     - Only from 6 AM onwards (except QA testing day-offset flow)
@@ -7454,8 +7454,8 @@ def worker_check_in(request, job_id: int):
     - Only once per day per worker
     """
     from datetime import time as dt_time
+    from decimal import Decimal
     from .models import Job, DailyAttendance, WorkerProfile, Profile
-    from jobs.daily_payment_service import DailyPaymentService
     
     try:
         print(f"⏰ [MOBILE] Worker check-in request for job {job_id} by {request.auth.email}")
@@ -7525,13 +7525,22 @@ def worker_check_in(request, job_id: int):
         now = timezone.now()
         today = _get_effective_work_date(job)
         
-        # Check if already checked in today
+        # Check if attendance already exists for today
         existing_attendance = DailyAttendance.objects.filter(
             jobID=job,
             workerID=worker,
             date=today
         ).first()
         
+        # Already on the way
+        if existing_attendance and existing_attendance.status == 'DISPATCHED' and not existing_attendance.time_in:
+            return Response({
+                "error": "Already marked on the way for today",
+                "attendance_id": existing_attendance.attendanceID,
+                "status": existing_attendance.status,
+            }, status=400)
+
+        # Legacy compatibility: already checked in by older flow
         if existing_attendance and existing_attendance.time_in:
             return Response({
                 "error": "Already checked in for today",
@@ -7539,28 +7548,30 @@ def worker_check_in(request, job_id: int):
                 "time_in": existing_attendance.time_in.isoformat() if existing_attendance.time_in else None
             }, status=400)
         
-        # Create or update attendance record
+        # Create or update attendance record as DISPATCHED (on the way).
         attendance, created = DailyAttendance.objects.update_or_create(
             jobID=job,
             workerID=worker,
             date=today,
             defaults={
-                'time_in': now,
-                'status': 'PENDING',
+                'time_in': None,
+                'time_out': None,
+                'status': 'DISPATCHED',
                 'worker_confirmed': True,
                 'worker_confirmed_at': now,
-                'amount_earned': job.daily_rate_agreed,  # Will be adjusted if HALF_DAY or ABSENT
+                'amount_earned': Decimal('0.00'),
             }
         )
         
-        print(f"✅ [MOBILE] Worker checked in: attendance_id={attendance.attendanceID}, time_in={now}")
+        print(f"✅ [MOBILE] Worker marked on the way: attendance_id={attendance.attendanceID}, at={now}")
         
         return {
             "success": True,
             "attendance_id": attendance.attendanceID,
-            "time_in": now.isoformat(),
+            "time_in": None,
             "date": str(today),
-            "message": "Successfully checked in",
+            "status": attendance.status,
+            "message": "Marked on the way. Ask the client to verify arrival.",
             "awaiting_client_confirmation": True
         }
         
@@ -7633,11 +7644,11 @@ def worker_check_out(request, job_id: int):
 @require_kyc
 def worker_cancel_check_in(request, job_id: int):
     """
-    Worker can undo check-in within a short grace period.
+    Worker can undo on-the-way/check-in action within a short grace period.
 
     Constraints:
     - Undo window: first 10 seconds after check-in
-    - Cannot cancel once checked out or client-confirmed
+    - Cannot cancel once client verified arrival or checked out
     """
     from .models import Job, DailyAttendance, WorkerProfile, Profile
 
@@ -7668,16 +7679,23 @@ def worker_cancel_check_in(request, job_id: int):
         except DailyAttendance.DoesNotExist:
             return Response({"error": "No active check-in found for today"}, status=400)
 
-        if not attendance.time_in:
-            return Response({"error": "No active check-in found for today"}, status=400)
-
         if attendance.time_out:
             return Response({"error": "Cannot cancel check-in after checkout"}, status=400)
 
         if attendance.client_confirmed:
             return Response({"error": "Cannot cancel check-in after client confirmation"}, status=400)
 
-        elapsed_seconds = (timezone.now() - attendance.time_in).total_seconds()
+        # New flow: DISPATCHED + no time_in = on-the-way (undo allowed)
+        # Legacy flow: time_in exists = checked-in (undo still allowed within window)
+        if not attendance.time_in and attendance.status != 'DISPATCHED':
+            return Response({"error": "No active on-the-way/check-in found for today"}, status=400)
+
+        if attendance.time_in and attendance.status != 'DISPATCHED':
+            # Arrival already verified in the new flow; do not allow rollback.
+            return Response({"error": "Cannot cancel after arrival has been verified"}, status=400)
+
+        reference_time = attendance.worker_confirmed_at or attendance.updatedAt or timezone.now()
+        elapsed_seconds = (timezone.now() - reference_time).total_seconds()
         if elapsed_seconds > CHECK_IN_UNDO_WINDOW_SECONDS:
             return Response({
                 "error": f"Undo window expired. You can only cancel within {CHECK_IN_UNDO_WINDOW_SECONDS} seconds.",
@@ -7690,7 +7708,7 @@ def worker_cancel_check_in(request, job_id: int):
         return {
             "success": True,
             "date": str(today),
-            "message": "Check-in cancelled successfully",
+            "message": "On-the-way status cancelled successfully",
         }
 
     except Exception as e:
