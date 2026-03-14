@@ -65,6 +65,7 @@ import { useSubmitReview, useEditReview } from "../../lib/hooks/useReviews";
 import { useSubmitReport } from "../../lib/hooks/useReports";
 import { useAgoraCall } from "../../lib/hooks/useAgoraCall";
 import {
+  useCancelDailyJob,
   useWorkerCheckIn,
   useWorkerCancelCheckIn,
   useClientConfirmAttendance,
@@ -618,6 +619,7 @@ export default function ChatScreen() {
   const clientMarkNoWorkMutation = useClientMarkNoWork();
   const clientVerifyArrivalMutation = useClientVerifyArrival();
   const clientMarkCheckoutMutation = useClientMarkCheckout();
+  const cancelDailyJobMutation = useCancelDailyJob();
   const requestDailySkipDayMutation = useRequestDailySkipDay();
   const clientReviewDailySkipDayMutation = useClientReviewDailySkipDay();
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
@@ -879,6 +881,55 @@ export default function ChatScreen() {
           onPress: () => {
             chooseCancellationReason((reason) =>
               cancelJobMutation.mutate({
+                jobId: conversation.job.id,
+                reason,
+              }),
+            );
+          },
+        },
+      ],
+    );
+  };
+
+  // Handle cancel daily job (CLIENT only)
+  const handleCancelDailyJob = () => {
+    if (!conversation) return;
+
+    const chooseCancellationReason = (onSelect: (reason: string) => void) => {
+      Alert.alert(
+        "Select Cancellation Reason",
+        "A reason is required to cancel this job.",
+        [
+          {
+            text: "No Longer Needed",
+            onPress: () => onSelect("Client no longer needs the service"),
+          },
+          {
+            text: "Budget Constraints",
+            onPress: () =>
+              onSelect("Client cancelled due to budget constraints"),
+          },
+          {
+            text: "Scheduling Conflict",
+            onPress: () =>
+              onSelect("Client cancelled due to scheduling conflict"),
+          },
+          { text: "Back", style: "cancel" },
+        ],
+      );
+    };
+
+    Alert.alert(
+      "Cancel Daily Job",
+      "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
+      [
+        { text: "Keep Job", style: "cancel" },
+        {
+          text: "Cancel Daily Job",
+          style: "destructive",
+          onPress: () => {
+            chooseCancellationReason((reason) =>
+              cancelDailyJobMutation.mutate({
                 jobId: conversation.job.id,
                 reason,
               }),
@@ -2530,9 +2581,15 @@ export default function ChatScreen() {
     );
   }
 
-  const myWorkerAttendanceToday = conversation.attendance_today?.find(
-    (a) => Number(a.worker_id) === Number(user?.profile_data?.workerProfileId),
-  );
+  const myWorkerAttendanceToday = conversation.attendance_today?.find((a) => {
+    const attendanceWorkerId = Number(a?.worker_id);
+    const myWorkerProfileId = Number(user?.profile_data?.workerProfileId);
+    return (
+      Number.isFinite(attendanceWorkerId) &&
+      Number.isFinite(myWorkerProfileId) &&
+      attendanceWorkerId === myWorkerProfileId
+    );
+  });
   const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
   const hasCheckedOutToday = Boolean(myWorkerAttendanceToday?.time_out);
   const hasMarkedOnTheWayToday = Boolean(
@@ -4424,10 +4481,10 @@ export default function ChatScreen() {
                 conversation.job?.status !== "CANCELLED" && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.cancelJobButton]}
-                    onPress={handleCancelJob}
-                    disabled={cancelJobMutation.isPending}
+                    onPress={handleCancelDailyJob}
+                    disabled={cancelDailyJobMutation.isPending}
                   >
-                    {cancelJobMutation.isPending ? (
+                    {cancelDailyJobMutation.isPending ? (
                       <ActivityIndicator size="small" color={Colors.white} />
                     ) : (
                       <>
