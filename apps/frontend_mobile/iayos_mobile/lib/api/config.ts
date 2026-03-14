@@ -334,6 +334,10 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${id}/approve-completion`,
   CONFIRM_WORK_STARTED: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/confirm-work-started`,
+  MARK_ON_THE_WAY: (id: number) =>
+    `${API_BASE_URL}/jobs/${id}/mark-on-the-way`,
+  MARK_JOB_STARTED: (id: number) =>
+    `${API_BASE_URL}/jobs/${id}/mark-job-started`,
   ACTIVE_JOBS: `${API_BASE_URL}/jobs/my-active-jobs`,
   UPLOAD_JOB_PHOTOS: (id: number) => `${API_BASE_URL}/jobs/${id}/upload-photos`,
 
