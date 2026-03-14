@@ -112,6 +112,7 @@ export type ConversationDetail = {
     payment_model?: "PROJECT" | "DAILY";
     daily_rate?: number;
     duration_days?: number;
+    total_days_worked?: number;
     // Materials purchasing workflow
     materials_status?:
       | "NONE"

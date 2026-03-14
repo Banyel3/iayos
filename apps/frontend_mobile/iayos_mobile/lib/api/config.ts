@@ -543,6 +543,10 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/verify-arrival`,
   CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-checkout`,
+  DAILY_EXTEND_ONE_DAY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/extend-one-day`,
+  DAILY_FINISH_JOB: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/finish`,
 
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,
