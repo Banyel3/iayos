@@ -9433,9 +9433,17 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     if not job.clientID or job.clientID.profileID.accountFK != request.auth:
         return Response({"error": "Only the job client can advance QA day"}, status=403)
 
-    old_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    stored_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    old_offset = max(stored_offset, 0)
     duration_days = int(getattr(job, 'duration_days', 0) or 0)
     max_offset = max(duration_days - 1, 0) if duration_days > 0 else None
+
+    # Self-heal previously persisted out-of-range values from older QA builds.
+    if max_offset is not None and old_offset > max_offset:
+        old_offset = max_offset
+        if stored_offset != old_offset:
+            job.qa_day_offset = old_offset
+            job.save(update_fields=['qa_day_offset', 'updatedAt'])
 
     if max_offset is not None and old_offset >= max_offset:
         return Response({

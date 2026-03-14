@@ -24,12 +24,21 @@ def _is_testing_mode_enabled() -> bool:
     return bool(getattr(settings, "TESTING", False))
 
 
+def _get_clamped_qa_day_offset(job) -> int:
+    day_offset = max(int(getattr(job, "qa_day_offset", 0) or 0), 0)
+    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    if duration_days > 0:
+        max_offset = max(duration_days - 1, 0)
+        day_offset = min(day_offset, max_offset)
+    return day_offset
+
+
 def _get_effective_work_date(job):
     base_date = timezone.now().date()
     if not _is_testing_mode_enabled():
         return base_date
 
-    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    day_offset = _get_clamped_qa_day_offset(job)
     if day_offset <= 0:
         return base_date
 
@@ -2285,7 +2294,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         # DAILY skip-day request state for today (if applicable)
         daily_skip_requests_today = []
         effective_work_date = timezone.now().date()
-        qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+        qa_day_offset = _get_clamped_qa_day_offset(job)
         if getattr(job, 'payment_model', 'PROJECT') == 'DAILY' and job.status == 'IN_PROGRESS':
             from accounts.models import DailySkipDayRequest
             today = _get_effective_work_date(job)
