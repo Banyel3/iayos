@@ -7,6 +7,77 @@ import { ENDPOINTS, apiRequest } from "../api/config";
 import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 
+function patchConversationOnTheWay(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  payload: CheckInOutResponse,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.job || Number(previous.job.id) !== Number(jobId)) {
+        return previous;
+      }
+
+      const attendanceId = Number(payload?.attendance_id);
+      const nowIso = new Date().toISOString();
+      const existing = Array.isArray(previous.attendance_today)
+        ? previous.attendance_today
+        : [];
+
+      const updated = existing.some(
+        (row: any) => Number(row?.attendance_id) === attendanceId,
+      )
+        ? existing.map((row: any) => {
+            if (Number(row?.attendance_id) !== attendanceId) {
+              return row;
+            }
+
+            return {
+              ...row,
+              status: "DISPATCHED",
+              is_dispatched: true,
+              worker_confirmed: true,
+              worker_confirmed_at:
+                row?.worker_confirmed_at || payload?.worker_confirmed_at || nowIso,
+              time_in: null,
+              time_out: null,
+            };
+          })
+        : [
+            {
+              attendance_id: attendanceId,
+              worker_id: payload?.worker_id,
+              worker_account_id: payload?.worker_account_id,
+              worker_name: "Worker",
+              worker_avatar: null,
+              date: payload?.date,
+              time_in: null,
+              time_out: null,
+              status: "DISPATCHED",
+              is_dispatched: true,
+              worker_confirmed: true,
+              worker_confirmed_at: payload?.worker_confirmed_at || nowIso,
+              client_confirmed: false,
+              client_confirmed_at: null,
+              amount_earned: 0,
+              payment_processed: false,
+              notes: "",
+            },
+            ...existing,
+          ];
+
+      return {
+        ...previous,
+        attendance_today: updated,
+      };
+    },
+  );
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -615,8 +686,11 @@ export const useCancelDailyJob = () => {
 export interface CheckInOutResponse {
   success: boolean;
   attendance_id: number;
+  worker_id?: number;
+  worker_account_id?: number;
   time_in?: string;
   time_out?: string;
+  worker_confirmed_at?: string;
   date: string;
   hours_worked?: number;
   message: string;
@@ -675,6 +749,7 @@ export const useWorkerCheckIn = () => {
       return response.json() as Promise<CheckInOutResponse>;
     },
     onSuccess: (data, jobId) => {
+      patchConversationOnTheWay(queryClient, jobId, data);
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance", jobId] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary", jobId] });
       queryClient.invalidateQueries({ queryKey: ["messages"] }); // Refresh chat to show updated attendance

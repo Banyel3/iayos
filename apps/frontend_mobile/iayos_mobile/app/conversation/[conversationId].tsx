@@ -2583,11 +2583,22 @@ export default function ChatScreen() {
 
   const myWorkerAttendanceToday = conversation.attendance_today?.find((a) => {
     const attendanceWorkerId = Number(a?.worker_id);
+    const attendanceWorkerAccountId = Number(a?.worker_account_id);
     const myWorkerProfileId = Number(user?.profile_data?.workerProfileId);
-    return (
+    const myAccountId = Number(user?.accountID);
+
+    const profileIdMatch =
       Number.isFinite(attendanceWorkerId) &&
       Number.isFinite(myWorkerProfileId) &&
-      attendanceWorkerId === myWorkerProfileId
+      attendanceWorkerId === myWorkerProfileId;
+
+    const accountIdMatch =
+      Number.isFinite(attendanceWorkerAccountId) &&
+      Number.isFinite(myAccountId) &&
+      attendanceWorkerAccountId === myAccountId;
+
+    return (
+      profileIdMatch || accountIdMatch
     );
   });
   const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
