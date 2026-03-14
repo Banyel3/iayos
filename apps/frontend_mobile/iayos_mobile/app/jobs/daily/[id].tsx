@@ -303,23 +303,62 @@ export default function DailyJobDetailScreen() {
   };
 
   const handleCancelJob = () => {
+    if (!isClient) {
+      Alert.alert("Not Allowed", "Only the client can cancel this job.");
+      return;
+    }
+
+    if (job?.status === "COMPLETED" || job?.status === "CANCELLED") {
+      Alert.alert(
+        "Cannot Cancel",
+        "Completed or cancelled jobs can no longer be cancelled.",
+      );
+      return;
+    }
+
+    const chooseCancellationReason = (onSelect: (reason: string) => void) => {
+      Alert.alert(
+        "Select Cancellation Reason",
+        "A reason is required to cancel this job.",
+        [
+          {
+            text: "No Longer Needed",
+            onPress: () => onSelect("Client no longer needs the service"),
+          },
+          {
+            text: "Budget Constraints",
+            onPress: () =>
+              onSelect("Client cancelled due to budget constraints"),
+          },
+          {
+            text: "Scheduling Conflict",
+            onPress: () =>
+              onSelect("Client cancelled due to scheduling conflict"),
+          },
+          { text: "Back", style: "cancel" },
+        ],
+      );
+    };
+
     Alert.alert(
       "Cancel Daily Job",
-      "Are you sure you want to cancel this job? This action cannot be undone.",
+      "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
       [
-        { text: "No", style: "cancel" },
+        { text: "Keep Job", style: "cancel" },
         {
-          text: "Yes, Cancel Job",
+          text: "Cancel Job",
           style: "destructive",
           onPress: async () => {
-            try {
-              await cancelJobMutation.mutateAsync({ jobId });
-              Alert.alert("Success", "Job cancelled");
-              safeGoBack(router, "/(tabs)/jobs");
-            } catch (error: unknown) {
-              const message = error instanceof Error ? error.message : "Failed to cancel job";
-              Alert.alert("Error", message);
-            }
+            chooseCancellationReason(async (reason) => {
+              try {
+                await cancelJobMutation.mutateAsync({ jobId, reason });
+                Alert.alert("Success", "Job cancelled");
+                safeGoBack(router, "/(tabs)/jobs");
+              } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : "Failed to cancel job";
+                Alert.alert("Error", message);
+              }
+            });
           },
         },
       ]
@@ -389,9 +428,13 @@ export default function DailyJobDetailScreen() {
             {job.title}
           </Text>
         </View>
-        <TouchableOpacity style={styles.headerMenuButton} onPress={handleCancelJob}>
-          <Ionicons name="ellipsis-vertical" size={24} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        {isClient && job.status !== "COMPLETED" && job.status !== "CANCELLED" ? (
+          <TouchableOpacity style={styles.headerMenuButton} onPress={handleCancelJob}>
+            <Ionicons name="ellipsis-vertical" size={24} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerMenuButton} />
+        )}
       </View>
 
       <ScrollView
