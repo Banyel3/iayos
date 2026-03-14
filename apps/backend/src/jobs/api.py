@@ -6767,7 +6767,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
                 JobEmployeeAssignment.AssignmentStatus.COMPLETED,
             ],
-        ).select_related('employee__accountFK')
+        ).select_related('employee__agency')
 
         # AgencyEmployee does not map 1:1 to login accounts in manager-only setups.
         # Resolve by agency ownership so agency account holders can confirm schedules
