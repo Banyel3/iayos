@@ -7437,7 +7437,7 @@ def cleanup_maestro_test_data(request):
 # DAILY ATTENDANCE ENDPOINTS - Worker Clock In/Out + Client Confirmation
 # ══════════════════════════════════════════════════════════════════════════════
 # These endpoints provide simplified daily attendance tracking for the chat screen.
-# Time constraints: Check-in/out allowed only between 6 AM - 8 PM.
+# Time constraints: Check-in allowed starting 6 AM (no evening cutoff); check-out remains 6 AM - 8 PM.
 # Auto-payment triggers when client confirms worker has gone home.
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -7449,7 +7449,7 @@ def worker_check_in(request, job_id: int):
     Creates attendance record with time_in and marks worker_confirmed=True.
     
     Constraints:
-    - Only between 6 AM and 8 PM
+    - Only from 6 AM onwards
     - Only for IN_PROGRESS daily-rate jobs
     - Only once per day per worker
     """
@@ -7474,26 +7474,25 @@ def worker_check_in(request, job_id: int):
         if job.status != 'IN_PROGRESS':
             return Response({"error": f"Job must be in progress. Current status: {job.status}"}, status=400)
         
-        # Validate time constraints: 6 AM - 8 PM
+        # Validate time constraint: from 6 AM onwards
         current_time = _get_ph_current_time()
         start_time = dt_time(6, 0, 0)   # 6 AM
-        end_time = dt_time(20, 0, 0)    # 8 PM
         
-        if current_time < start_time or current_time > end_time:
+        if current_time < start_time:
             _log_mobile(
                 "worker_check_in_blocked_time_window",
                 account_id=getattr(request.auth, "accountID", None),
                 job_id=job_id,
                 current_time=current_time.strftime("%H:%M:%S"),
                 window_start="06:00:00",
-                window_end="20:00:00",
+                window_end=None,
                 utc_now=timezone.now().strftime("%Y-%m-%d %H:%M:%S%z"),
             )
             return Response({
-                "error": "Check-in is only allowed between 6:00 AM and 8:00 PM",
+                "error": "Check-in is only allowed starting 6:00 AM",
                 "current_time": current_time.strftime("%H:%M"),
                 "allowed_start": "06:00",
-                "allowed_end": "20:00"
+                "allowed_end": None
             }, status=400)
         
         # Get worker's profile
