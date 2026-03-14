@@ -218,6 +218,7 @@ export default function PendingKYCPage() {
     const MAX_RETRIES = 2;
     setIsLoading(true);
     setFetchError(null);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // Clean up previous controller if it exists
       if (abortControllerRef.current) {
@@ -228,7 +229,7 @@ export default function PendingKYCPage() {
       const controller = new AbortController();
       abortControllerRef.current = controller;
       
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         if (isMounted.current) {
           controller.abort("timeout");
         }
@@ -248,7 +249,6 @@ export default function PendingKYCPage() {
         credentials: "include",
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
       
       if (!isMounted.current) return;
 
@@ -464,7 +464,10 @@ export default function PendingKYCPage() {
       // Keep empty array on error - don't fall back to mock data
       setPendingKYC([]);
     } finally {
-      setIsLoading(false);
+      clearTimeout(timeoutId);
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
     }
   };
 

@@ -604,7 +604,7 @@ export default function AgencyDetailPage() {
                             </div>
                           </div>
                           {agency.kyc_status !== "APPROVED" && (
-                            <Button variant="outline" size="sm" className="w-full md:w-auto bg-white hover:bg-gray-50">
+                            <Button variant="outline" size="sm" className="w-full md:w-auto bg-white hover:bg-gray-50" onClick={() => router.push("/admin/kyc/pending")}>
                               <ExternalLink className="h-3.5 w-3.5 mr-2" />
                               Review Documents
                             </Button>

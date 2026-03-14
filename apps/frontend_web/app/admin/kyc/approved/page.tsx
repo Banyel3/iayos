@@ -279,7 +279,9 @@ export default function ApprovedKYCPage() {
         duration: 5000,
       });
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+      }
     }
   };
 
