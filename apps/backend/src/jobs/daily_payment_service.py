@@ -455,7 +455,7 @@ class DailyPaymentService:
             
             if notify_user:
                 Notification.objects.create(
-                    accountID=notify_user,
+                    accountFK=notify_user,
                     notificationType='EXTENSION_REQUEST',
                     title='Extension Request',
                     message=f'Client has requested a {additional_days}-day extension. Your approval is needed.',
@@ -464,7 +464,7 @@ class DailyPaymentService:
         else:
             # Notify client
             Notification.objects.create(
-                accountID=job.clientID.profileID.accountFK,
+                accountFK=job.clientID.profileID.accountFK,
                 notificationType='EXTENSION_REQUEST',
                 title='Extension Request',
                 message=f'{"Agency" if requested_by == "AGENCY" else "Worker"} has requested a {additional_days}-day extension. Your approval is needed.',
@@ -555,7 +555,7 @@ class DailyPaymentService:
             
             # Notify both parties
             Notification.objects.create(
-                accountID=client_account,
+                accountFK=client_account,
                 notificationType='EXTENSION_APPROVED',
                 title='Extension Approved',
                 message=f'Job extension approved. {extension.additional_days} days added.',
@@ -640,7 +640,7 @@ class DailyPaymentService:
             
             if notify_user:
                 Notification.objects.create(
-                    accountID=notify_user,
+                    accountFK=notify_user,
                     notificationType='RATE_CHANGE_REQUEST',
                     title='Rate Change Request',
                     message=f'Client has requested a rate {direction} to ₱{new_rate}/day. Your approval is needed.',
@@ -648,7 +648,7 @@ class DailyPaymentService:
                 )
         else:
             Notification.objects.create(
-                accountID=job.clientID.profileID.accountFK,
+                accountFK=job.clientID.profileID.accountFK,
                 notificationType='RATE_CHANGE_REQUEST',
                 title='Rate Change Request',
                 message=f'{"Agency" if requested_by == "AGENCY" else "Worker"} has requested a rate {direction} to ₱{new_rate}/day. Your approval is needed.',
@@ -755,7 +755,7 @@ class DailyPaymentService:
             
             # Notify both parties
             Notification.objects.create(
-                accountID=job.clientID.profileID.accountFK,
+                accountFK=job.clientID.profileID.accountFK,
                 notificationType='RATE_CHANGE_APPROVED',
                 title='Rate Change Approved',
                 message=f'Daily rate changed to ₱{rate_change.new_rate}/day effective {rate_change.effective_date}.',
@@ -888,7 +888,7 @@ class DailyPaymentService:
         
         # Notify parties
         Notification.objects.create(
-            accountID=job.clientID.profileID.accountFK,
+            accountFK=job.clientID.profileID.accountFK,
             notificationType='JOB_CANCELLED',
             title='Job Cancelled',
             message=f'Daily job cancelled. ₱{unused_escrow} refunded to your wallet.',
