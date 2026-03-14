@@ -9485,6 +9485,213 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     }
 
 
+@router.post("/{job_id}/daily/extend-one-day", auth=dual_auth)
+@require_kyc
+def extend_daily_job_one_day(request, job_id: int):
+    """
+    Client-only shortcut: extend a DAILY job by 1 day and collect additional escrow immediately.
+    This is used when the configured duration has already been reached but parties want to continue.
+    """
+    try:
+        job = Job.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can extend this daily job"}, status=403)
+
+    daily_rate = Decimal(str(job.daily_rate_agreed or 0))
+    if daily_rate <= 0:
+        return Response({"error": "Daily rate is not configured for this job"}, status=400)
+
+    num_workers = int(getattr(job, 'total_workers_needed', 0) or 0)
+    if num_workers <= 0:
+        num_workers = 1
+
+    additional_days = 1
+    additional_escrow = daily_rate * Decimal(num_workers) * Decimal(additional_days)
+
+    from jobs.daily_payment_service import DailyPaymentService
+    platform_fee = additional_escrow * DailyPaymentService.PLATFORM_FEE_PERCENT
+    total_required = additional_escrow + platform_fee
+
+    with db_transaction.atomic():
+        client_wallet, _ = Wallet.objects.select_for_update().get_or_create(
+            accountFK=request.auth,
+            defaults={'balance': Decimal('0.00')}
+        )
+
+        if client_wallet.balance < total_required:
+            return Response({
+                "error": "Insufficient wallet balance for one-day extension",
+                "required": float(total_required),
+                "available": float(client_wallet.balance),
+                "daily_rate": float(daily_rate),
+                "num_workers": num_workers,
+            }, status=400)
+
+        client_wallet.balance -= total_required
+        client_wallet.reservedBalance += additional_escrow
+        client_wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+
+        job.duration_days = int(getattr(job, 'duration_days', 0) or 0) + 1
+        job.daily_escrow_total = Decimal(str(getattr(job, 'daily_escrow_total', Decimal('0.00')) or Decimal('0.00'))) + additional_escrow
+        job.budget = Decimal(str(job.budget or 0)) + additional_escrow
+        job.escrowAmount = Decimal(str(job.escrowAmount or 0)) + additional_escrow
+        job.save(update_fields=['duration_days', 'daily_escrow_total', 'budget', 'escrowAmount', 'updatedAt'])
+
+        Transaction.objects.create(
+            walletID=client_wallet,
+            amount=total_required,
+            transactionType='PAYMENT',
+            status='COMPLETED',
+            description=f'DAILY one-day extension escrow for job #{job.jobID}',
+            balanceAfter=client_wallet.balance,
+            relatedJobPosting=job,
+            paymentMethod='WALLET',
+        )
+
+        JobLog.objects.create(
+            jobID=job,
+            actionType=JobLog.ActionType.JOB_EDITED,
+            oldStatus=job.status,
+            newStatus=job.status,
+            changedBy=request.auth,
+            notes='[DAILY] Client extended job by +1 day with immediate escrow top-up',
+            metadata={
+                'event': 'daily_extend_one_day',
+                'additional_days': 1,
+                'daily_rate': float(daily_rate),
+                'num_workers': num_workers,
+                'additional_escrow': float(additional_escrow),
+                'platform_fee': float(platform_fee),
+                'total_required': float(total_required),
+                'new_duration_days': job.duration_days,
+            },
+        )
+
+    # Notify worker/agency
+    try:
+        recipient = None
+        if job.assignedWorkerID and job.assignedWorkerID.profileID:
+            recipient = job.assignedWorkerID.profileID.accountFK
+        elif job.assignedAgencyFK:
+            recipient = job.assignedAgencyFK.accountFK
+
+        if recipient:
+            Notification.objects.create(
+                accountFK=recipient,
+                notificationType='EXTENSION_APPROVED',
+                title='Job Extended by 1 Day',
+                message=f"Client extended '{job.title}' by 1 day.",
+                relatedJobID=job.jobID,
+            )
+    except Exception:
+        pass
+
+    return {
+        'success': True,
+        'message': 'Job extended by 1 day. Additional escrow collected.',
+        'job_id': job.jobID,
+        'additional_days': 1,
+        'daily_rate': float(daily_rate),
+        'num_workers': num_workers,
+        'additional_escrow': float(additional_escrow),
+        'platform_fee': float(platform_fee),
+        'total_required': float(total_required),
+        'new_duration_days': int(job.duration_days or 0),
+    }
+
+
+@router.post("/{job_id}/daily/finish", auth=dual_auth)
+@require_kyc
+def finish_daily_job(request, job_id: int):
+    """
+    Client-only action to finish a DAILY job once planned days are done.
+    Moves the job into normal completion/review/backjob flow.
+    """
+    try:
+        job = Job.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'DAILY':
+        return Response({"error": "This endpoint is only for DAILY jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can finish this daily job"}, status=403)
+
+    # Finish the job and unlock review flow for both parties.
+    now = timezone.now()
+    job.status = 'COMPLETED'
+    job.clientMarkedComplete = True
+    job.workerMarkedComplete = True
+    if not job.remainingPaymentPaid:
+        job.remainingPaymentPaid = True
+        job.remainingPaymentPaidAt = now
+    job.save(update_fields=[
+        'status',
+        'clientMarkedComplete',
+        'workerMarkedComplete',
+        'remainingPaymentPaid',
+        'remainingPaymentPaidAt',
+        'updatedAt',
+    ])
+
+    JobLog.objects.create(
+        jobID=job,
+        actionType=JobLog.ActionType.JOB_EDITED,
+        oldStatus='IN_PROGRESS',
+        newStatus='COMPLETED',
+        changedBy=request.auth,
+        notes='[DAILY] Client marked daily job as finished',
+        metadata={
+            'event': 'daily_job_finished',
+            'duration_days': int(getattr(job, 'duration_days', 0) or 0),
+            'total_days_worked': int(getattr(job, 'total_days_worked', 0) or 0),
+        },
+    )
+
+    try:
+        from profiles.models import Conversation, Message
+        conv = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conv:
+            Message.create_system_message(conv, f"✅ Client marked DAILY job '{job.title}' as finished.")
+    except Exception:
+        pass
+
+    try:
+        broadcast_job_status_update(job.jobID, {
+            'event': 'daily_job_finished',
+            'job_id': job.jobID,
+            'status': job.status,
+            'client_marked_complete': job.clientMarkedComplete,
+            'worker_marked_complete': job.workerMarkedComplete,
+            'remaining_payment_paid': job.remainingPaymentPaid,
+            'timestamp': now.isoformat(),
+        })
+    except Exception:
+        pass
+
+    return {
+        'success': True,
+        'message': 'Daily job marked as finished. Reviews can now be submitted.',
+        'job_id': job.jobID,
+        'status': job.status,
+        'client_marked_complete': job.clientMarkedComplete,
+        'worker_marked_complete': job.workerMarkedComplete,
+    }
+
+
 @router.post("/{job_id}/daily/cancel", auth=dual_auth)
 @require_kyc
 def cancel_daily_job(request, job_id: int, data: CancelDailyJobSchema):

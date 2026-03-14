@@ -75,6 +75,8 @@ import {
   useRequestDailySkipDay,
   useClientReviewDailySkipDay,
   useClientQASkipNextDay,
+  useDailyExtendOneDay,
+  useDailyFinishJob,
 } from "../../lib/hooks/useDailyPayment";
 import { ENDPOINTS } from "../../lib/api/config";
 import MessageBubble from "../../components/MessageBubble";
@@ -623,6 +625,8 @@ export default function ChatScreen() {
   const requestDailySkipDayMutation = useRequestDailySkipDay();
   const clientReviewDailySkipDayMutation = useClientReviewDailySkipDay();
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
+  const dailyExtendOneDayMutation = useDailyExtendOneDay();
+  const dailyFinishJobMutation = useDailyFinishJob();
 
   // Voice calling
   const { initiateCall, callStatus, error: callError } = useAgoraCall();
@@ -2630,6 +2634,20 @@ export default function ChatScreen() {
       myWorkerAttendanceToday.status === "ABSENT" &&
       !myWorkerAttendanceToday.time_in,
   );
+  const configuredDurationDays = Number(conversation.job?.duration_days || 0);
+  const totalDaysWorked = Number(conversation.job?.total_days_worked || 0);
+  const qaOffset = Number(conversation.qa_day_offset || 0);
+  const qaMaxOffset =
+    configuredDurationDays > 0 ? Math.max(configuredDurationDays - 1, 0) : 0;
+  const reachedConfiguredDuration =
+    configuredDurationDays > 0 && totalDaysWorked >= configuredDurationDays;
+  const reachedQaOffsetLimit =
+    isTestingModeEnabled && configuredDurationDays > 0 && qaOffset >= qaMaxOffset;
+  const showDailyEndActions =
+    conversation.my_role === "CLIENT" &&
+    conversation.job?.payment_model === "DAILY" &&
+    conversation.job?.status === "IN_PROGRESS" &&
+    (reachedConfiguredDuration || reachedQaOffsetLimit);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -3634,6 +3652,8 @@ export default function ChatScreen() {
                       const effectiveDate =
                         conversation.effective_work_date ||
                         new Date().toISOString().split("T")[0];
+                      const canAdvanceQaDay =
+                        !configuredDurationDays || qaDayOffset < qaMaxOffset;
 
                       return (
                         <View style={styles.qaTestingCard}>
@@ -3644,49 +3664,142 @@ export default function ChatScreen() {
                             Effective day: {effectiveDate} (offset +
                             {qaDayOffset})
                           </Text>
-                          <TouchableOpacity
-                            style={styles.qaSkipNextDayButton}
-                            onPress={() =>
-                              Alert.alert(
-                                "[QA] Skip To Next Day",
-                                "Advance this DAILY job by 1 effective day for testing? This action is TESTING-only.",
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Advance +1 Day",
-                                    onPress: () =>
-                                      clientQASkipNextDayMutation.mutate({
-                                        jobId: conversation.job.id,
-                                        reason:
-                                          "QA client-triggered fast-forward",
-                                      }),
-                                  },
-                                ],
-                              )
-                            }
-                            disabled={clientQASkipNextDayMutation.isPending}
-                          >
-                            {clientQASkipNextDayMutation.isPending ? (
-                              <ActivityIndicator
-                                size="small"
-                                color={Colors.white}
-                              />
-                            ) : (
-                              <>
-                                <Ionicons
-                                  name="play-forward"
-                                  size={16}
+                          {canAdvanceQaDay ? (
+                            <TouchableOpacity
+                              style={styles.qaSkipNextDayButton}
+                              onPress={() =>
+                                Alert.alert(
+                                  "[QA] Skip To Next Day",
+                                  "Advance this DAILY job by 1 effective day for testing? This action is TESTING-only.",
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Advance +1 Day",
+                                      onPress: () =>
+                                        clientQASkipNextDayMutation.mutate({
+                                          jobId: conversation.job.id,
+                                          reason:
+                                            "QA client-triggered fast-forward",
+                                        }),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={clientQASkipNextDayMutation.isPending}
+                            >
+                              {clientQASkipNextDayMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
                                   color={Colors.white}
                                 />
-                                <Text style={styles.qaSkipNextDayButtonText}>
-                                  [QA] Skip To Next Day
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="play-forward"
+                                    size={16}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.qaSkipNextDayButtonText}>
+                                    [QA] Skip To Next Day
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={styles.qaSkipLimitText}>
+                              Reached configured DAILY duration. Extend by 1 day
+                              or finish the job below.
+                            </Text>
+                          )}
                         </View>
                       );
                     })()}
+
+                  {showDailyEndActions && (
+                    <View style={styles.dailyEndActionsCard}>
+                      <Text style={styles.dailyEndActionsTitle}>
+                        DAILY Duration Reached
+                      </Text>
+                      <Text style={styles.dailyEndActionsText}>
+                        Worked {totalDaysWorked}/{configuredDurationDays} day(s).
+                        Choose to extend one more day (with escrow top-up) or
+                        finish this job and proceed to reviews.
+                      </Text>
+
+                      <View style={styles.dailyEndActionsButtons}>
+                        <TouchableOpacity
+                          style={styles.dailyExtendButton}
+                          onPress={() =>
+                            Alert.alert(
+                              "Extend by 1 Day",
+                              `Add one more day and charge wallet now?\n\nDaily rate: ₱${Number(conversation.job?.daily_rate || 0).toLocaleString()}`,
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Extend +1 Day",
+                                  onPress: () =>
+                                    dailyExtendOneDayMutation.mutate({
+                                      jobId: conversation.job.id,
+                                    }),
+                                },
+                              ],
+                            )
+                          }
+                          disabled={
+                            dailyExtendOneDayMutation.isPending ||
+                            dailyFinishJobMutation.isPending
+                          }
+                        >
+                          {dailyExtendOneDayMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons name="add-circle" size={16} color={Colors.white} />
+                              <Text style={styles.dailyEndButtonText}>
+                                Extend +1 Day
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.dailyFinishButton}
+                          onPress={() =>
+                            Alert.alert(
+                              "Finish Daily Job",
+                              "Mark this DAILY job as finished now? This will move it into review/backjob flow.",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Finish Job",
+                                  style: "destructive",
+                                  onPress: () =>
+                                    dailyFinishJobMutation.mutate({
+                                      jobId: conversation.job.id,
+                                    }),
+                                },
+                              ],
+                            )
+                          }
+                          disabled={
+                            dailyFinishJobMutation.isPending ||
+                            dailyExtendOneDayMutation.isPending
+                          }
+                        >
+                          {dailyFinishJobMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <>
+                              <Ionicons name="flag" size={16} color={Colors.white} />
+                              <Text style={styles.dailyEndButtonText}>
+                                Job Finished
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
 
                   {/* Client View: Confirm attendance for each worker */}
                   {conversation.my_role === "CLIENT" && (
@@ -8278,6 +8391,59 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   qaSkipNextDayButtonText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+  },
+  qaSkipLimitText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
+  dailyEndActionsCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  dailyEndActionsTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  dailyEndActionsText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    marginBottom: Spacing.sm,
+  },
+  dailyEndActionsButtons: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  dailyExtendButton: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  dailyFinishButton: {
+    flex: 1,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.small,
+    paddingVertical: Spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  dailyEndButtonText: {
     ...Typography.body.small,
     color: Colors.white,
     fontWeight: "700",

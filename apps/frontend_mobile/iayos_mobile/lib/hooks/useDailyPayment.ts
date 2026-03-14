@@ -1091,6 +1091,28 @@ export interface ClientQASkipNextDayPayload {
   reason?: string;
 }
 
+export interface DailyExtendOneDayResponse {
+  success: boolean;
+  message: string;
+  job_id: number;
+  additional_days: number;
+  daily_rate: number;
+  num_workers: number;
+  additional_escrow: number;
+  platform_fee: number;
+  total_required: number;
+  new_duration_days: number;
+}
+
+export interface DailyFinishJobResponse {
+  success: boolean;
+  message: string;
+  job_id: number;
+  status: string;
+  client_marked_complete: boolean;
+  worker_marked_complete: boolean;
+}
+
 export const useRequestDailySkipDay = () => {
   const queryClient = useQueryClient();
 
@@ -1215,6 +1237,85 @@ export const useClientQASkipNextDay = () => {
       Toast.show({
         type: "error",
         text1: "QA Advance Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+export const useDailyExtendOneDay = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<DailyExtendOneDayResponse, Error, { jobId: number }>({
+    mutationFn: async ({ jobId }) => {
+      const response = await apiRequest(ENDPOINTS.DAILY_EXTEND_ONE_DAY(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to extend daily job"));
+      }
+
+      return response.json() as Promise<DailyExtendOneDayResponse>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Extended by 1 Day ✅",
+        text2: data.message || "Additional escrow has been collected",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Extension Failed",
+        text2: error.message,
+        position: "top",
+      });
+    },
+  });
+};
+
+export const useDailyFinishJob = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<DailyFinishJobResponse, Error, { jobId: number }>({
+    mutationFn: async ({ jobId }) => {
+      const response = await apiRequest(ENDPOINTS.DAILY_FINISH_JOB(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(getErrorMessage(error, "Failed to finish daily job"));
+      }
+
+      return response.json() as Promise<DailyFinishJobResponse>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+
+      Toast.show({
+        type: "success",
+        text1: "Job Finished ✅",
+        text2: data.message || "Reviews can now be submitted",
+        position: "top",
+      });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Finish Failed",
         text2: error.message,
         position: "top",
       });

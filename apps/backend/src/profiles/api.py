@@ -2493,6 +2493,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "payment_model": getattr(job, 'payment_model', 'PROJECT'),  # PROJECT or DAILY
                 "daily_rate": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
                 "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
+                "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
                 "budget": float(job.budget),
                 "location": job.location,
                 "workerMarkedOnTheWay": worker_marked_on_the_way,
