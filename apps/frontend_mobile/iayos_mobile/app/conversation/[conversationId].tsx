@@ -2530,9 +2530,15 @@ export default function ChatScreen() {
     );
   }
 
-  const myWorkerAttendanceToday = conversation.attendance_today?.find(
-    (a) => a.worker_id === user?.profile_data?.workerProfileId,
-  );
+  const myWorkerAttendanceToday = conversation.attendance_today?.find((a) => {
+    const attendanceWorkerId = Number(a?.worker_id);
+    const myWorkerProfileId = Number(user?.profile_data?.workerProfileId);
+    return (
+      Number.isFinite(attendanceWorkerId) &&
+      Number.isFinite(myWorkerProfileId) &&
+      attendanceWorkerId === myWorkerProfileId
+    );
+  });
   const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
   const hasCheckedOutToday = Boolean(myWorkerAttendanceToday?.time_out);
   const checkInElapsedSeconds = myWorkerAttendanceToday?.time_in
@@ -3748,7 +3754,7 @@ export default function ChatScreen() {
                                     onPress={() =>
                                       Alert.alert(
                                         "Mark Checkout",
-                                        `Mark ${attendance.worker_name || "worker"} as done for today? (Minimum 2 hours after check-in)`,
+                                        `Mark ${attendance.worker_name || "worker"} as done for today?`,
                                         [
                                           { text: "Cancel", style: "cancel" },
                                           {
