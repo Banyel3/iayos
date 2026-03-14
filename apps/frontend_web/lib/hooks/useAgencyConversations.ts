@@ -13,6 +13,8 @@ export type AgencyConversationJob = {
   status: string;
   budget: number;
   location: string;
+  paymentReleasedToWorker?: boolean;
+  paymentReleasedAt?: string | null;
   clientConfirmedWorkStarted: boolean;
   workerMarkedComplete: boolean;
   clientMarkedComplete: boolean;

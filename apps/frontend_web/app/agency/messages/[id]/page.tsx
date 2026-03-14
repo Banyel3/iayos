@@ -561,8 +561,12 @@ export default function AgencyChatScreen() {
   const { client, assigned_employee, assigned_employees, job, messages } =
     conversation;
 
+  const isPaymentReleased = !!job.paymentReleasedToWorker;
+
   const isAgencyBackjob =
-    conversation.backjob?.has_backjob && conversation.my_role === "AGENCY";
+    conversation.backjob?.has_backjob &&
+    !isPaymentReleased &&
+    conversation.my_role === "AGENCY";
   const isBackjobExecutionPhase =
     !!conversation.backjob?.backjob_started ||
     conversation.backjob?.status === "UNDER_REVIEW" ||
@@ -573,6 +577,7 @@ export default function AgencyChatScreen() {
   // active backjob is actually finalized.
   const hasActiveBackjobCycle =
     !!conversation.backjob?.has_backjob &&
+    !isPaymentReleased &&
     !conversation.backjob?.client_confirmed_complete &&
     conversation.backjob?.status !== "RESOLVED";
 

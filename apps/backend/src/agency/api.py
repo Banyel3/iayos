@@ -2320,6 +2320,8 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     "client_rejection_reason": skip_request.client_rejection_reason,
                 })
         
+        payment_released_at = getattr(job, 'paymentReleasedAt', None)
+
         return Response({
             "conversation_id": conv.conversationID,
             "job": {
@@ -2335,6 +2337,8 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "actual_start_date": job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
                 "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
                 "daily_escrow_total": float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
+                "paymentReleasedToWorker": bool(getattr(job, 'paymentReleasedToWorker', False)),
+                "paymentReleasedAt": payment_released_at.isoformat() if payment_released_at else None,
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
