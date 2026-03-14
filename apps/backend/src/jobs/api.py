@@ -2058,6 +2058,8 @@ def cancel_job_posting(request, job_id: int, data: Optional[CancelJobSchema] = N
             "available_balance": result.get("available_balance", 0.0),
             "cancellation_stage": result.get("cancellation_stage"),
             "cancelled_by_role": result.get("cancelled_by_role"),
+            "suspension_applied": result.get("suspension_applied", False),
+            "suspension_until": result.get("suspension_until"),
         }
 
     except PermissionError as e:
@@ -6285,7 +6287,7 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             unarchive_conversation(conversation)
             Message.create_system_message(
                 conversation,
-                "Backjob requested and submitted for admin review. You may coordinate details here while waiting for admin decision."
+                "Backjob requested and submitted for admin review. Chat is temporarily locked while admin investigates. Negotiation chat will open once admin approves the case for negotiation."
             )
         
         return {
@@ -6317,6 +6319,40 @@ def get_backjob_status(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+
+        active_team_assignment_exists = False
+        if worker_profile and job.is_team_job:
+            active_team_assignment_exists = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status='ACTIVE',
+            ).exists()
+
+        active_employee_assignment_exists = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).exists()
+
+        is_client = bool(
+            job.clientID and job.clientID.profileID and job.clientID.profileID.accountFK == request.auth
+        )
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_client or is_assigned_worker or is_assigned_agency or active_team_assignment_exists or active_employee_assignment_exists):
+            return Response({"error": "Only job participants can view backjob status"}, status=403)
+
         # Check if dispute exists
         dispute = JobDispute.objects.filter(jobID=job).prefetch_related('evidence').first()
         
@@ -6472,6 +6508,29 @@ def request_backjob_renegotiation(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+
+        is_team_assigned_worker = bool(
+            worker_profile
+            and job.is_team_job
+            and JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status='ACTIVE',
+            ).exists()
+        )
+        is_assigned_employee = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).exists()
+
         # Allow only actual participants
         is_client = bool(job.clientID and job.clientID.profileID.accountFK == request.auth)
         is_assigned_worker = bool(
@@ -6480,7 +6539,7 @@ def request_backjob_renegotiation(request, job_id: int):
         is_assigned_agency = bool(
             job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         )
-        if not (is_client or is_assigned_worker or is_assigned_agency):
+        if not (is_client or is_assigned_worker or is_assigned_agency or is_team_assigned_worker or is_assigned_employee):
             return Response({"error": "Only job participants can request re-negotiation"}, status=403)
 
         # Re-negotiate ONLY the current approved backjob record
@@ -6494,7 +6553,15 @@ def request_backjob_renegotiation(request, job_id: int):
                 "error": "Cannot renegotiate after backjob work has started or been completed"
             }, status=400)
 
-        requester_role = "CLIENT" if is_client else ("AGENCY" if is_assigned_agency else "WORKER")
+        requester_role = (
+            "CLIENT"
+            if is_client
+            else (
+                "AGENCY"
+                if is_assigned_agency
+                else ("EMPLOYEE" if is_assigned_employee else "WORKER")
+            )
+        )
         requester_name = request.auth.email
 
         # Keep audit trail by appending into resolution notes
@@ -6552,6 +6619,8 @@ def request_backjob_renegotiation(request, job_id: int):
 
         # Notify other participant(s)
         if is_client:
+            notified_account_ids = set()
+
             if job.assignedAgencyFK:
                 Notification.objects.create(
                     accountFK=job.assignedAgencyFK.accountFK,
@@ -6560,14 +6629,56 @@ def request_backjob_renegotiation(request, job_id: int):
                     message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
                     relatedJobID=job.jobID,
                 )
-            elif job.assignedWorkerID:
-                Notification.objects.create(
-                    accountFK=job.assignedWorkerID.profileID.accountFK,
-                    notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
-                    title="Backjob Re-negotiation Requested",
-                    message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
-                    relatedJobID=job.jobID,
-                )
+                notified_account_ids.add(job.assignedAgencyFK.accountFK.accountID)
+
+            if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+                if worker_account.accountID not in notified_account_ids:
+                    Notification.objects.create(
+                        accountFK=worker_account,
+                        notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                        title="Backjob Re-negotiation Requested",
+                        message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                        relatedJobID=job.jobID,
+                    )
+                    notified_account_ids.add(worker_account.accountID)
+
+            if job.is_team_job:
+                team_workers = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status='ACTIVE',
+                ).select_related('workerID__profileID__accountFK')
+                for assignment in team_workers:
+                    account = assignment.workerID.profileID.accountFK if assignment.workerID and assignment.workerID.profileID else None
+                    if account and account.accountID not in notified_account_ids:
+                        Notification.objects.create(
+                            accountFK=account,
+                            notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                            title="Backjob Re-negotiation Requested",
+                            message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                            relatedJobID=job.jobID,
+                        )
+                        notified_account_ids.add(account.accountID)
+
+            employee_assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=[
+                    JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                    JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                    JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+                ],
+            ).select_related('employee__agency')
+            for assignment in employee_assignments:
+                account = assignment.employee.agency if assignment.employee else None
+                if account and account.accountID not in notified_account_ids:
+                    Notification.objects.create(
+                        accountFK=account,
+                        notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                        title="Backjob Re-negotiation Requested",
+                        message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                        relatedJobID=job.jobID,
+                    )
+                    notified_account_ids.add(account.accountID)
         else:
             Notification.objects.create(
                 accountFK=job.clientID.profileID.accountFK,
@@ -6765,10 +6876,13 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
                 JobEmployeeAssignment.AssignmentStatus.COMPLETED,
             ],
-        ).select_related('employee__accountFK')
+        ).select_related('employee__agency')
 
+        # AgencyEmployee does not map 1:1 to login accounts in manager-only setups.
+        # Resolve by agency ownership so agency account holders can confirm schedules
+        # even when there are no employee login accounts.
         requester_employee_assignment = active_employee_assignments.filter(
-            employee__accountFK=request.auth
+            employee__agency=request.auth
         ).first()
 
         active_team_assignments = JobWorkerAssignment.objects.filter(
@@ -7117,7 +7231,28 @@ def mark_backjob_complete(request, job_id: int):
         if not dispute:
             return Response({"error": "No active backjob found for this job"}, status=404)
         
-        # Verify the user is the assigned worker or agency
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+        requester_team_assignment = None
+        if worker_profile and job.is_team_job:
+            requester_team_assignment = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status='ACTIVE',
+            ).first()
+
+        requester_employee_assignment = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).first()
+
+        # Verify the user is the assigned worker-side actor
         is_assigned_worker = (
             job.assignedWorkerID and 
             job.assignedWorkerID.profileID.accountFK == request.auth
@@ -7126,10 +7261,12 @@ def mark_backjob_complete(request, job_id: int):
             job.assignedAgencyFK and 
             job.assignedAgencyFK.accountFK == request.auth
         )
+        is_team_assigned_worker = bool(requester_team_assignment)
+        is_assigned_employee = bool(requester_employee_assignment)
         
-        if not is_assigned_worker and not is_assigned_agency:
+        if not (is_assigned_worker or is_assigned_agency or is_team_assigned_worker or is_assigned_employee):
             return Response(
-                {"error": "Only the assigned worker or agency can mark this backjob as complete"},
+                {"error": "Only the assigned worker, assigned team worker, assigned employee, or agency can mark this backjob as complete"},
                 status=403
             )
         
@@ -7152,12 +7289,20 @@ def mark_backjob_complete(request, job_id: int):
         print(f"Worker marked backjob complete for job {job_id}")
         
         # Create job log with distinct backjob status
+        actor_label = "worker"
+        if is_assigned_agency:
+            actor_label = "agency"
+        elif is_assigned_employee:
+            actor_label = "assigned employee"
+        elif is_team_assigned_worker:
+            actor_label = "team worker"
+
         JobLog.objects.create(
             jobID=job,
             oldStatus="BACKJOB_STARTED",
             newStatus="BACKJOB_WORKER_DONE",
             changedBy=request.auth,
-            notes=notes or "Worker marked backjob as completed"
+            notes=notes or f"{actor_label.capitalize()} marked backjob as completed"
         )
         
         # Add system message to conversation
@@ -7168,7 +7313,7 @@ def mark_backjob_complete(request, job_id: int):
                 conversationID=conversation,
                 sender=None,
                 senderAgency=None,
-                messageText="🔧 Worker has marked the backjob as complete. Client, please verify and confirm completion.",
+                messageText="🔧 Worker-side assignee has marked the backjob as complete. Client, please verify and confirm completion.",
                 messageType="SYSTEM"
             )
         
@@ -7177,7 +7322,7 @@ def mark_backjob_complete(request, job_id: int):
             accountFK=job.clientID.profileID.accountFK,
             notificationType="BACKJOB_MARKED_COMPLETE",
             title="Backjob Marked Complete",
-            message=f"The worker has marked the backjob for '{job.title}' as complete. Please verify and confirm.",
+            message=f"The worker-side assignee has marked the backjob for '{job.title}' as complete. Please verify and confirm.",
             relatedJobID=job.jobID
         )
         
@@ -7798,8 +7943,79 @@ def get_job_receipt(request, job_id: int):
         
         # Worker receives full budget + materials reimbursement (client pays budget + fee + materials)
         materials_cost = Decimal(str(job.materialsCost)) if job.materialsCost else Decimal('0.00')
-        worker_earnings = budget + materials_cost
-        total_client_paid = budget + platform_fee + materials_cost
+        expected_worker_earnings = budget + materials_cost
+        expected_client_paid = budget + platform_fee + materials_cost
+
+        # Backward compatibility: some environments may not have cancellation
+        # accounting fields yet; fall back safely instead of crashing receipts.
+        cancelled_at = getattr(job, 'cancelledAt', None)
+        cancelled_by_role = getattr(job, 'cancelledByRole', None)
+        cancellation_stage = getattr(job, 'cancellationStage', None)
+        cancellation_reason = getattr(job, 'cancellationReason', None)
+        client_refund_amount = Decimal(str(getattr(job, 'clientRefundAmount', Decimal('0.00')) or Decimal('0.00')))
+        worker_compensation_amount = Decimal(str(getattr(job, 'workerCompensationAmount', Decimal('0.00')) or Decimal('0.00')))
+
+        if job.status == Job.JobStatus.CANCELLED and (
+            not cancellation_stage or
+            not cancelled_by_role or
+            client_refund_amount == Decimal('0.00') or
+            worker_compensation_amount == Decimal('0.00')
+        ):
+            try:
+                import re
+                from accounts.models import JobLog
+
+                cancel_log = JobLog.objects.filter(
+                    jobID=job,
+                    newStatus=Job.JobStatus.CANCELLED,
+                ).order_by('-createdAt').first()
+
+                if cancel_log and cancel_log.notes:
+                    notes = str(cancel_log.notes)
+
+                    if not cancelled_by_role:
+                        role_match = re.search(r"cancelled by\s+([A-Z_]+)", notes, re.IGNORECASE)
+                        if role_match:
+                            cancelled_by_role = role_match.group(1).upper()
+
+                    if not cancellation_stage:
+                        stage_match = re.search(r"Stage=([^;]+)", notes)
+                        if stage_match:
+                            cancellation_stage = stage_match.group(1).strip()
+
+                    if client_refund_amount == Decimal('0.00'):
+                        refund_match = re.search(r"client_refund=₱?([0-9]+(?:\.[0-9]+)?)", notes)
+                        if refund_match:
+                            client_refund_amount = Decimal(refund_match.group(1))
+
+                    if worker_compensation_amount == Decimal('0.00'):
+                        comp_match = re.search(r"worker_compensation=₱?([0-9]+(?:\.[0-9]+)?)", notes)
+                        if comp_match:
+                            worker_compensation_amount = Decimal(comp_match.group(1))
+
+                    if not cancellation_reason:
+                        reason_match = re.search(r"reason=(.+)$", notes)
+                        if reason_match:
+                            cancellation_reason = reason_match.group(1).strip()
+            except Exception:
+                pass
+        # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
+        if job.status == Job.JobStatus.CANCELLED:
+            actual_worker_earnings = worker_compensation_amount
+            if job.escrowPaid:
+                # What client effectively lost after refund + retained fee.
+                actual_client_paid = (
+                    max(Decimal('0.00'), escrow_amount - client_refund_amount)
+                    + platform_fee
+                )
+            else:
+                actual_client_paid = Decimal('0.00')
+        else:
+            actual_worker_earnings = expected_worker_earnings
+            actual_client_paid = expected_client_paid
+
+        worker_earnings = expected_worker_earnings
+        total_client_paid = expected_client_paid
         
         # Get buffer period settings
         buffer_days = get_payment_buffer_days()
@@ -7817,14 +8033,77 @@ def get_job_receipt(request, job_id: int):
         
         # Get related transactions for this job
         transactions = []
+        earning_amount_from_transactions = Decimal('0.00')
+        pending_earning_amount_from_transactions = Decimal('0.00')
         try:
             # Get all transactions related to this job (from any wallet)
-            from accounts.models import Transaction
+            from accounts.models import Transaction, Profile
+
+            team_worker_name_map = {}
+            if job.is_team_job:
+                from accounts.models import JobWorkerAssignment
+                team_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                ).select_related('workerID__profileID__accountFK', 'workerID__profileID')
+                for assignment in team_assignments:
+                    worker_account = getattr(assignment.workerID.profileID, 'accountFK', None)
+                    if worker_account:
+                        team_worker_name_map[worker_account.accountID] = (
+                            f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip()
+                        )
+
+            account_name_cache = {}
+
+            def resolve_account_name(account_obj):
+                if not account_obj:
+                    return "System"
+                account_id = account_obj.accountID
+                if account_id in account_name_cache:
+                    return account_name_cache[account_id]
+
+                profile = Profile.objects.filter(accountFK=account_obj).first()
+                if profile:
+                    full_name = f"{profile.firstName} {profile.lastName}".strip()
+                    account_name_cache[account_id] = full_name or account_obj.email
+                else:
+                    account_name_cache[account_id] = account_obj.email
+
+                return account_name_cache[account_id]
+
             related_transactions = Transaction.objects.filter(
                 relatedJobPosting=job
-            ).order_by('-createdAt')[:10]  # Last 10 transactions
+            ).select_related('walletID__accountFK').order_by('-createdAt')[:10]  # Last 10 transactions
             
             for txn in related_transactions:
+                affected_account = getattr(getattr(txn, 'walletID', None), 'accountFK', None)
+                affected_role = "SYSTEM"
+                affected_name = "System"
+
+                if affected_account:
+                    affected_name = resolve_account_name(affected_account)
+                    if affected_account == job.clientID.profileID.accountFK:
+                        affected_role = "CLIENT"
+                    elif job.assignedWorkerID and affected_account == job.assignedWorkerID.profileID.accountFK:
+                        affected_role = "WORKER"
+                    elif job.assignedAgencyFK and affected_account == job.assignedAgencyFK.accountFK:
+                        affected_role = "AGENCY"
+                    elif job.is_team_job and affected_account.accountID in team_worker_name_map:
+                        affected_role = "WORKER"
+                        affected_name = team_worker_name_map[affected_account.accountID]
+                    else:
+                        affected_role = "USER"
+
+                impact = "DEBIT"
+                if txn.transactionType in [
+                    Transaction.TransactionType.DEPOSIT,
+                    Transaction.TransactionType.REFUND,
+                    Transaction.TransactionType.EARNING,
+                    Transaction.TransactionType.PENDING_EARNING,
+                    Transaction.TransactionType.MATERIALS_REIMBURSEMENT,
+                ]:
+                    impact = "CREDIT"
+
                 transactions.append({
                     'id': txn.transactionID,
                     'type': txn.transactionType,
@@ -7833,11 +8112,30 @@ def get_job_receipt(request, job_id: int):
                     'description': txn.description,
                     'reference_number': txn.referenceNumber,
                     'payment_method': txn.paymentMethod,
+                    'affected_account_id': affected_account.accountID if affected_account else None,
+                    'affected_role': affected_role,
+                    'affected_name': affected_name,
+                    'impact': impact,
                     'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
                     'completed_at': txn.completedAt.isoformat() if txn.completedAt else None,
                 })
+
+                # Track what was actually credited to worker/agency from transaction history.
+                # For cancelled jobs this is the source of truth for "actual earnings".
+                if affected_role in ["WORKER", "AGENCY"]:
+                    if txn.transactionType == Transaction.TransactionType.EARNING:
+                        earning_amount_from_transactions += Decimal(str(txn.amount))
+                    elif txn.transactionType == Transaction.TransactionType.PENDING_EARNING:
+                        pending_earning_amount_from_transactions += Decimal(str(txn.amount))
         except Exception as e:
             print(f"⚠️ Error fetching transactions for receipt: {e}")
+
+        # For cancelled jobs, prefer earnings from transaction history over model-level compensation fields.
+        if job.status == Job.JobStatus.CANCELLED:
+            if earning_amount_from_transactions > Decimal('0.00'):
+                actual_worker_earnings = earning_amount_from_transactions
+            elif pending_earning_amount_from_transactions > Decimal('0.00'):
+                actual_worker_earnings = pending_earning_amount_from_transactions
         
         # Build worker/agency info
         worker_info = None
@@ -7915,6 +8213,7 @@ def get_job_receipt(request, job_id: int):
                 'worker_completed_at': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
                 'client_approved_at': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
                 'completed_at': job.completedAt.isoformat() if job.completedAt else None,
+                'cancelled_at': cancelled_at.isoformat() if cancelled_at else None,
                 
                 # Payment breakdown (all in PHP)
                 'payment': {
@@ -7927,6 +8226,10 @@ def get_job_receipt(request, job_id: int):
                     'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
                     'worker_earnings': float(worker_earnings),
                     'total_client_paid': float(total_client_paid),
+                    'expected_worker_earnings': float(expected_worker_earnings),
+                    'actual_worker_earnings': float(actual_worker_earnings),
+                    'expected_client_paid': float(expected_client_paid),
+                    'actual_client_paid': float(actual_client_paid),
                     'escrow_paid': job.escrowPaid,
                     'escrow_paid_at': job.escrowPaidAt.isoformat() if job.escrowPaidAt else None,
                     'final_payment_paid': job.remainingPaymentPaid,
@@ -7970,6 +8273,20 @@ def get_job_receipt(request, job_id: int):
                 'reviews': {
                     'client_reviewed': job.clientReviewed if hasattr(job, 'clientReviewed') else False,
                     'worker_reviewed': job.workerReviewed if hasattr(job, 'workerReviewed') else False,
+                },
+
+                # Cancellation settlement details (for cancelled jobs)
+                'cancellation': {
+                    'is_cancelled': job.status == Job.JobStatus.CANCELLED,
+                    'reason': cancellation_reason,
+                    'stage': cancellation_stage,
+                    'cancelled_by_role': cancelled_by_role,
+                    'summary': (
+                        f"Cancelled by {cancelled_by_role or 'UNKNOWN'}"
+                        + (f" at {cancellation_stage}" if cancellation_stage else "")
+                    ) if job.status == Job.JobStatus.CANCELLED else None,
+                    'client_refund_amount': float(client_refund_amount),
+                    'worker_compensation_amount': float(worker_compensation_amount),
                 },
             }
         }

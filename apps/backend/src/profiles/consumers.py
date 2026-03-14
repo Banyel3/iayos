@@ -161,6 +161,9 @@ class InboxConsumer(AsyncWebsocketConsumer):
 
     async def typing_indicator(self, event):
         """Send typing indicator to WebSocket"""
+        if event.get('sender_channel') == self.channel_name:
+            return
+
         data = event['data']
         print(f"[InboxWS] 📤 Sending typing indicator for conversation {data.get('conversation_id')}")
         await self.send(text_data=json.dumps({
@@ -278,6 +281,7 @@ class InboxConsumer(AsyncWebsocketConsumer):
             room_group_name,
             {
                 'type': 'typing_indicator',
+                'sender_channel': self.channel_name,
                 'data': {
                     'conversation_id': int(conversation_id),
                     'user_id': user_info['id'],
@@ -291,6 +295,15 @@ class InboxConsumer(AsyncWebsocketConsumer):
     def get_user_info(self):
         """Get current user's profile information (supports dual profiles)"""
         try:
+            from accounts.models import Agency
+
+            agency = Agency.objects.filter(accountFK=self.user).first()
+            if agency:
+                return {
+                    'id': self.user.accountID,
+                    'name': agency.businessName or 'Agency'
+                }
+
             # Handle dual-profile users by checking profile_type from JWT
             profile_type = getattr(self.user, 'profile_type', None)
             if profile_type:

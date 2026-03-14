@@ -5,7 +5,7 @@ from django.conf import settings
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
     JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency,
-    JobSkillSlot, JobWorkerAssignment
+    JobSkillSlot, JobWorkerAssignment, JobLog
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
@@ -78,6 +78,38 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c
+
+
+def _derive_cancellation_reason(job: JobPosting) -> Optional[str]:
+    """Return the best available cancellation reason for legacy/partial records."""
+    direct_reason = (job.cancellationReason or "").strip()
+    if direct_reason:
+        return direct_reason
+
+    try:
+        log = JobLog.objects.filter(
+            jobID=job,
+            newStatus=JobPosting.JobStatus.CANCELLED,
+        ).order_by('-createdAt').first()
+
+        if not log or not log.notes:
+            return None
+
+        notes = str(log.notes).strip()
+        if not notes:
+            return None
+
+        lower_notes = notes.lower()
+        marker = 'reason='
+        marker_index = lower_notes.rfind(marker)
+        if marker_index != -1:
+            parsed = notes[marker_index + len(marker):].strip(' ;.')
+            if parsed:
+                return parsed
+
+        return notes
+    except Exception:
+        return None
 
 
 def get_mobile_job_list(
@@ -480,7 +512,6 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         assigned_agency = None
         if job.assignedAgencyFK:
             try:
-                from agency.models import Agency
                 agency = job.assignedAgencyFK
                 
                 # Calculate agency average rating
@@ -600,6 +631,20 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         except Exception as e:
             print(f"   ⚠️ Distance calculation error: {e}")
 
+        cancellation_reason = _derive_cancellation_reason(job)
+
+        worker_marked_on_the_way = bool(getattr(job, 'workerMarkedOnTheWay', False))
+        worker_marked_on_the_way_at = getattr(job, 'workerMarkedOnTheWayAt', None)
+        worker_marked_job_started = bool(getattr(job, 'workerMarkedJobStarted', False))
+        worker_marked_job_started_at = getattr(job, 'workerMarkedJobStartedAt', None)
+        client_confirmed_work_started = bool(getattr(job, 'clientConfirmedWorkStarted', False))
+        client_confirmed_work_started_at = getattr(job, 'clientConfirmedWorkStartedAt', None)
+
+        cancelled_at = getattr(job, 'cancelledAt', None)
+        cancelled_by_role = getattr(job, 'cancelledByRole', None)
+        cancellation_stage = getattr(job, 'cancellationStage', None)
+        client_refund_amount = getattr(job, 'clientRefundAmount', Decimal('0.00'))
+        worker_compensation_amount = getattr(job, 'workerCompensationAmount', Decimal('0.00'))
         job_data = {
             'id': job.jobID,
             'title': job.title,
@@ -630,6 +675,18 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'remaining_payment_paid': job.remainingPaymentPaid,
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
+            'worker_marked_on_the_way': worker_marked_on_the_way,
+            'worker_marked_on_the_way_at': worker_marked_on_the_way_at.isoformat() if worker_marked_on_the_way_at else None,
+            'worker_marked_job_started': worker_marked_job_started,
+            'worker_marked_job_started_at': worker_marked_job_started_at.isoformat() if worker_marked_job_started_at else None,
+            'client_confirmed_work_started': client_confirmed_work_started,
+            'client_confirmed_work_started_at': client_confirmed_work_started_at.isoformat() if client_confirmed_work_started_at else None,
+            'cancelled_at': cancelled_at.isoformat() if cancelled_at else None,
+            'cancelled_by_role': cancelled_by_role,
+            'cancellation_stage': cancellation_stage,
+            'cancellation_reason': cancellation_reason,
+            'client_refund_amount': float(client_refund_amount or 0),
+            'worker_compensation_amount': float(worker_compensation_amount or 0),
             'estimated_completion': ml_prediction,
             # Universal job fields for ML accuracy
             'job_scope': job.job_scope,
@@ -3258,7 +3315,7 @@ def submit_review_mobile(
             if review_target == 'EMPLOYEE' and employee_id:
                 # Agency job - reviewing a specific employee
                 try:
-                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__accountFK').get(
+                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__agency').get(
                         assignmentID=employee_id,
                         job=job
                     )
@@ -3352,11 +3409,14 @@ def submit_review_mobile(
                 ).exists()
             elif job.assignedAgencyFK:
                 # Check agency employee assignments
-                is_worker = JobEmployeeAssignment.objects.filter(
-                    job=job,
-                    employee__accountFK=user,
-                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                ).exists()
+                is_worker = (
+                    (job.assignedAgencyFK.accountFK.accountID == user.accountID)
+                    or JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        employee__agency=user,
+                        status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                    ).exists()
+                )
             
             if not is_worker:
                 return {'success': False, 'error': 'You are not a worker for this job'}

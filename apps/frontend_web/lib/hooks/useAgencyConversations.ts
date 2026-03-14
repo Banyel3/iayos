@@ -13,6 +13,8 @@ export type AgencyConversationJob = {
   status: string;
   budget: number;
   location: string;
+  paymentReleasedToWorker?: boolean;
+  paymentReleasedAt?: string | null;
   clientConfirmedWorkStarted: boolean;
   workerMarkedComplete: boolean;
   clientMarkedComplete: boolean;
@@ -80,6 +82,9 @@ export type BackjobInfo = {
   worker_marked_complete_at: string | null;
   client_confirmed: boolean;
   client_confirmed_at: string | null;
+  scheduled_date?: string | null;
+  worker_schedule_confirmed?: boolean;
+  worker_schedule_confirmed_at?: string | null;
 };
 
 export type AgencyConversation = {
@@ -138,6 +143,8 @@ export type AgencyConversationDetail = {
   }>;
   backjob?: BackjobInfo; // Optional backjob info
   my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
+  can_send_message?: boolean;
+  can_send_reason?: string | null;
 };
 
 /**
