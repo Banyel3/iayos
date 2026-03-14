@@ -570,10 +570,10 @@ export const useCancelDailyJob = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, reason }: { jobId: number; reason?: string }): Promise<{ success: boolean; message?: string }> => {
+    mutationFn: async ({ jobId, reason }: { jobId: number; reason: string }): Promise<{ success: boolean; message?: string }> => {
       const response = await apiRequest(ENDPOINTS.DAILY_CANCEL(jobId), {
         method: "POST",
-        body: reason ? JSON.stringify({ reason }) : undefined,
+        body: JSON.stringify({ reason }),
       });
 
       if (!response.ok) {
