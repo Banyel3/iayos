@@ -1,11 +1,19 @@
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import timedelta
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
-from accounts.models import Job, JobLog, Notification, Transaction, Wallet
+from accounts.models import (
+    Job,
+    JobEmployeeAssignment,
+    JobLog,
+    JobWorkerAssignment,
+    Notification,
+    Transaction,
+    Wallet,
+)
 
 
 TWO_PLACES = Decimal("0.01")
@@ -28,14 +36,46 @@ def _actor_role_for_job(job: Job, actor_account) -> Optional[str]:
     return None
 
 
-def _worker_recipient_account(job: Job):
-    if job.assignedWorkerID and job.assignedWorkerID.profileID:
-        return job.assignedWorkerID.profileID.accountFK
+def _worker_recipient_accounts(job: Job) -> List:
+    """
+    Resolve worker-side recipients for cancellation compensation.
 
-    if job.assignedAgencyFK:
-        return job.assignedAgencyFK.accountFK
+    Supports direct jobs, agency jobs, team jobs, and agency-employee assignments.
+    """
+    recipients = []
 
-    return None
+    if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK:
+        recipients.append(job.assignedWorkerID.profileID.accountFK)
+
+    if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+        recipients.append(job.assignedAgencyFK.accountFK)
+
+    if getattr(job, "is_team_job", False):
+        team_assignments = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+        ).select_related('workerID__profileID__accountFK')
+
+        for assignment in team_assignments:
+            account = assignment.workerID.profileID.accountFK if assignment.workerID and assignment.workerID.profileID else None
+            if account:
+                recipients.append(account)
+
+    has_active_employee_assignment = JobEmployeeAssignment.objects.filter(
+        job=job,
+        status__in=[
+            JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+            JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+            JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+        ],
+    ).exists()
+    if has_active_employee_assignment and job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+        recipients.append(job.assignedAgencyFK.accountFK)
+
+    deduped = {}
+    for account in recipients:
+        deduped[account.accountID] = account
+    return list(deduped.values())
 
 
 def _credit_wallet(account, amount: Decimal, tx_type: str, description: str, job: Job, reference: str) -> None:
@@ -90,7 +130,7 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
         raise ValueError("Job is missing a valid client account reference")
 
     client_account = job.clientID.profileID.accountFK
-    worker_recipient = _worker_recipient_account(job)
+    worker_recipients = _worker_recipient_accounts(job)
 
     escrow_pool = _q(job.escrowAmount if job.escrowAmount and job.escrowAmount > 0 else (job.budget * Decimal("0.5")))
     platform_fee = _q(Decimal(str(job.budget)) * Decimal("0.10"))
@@ -135,8 +175,8 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
             cancellation_stage = "BEFORE_WORK_START"
             client_refund = escrow_pool
 
-    # Safety: if there is no worker/agency recipient, revert all to client refund.
-    if worker_compensation > 0 and worker_recipient is None:
+    # Safety: if there is no worker-side recipient, revert all to client refund.
+    if worker_compensation > 0 and len(worker_recipients) == 0:
         client_refund = _q(client_refund + worker_compensation)
         worker_compensation = Decimal("0.00")
         cancellation_stage = "AFTER_ARRIVAL_NO_RECIPIENT_FALLBACK"
@@ -156,15 +196,24 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
                 reference=f"CANCEL-CLIENT-{job.jobID}-{reference_suffix}",
             )
 
-            if worker_compensation > 0 and worker_recipient:
-                _credit_wallet(
-                    account=worker_recipient,
-                    amount=worker_compensation,
-                    tx_type=Transaction.TransactionType.EARNING,
-                    description=f"Cancellation compensation for job: {job.title}",
-                    job=job,
-                    reference=f"CANCEL-WORKER-{job.jobID}-{reference_suffix}",
-                )
+            if worker_compensation > 0 and worker_recipients:
+                per_recipient = _q(worker_compensation / Decimal(len(worker_recipients)))
+                distributed_total = _q(per_recipient * Decimal(len(worker_recipients)))
+                adjustment = _q(worker_compensation - distributed_total)
+
+                for idx, recipient in enumerate(worker_recipients):
+                    payout = per_recipient
+                    if idx == 0 and adjustment != Decimal("0.00"):
+                        payout = _q(per_recipient + adjustment)
+
+                    _credit_wallet(
+                        account=recipient,
+                        amount=payout,
+                        tx_type=Transaction.TransactionType.EARNING,
+                        description=f"Cancellation compensation for job: {job.title}",
+                        job=job,
+                        reference=f"CANCEL-WORKER-{job.jobID}-{reference_suffix}-{idx + 1}",
+                    )
         else:
             # Reserved-only flow (typically LISTING before acceptance).
             wallet, _ = Wallet.objects.get_or_create(accountFK=client_account)
@@ -233,8 +282,8 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
 
     # Notifications outside atomic write block for clarity.
     involved_accounts = {client_account.accountID: client_account}
-    if worker_recipient:
-        involved_accounts[worker_recipient.accountID] = worker_recipient
+    for recipient in worker_recipients:
+        involved_accounts[recipient.accountID] = recipient
 
     for account in involved_accounts.values():
         Notification.objects.create(
@@ -272,6 +321,7 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
         "cancellation_stage": cancellation_stage,
         "client_refund_amount": float(job.clientRefundAmount),
         "worker_compensation_amount": float(job.workerCompensationAmount),
+        "worker_recipient_count": len(worker_recipients),
         "reserved_release_amount": float(reserved_release),
         "escrow_paid": bool(job.escrowPaid),
         "suspension_applied": suspension_applied,

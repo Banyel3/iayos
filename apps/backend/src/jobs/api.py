@@ -6319,6 +6319,40 @@ def get_backjob_status(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+
+        active_team_assignment_exists = False
+        if worker_profile and job.is_team_job:
+            active_team_assignment_exists = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status='ACTIVE',
+            ).exists()
+
+        active_employee_assignment_exists = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).exists()
+
+        is_client = bool(
+            job.clientID and job.clientID.profileID and job.clientID.profileID.accountFK == request.auth
+        )
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+        if not (is_client or is_assigned_worker or is_assigned_agency or active_team_assignment_exists or active_employee_assignment_exists):
+            return Response({"error": "Only job participants can view backjob status"}, status=403)
+
         # Check if dispute exists
         dispute = JobDispute.objects.filter(jobID=job).prefetch_related('evidence').first()
         
@@ -6474,6 +6508,29 @@ def request_backjob_renegotiation(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+
+        is_team_assigned_worker = bool(
+            worker_profile
+            and job.is_team_job
+            and JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status='ACTIVE',
+            ).exists()
+        )
+        is_assigned_employee = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).exists()
+
         # Allow only actual participants
         is_client = bool(job.clientID and job.clientID.profileID.accountFK == request.auth)
         is_assigned_worker = bool(
@@ -6482,7 +6539,7 @@ def request_backjob_renegotiation(request, job_id: int):
         is_assigned_agency = bool(
             job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
         )
-        if not (is_client or is_assigned_worker or is_assigned_agency):
+        if not (is_client or is_assigned_worker or is_assigned_agency or is_team_assigned_worker or is_assigned_employee):
             return Response({"error": "Only job participants can request re-negotiation"}, status=403)
 
         # Re-negotiate ONLY the current approved backjob record
@@ -6496,7 +6553,15 @@ def request_backjob_renegotiation(request, job_id: int):
                 "error": "Cannot renegotiate after backjob work has started or been completed"
             }, status=400)
 
-        requester_role = "CLIENT" if is_client else ("AGENCY" if is_assigned_agency else "WORKER")
+        requester_role = (
+            "CLIENT"
+            if is_client
+            else (
+                "AGENCY"
+                if is_assigned_agency
+                else ("EMPLOYEE" if is_assigned_employee else "WORKER")
+            )
+        )
         requester_name = request.auth.email
 
         # Keep audit trail by appending into resolution notes
@@ -6554,6 +6619,8 @@ def request_backjob_renegotiation(request, job_id: int):
 
         # Notify other participant(s)
         if is_client:
+            notified_account_ids = set()
+
             if job.assignedAgencyFK:
                 Notification.objects.create(
                     accountFK=job.assignedAgencyFK.accountFK,
@@ -6562,14 +6629,56 @@ def request_backjob_renegotiation(request, job_id: int):
                     message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
                     relatedJobID=job.jobID,
                 )
-            elif job.assignedWorkerID:
-                Notification.objects.create(
-                    accountFK=job.assignedWorkerID.profileID.accountFK,
-                    notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
-                    title="Backjob Re-negotiation Requested",
-                    message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
-                    relatedJobID=job.jobID,
-                )
+                notified_account_ids.add(job.assignedAgencyFK.accountFK.accountID)
+
+            if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK:
+                worker_account = job.assignedWorkerID.profileID.accountFK
+                if worker_account.accountID not in notified_account_ids:
+                    Notification.objects.create(
+                        accountFK=worker_account,
+                        notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                        title="Backjob Re-negotiation Requested",
+                        message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                        relatedJobID=job.jobID,
+                    )
+                    notified_account_ids.add(worker_account.accountID)
+
+            if job.is_team_job:
+                team_workers = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status='ACTIVE',
+                ).select_related('workerID__profileID__accountFK')
+                for assignment in team_workers:
+                    account = assignment.workerID.profileID.accountFK if assignment.workerID and assignment.workerID.profileID else None
+                    if account and account.accountID not in notified_account_ids:
+                        Notification.objects.create(
+                            accountFK=account,
+                            notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                            title="Backjob Re-negotiation Requested",
+                            message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                            relatedJobID=job.jobID,
+                        )
+                        notified_account_ids.add(account.accountID)
+
+            employee_assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=[
+                    JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                    JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                    JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+                ],
+            ).select_related('employee__agency')
+            for assignment in employee_assignments:
+                account = assignment.employee.agency if assignment.employee else None
+                if account and account.accountID not in notified_account_ids:
+                    Notification.objects.create(
+                        accountFK=account,
+                        notificationType=Notification.NotificationType.BACKJOB_NEGOTIATION,
+                        title="Backjob Re-negotiation Requested",
+                        message=f"Client requested re-negotiation for '{job.title}'. Waiting for admin review.",
+                        relatedJobID=job.jobID,
+                    )
+                    notified_account_ids.add(account.accountID)
         else:
             Notification.objects.create(
                 accountFK=job.clientID.profileID.accountFK,
@@ -7122,7 +7231,28 @@ def mark_backjob_complete(request, job_id: int):
         if not dispute:
             return Response({"error": "No active backjob found for this job"}, status=404)
         
-        # Verify the user is the assigned worker or agency
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+        requester_team_assignment = None
+        if worker_profile and job.is_team_job:
+            requester_team_assignment = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status='ACTIVE',
+            ).first()
+
+        requester_employee_assignment = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).first()
+
+        # Verify the user is the assigned worker-side actor
         is_assigned_worker = (
             job.assignedWorkerID and 
             job.assignedWorkerID.profileID.accountFK == request.auth
@@ -7131,10 +7261,12 @@ def mark_backjob_complete(request, job_id: int):
             job.assignedAgencyFK and 
             job.assignedAgencyFK.accountFK == request.auth
         )
+        is_team_assigned_worker = bool(requester_team_assignment)
+        is_assigned_employee = bool(requester_employee_assignment)
         
-        if not is_assigned_worker and not is_assigned_agency:
+        if not (is_assigned_worker or is_assigned_agency or is_team_assigned_worker or is_assigned_employee):
             return Response(
-                {"error": "Only the assigned worker or agency can mark this backjob as complete"},
+                {"error": "Only the assigned worker, assigned team worker, assigned employee, or agency can mark this backjob as complete"},
                 status=403
             )
         
@@ -7157,12 +7289,20 @@ def mark_backjob_complete(request, job_id: int):
         print(f"Worker marked backjob complete for job {job_id}")
         
         # Create job log with distinct backjob status
+        actor_label = "worker"
+        if is_assigned_agency:
+            actor_label = "agency"
+        elif is_assigned_employee:
+            actor_label = "assigned employee"
+        elif is_team_assigned_worker:
+            actor_label = "team worker"
+
         JobLog.objects.create(
             jobID=job,
             oldStatus="BACKJOB_STARTED",
             newStatus="BACKJOB_WORKER_DONE",
             changedBy=request.auth,
-            notes=notes or "Worker marked backjob as completed"
+            notes=notes or f"{actor_label.capitalize()} marked backjob as completed"
         )
         
         # Add system message to conversation
@@ -7173,7 +7313,7 @@ def mark_backjob_complete(request, job_id: int):
                 conversationID=conversation,
                 sender=None,
                 senderAgency=None,
-                messageText="🔧 Worker has marked the backjob as complete. Client, please verify and confirm completion.",
+                messageText="🔧 Worker-side assignee has marked the backjob as complete. Client, please verify and confirm completion.",
                 messageType="SYSTEM"
             )
         
@@ -7182,7 +7322,7 @@ def mark_backjob_complete(request, job_id: int):
             accountFK=job.clientID.profileID.accountFK,
             notificationType="BACKJOB_MARKED_COMPLETE",
             title="Backjob Marked Complete",
-            message=f"The worker has marked the backjob for '{job.title}' as complete. Please verify and confirm.",
+            message=f"The worker-side assignee has marked the backjob for '{job.title}' as complete. Please verify and confirm.",
             relatedJobID=job.jobID
         )
         

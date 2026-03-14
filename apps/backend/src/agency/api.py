@@ -14,6 +14,7 @@ import logging
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from jobs.cancellation_service import cancel_job_with_scenarios
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -1180,14 +1181,12 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
     """
     Agency rejects a job invitation
     - Updates inviteStatus to REJECTED
-    - Refunds escrow to client (if paid)
+    - Uses centralized cancellation scenarios for refund/release behavior
     - Client is notified with rejection reason
     """
     try:
-        account_id = request.auth.accountID
-        
         # Verify agency exists
-        from accounts.models import Agency, Job, Notification, Wallet, Transaction
+        from accounts.models import Agency, Job, Notification
         try:
             agency = Agency.objects.get(accountFK=request.auth)
         except Agency.DoesNotExist:
@@ -1220,49 +1219,38 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
                 status=400
             )
         
-        # Update job status
+        # Reject invitation and cancel through centralized scenario rules
         from django.utils import timezone
         from django.db import transaction as db_transaction
+        rejection_reason = (reason or "No reason provided").strip()
+        cancel_reason = f"Agency invite rejected: {rejection_reason}"
+        cancel_result = None
         
         with db_transaction.atomic():
+            cancel_result = cancel_job_with_scenarios(
+                job=job,
+                actor_account=request.auth,
+                reason=cancel_reason,
+            )
+
             job.inviteStatus = "REJECTED"
-            job.inviteRejectionReason = reason or "No reason provided"
+            job.inviteRejectionReason = rejection_reason
             job.inviteRespondedAt = timezone.now()
-            job.status = "CANCELLED"  # Job is cancelled since agency rejected
-            job.save()
-            
-            # Refund escrow to client if it was paid
-            if job.escrowPaid:
-                try:
-                    client_wallet = Wallet.objects.get(accountFK=job.clientID.profileID.accountFK)
-                    refund_amount = job.escrowAmount
-                    
-                    # Refund to wallet
-                    client_wallet.balance += refund_amount
-                    client_wallet.save()
-                    
-                    # Create refund transaction
-                    Transaction.objects.create(
-                        walletID=client_wallet,
-                        transactionType=Transaction.TransactionType.REFUND,
-                        amount=refund_amount,
-                        balanceAfter=client_wallet.balance,
-                        status=Transaction.TransactionStatus.COMPLETED,
-                        description=f"Refund for rejected INVITE job: {job.title}",
-                        relatedJobPosting=job,
-                        completedAt=timezone.now(),
-                        referenceNumber=f"REFUND-{job.jobID}-{timezone.now().strftime('%Y%m%d%H%M%S')}"
-                    )
-                    
-                    print(f"💰 Refunded ₱{refund_amount} to client wallet")
-                except Wallet.DoesNotExist:
-                    print(f"⚠️ Wallet not found for client, skipping refund")
+            job.save(update_fields=["inviteStatus", "inviteRejectionReason", "inviteRespondedAt", "updatedAt"])
         
         # Send notification to client
         rejection_msg = f"{agency.businessName} has declined your invitation for '{job.title}'."
-        if reason:
-            rejection_msg += f" Reason: {reason}"
-        rejection_msg += " Your escrow payment has been refunded."
+        if rejection_reason:
+            rejection_msg += f" Reason: {rejection_reason}"
+
+        client_refund = float((cancel_result or {}).get("client_refund_amount", 0.0) or 0.0)
+        reserved_release = float((cancel_result or {}).get("reserved_release_amount", 0.0) or 0.0)
+        if client_refund > 0:
+            rejection_msg += f" Client refund processed: ₱{client_refund:,.2f}."
+        elif reserved_release > 0:
+            rejection_msg += f" Reserved funds released: ₱{reserved_release:,.2f}."
+        else:
+            rejection_msg += " Payment reversal has been processed based on job stage policy."
         
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
@@ -1285,10 +1273,11 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
         
         return {
             "success": True,
-            "message": "Job invitation rejected. Client has been notified and refunded.",
+            "message": "Job invitation rejected. Client has been notified and cancellation policy was applied.",
             "job_id": job.jobID,
             "invite_status": "REJECTED",
-            "refund_processed": job.escrowPaid
+            "refund_processed": client_refund > 0,
+            "reserved_release_processed": reserved_release > 0,
         }
         
     except Exception as e:
