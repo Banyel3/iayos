@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team PROJECT Multi-Day Attendance Flow (No Per-Day Payout)**
+  - Enabled daily attendance UI in mobile conversation for multi-day TEAM `PROJECT` jobs (while keeping DAILY behavior intact).
+  - Enabled worker "On The Way" and undo check-in actions for multi-day TEAM `PROJECT` jobs.
+  - Updated attendance confirmation copy/actions in PROJECT mode from per-day "Pay" to attendance-only confirmation.
+  - Updated backend client attendance confirmation for multi-day TEAM `PROJECT` jobs to record attendance only and skip daily auto-payment.
+  - Added safer worker-name resolution in attendance confirmation responses for assignment-based team flows.
+  - **Impact**: Team project jobs now support true multi-day attendance tracking in chat without accidental per-day payouts; payment remains at final job completion.
+
+- **Team PROJECT One-Day and Multi-Day Flow Parity + Cancellation UI**
+  - Unified conversation attendance flow for TEAM `PROJECT` jobs regardless of duration (one-day and multi-day now share the same on-the-way -> verify arrival -> checkout -> confirm day sequence).
+  - Removed legacy one-day team arrival UI path to prevent behavior drift between durations.
+  - Kept DAILY-only controls (skip-day, QA skip-day controls, daily end actions, daily-rate card) scoped to DAILY jobs only.
+  - Ensured client cancel button is consistently shown for TEAM `PROJECT` jobs through the shared team cancellation action path.
+  - **Impact**: Team project cancellation logic now operates against a consistent attendance lifecycle for both one-day and multi-day jobs.
+
 - **Worker Skills Cap + Primary Skill Enforcement**
   - Added backend enforcement to block adding a 6th skill (`max 5` per worker).
   - Preserved and hardened primary-skill behavior so workers maintain one primary skill when skills exist.

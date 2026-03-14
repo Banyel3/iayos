@@ -2118,12 +2118,14 @@ def get_conversation_messages(request, conversation_id: int):
                 "remaining_days": remaining_days,
             }
 
-        # Get today's attendance for daily-rate jobs (DAILY payment model)
+        # Get today's attendance for daily-rate jobs and team PROJECT multi-day jobs.
         attendance_today = []
         daily_skip_requests_today = []
         effective_work_date = timezone.now().date()
         qa_day_offset = _get_clamped_qa_day_offset(job)
-        if hasattr(job, 'payment_model') and job.payment_model == "DAILY" and job.status == "IN_PROGRESS":
+        is_daily_job = hasattr(job, 'payment_model') and job.payment_model == "DAILY"
+        is_team_project_multiday = bool(job.is_team_job and getattr(job, 'payment_model', None) == "PROJECT")
+        if (is_daily_job or is_team_project_multiday) and job.status == "IN_PROGRESS":
             from accounts.models import DailyAttendance, DailySkipDayRequest
             today = _get_effective_work_date(job)
             effective_work_date = today
@@ -2185,24 +2187,26 @@ def get_conversation_messages(request, conversation_id: int):
             
             print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
 
-            skip_request = DailySkipDayRequest.objects.filter(
-                jobID=job,
-                request_date=today
-            ).order_by('-createdAt').first()
+            # Skip-day requests are DAILY-specific and do not apply to PROJECT jobs.
+            if is_daily_job:
+                skip_request = DailySkipDayRequest.objects.filter(
+                    jobID=job,
+                    request_date=today
+                ).order_by('-createdAt').first()
 
-            if skip_request:
-                requested_ids = list(skip_request.requested_account_ids or [])
-                daily_skip_requests_today.append({
-                    "skip_request_id": skip_request.skipRequestID,
-                    "request_date": skip_request.request_date.isoformat(),
-                    "status": skip_request.status,
-                    "requested_count": skip_request.requested_count,
-                    "total_required": skip_request.total_required,
-                    "requires_all_team_workers": skip_request.requires_all_team_workers,
-                    "all_workers_requested": skip_request.all_workers_requested,
-                    "my_worker_requested": int(request.auth.accountID) in requested_ids,
-                    "client_rejection_reason": skip_request.client_rejection_reason,
-                })
+                if skip_request:
+                    requested_ids = list(skip_request.requested_account_ids or [])
+                    daily_skip_requests_today.append({
+                        "skip_request_id": skip_request.skipRequestID,
+                        "request_date": skip_request.request_date.isoformat(),
+                        "status": skip_request.status,
+                        "requested_count": skip_request.requested_count,
+                        "total_required": skip_request.total_required,
+                        "requires_all_team_workers": skip_request.requires_all_team_workers,
+                        "all_workers_requested": skip_request.all_workers_requested,
+                        "my_worker_requested": int(request.auth.accountID) in requested_ids,
+                        "client_rejection_reason": skip_request.client_rejection_reason,
+                    })
 
         # Fetch actual review data (ratings and comments) for both parties
         client_review_data = None

@@ -2643,6 +2643,9 @@ export default function ChatScreen() {
     configuredDurationDays > 0 && totalDaysWorked >= configuredDurationDays;
   const reachedQaOffsetLimit =
     isTestingModeEnabled && configuredDurationDays > 0 && qaOffset >= qaMaxOffset;
+  const isTeamProjectAttendance =
+    conversation.is_team_job === true &&
+    conversation.job?.payment_model === "PROJECT";
   const showDailyEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
@@ -3019,138 +3022,15 @@ export default function ChatScreen() {
           {/* Action Buttons (replaces role banner) */}
           {isJobInProgress && !conversation.job.clientMarkedComplete && (
             <View style={styles.actionButtonsContainer}>
-              {/* TEAM JOB: Per-Worker Arrival Confirmation (CLIENT only) */}
-              {/* NOTE: DAILY jobs use Daily Attendance section for per-day arrival tracking */}
-              {conversation.is_team_job &&
-                conversation.job?.payment_model !== "DAILY" &&
-                conversation.my_role === "CLIENT" &&
-                conversation.team_worker_assignments &&
-                conversation.team_worker_assignments.length > 0 && (
-                  <View style={styles.teamArrivalSection}>
-                    <View style={styles.teamArrivalHeader}>
-                      <Text style={styles.teamArrivalTitle}>
-                        Worker Arrivals
-                      </Text>
-                      <Text style={styles.teamArrivalProgress}>
-                        {
-                          conversation.team_worker_assignments.filter(
-                            (a) => a.client_confirmed_arrival,
-                          ).length
-                        }
-                        /{conversation.team_worker_assignments.length} arrived
-                      </Text>
-                    </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.teamWorkersScrollView}
-                      contentContainerStyle={styles.teamWorkersScrollContent}
-                    >
-                      {conversation.team_worker_assignments.map(
-                        (assignment) => (
-                          <View
-                            key={assignment.assignment_id}
-                            style={[
-                              styles.teamWorkerCardCompact,
-                              assignment.client_confirmed_arrival &&
-                                styles.teamWorkerCardConfirmed,
-                            ]}
-                          >
-                            <View style={styles.teamWorkerInfoCompact}>
-                              {assignment.avatar ? (
-                                <Image
-                                  source={{ uri: assignment.avatar }}
-                                  style={styles.teamWorkerAvatarCompact}
-                                />
-                              ) : (
-                                <View
-                                  style={[
-                                    styles.teamWorkerAvatarCompact,
-                                    styles.teamWorkerAvatarPlaceholder,
-                                  ]}
-                                >
-                                  <Ionicons
-                                    name="person"
-                                    size={16}
-                                    color={Colors.textSecondary}
-                                  />
-                                </View>
-                              )}
-                              <View style={styles.teamWorkerDetailsCompact}>
-                                <Text
-                                  style={styles.teamWorkerNameCompact}
-                                  numberOfLines={1}
-                                >
-                                  {assignment.name.split(" ")[0]}
-                                </Text>
-                                <Text
-                                  style={styles.teamWorkerSkillCompact}
-                                  numberOfLines={1}
-                                >
-                                  {assignment.skill}
-                                </Text>
-                              </View>
-                            </View>
-
-                            {assignment.client_confirmed_arrival ? (
-                              <View style={styles.arrivedBadgeCompact}>
-                                <Ionicons
-                                  name="checkmark-circle"
-                                  size={14}
-                                  color={Colors.success}
-                                />
-                                <Text style={styles.arrivedTextCompact}>
-                                  {assignment.client_confirmed_arrival_at &&
-                                    format(
-                                      new Date(
-                                        assignment.client_confirmed_arrival_at,
-                                      ),
-                                      "h:mm a",
-                                    )}
-                                </Text>
-                              </View>
-                            ) : (
-                              <TouchableOpacity
-                                style={styles.confirmArrivalButtonCompact}
-                                onPress={() =>
-                                  handleConfirmTeamWorkerArrival(
-                                    assignment.assignment_id,
-                                    assignment.name,
-                                  )
-                                }
-                                disabled={
-                                  confirmTeamWorkerArrivalMutation.isPending
-                                }
-                              >
-                                {confirmTeamWorkerArrivalMutation.isPending ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color={Colors.white}
-                                  />
-                                ) : (
-                                  <Text
-                                    style={
-                                      styles.confirmArrivalButtonTextCompact
-                                    }
-                                  >
-                                    Confirm
-                                  </Text>
-                                )}
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        ),
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
-
-              {/* DAILY JOB: Attendance Tracking Section */}
-              {conversation.job?.payment_model === "DAILY" && (
+              {/* Attendance Tracking Section (DAILY + team PROJECT) */}
+              {(conversation.job?.payment_model === "DAILY" ||
+                isTeamProjectAttendance) && (
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.teamArrivalHeader}>
                     <Text style={styles.teamArrivalTitle}>
-                      📅 Daily Attendance
+                      {isTeamProjectAttendance
+                        ? "Attendance"
+                        : "📅 Daily Attendance"}
                     </Text>
                     <Text style={styles.teamArrivalProgress}>
                       {format(
@@ -3327,20 +3207,33 @@ export default function ChatScreen() {
                                 </Text>
                               </View>
                               {todayAttendance.client_confirmed ? (
-                                <View style={styles.paymentProcessedBadge}>
-                                  <Ionicons
-                                    name="wallet"
-                                    size={14}
-                                    color={Colors.success}
-                                  />
-                                  <Text style={styles.paymentProcessedText}>
-                                    ₱
-                                    {Number(
-                                      todayAttendance.amount_earned,
-                                    ).toLocaleString()}{" "}
-                                    paid
-                                  </Text>
-                                </View>
+                                isTeamProjectAttendance ? (
+                                  <View style={styles.paymentProcessedBadge}>
+                                    <Ionicons
+                                      name="checkmark-circle"
+                                      size={14}
+                                      color={Colors.success}
+                                    />
+                                    <Text style={styles.paymentProcessedText}>
+                                      Day confirmed
+                                    </Text>
+                                  </View>
+                                ) : (
+                                  <View style={styles.paymentProcessedBadge}>
+                                    <Ionicons
+                                      name="wallet"
+                                      size={14}
+                                      color={Colors.success}
+                                    />
+                                    <Text style={styles.paymentProcessedText}>
+                                      ₱
+                                      {Number(
+                                        todayAttendance.amount_earned,
+                                      ).toLocaleString()}{" "}
+                                      paid
+                                    </Text>
+                                  </View>
+                                )
                               ) : (
                                 <Text style={styles.awaitingConfirmText}>
                                   Awaiting client confirmation...
@@ -3355,8 +3248,10 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                  {/* Worker View: Skip Day Request */}
-                  {conversation.my_role === "WORKER" && !hasCheckedInToday && (
+                  {/* Worker View: Skip Day Request (DAILY-only) */}
+                  {conversation.my_role === "WORKER" &&
+                    !isTeamProjectAttendance &&
+                    !hasCheckedInToday && (
                     <View style={styles.skipDayContainer}>
                       {hasNoWorkMarkedToday ? (
                         <View style={styles.skipDayStatusApproved}>
@@ -3513,8 +3408,9 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                  {/* Client View: Skip Day Request Review */}
+                  {/* Client View: Skip Day Request Review (DAILY-only) */}
                   {conversation.my_role === "CLIENT" &&
+                    !isTeamProjectAttendance &&
                     (() => {
                       const todaySkipRequest =
                         conversation.daily_skip_requests_today?.[0];
@@ -3645,6 +3541,7 @@ export default function ChatScreen() {
                     })()}
 
                   {conversation.my_role === "CLIENT" &&
+                    !isTeamProjectAttendance &&
                     isTestingModeEnabled &&
                     conversation.job?.status === "IN_PROGRESS" &&
                     (() => {
@@ -3805,6 +3702,7 @@ export default function ChatScreen() {
                   {conversation.my_role === "CLIENT" && (
                     <>
                       {!conversation.is_team_job &&
+                        !isTeamProjectAttendance &&
                         !hasAnyCheckedInToday &&
                         !hasAnyClientConfirmedToday && (
                           <TouchableOpacity
@@ -3916,27 +3814,36 @@ export default function ChatScreen() {
                                 {attendance.client_confirmed ? (
                                   <View style={styles.arrivedBadgeCompact}>
                                     <Ionicons
-                                      name="wallet"
+                                      name={
+                                        isTeamProjectAttendance
+                                          ? "checkmark-circle"
+                                          : "wallet"
+                                      }
                                       size={14}
                                       color={Colors.success}
                                     />
                                     <Text style={styles.arrivedTextCompact}>
-                                      ₱
-                                      {Number(
-                                        attendance.amount_earned,
-                                      ).toLocaleString()}
+                                      {isTeamProjectAttendance
+                                        ? "Confirmed"
+                                        : `₱${Number(attendance.amount_earned).toLocaleString()}`}
                                     </Text>
                                   </View>
                                 ) : attendance.time_out ? (
-                                  // Employee has checked out - show Pay button
+                                  // Employee has checked out - confirm attendance.
                                   <TouchableOpacity
                                     style={styles.confirmArrivalButtonCompact}
                                     onPress={() =>
                                       setCountdownConfig({
                                         visible: true,
-                                        title: "Confirm Attendance",
-                                        message: `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
-                                        confirmLabel: "Confirm & Pay",
+                                        title: isTeamProjectAttendance
+                                          ? "Confirm Attendance"
+                                          : "Confirm Attendance",
+                                        message: isTeamProjectAttendance
+                                          ? `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`
+                                          : `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
+                                        confirmLabel: isTeamProjectAttendance
+                                          ? "Confirm Day"
+                                          : "Confirm & Pay",
                                         countdownSeconds: 7,
                                         onConfirm: () => {
                                           setCountdownConfig(null);
@@ -3947,7 +3854,9 @@ export default function ChatScreen() {
                                             },
                                           );
                                         },
-                                        icon: "wallet",
+                                        icon: isTeamProjectAttendance
+                                          ? "checkmark-circle"
+                                          : "wallet",
                                         iconColor: Colors.warning,
                                       })
                                     }
@@ -3966,7 +3875,9 @@ export default function ChatScreen() {
                                           styles.confirmArrivalButtonTextCompact
                                         }
                                       >
-                                        Pay
+                                        {isTeamProjectAttendance
+                                          ? "Confirm"
+                                          : "Pay"}
                                       </Text>
                                     )}
                                   </TouchableOpacity>
@@ -4091,13 +4002,15 @@ export default function ChatScreen() {
                     </>
                   )}
 
-                  {/* Daily rate info */}
-                  <View style={styles.dailyRateInfo}>
-                    <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
-                    <Text style={styles.dailyRateAmount}>
-                      ₱{conversation.job.daily_rate?.toLocaleString() || "0"}
-                    </Text>
-                  </View>
+                  {/* Daily rate info (DAILY-only) */}
+                  {!isTeamProjectAttendance && (
+                    <View style={styles.dailyRateInfo}>
+                      <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
+                      <Text style={styles.dailyRateAmount}>
+                        ₱{conversation.job.daily_rate?.toLocaleString() || "0"}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -4627,7 +4540,7 @@ export default function ChatScreen() {
 
               {/* CLIENT: Cancel Team Job Button */}
               {conversation.is_team_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                conversation.job?.payment_model === "PROJECT" &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
                 !isRegularJobTerminal && (
