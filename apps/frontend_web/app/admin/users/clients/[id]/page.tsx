@@ -363,40 +363,233 @@ export default function ClientDetailPage() {
       : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50/50">
       <Sidebar />
       <main className={mainClass}>
-        {/* Header */}
-        <div className="mb-6">
+        {/* Header with Back Button */}
+        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => router.push("/admin/users/clients")}
-            className="mb-4"
+            className="text-gray-600 hover:text-[#00BAF1] -ml-2 w-fit"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Clients
           </Button>
+          <div className="flex gap-2">
+            {getStatusBadge(client.status)}
+            {getKYCBadge(client.kyc_status)}
+          </div>
+        </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Client Profile
-              </h1>
-              <p className="text-gray-500 mt-1">ID: {client.id}</p>
-            </div>
-            <div className="flex flex-col gap-3">
-              {/* Status Badges */}
-              <div className="flex gap-2">
-                {getStatusBadge(client.status)}
-                {getKYCBadge(client.kyc_status)}
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Main Column */}
+          <div className="lg:col-span-9 space-y-6">
+            {/* Main Header Container */}
+            <Card className="border-none shadow-sm overflow-hidden bg-white">
+              <CardContent className="p-8">
+                <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
+                  <div className="relative">
+                    <div className="h-28 w-28 rounded-full bg-blue-50 flex items-center justify-center text-[#00BAF1] text-4xl font-bold border-2 border-[#00BAF1]/20">
+                      {client.first_name?.charAt(0)}
+                      {client.last_name?.charAt(0)}
+                    </div>
+                    {client.is_verified && (
+                      <div className="absolute bottom-1 right-1 h-8 w-8 bg-[#00BAF1] rounded-full flex items-center justify-center border-4 border-white shadow-sm">
+                        <CheckCircle className="h-4 w-4 text-white" />
+                      </div>
+                    )}
+                  </div>
 
-              {/* Account Action Buttons */}
-              <div className="flex gap-2">
+                  <div className="flex-1 space-y-4 pt-2">
+                    <div>
+                      <h2 className="text-sm font-medium text-[#00BAF1] mb-1">Client Profile</h2>
+                      <h1 className="text-3xl font-bold text-gray-900 tracking-tight capitalize">
+                        {client.full_name || `${client.first_name} ${client.last_name}`}
+                      </h1>
+                      {client.is_agency && client.agency_info && (
+                        <p className="text-sm text-[#00BAF1] font-semibold mt-1">
+                          🏢 {client.agency_info.business_name} • {client.agency_info.employee_count} employees
+                        </p>
+                      )}
+                      <p className="text-gray-400 text-sm mt-1">Client ID: {client.id}</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-3 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-[#00BAF1]" />
+                        Joined {new Date(client.join_date).toLocaleDateString()}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold text-gray-900">{client.client_data?.rating?.toFixed(1) || "0.0"}</span>
+                        <span className="text-gray-400">({client.review_count} reviews)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Combined Stats Container at the bottom */}
+                <div className="mt-8 pt-6 border-t border-gray-100/50 flex flex-wrap items-center gap-x-8 gap-y-4">
+                  {[
+                    { label: "Total Jobs", value: client.job_stats.total_jobs },
+                    { label: "Active Jobs", value: client.job_stats.active_jobs },
+                    { label: "Completed", value: client.job_stats.completed_jobs },
+                    { label: "Total Spent", value: `₱${client.total_spent?.toLocaleString() || "0"}` },
+                  ].map((stat, i) => (
+                    <React.Fragment key={i}>
+                      <div className="flex flex-col">
+                        <p className="text-[10px] text-gray-400 font-bold tracking-wider mb-0.5">{stat.label}</p>
+                        <p className="text-lg font-bold text-gray-900">{stat.value}</p>
+                      </div>
+                      {i < 3 && <div className="hidden md:block h-8 w-[1px] bg-gray-200" />}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+
+            {/* Tabs Section */}
+            <Tabs defaultValue="details" className="w-full">
+              <TabsList className="bg-white p-1 rounded-xl shadow-sm inline-flex mb-6 border-none">
+                <TabsTrigger 
+                  value="details" 
+                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
+                >
+                  Details
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="jobs" 
+                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
+                >
+                  Job History
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="reviews" 
+                  className="rounded-lg px-6 py-2.5 data-[state=active]:bg-[#00BAF1] data-[state=active]:text-white transition-all"
+                >
+                  Reviews
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="details">
+                {/* Client Details Container (Merged) */}
+                <Card className="border-none shadow-sm bg-white">
+                  <CardContent className="p-8 space-y-10">
+                    {/* About Section */}
+                    <section>
+                      <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <User className="h-4 w-4 text-[#00BAF1]" />
+                        About
+                      </h3>
+                      <p className="text-gray-600 leading-relaxed">
+                        {client.client_data?.description || "No description provided."}
+                      </p>
+                    </section>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                      {/* Contact Info Section */}
+                      <section>
+                        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-[#00BAF1]" />
+                          Contact Information
+                        </h3>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">Email Address</span>
+                            <span className="font-medium text-gray-900">{client.email}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">Phone Number</span>
+                            <span className="font-medium text-gray-900">{client.phone || "Not provided"}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">Birth Date</span>
+                            <span className="font-medium text-gray-900">
+                              {client.birth_date ? new Date(client.birth_date).toLocaleDateString() : "Not provided"}
+                            </span>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* Address Section */}
+                      <section>
+                        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-[#00BAF1]" />
+                          Address
+                        </h3>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">Street</span>
+                            <span className="font-medium text-gray-900">{client.address?.street || "N/A"}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">City</span>
+                            <span className="font-medium text-gray-900">{client.address?.city || "N/A"}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-1 border-b border-gray-50">
+                            <span className="text-gray-500 text-sm">Province</span>
+                            <span className="font-medium text-gray-900">{client.address?.province || "N/A"}</span>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+
+                    {/* KYC Info Section */}
+                    <section className="pt-2">
+                      <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-[#00BAF1]" />
+                        KYC Information
+                      </h3>
+                      <div className="bg-gray-50 rounded-xl p-6">
+                        <div className="space-y-1">
+                          <p className="text-sm text-gray-500">Current KYC Status</p>
+                          <div className="flex items-center gap-3">
+                            {getKYCBadge(client.kyc_status)}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="jobs">
+                <Card className="border-none shadow-sm bg-white">
+                  <CardContent className="py-20 text-center">
+                    <Briefcase className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Job History</h3>
+                    <p className="text-gray-500">integration with jobs module coming soon.</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="reviews">
+                <Card className="border-none shadow-sm bg-white">
+                  <CardContent className="py-20 text-center">
+                    <Star className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Reviews</h3>
+                    <p className="text-gray-500">client reviews and feedback will appear here.</p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Sidebar Column: Action Buttons */}
+          <div className="lg:col-span-3 space-y-6">
+            <Card className="border-none shadow-sm bg-white overflow-hidden">
+              <CardHeader className="border-b border-gray-50 pb-4">
+                <CardTitle className="text-sm font-bold text-gray-900 tracking-widest">
+                  Actions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 flex flex-col gap-3">
                 {!client.is_banned && (
                   <Button
                     variant={client.is_suspended ? "default" : "outline"}
-                    size="sm"
+                    className={client.is_suspended ? "w-full shadow-sm" : "w-full border-orange-100 text-orange-600 hover:bg-orange-50 hover:border-orange-200 transition-all font-medium"}
                     onClick={() =>
                       client.is_suspended
                         ? setShowActivateModal(true)
@@ -404,355 +597,66 @@ export default function ClientDetailPage() {
                     }
                   >
                     {client.is_suspended ? (
-                      <>
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Unsuspend
-                      </>
+                      <><CheckCircle className="h-4 w-4 mr-2" /> Unsuspend Account</>
                     ) : (
-                      <>
-                        <Clock className="h-3 w-3 mr-1" />
-                        Suspend
-                      </>
+                      <><Clock className="h-4 w-4 mr-2" /> Suspend Account</>
                     )}
                   </Button>
                 )}
+                
                 {!client.is_suspended && !client.is_banned && (
                   <Button
-                    variant="destructive"
-                    size="sm"
+                    variant="outline"
+                    className="w-full border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all font-medium"
                     onClick={() => setShowBanModal(true)}
                   >
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Ban
+                    <XCircle className="h-4 w-4 mr-2" />
+                    ban account
                   </Button>
                 )}
+
                 {client.is_banned && (
                   <Button
                     variant="default"
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="w-full bg-green-600 hover:bg-green-700 shadow-sm font-medium"
                     onClick={() => setShowActivateModal(true)}
                   >
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Unban
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    unban account
                   </Button>
                 )}
+
                 <Button
                   variant="outline"
-                  size="sm"
+                  className="w-full border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all mt-2 text-sm font-medium"
                   onClick={() => setShowDeleteModal(true)}
                 >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  Delete
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  delete profile
                 </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Profile Overview Card */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
-              {/* Avatar */}
-              <div className="relative">
-                <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                  {client.first_name?.charAt(0)}
-                  {client.last_name?.charAt(0)}
-                </div>
-                {client.is_verified && (
-                  <div className="absolute -bottom-1 -right-1 h-8 w-8 bg-green-500 rounded-full flex items-center justify-center border-4 border-white">
-                    <CheckCircle className="h-4 w-4 text-white" />
-                  </div>
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
-                      {client.full_name ||
-                        `${client.first_name} ${client.last_name}`.trim()}
-                    </h2>
-                    {client.is_agency && client.agency_info && (
-                      <p className="text-sm text-blue-600 font-medium mt-1">
-                        🏢 {client.agency_info.business_name} •{" "}
-                        {client.agency_info.employee_count} employees
-                      </p>
-                    )}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Mail className="h-4 w-4" />
-                        {client.email}
-                      </div>
-                      {client.phone && (
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-4 w-4" />
-                          {client.phone}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Rating */}
-                  <div className="text-center">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-                      <span className="text-2xl font-bold text-gray-900">
-                        {client.client_data?.rating?.toFixed(1) || "N/A"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {client.review_count} reviews
-                    </p>
-                  </div>
-                </div>
-
-                {/* Additional Info Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Member Since</p>
-                    <div className="flex items-center gap-1 text-sm font-medium">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      {new Date(client.join_date).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Location</p>
-                    <div className="flex items-center gap-1 text-sm font-medium">
-                      <MapPin className="h-4 w-4 text-gray-400" />
-                      {client.address?.city || "N/A"},{" "}
-                      {client.address?.province || "N/A"}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Total Spent</p>
-                    <div className="flex items-center gap-1 text-sm font-medium text-green-600">
-                      <Banknote className="h-4 w-4" />₱
-                      {client.total_spent?.toLocaleString() || "0"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Total Jobs</p>
-                  <p className="text-3xl font-bold text-gray-900">
-                    {client.job_stats.total_jobs}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Briefcase className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Active</p>
-                  <p className="text-3xl font-bold text-orange-600">
-                    {client.job_stats.active_jobs}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <Clock className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Completed</p>
-                  <p className="text-3xl font-bold text-green-600">
-                    {client.job_stats.completed_jobs}
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Success Rate</p>
-                  <p className="text-3xl font-bold text-purple-600">
-                    {completionRate.toFixed(0)}%
-                  </p>
-                </div>
-                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Tabs Section */}
-        <Tabs defaultValue="details" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="jobs">Job History</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="details" className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Contact Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Contact Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Email</span>
-                    <span className="font-medium">{client.email}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Phone</span>
-                    <span className="font-medium">
-                      {client.phone || "Not provided"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Birth Date</span>
-                    <span className="font-medium">
-                      {client.birth_date
-                        ? new Date(client.birth_date).toLocaleDateString()
-                        : "Not provided"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Email Verified</span>
-                    <span
-                      className={`font-medium ${client.is_verified ? "text-green-600" : "text-red-600"}`}
-                    >
-                      {client.is_verified ? "Yes" : "No"}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Address */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Address
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Street</span>
-                    <span className="font-medium">
-                      {client.address?.street || "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">City</span>
-                    <span className="font-medium">
-                      {client.address?.city || "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Province</span>
-                    <span className="font-medium">
-                      {client.address?.province || "N/A"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Country</span>
-                    <span className="font-medium">
-                      {client.address?.country || "Philippines"}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* KYC Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    KYC Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">KYC Status</span>
-                    {getKYCBadge(client.kyc_status)}
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Account Status</span>
-                    {getStatusBadge(client.status)}
-                  </div>
-                  {client.kyc_status !== "APPROVED" && (
-                    <Button
-                      variant="outline"
-                      className="w-full mt-2"
-                      onClick={() => router.push(`/admin/kyc/pending`)}
-                    >
-                      View KYC Documents
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Client Description */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5" />
-                    About
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-700">
-                    {client.client_data?.description ||
-                      "No description provided."}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="jobs">
-            <Card>
-              <CardHeader>
-                <CardTitle>Job History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-gray-500">
-                  <Briefcase className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Job history will be displayed here</p>
-                  <p className="text-sm mt-2">
-                    Integration with jobs module coming soon
-                  </p>
-                </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+
+            {/* Performance Card */}
+            <Card className="border-none shadow-sm bg-white overflow-hidden">
+               <CardContent className="p-6">
+                  <div className="flex justify-between items-end mb-4">
+                    <div>
+                      <p className="text-xs text-gray-400 font-bold tracking-wider mb-1">Success Rate</p>
+                      <p className="text-3xl font-black text-gray-900">{completionRate.toFixed(0)}%</p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-[#00BAF1] opacity-20" />
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                     <div 
+                        className="bg-[#00BAF1] h-2 rounded-full transition-all duration-1000" 
+                        style={{ width: `${completionRate}%` }}
+                      ></div>
+                  </div>
+               </CardContent>
+            </Card>
+          </div>
+        </div>
       </main>
 
       {/* Modals - Outside main to overlay entire page */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { registerServiceWorker } from "@/lib/service-worker/register";
+import { registerServiceWorker, unregisterServiceWorker } from "@/lib/service-worker/register";
 
 /**
  * Service Worker Registration Component
@@ -11,8 +11,13 @@ import { registerServiceWorker } from "@/lib/service-worker/register";
  */
 export function ServiceWorkerRegistration() {
   useEffect(() => {
-    // Register service worker on component mount
-    registerServiceWorker();
+    // Only register service worker in production to avoid development caching issues
+    if (process.env.NODE_ENV === "production") {
+      registerServiceWorker();
+    } else {
+      // In development, ensure any stale service worker is removed
+      unregisterServiceWorker();
+    }
   }, []);
 
   // This component doesn't render anything

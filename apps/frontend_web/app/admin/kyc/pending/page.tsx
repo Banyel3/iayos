@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
@@ -127,6 +127,18 @@ export default function PendingKYCPage() {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const { showToast } = useToast();
   const mainClass = useMainContentClass("p-8 min-h-screen");
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort("component_unmounted");
+      }
+    };
+  }, []);
 
   // Helper component to render KYC document images
   const KYCDocumentImage = ({
@@ -201,13 +213,26 @@ export default function PendingKYCPage() {
     );
   };
   const fetchPendingKYC = async (retryAttempt = 0) => {
+    if (!isMounted.current) return;
+
     const MAX_RETRIES = 2;
     setIsLoading(true);
     setFetchError(null);
     try {
+      // Clean up previous controller if it exists
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort("new_request_started");
+      }
+
       // Add timeout to prevent hanging on slow responses
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      abortControllerRef.current = controller;
+      
+      const timeoutId = setTimeout(() => {
+        if (isMounted.current) {
+          controller.abort("timeout");
+        }
+      }, 15000);
 
       if (retryAttempt > 0) {
         showToast({
@@ -224,6 +249,8 @@ export default function PendingKYCPage() {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      
+      if (!isMounted.current) return;
 
       if (!response.ok) {
         // Handle specific HTTP errors
@@ -355,16 +382,31 @@ export default function PendingKYCPage() {
         });
 
       setPendingKYC([...transformedData, ...agencyTransformed]);
-    } catch (error) {
-      console.error("❌ Error fetching pending KYC:", error);
+    } catch (error: any) {
+      if (!isMounted.current) return;
+      
+      // Check if it's an abort error and if it was due to unmounting
+      const abortReason = abortControllerRef.current?.signal?.reason;
+      if (error.name === "AbortError" && abortReason === "component_unmounted") {
+        return;
+      }
+
+      if (error.name !== "AbortError") {
+        console.error("❌ Error fetching pending KYC:", error);
+      } else {
+        console.warn("⚠️ KYC fetch request was aborted:", error.message || abortReason);
+      }
 
       // Auto-retry on timeout or network errors
-      const isAbortError =
-        error instanceof DOMException && error.name === "AbortError";
+      const isAbortError = error.name === "AbortError";
       const isNetworkError =
         error instanceof TypeError && error.message.includes("fetch");
 
       if ((isAbortError || isNetworkError) && retryAttempt < MAX_RETRIES) {
+        // Only retry if it was a timeout abort, not an unmount
+        if (isAbortError && abortReason !== "timeout") {
+           return;
+        }
         // Wait 2 seconds then retry
         await new Promise((resolve) => setTimeout(resolve, 2000));
         return fetchPendingKYC(retryAttempt + 1);
@@ -501,6 +543,9 @@ export default function PendingKYCPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
+        // Use the signal from the ref if we want to abort this too, 
+        // but typically individual file fetches are short-lived.
+        // For now, just adding the mounted check is sufficient.
       });
 
       if (!response.ok) {
@@ -514,6 +559,8 @@ export default function PendingKYCPage() {
       }
 
       const signedUrls = await response.json();
+      
+      if (!isMounted.current) return;
 
       // Check if response contains an error
       if (signedUrls.error) {

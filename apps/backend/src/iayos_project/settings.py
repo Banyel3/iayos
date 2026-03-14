@@ -254,8 +254,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://10.0.2.2:8000",  # Android emulator host access
-    "http://192.168.254.116:3500",  # IP address for LAN access (port 3500)
-    "http://192.168.254.116:8000",  # Backend IP for LAN access
+    "http://192.168.254.182:3500",  # IP address for LAN access (port 3500)
+    "http://192.168.254.182:8000",  # Backend IP for LAN access
     # Production domains (HTTPS)
     "https://iayos.online",               # Custom domain (frontend)
     "https://www.iayos.online",           # www subdomain  
