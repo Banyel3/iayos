@@ -2189,6 +2189,7 @@ def get_conversation_messages(request, conversation_id: int):
         client_review_data = None
         worker_review_data = None
         counterparty_reviews_data = []
+        my_editable_reviews_data = []
 
         reviewer_profile_cache = {}
 
@@ -2346,6 +2347,68 @@ def get_conversation_messages(request, conversation_id: int):
                     "created_at": review.createdAt.isoformat() if review.createdAt else None,
                 })
 
+        # Build editable reviews authored by current user for post-backjob edit flows.
+        now = timezone.now()
+        my_reviews_qs = JobReview.objects.filter(
+            jobID=job,
+            reviewerID=request.auth,
+            status='ACTIVE'
+        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('createdAt')
+
+        for authored_review in my_reviews_qs:
+            within_24h = (now - authored_review.createdAt) <= timedelta(hours=24)
+            within_backjob_window = (
+                authored_review.backjob_edit_deadline is not None
+                and now < authored_review.backjob_edit_deadline
+            )
+            can_edit = within_24h or within_backjob_window
+
+            target_type = 'USER'
+            target_id = None
+            target_name = 'User'
+
+            if authored_review.revieweeEmployeeID:
+                target_type = 'EMPLOYEE'
+                target_id = authored_review.revieweeEmployeeID.employeeID
+                target_name = authored_review.revieweeEmployeeID.name or 'Employee'
+            elif authored_review.revieweeAgencyID:
+                target_type = 'AGENCY'
+                target_id = authored_review.revieweeAgencyID.agencyId
+                target_name = authored_review.revieweeAgencyID.businessName or 'Agency'
+            elif authored_review.revieweeID:
+                target_type = 'TEAM_WORKER' if is_team_job and is_client else 'USER'
+                target_id = authored_review.revieweeID.accountID
+
+                reviewee_profile = Profile.objects.filter(
+                    accountFK=authored_review.revieweeID,
+                ).first()
+                if reviewee_profile:
+                    profile_name = f"{reviewee_profile.firstName or ''} {reviewee_profile.lastName or ''}".strip()
+                    target_name = profile_name or target_name
+
+            my_editable_reviews_data.append({
+                'review_id': authored_review.reviewID,
+                'target_type': target_type,
+                'target_id': target_id,
+                'target_name': target_name,
+                'can_edit': can_edit,
+                'rating_quality': float(authored_review.rating_quality) if authored_review.rating_quality else 0,
+                'rating_communication': float(authored_review.rating_communication) if authored_review.rating_communication else 0,
+                'rating_punctuality': float(authored_review.rating_punctuality) if authored_review.rating_punctuality else 0,
+                'rating_professionalism': float(authored_review.rating_professionalism) if authored_review.rating_professionalism else 0,
+                'comment': authored_review.comment or '',
+                'created_at': authored_review.createdAt.isoformat() if authored_review.createdAt else None,
+                'backjob_edit_deadline': authored_review.backjob_edit_deadline.isoformat() if authored_review.backjob_edit_deadline else None,
+            })
+
+        # For agency client reviews, keep employees first then agency for deterministic edit sequencing.
+        if is_agency_job_for_reviews and is_client and my_editable_reviews_data:
+            priority = {'EMPLOYEE': 0, 'AGENCY': 1}
+            my_editable_reviews_data.sort(key=lambda review: (
+                priority.get(review['target_type'], 2),
+                review.get('target_name') or ''
+            ))
+
         # Backward-compatibility for legacy jobs created before timeline markers were reliable.
         # If explicit flags are missing/inconsistent, infer worker on-the-way from subsequent lifecycle
         # milestones or existing JobLog entries.
@@ -2460,6 +2523,7 @@ def get_conversation_messages(request, conversation_id: int):
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
             "counterparty_reviews": counterparty_reviews_data,
+            "my_editable_reviews": my_editable_reviews_data,
             "job_materials": job_materials_list,
         }
         

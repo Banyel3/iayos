@@ -291,6 +291,20 @@ export type ConversationDetail = {
     comment: string;
     created_at: string;
   }>;
+  my_editable_reviews?: Array<{
+    review_id: number;
+    target_type: "EMPLOYEE" | "AGENCY" | "TEAM_WORKER" | "USER";
+    target_id: number | null;
+    target_name: string;
+    can_edit: boolean;
+    rating_quality: number;
+    rating_communication: number;
+    rating_punctuality: number;
+    rating_professionalism: number;
+    comment: string;
+    created_at: string | null;
+    backjob_edit_deadline: string | null;
+  }>;
   // Job materials purchasing workflow
   job_materials?: JobMaterialItem[];
 };
