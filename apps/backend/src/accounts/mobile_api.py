@@ -7449,11 +7449,11 @@ def worker_check_in(request, job_id: int):
     Creates/updates attendance in DISPATCHED state (no time_in yet).
     
     Constraints:
-    - Only for IN_PROGRESS daily-rate jobs
+    - Only for IN_PROGRESS daily-rate jobs OR team PROJECT jobs with multi-day tracking
     - Only once per day per worker
     """
     from decimal import Decimal
-    from .models import Job, DailyAttendance, WorkerProfile, Profile, Notification
+    from .models import Job, DailyAttendance, WorkerProfile, Profile, Notification, JobWorkerAssignment
     
     try:
         print(f"⏰ [MOBILE] Worker on-the-way request for job {job_id} by {request.auth.email}")
@@ -7464,9 +7464,11 @@ def worker_check_in(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
-        # Validate job is DAILY payment model
-        if job.payment_model != 'DAILY':
-            return Response({"error": "This is not a daily-rate job"}, status=400)
+        # Allow DAILY jobs and team PROJECT jobs that use multi-day attendance tracking.
+        is_daily_job = job.payment_model == 'DAILY'
+        is_team_project_job = job.is_team_job and job.payment_model == 'PROJECT'
+        if not (is_daily_job or is_team_project_job):
+            return Response({"error": "This endpoint supports DAILY jobs and team PROJECT multi-day jobs only"}, status=400)
         
         # Validate job is IN_PROGRESS
         if job.status != 'IN_PROGRESS':
@@ -7492,7 +7494,16 @@ def worker_check_in(request, job_id: int):
             return Response({"error": "Worker profile not found"}, status=404)
         
         # Verify worker is assigned to this job
+        team_assignment = None
         is_assigned = (job.assignedWorkerID == worker)
+        if not is_assigned and job.is_team_job:
+            team_assignment = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).first()
+            is_assigned = team_assignment is not None
+
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
         
@@ -7500,11 +7511,15 @@ def worker_check_in(request, job_id: int):
         today = _get_effective_work_date(job)
         
         # Check if attendance already exists for today
-        existing_attendance = DailyAttendance.objects.filter(
-            jobID=job,
-            workerID=worker,
-            date=today
-        ).first()
+        attendance_filter = {
+            'jobID': job,
+            'workerID': worker,
+            'date': today,
+        }
+        if team_assignment:
+            attendance_filter['assignmentID'] = team_assignment
+
+        existing_attendance = DailyAttendance.objects.filter(**attendance_filter).first()
         
         # Already on the way
         if existing_attendance and existing_attendance.status == 'DISPATCHED' and not existing_attendance.time_in:
@@ -7524,10 +7539,10 @@ def worker_check_in(request, job_id: int):
         
         # Create or update attendance record as DISPATCHED (on the way).
         attendance, created = DailyAttendance.objects.update_or_create(
-            jobID=job,
-            workerID=worker,
-            date=today,
+            **attendance_filter,
             defaults={
+                'assignmentID': team_assignment,
+                'employeeID': None,
                 'time_in': None,
                 'time_out': None,
                 'status': 'DISPATCHED',
@@ -7652,7 +7667,7 @@ def worker_cancel_check_in(request, job_id: int):
     - Undo window: first 10 seconds after check-in
     - Cannot cancel once client verified arrival or checked out
     """
-    from .models import Job, DailyAttendance, WorkerProfile, Profile
+    from .models import Job, DailyAttendance, WorkerProfile, Profile, JobWorkerAssignment
 
     try:
         try:
@@ -7660,8 +7675,10 @@ def worker_cancel_check_in(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
-        if job.payment_model != 'DAILY':
-            return Response({"error": "This is not a daily-rate job"}, status=400)
+        is_daily_job = job.payment_model == 'DAILY'
+        is_team_project_job = job.is_team_job and job.payment_model == 'PROJECT'
+        if not (is_daily_job or is_team_project_job):
+            return Response({"error": "This endpoint supports DAILY jobs and team PROJECT multi-day jobs only"}, status=400)
 
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
         profile = Profile.objects.filter(accountFK=request.auth, profileType=profile_type).first()
@@ -7675,9 +7692,27 @@ def worker_cancel_check_in(request, job_id: int):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
 
+        # Ensure user is assigned (direct worker or team assignment)
+        is_assigned = (job.assignedWorkerID == worker)
+        team_assignment = None
+        if not is_assigned and job.is_team_job:
+            team_assignment = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).first()
+            is_assigned = team_assignment is not None
+
+        if not is_assigned:
+            return Response({"error": "You are not assigned to this job"}, status=403)
+
         today = _get_effective_work_date(job)
         try:
-            attendance = DailyAttendance.objects.get(jobID=job, workerID=worker, date=today)
+            attendance_filter = {'jobID': job, 'workerID': worker, 'date': today}
+            if team_assignment:
+                attendance_filter['assignmentID'] = team_assignment
+
+            attendance = DailyAttendance.objects.get(**attendance_filter)
         except DailyAttendance.DoesNotExist:
             return Response({"error": "No active check-in found for today"}, status=400)
 
@@ -7724,13 +7759,14 @@ def worker_cancel_check_in(request, job_id: int):
 @require_kyc
 def client_confirm_attendance(request, attendance_id: int, approved_status: str = None):
     """
-    Client confirms worker's attendance and triggers auto-payment.
-    
+    Client confirms worker's attendance.
+
     Optional:
     - approved_status: PRESENT (full day), HALF_DAY, ABSENT (no payment)
-    
-    Auto-payment is triggered when client confirms. Payment goes to worker's 
-    pendingEarnings (7-day buffer before available for withdrawal).
+
+    Behavior:
+    - DAILY jobs: uses DailyPaymentService and can process per-day payout.
+    - TEAM PROJECT multi-day jobs: records attendance only (no per-day payout).
     """
     from django.utils import timezone
     from .models import DailyAttendance
@@ -7742,7 +7778,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
         # Get attendance record
         try:
             attendance = DailyAttendance.objects.select_related(
-                'jobID', 'workerID__profileID'
+                'jobID',
+                'workerID__profileID',
+                'assignmentID__workerID__profileID'
             ).get(attendanceID=attendance_id)
         except DailyAttendance.DoesNotExist:
             return Response({"error": "Attendance record not found"}, status=404)
@@ -7761,19 +7799,36 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
                 "payment_processed": attendance.payment_processed
             }, status=400)
         
-        # Use the service for client confirmation (handles status override + payment)
-        result = DailyPaymentService.confirm_attendance_client(
-            attendance,
-            request.auth,
-            approved_status=approved_status
+        is_team_project_multiday = (
+            job.is_team_job and
+            job.payment_model == 'PROJECT' and
+            (job.duration_days or 0) > 1
         )
-        
-        if not result.get('success'):
-            return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+
+        if is_team_project_multiday:
+            # For team PROJECT multi-day jobs, confirmation only records the day.
+            attendance.client_confirmed = True
+            attendance.client_confirmed_at = timezone.now()
+            attendance.payment_processed = False
+            attendance.updatedAt = timezone.now()
+            attendance.save(update_fields=['client_confirmed', 'client_confirmed_at', 'payment_processed', 'updatedAt'])
+        else:
+            # DAILY jobs keep existing behavior with per-day payment processing.
+            result = DailyPaymentService.confirm_attendance_client(
+                attendance,
+                request.auth,
+                approved_status=approved_status
+            )
+
+            if not result.get('success'):
+                return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
         
         # Enhance response with worker info
         worker_name = None
-        if attendance.workerID and attendance.workerID.profileID:
+        if attendance.assignmentID and attendance.assignmentID.workerID and attendance.assignmentID.workerID.profileID:
+            p = attendance.assignmentID.workerID.profileID
+            worker_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
+        elif attendance.workerID and attendance.workerID.profileID:
             p = attendance.workerID.profileID
             worker_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
         
@@ -7787,7 +7842,11 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
-            "message": f"Attendance confirmed. {'Payment processed.' if attendance.payment_processed else 'Awaiting worker confirmation.'}"
+            "message": (
+                "Attendance confirmed. Day recorded for final project payout."
+                if is_team_project_multiday
+                else f"Attendance confirmed. {'Payment processed.' if attendance.payment_processed else 'Awaiting worker confirmation.'}"
+            )
         }
         
     except Exception as e:

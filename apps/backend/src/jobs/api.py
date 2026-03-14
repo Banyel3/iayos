@@ -8705,7 +8705,9 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
     try:
         attendance = DailyAttendance.objects.select_related(
             'jobID__clientID__profileID__accountFK',
-            'employeeID'
+            'employeeID',
+            'workerID__profileID',
+            'assignmentID__workerID__profileID'
         ).get(
             attendanceID=attendance_id,
             jobID__jobID=job_id
@@ -8743,8 +8745,17 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
     
     attendance.save()
     
-    # Get employee name for response
-    employee_name = attendance.employeeID.fullName if attendance.employeeID else 'Worker'
+    # Resolve actor name for agency employee / direct worker / team assignment worker.
+    if attendance.employeeID:
+        employee_name = attendance.employeeID.fullName
+    elif attendance.assignmentID and attendance.assignmentID.workerID and attendance.assignmentID.workerID.profileID:
+        p = attendance.assignmentID.workerID.profileID
+        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
+    elif attendance.workerID and attendance.workerID.profileID:
+        p = attendance.workerID.profileID
+        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
+    else:
+        employee_name = 'Worker'
     
     return {
         "success": True,
@@ -8770,7 +8781,9 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
     try:
         attendance = DailyAttendance.objects.select_related(
             'jobID__clientID__profileID__accountFK',
-            'employeeID'
+            'employeeID',
+            'workerID__profileID',
+            'assignmentID__workerID__profileID'
         ).get(
             attendanceID=attendance_id,
             jobID__jobID=job_id
@@ -8798,8 +8811,17 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
     attendance.worker_confirmed = True  # Auto-confirm on checkout
     attendance.save()
     
-    # Get employee name for response
-    employee_name = attendance.employeeID.fullName if attendance.employeeID else 'Worker'
+    # Resolve actor name for agency employee / direct worker / team assignment worker.
+    if attendance.employeeID:
+        employee_name = attendance.employeeID.fullName
+    elif attendance.assignmentID and attendance.assignmentID.workerID and attendance.assignmentID.workerID.profileID:
+        p = attendance.assignmentID.workerID.profileID
+        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
+    elif attendance.workerID and attendance.workerID.profileID:
+        p = attendance.workerID.profileID
+        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
+    else:
+        employee_name = 'Worker'
     
     return {
         "success": True,
