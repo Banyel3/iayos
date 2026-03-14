@@ -9639,6 +9639,60 @@ def extend_daily_job_one_day(request, job_id: int):
     }
 
 
+@router.post("/{job_id}/project/extend-one-day", auth=dual_auth)
+@require_kyc
+def extend_project_job_one_day(request, job_id: int):
+    """
+    Client-only action to extend a PROJECT job by 1 day.
+    This updates duration tracking only and does not alter payment totals.
+    """
+    try:
+        job = Job.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'PROJECT':
+        return Response({"error": "This endpoint is only for PROJECT jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can extend this project"}, status=403)
+
+    old_duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    new_duration_days = max(old_duration_days, 1) + 1
+
+    with db_transaction.atomic():
+        job.duration_days = new_duration_days
+        job.save(update_fields=['duration_days', 'updatedAt'])
+
+        JobLog.objects.create(
+            jobID=job,
+            actionType=JobLog.ActionType.JOB_EDITED,
+            oldStatus=job.status,
+            newStatus=job.status,
+            changedBy=request.auth,
+            notes='[PROJECT] Client extended job by +1 day',
+            metadata={
+                'event': 'project_extend_one_day',
+                'additional_days': 1,
+                'old_duration_days': old_duration_days,
+                'new_duration_days': new_duration_days,
+                'payment_model': 'PROJECT',
+            },
+        )
+
+    return {
+        'success': True,
+        'message': 'Project extended by 1 day.',
+        'job_id': job.jobID,
+        'additional_days': 1,
+        'old_duration_days': old_duration_days,
+        'new_duration_days': new_duration_days,
+    }
+
+
 @router.post("/{job_id}/daily/finish", auth=dual_auth)
 @require_kyc
 def finish_daily_job(request, job_id: int):

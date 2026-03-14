@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PROJECT Multi-Day End-Flow Controls (Team + Single Project)**
+  - Added PROJECT multi-day end-action card in conversation for clients when configured duration is reached.
+  - Added `Extend +1 Day` action for PROJECT jobs (team and non-team) using new backend endpoint.
+  - Added `Job Finished` action that routes to existing completion/payment flow:
+    - Team PROJECT: client uses approve-and-pay team flow after all assignments are marked complete.
+    - Single PROJECT: client uses approve completion/pay-final flow after worker marks complete.
+  - **Impact**: Multi-day PROJECT jobs now have explicit extend-or-finish controls similar to DAILY end-flow behavior, while preserving final payout at completion.
+
 - **QA Skip-Next-Day Support for Multi-Day PROJECT Jobs**
   - Extended mobile QA skip-next-day control to eligible multi-day `PROJECT` jobs (team and non-team), while preserving existing `DAILY` behavior.
   - Added backend eligibility support so QA day fast-forward works for `DAILY` and for `PROJECT` jobs with `duration_days > 1`.
