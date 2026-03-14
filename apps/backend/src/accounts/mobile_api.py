@@ -7464,11 +7464,13 @@ def worker_check_in(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
-        # Allow DAILY jobs and team PROJECT jobs that use multi-day attendance tracking.
+        # Allow DAILY jobs and PROJECT multi-day jobs that use attendance tracking.
         is_daily_job = job.payment_model == 'DAILY'
-        is_team_project_job = job.is_team_job and job.payment_model == 'PROJECT'
-        if not (is_daily_job or is_team_project_job):
-            return Response({"error": "This endpoint supports DAILY jobs and team PROJECT multi-day jobs only"}, status=400)
+        is_project_multiday_job = (
+            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+        )
+        if not (is_daily_job or is_project_multiday_job):
+            return Response({"error": "This endpoint supports DAILY jobs and PROJECT multi-day jobs only"}, status=400)
         
         # Validate job is IN_PROGRESS
         if job.status != 'IN_PROGRESS':
@@ -7618,8 +7620,12 @@ def worker_check_out(request, job_id: int):
             return Response({"error": "Job not found"}, status=404)
         
         # Validate job is DAILY payment model
-        if job.payment_model != 'DAILY':
-            return Response({"error": "This is not a daily-rate job"}, status=400)
+        is_daily_job = job.payment_model == 'DAILY'
+        is_project_multiday_job = (
+            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+        )
+        if not (is_daily_job or is_project_multiday_job):
+            return Response({"error": "This endpoint supports DAILY and PROJECT multi-day jobs only"}, status=400)
         
         # Get worker's profile
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
@@ -7676,9 +7682,11 @@ def worker_cancel_check_in(request, job_id: int):
             return Response({"error": "Job not found"}, status=404)
 
         is_daily_job = job.payment_model == 'DAILY'
-        is_team_project_job = job.is_team_job and job.payment_model == 'PROJECT'
-        if not (is_daily_job or is_team_project_job):
-            return Response({"error": "This endpoint supports DAILY jobs and team PROJECT multi-day jobs only"}, status=400)
+        is_project_multiday_job = (
+            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+        )
+        if not (is_daily_job or is_project_multiday_job):
+            return Response({"error": "This endpoint supports DAILY jobs and PROJECT multi-day jobs only"}, status=400)
 
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
         profile = Profile.objects.filter(accountFK=request.auth, profileType=profile_type).first()
@@ -7766,7 +7774,7 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
 
     Behavior:
     - DAILY jobs: uses DailyPaymentService and can process per-day payout.
-    - TEAM PROJECT multi-day jobs: records attendance only (no per-day payout).
+    - PROJECT multi-day jobs: records attendance only (no per-day payout).
     """
     from django.utils import timezone
     from .models import DailyAttendance
@@ -7799,19 +7807,32 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
                 "payment_processed": attendance.payment_processed
             }, status=400)
         
-        is_team_project_multiday = (
-            job.is_team_job and
-            job.payment_model == 'PROJECT' and
-            (job.duration_days or 0) > 1
+        is_project_multiday = (
+            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
         )
 
-        if is_team_project_multiday:
-            # For team PROJECT multi-day jobs, confirmation only records the day.
+        if is_project_multiday:
+            # For PROJECT multi-day jobs, confirmation only records the day.
+            # No per-day payout is processed; final payout happens on job completion.
+            if approved_status and approved_status in ['PRESENT', 'HALF_DAY', 'ABSENT']:
+                attendance.status = approved_status
+
+            if attendance.status == 'ABSENT':
+                DailyPaymentService.apply_absent_penalty(attendance)
+
             attendance.client_confirmed = True
             attendance.client_confirmed_at = timezone.now()
-            attendance.payment_processed = False
+            attendance.payment_processed = True
+            attendance.payment_processed_at = timezone.now()
             attendance.updatedAt = timezone.now()
-            attendance.save(update_fields=['client_confirmed', 'client_confirmed_at', 'payment_processed', 'updatedAt'])
+            attendance.save(update_fields=[
+                'status',
+                'client_confirmed',
+                'client_confirmed_at',
+                'payment_processed',
+                'payment_processed_at',
+                'updatedAt',
+            ])
         else:
             # DAILY jobs keep existing behavior with per-day payment processing.
             result = DailyPaymentService.confirm_attendance_client(
@@ -7844,9 +7865,10 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "payment_processed": attendance.payment_processed,
             "message": (
                 "Attendance confirmed. Day recorded for final project payout."
-                if is_team_project_multiday
+                if is_project_multiday
                 else f"Attendance confirmed. {'Payment processed.' if attendance.payment_processed else 'Awaiting worker confirmation.'}"
-            )
+            ),
+            "absent_penalty_amount": float(attendance.absent_penalty_amount or 0),
         }
         
     except Exception as e:
@@ -7958,14 +7980,34 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
         attendance.amount_earned = Decimal('0.00')
         attendance.save(update_fields=['worker_confirmed', 'worker_confirmed_at', 'status', 'amount_earned', 'updatedAt'])
 
-        result = DailyPaymentService.confirm_attendance_client(
-            attendance,
-            request.auth,
-            approved_status='ABSENT',
-        )
+        if is_project_multiday_job:
+            # PROJECT multi-day: enforce absent penalty but do not process daily payout.
+            DailyPaymentService.apply_absent_penalty(attendance)
+            attendance.client_confirmed = True
+            attendance.client_confirmed_at = timezone.now()
+            attendance.payment_processed = True
+            attendance.payment_processed_at = timezone.now()
+            attendance.save(update_fields=[
+                'client_confirmed',
+                'client_confirmed_at',
+                'payment_processed',
+                'payment_processed_at',
+                'updatedAt',
+            ])
 
-        if not result.get('success'):
-            return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
+            result = {
+                'success': True,
+                'message': 'Marked absent. Penalty applied for final payout adjustments.',
+            }
+        else:
+            result = DailyPaymentService.confirm_attendance_client(
+                attendance,
+                request.auth,
+                approved_status='ABSENT',
+            )
+
+            if not result.get('success'):
+                return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
 
         if target_worker:
             worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
@@ -7980,7 +8022,8 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
-            "message": "Marked as absent. No payment recorded for today.",
+            "absent_penalty_amount": float(attendance.absent_penalty_amount or 0),
+            "message": result.get('message', "Marked as absent. No payment recorded for today."),
         }
 
     except Exception as e:

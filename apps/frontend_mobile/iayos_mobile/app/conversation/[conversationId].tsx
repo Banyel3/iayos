@@ -3103,15 +3103,13 @@ export default function ChatScreen() {
                   );
                 })()}
 
-              {/* Attendance Tracking Section (DAILY + team PROJECT) */}
+              {/* Attendance Tracking Section (DAILY + PROJECT multi-day) */}
               {(conversation.job?.payment_model === "DAILY" ||
-                isTeamProjectAttendance) && (
+                isProjectMultiDayJob) && (
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.teamArrivalHeader}>
                     <Text style={styles.teamArrivalTitle}>
-                      {isTeamProjectAttendance
-                        ? "Attendance"
-                        : "📅 Daily Attendance"}
+                      {isProjectMultiDayJob ? "Attendance" : "📅 Daily Attendance"}
                     </Text>
                     <Text style={styles.teamArrivalProgress}>
                       {format(
@@ -3291,7 +3289,7 @@ export default function ChatScreen() {
                                 </Text>
                               </View>
                               {todayAttendance.client_confirmed ? (
-                                isTeamProjectAttendance ? (
+                                isProjectMultiDayJob ? (
                                   <View style={styles.paymentProcessedBadge}>
                                     <Ionicons
                                       name="checkmark-circle"
@@ -3933,7 +3931,7 @@ export default function ChatScreen() {
                                   <View style={styles.arrivedBadgeCompact}>
                                     <Ionicons
                                       name={
-                                        isTeamProjectAttendance
+                                        isProjectMultiDayJob
                                           ? "checkmark-circle"
                                           : "wallet"
                                       }
@@ -3941,7 +3939,7 @@ export default function ChatScreen() {
                                       color={Colors.success}
                                     />
                                     <Text style={styles.arrivedTextCompact}>
-                                      {isTeamProjectAttendance
+                                      {isProjectMultiDayJob
                                         ? "Confirmed"
                                         : `₱${Number(attendance.amount_earned).toLocaleString()}`}
                                     </Text>
@@ -3953,13 +3951,13 @@ export default function ChatScreen() {
                                     onPress={() =>
                                       setCountdownConfig({
                                         visible: true,
-                                        title: isTeamProjectAttendance
+                                        title: isProjectMultiDayJob
                                           ? "Confirm Attendance"
                                           : "Confirm Attendance",
-                                        message: isTeamProjectAttendance
+                                        message: isProjectMultiDayJob
                                           ? `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`
                                           : `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
-                                        confirmLabel: isTeamProjectAttendance
+                                        confirmLabel: isProjectMultiDayJob
                                           ? "Confirm Day"
                                           : "Confirm & Pay",
                                         countdownSeconds: 7,
@@ -3972,7 +3970,7 @@ export default function ChatScreen() {
                                             },
                                           );
                                         },
-                                        icon: isTeamProjectAttendance
+                                        icon: isProjectMultiDayJob
                                           ? "checkmark-circle"
                                           : "wallet",
                                         iconColor: Colors.warning,
@@ -3993,7 +3991,7 @@ export default function ChatScreen() {
                                           styles.confirmArrivalButtonTextCompact
                                         }
                                       >
-                                        {isTeamProjectAttendance
+                                        {isProjectMultiDayJob
                                           ? "Confirm"
                                           : "Pay"}
                                       </Text>
@@ -4121,7 +4119,7 @@ export default function ChatScreen() {
                   )}
 
                   {/* Daily rate info (DAILY-only) */}
-                  {!isTeamProjectAttendance && (
+                  {!isProjectMultiDayJob && (
                     <View style={styles.dailyRateInfo}>
                       <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
                       <Text style={styles.dailyRateAmount}>

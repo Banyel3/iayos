@@ -2124,8 +2124,10 @@ def get_conversation_messages(request, conversation_id: int):
         effective_work_date = timezone.now().date()
         qa_day_offset = _get_clamped_qa_day_offset(job)
         is_daily_job = hasattr(job, 'payment_model') and job.payment_model == "DAILY"
-        is_team_project_multiday = bool(job.is_team_job and getattr(job, 'payment_model', None) == "PROJECT")
-        if (is_daily_job or is_team_project_multiday) and job.status == "IN_PROGRESS":
+        is_project_multiday = bool(
+            getattr(job, 'payment_model', None) == "PROJECT" and int(getattr(job, 'duration_days', 0) or 0) > 1
+        )
+        if (is_daily_job or is_project_multiday) and job.status == "IN_PROGRESS":
             from accounts.models import DailyAttendance, DailySkipDayRequest
             today = _get_effective_work_date(job)
             effective_work_date = today

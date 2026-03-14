@@ -4014,18 +4014,38 @@ def worker_mark_job_complete(request, job_id: int):
                     status=400
                 )
         else:
-            # Regular worker jobs use Job.clientConfirmedWorkStarted
-            if not job.clientConfirmedWorkStarted:
-                return Response(
-                    {"error": "Client must confirm that work has started before you can mark it as complete"},
-                    status=400
-                )
+            is_project_multiday = (
+                getattr(job, 'payment_model', None) == 'PROJECT'
+                and int(getattr(job, 'duration_days', 0) or 0) > 1
+            )
 
-            if not job.workerMarkedJobStarted:
-                return Response(
-                    {"error": "You must mark job started before marking it complete"},
-                    status=400
-                )
+            if is_project_multiday:
+                from accounts.models import DailyAttendance
+
+                has_confirmed_attendance = DailyAttendance.objects.filter(
+                    jobID=job,
+                    workerID=worker_profile,
+                    client_confirmed=True,
+                ).exists()
+
+                if not has_confirmed_attendance:
+                    return Response(
+                        {"error": "Client must confirm at least one attendance day before marking this multi-day project complete"},
+                        status=400
+                    )
+            else:
+                # Regular single-day worker jobs use job-level timeline markers.
+                if not job.clientConfirmedWorkStarted:
+                    return Response(
+                        {"error": "Client must confirm that work has started before you can mark it as complete"},
+                        status=400
+                    )
+
+                if not job.workerMarkedJobStarted:
+                    return Response(
+                        {"error": "You must mark job started before marking it complete"},
+                        status=400
+                    )
         
         # Check if already marked complete by worker
         if job.workerMarkedComplete:
