@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   Image,
   Alert,
   ActionSheetIOS,
@@ -112,6 +111,19 @@ import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
+type EditableReviewTarget = {
+  review_id: number;
+  target_type: "EMPLOYEE" | "AGENCY" | "TEAM_WORKER" | "USER";
+  target_id: number | null;
+  target_name: string;
+  can_edit: boolean;
+  rating_quality: number;
+  rating_communication: number;
+  rating_punctuality: number;
+  rating_professionalism: number;
+  comment: string;
+};
+
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const conversationId = parseInt(params.conversationId as string);
@@ -170,6 +182,8 @@ export default function ChatScreen() {
   const [reviewStatusSyncing, setReviewStatusSyncing] = useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
+  const [currentEditableReviewIndex, setCurrentEditableReviewIndex] =
+    useState(0);
 
   // Price input modal - cross-platform replacement for Alert.prompt (iOS-only)
   const [priceModal, setPriceModal] = useState<{
@@ -366,6 +380,31 @@ export default function ChatScreen() {
         ? "EMPLOYEE"
         : reviewStep;
 
+  const editableReviewTargets: EditableReviewTarget[] = (
+    conversation?.my_editable_reviews || []
+  ).filter((review): review is EditableReviewTarget => !!review?.can_edit);
+
+  const activeEditableReview: EditableReviewTarget | null =
+    reviewModalMode === "edit"
+      ? editableReviewTargets[currentEditableReviewIndex] || null
+      : null;
+
+  const resetReviewInputs = () => {
+    setRatingQuality(0);
+    setRatingCommunication(0);
+    setRatingPunctuality(0);
+    setRatingProfessionalism(0);
+    setReviewComment("");
+  };
+
+  const hydrateReviewInputs = (review: EditableReviewTarget) => {
+    setRatingQuality(review.rating_quality || 0);
+    setRatingCommunication(review.rating_communication || 0);
+    setRatingPunctuality(review.rating_punctuality || 0);
+    setRatingProfessionalism(review.rating_professionalism || 0);
+    setReviewComment(review.comment || "");
+  };
+
   const clientHasReviewedAgencyFlow = !!(
     conversation?.is_agency_job &&
     // Use API aggregate first; fallback to split flags for safety.
@@ -490,9 +529,29 @@ export default function ChatScreen() {
       return;
     }
 
+    if (mode === "edit") {
+      if (!editableReviewTargets.length) {
+        Alert.alert(
+          "No Editable Review",
+          "You currently have no editable reviews for this conversation.",
+        );
+        return;
+      }
+
+      setCurrentEditableReviewIndex(0);
+      hydrateReviewInputs(editableReviewTargets[0]);
+    }
+
     setReviewModalMode(mode);
     setShowReviewModal(true);
   };
+
+  useEffect(() => {
+    if (reviewModalMode !== "edit" || !showReviewModal) return;
+    if (!activeEditableReview) return;
+
+    hydrateReviewInputs(activeEditableReview);
+  }, [reviewModalMode, showReviewModal, currentEditableReviewIndex]);
 
   // Block Android hardware back when review is required.
   useEffect(() => {
@@ -1332,12 +1391,15 @@ export default function ChatScreen() {
     if (!conversation) return;
 
     if (reviewModalMode === "edit") {
-      const myReview =
+      const fallbackReview =
         conversation.my_role === "CLIENT"
           ? conversation.client_review
           : conversation.worker_review;
 
-      if (!myReview) {
+      const reviewToEditId =
+        activeEditableReview?.review_id || fallbackReview?.review_id;
+
+      if (!reviewToEditId) {
         Alert.alert("Error", "No review found to edit");
         return;
       }
@@ -1352,12 +1414,30 @@ export default function ChatScreen() {
 
       editReviewMutation.mutate(
         {
-          reviewId: myReview.review_id,
+          reviewId: reviewToEditId,
           rating: overallRating,
           comment: reviewComment,
         },
         {
           onSuccess: () => {
+            const hasMoreEditableTargets =
+              reviewModalMode === "edit" &&
+              currentEditableReviewIndex < editableReviewTargets.length - 1;
+
+            if (hasMoreEditableTargets) {
+              const nextIndex = currentEditableReviewIndex + 1;
+              setCurrentEditableReviewIndex(nextIndex);
+              const nextTarget = editableReviewTargets[nextIndex];
+              if (nextTarget) {
+                hydrateReviewInputs(nextTarget);
+                Alert.alert(
+                  "Review Updated",
+                  `Saved. Next: update feedback for ${nextTarget.target_name}.`,
+                );
+                return;
+              }
+            }
+
             setShowReviewModal(false);
             setReviewModalMode("view");
             refetch();
@@ -1526,7 +1606,11 @@ export default function ChatScreen() {
                 error,
                 "Failed to submit review",
               );
-              if (errorMessage.toLowerCase().includes("already reviewed")) {
+              if (
+                errorMessage.toLowerCase().includes("already reviewed") ||
+                errorMessage.toLowerCase().includes("already submitted") ||
+                errorMessage.toLowerCase().includes("already rated")
+              ) {
                 setRatingQuality(0);
                 setRatingCommunication(0);
                 setRatingPunctuality(0);
@@ -1597,7 +1681,11 @@ export default function ChatScreen() {
               );
 
               // If backend says this was already reviewed, recover to a consistent UI state.
-              if (errorMessage.toLowerCase().includes("already reviewed")) {
+              if (
+                errorMessage.toLowerCase().includes("already reviewed") ||
+                errorMessage.toLowerCase().includes("already submitted") ||
+                errorMessage.toLowerCase().includes("already rated")
+              ) {
                 setRatingQuality(0);
                 setRatingCommunication(0);
                 setRatingPunctuality(0);
@@ -1690,7 +1778,11 @@ export default function ChatScreen() {
               error,
               "Failed to submit review",
             );
-            if (errorMessage.toLowerCase().includes("already reviewed")) {
+            if (
+              errorMessage.toLowerCase().includes("already reviewed") ||
+              errorMessage.toLowerCase().includes("already submitted") ||
+              errorMessage.toLowerCase().includes("already rated")
+            ) {
               setRatingQuality(0);
               setRatingCommunication(0);
               setRatingPunctuality(0);
@@ -1750,7 +1842,11 @@ export default function ChatScreen() {
               error,
               "Failed to submit review",
             );
-            if (errorMessage.toLowerCase().includes("already reviewed")) {
+            if (
+              errorMessage.toLowerCase().includes("already reviewed") ||
+              errorMessage.toLowerCase().includes("already submitted") ||
+              errorMessage.toLowerCase().includes("already rated")
+            ) {
               setRatingQuality(0);
               setRatingCommunication(0);
               setRatingPunctuality(0);
@@ -5063,8 +5159,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               style={styles.requestBackjobBanner}
               onPress={() => {
-                setReviewModalMode("edit");
-                setShowReviewModal(true);
+                openReviewModalSafely("edit");
               }}
               activeOpacity={0.8}
             >
@@ -5162,12 +5257,16 @@ export default function ChatScreen() {
               </View>
 
               {/* Modal Content - ScrollView for the review form */}
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <ScrollView
-                  style={styles.reviewModalContent}
-                  keyboardShouldPersistTaps="handled"
-                  contentContainerStyle={{ paddingBottom: 40 }}
-                >
+              <ScrollView
+                style={styles.reviewModalContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={
+                  Platform.OS === "ios" ? "interactive" : "on-drag"
+                }
+                nestedScrollEnabled
+                contentContainerStyle={styles.reviewModalContentContainer}
+                showsVerticalScrollIndicator
+              >
                   {/* Check if we're in view mode */}
                   {reviewModalMode === "view" ? (
                     // View Reviews Mode - Show both parties' reviews with actual data
@@ -5193,27 +5292,7 @@ export default function ChatScreen() {
                           {conversation.backjob?.status === "COMPLETED" && (
                             <TouchableOpacity
                               onPress={() => {
-                                const myReview =
-                                  conversation.my_role === "CLIENT"
-                                    ? conversation.client_review
-                                    : conversation.worker_review;
-                                if (myReview) {
-                                  // Pre-fill ratings
-                                  setRatingQuality(
-                                    myReview.rating_quality || 0,
-                                  );
-                                  setRatingCommunication(
-                                    myReview.rating_communication || 0,
-                                  );
-                                  setRatingPunctuality(
-                                    myReview.rating_punctuality || 0,
-                                  );
-                                  setRatingProfessionalism(
-                                    myReview.rating_professionalism || 0,
-                                  );
-                                  setReviewComment(myReview.comment || "");
-                                  setReviewModalMode("edit");
-                                }
+                                openReviewModalSafely("edit");
                               }}
                               style={{
                                 flexDirection: "row",
@@ -5818,10 +5897,11 @@ export default function ChatScreen() {
                         })()}
                       </View>
                     </View>
-                  ) : (conversation.my_role === "CLIENT" &&
+                  ) : (reviewModalMode !== "edit" &&
+                      ((conversation.my_role === "CLIENT" &&
                       clientHasReviewed) ||
-                    (conversation.my_role !== "CLIENT" &&
-                      conversation.job.workerReviewed) ? (
+                        (conversation.my_role !== "CLIENT" &&
+                          conversation.job.workerReviewed))) ? (
                     // User has already reviewed - show waiting or thank you message
                     <View style={styles.reviewWaitingContainer}>
                       <Ionicons
@@ -5853,7 +5933,8 @@ export default function ChatScreen() {
                     <>
                       {/* Dynamic title based on agency job review step */}
                       {conversation.is_agency_job &&
-                      conversation.my_role === "CLIENT" ? (
+                      conversation.my_role === "CLIENT" &&
+                      reviewModalMode !== "edit" ? (
                         <>
                           {/* Multi-employee support: show which employee is being reviewed */}
                           {(() => {
@@ -5935,7 +6016,8 @@ export default function ChatScreen() {
                           })()}
                         </>
                       ) : conversation.is_team_job &&
-                        conversation.my_role === "CLIENT" ? (
+                        conversation.my_role === "CLIENT" &&
+                        reviewModalMode !== "edit" ? (
                         // Team job client review - show worker name and progress
                         <>
                           {(() => {
@@ -6053,17 +6135,14 @@ export default function ChatScreen() {
                       ) : (
                         <>
                           <Text style={styles.reviewTitle}>
-                            Rate{" "}
-                            {conversation.my_role === "CLIENT"
-                              ? "Worker"
-                              : "Client"}
+                            {reviewModalMode === "edit"
+                              ? `Edit Review${activeEditableReview ? `: ${activeEditableReview.target_name}` : ""}`
+                              : `Rate ${conversation.my_role === "CLIENT" ? "Worker" : "Client"}`}
                           </Text>
                           <Text style={styles.reviewSubtitle}>
-                            How was your experience with{" "}
-                            {conversation.assigned_employee?.name ||
-                              conversation.other_participant?.name ||
-                              "them"}
-                            ?
+                            {reviewModalMode === "edit"
+                              ? "Update your previous feedback based on the completed backjob."
+                              : `How was your experience with ${conversation.assigned_employee?.name || conversation.other_participant?.name || "them"}?`}
                           </Text>
                         </>
                       )}
@@ -6449,8 +6528,7 @@ export default function ChatScreen() {
                       <View style={{ height: 20 }} />
                     </>
                   )}
-                </ScrollView>
-              </TouchableWithoutFeedback>
+              </ScrollView>
             </SafeAreaView>
           </Modal>
         </View>
@@ -9096,9 +9174,13 @@ const styles = StyleSheet.create({
   },
   reviewModalContent: {
     flex: 1,
+    backgroundColor: Colors.white,
+  },
+  reviewModalContentContainer: {
+    flexGrow: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
-    backgroundColor: Colors.white,
+    paddingBottom: 80,
   },
   // Team job review checklist (below banner)
   teamReviewChecklist: {
