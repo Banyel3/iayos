@@ -5074,11 +5074,15 @@ def mobile_get_pending_reviews(request, job_id: int):
                 assignment_status__in=['ACTIVE', 'COMPLETED']
             ).exists()
         elif job.assignedAgencyFK:
-            is_worker = JobEmployeeAssignment.objects.filter(
-                job=job,
-                employee__accountFK=user,
-                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-            ).exists()
+            # AgencyEmployee rows are agency-owned contacts, not user login accounts.
+            is_worker = (
+                (job.assignedAgencyFK.accountFK.accountID == user.accountID)
+                or JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    employee__agency=user,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).exists()
+            )
         
         if not is_client and not is_worker:
             return Response({"error": "You are not part of this job"}, status=403)
@@ -5098,7 +5102,7 @@ def mobile_get_pending_reviews(request, job_id: int):
                 assigned_employees = JobEmployeeAssignment.objects.filter(
                     job=job,
                     status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                ).select_related('employee', 'employee__accountFK')
+                ).select_related('employee', 'employee__agency')
                 
                 reviewed_employee_ids = set(JobReview.objects.filter(
                     jobID=job,
@@ -5112,7 +5116,7 @@ def mobile_get_pending_reviews(request, job_id: int):
                             'type': 'EMPLOYEE',
                             'employee_id': assignment.assignmentID,  # Use assignment ID
                             'employee_name': assignment.employee.name,
-                            'employee_account_id': assignment.employee.accountFK.accountID if assignment.employee.accountFK else None
+                            'employee_account_id': assignment.employee.agency.accountID if assignment.employee.agency else None
                         })
                 
                 # Check if agency review is pending

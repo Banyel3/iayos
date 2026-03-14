@@ -1222,12 +1222,27 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                                 confirmed=True,
                             ).exists()
 
+            # Backward compatibility for legacy backjobs:
+            # Some older records remain OPEN even after worker confirmation/execution.
+            # Normalize these to UNDER_REVIEW in payload so chat/UIs don't stay admin-locked.
+            normalized_active_status = active_dispute.status
+            if (
+                active_dispute.status == 'OPEN'
+                and (
+                    active_dispute.workerScheduleConfirmed
+                    or active_dispute.backjobStarted
+                    or active_dispute.workerMarkedBackjobComplete
+                    or active_dispute.clientConfirmedBackjob
+                )
+            ):
+                normalized_active_status = 'UNDER_REVIEW'
+
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
                 "total_backjobs_for_job": total_backjobs_for_job,
-                "latest_dispute_status": latest_dispute.status if latest_dispute else active_dispute.status,
-                "status": active_dispute.status,
+                "latest_dispute_status": latest_dispute.status if latest_dispute else normalized_active_status,
+                "status": normalized_active_status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 # Backjob workflow tracking fields
@@ -1492,10 +1507,6 @@ def get_conversation_messages(request, conversation_id: int):
         formatted_messages = []
         current_account_id = getattr(request.auth, 'accountID', None)
         for msg in messages:
-            # Hide admin-authored negotiation messages from participant chat views.
-            if msg.sender_admin:
-                continue
-
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
                 # This is a system message
@@ -1504,6 +1515,19 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_avatar = None
                 sender_type = "system"
                 print(f"   System message: {msg.messageText[:50]}...")
+            elif msg.sender_admin:
+                # Admin-authored negotiation message
+                is_mine = (
+                    current_account_id is not None
+                    and msg.sender_admin.accountID == current_account_id
+                )
+                sender_name = (
+                    f"{msg.sender_admin.firstName} {msg.sender_admin.lastName}".strip()
+                    or msg.sender_admin.email
+                    or "Admin"
+                )
+                sender_avatar = None
+                sender_type = "admin"
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
@@ -1991,12 +2015,27 @@ def get_conversation_messages(request, conversation_id: int):
                                 confirmed=True,
                             ).exists()
 
+            # Backward compatibility for legacy backjobs:
+            # Some older records remain OPEN even after worker confirmation/execution.
+            # Normalize these to UNDER_REVIEW in payload so chat/UIs don't stay admin-locked.
+            normalized_active_status = active_dispute.status
+            if (
+                active_dispute.status == 'OPEN'
+                and (
+                    active_dispute.workerScheduleConfirmed
+                    or active_dispute.backjobStarted
+                    or active_dispute.workerMarkedBackjobComplete
+                    or active_dispute.clientConfirmedBackjob
+                )
+            ):
+                normalized_active_status = 'UNDER_REVIEW'
+
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
                 "total_backjobs_for_job": total_backjobs_for_job,
-                "latest_dispute_status": latest_dispute.status if latest_dispute else active_dispute.status,
-                "status": active_dispute.status,
+                "latest_dispute_status": latest_dispute.status if latest_dispute else normalized_active_status,
+                "status": normalized_active_status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 "description": active_dispute.description,
@@ -2307,8 +2346,39 @@ def get_conversation_messages(request, conversation_id: int):
                     "created_at": review.createdAt.isoformat() if review.createdAt else None,
                 })
 
-        # Get job materials for the materials purchasing workflow
-        from accounts.models import JobMaterial
+        # Backward-compatibility for legacy jobs created before timeline markers were reliable.
+        # If explicit flags are missing/inconsistent, infer worker on-the-way from subsequent lifecycle
+        # milestones or existing JobLog entries.
+        from accounts.models import JobLog, JobMaterial
+
+        worker_marked_on_the_way = bool(getattr(job, 'workerMarkedOnTheWay', False))
+        worker_marked_on_the_way_at = getattr(job, 'workerMarkedOnTheWayAt', None)
+        worker_marked_job_started = bool(getattr(job, 'workerMarkedJobStarted', False))
+        worker_marked_job_started_at = getattr(job, 'workerMarkedJobStartedAt', None)
+        client_confirmed_work_started = bool(getattr(job, 'clientConfirmedWorkStarted', False))
+
+        if not worker_marked_on_the_way and (worker_marked_job_started or client_confirmed_work_started):
+            worker_marked_on_the_way = True
+            worker_marked_on_the_way_at = (
+                worker_marked_on_the_way_at
+                or worker_marked_job_started_at
+                or getattr(job, 'clientConfirmedWorkStartedAt', None)
+            )
+
+        if not worker_marked_on_the_way:
+            legacy_on_the_way_log = (
+                JobLog.objects.filter(
+                    jobID=job,
+                    notes__icontains='marked on the way',
+                )
+                .order_by('-createdAt')
+                .first()
+            )
+            if legacy_on_the_way_log:
+                worker_marked_on_the_way = True
+                if not worker_marked_on_the_way_at:
+                    worker_marked_on_the_way_at = legacy_on_the_way_log.createdAt
+
         job_materials_qs = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
         job_materials_list = [
             {
@@ -2343,7 +2413,11 @@ def get_conversation_messages(request, conversation_id: int):
                 "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
                 "budget": float(job.budget),
                 "location": job.location,
-                "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
+                "workerMarkedOnTheWay": worker_marked_on_the_way,
+                "workerMarkedOnTheWayAt": worker_marked_on_the_way_at.isoformat() if worker_marked_on_the_way_at else None,
+                "workerMarkedJobStarted": worker_marked_job_started,
+                "workerMarkedJobStartedAt": worker_marked_job_started_at.isoformat() if worker_marked_job_started_at else None,
+                "clientConfirmedWorkStarted": client_confirmed_work_started,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
                 "remainingPaymentPaid": job.remainingPaymentPaid,
@@ -2463,6 +2537,13 @@ def send_message(request, data: SendMessageSchema):
             return Response(
                 {"error": "You are not a participant in this conversation"},
                 status=403
+            )
+
+        # Prevent new messages once conversation is closed/archived.
+        if conversation.status == Conversation.ConversationStatus.COMPLETED:
+            return Response(
+                {"error": "This conversation is closed"},
+                status=403,
             )
         
         sanitized_text = censor_contact_info(data.message_text)

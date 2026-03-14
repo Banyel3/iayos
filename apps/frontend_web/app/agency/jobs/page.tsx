@@ -246,7 +246,8 @@ export default function AgencyJobsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        const apiJobs = data.invites || [];
+        // Backend returns jobs; keep invites fallback for backward compatibility.
+        const apiJobs = data.jobs || data.invites || [];
         if (enableDummyJobs) {
           const dummyJob = createDummyJob(-1, "Sample Pending Invite", "PENDING", "HIGH");
           setPendingInvites([dummyJob, ...apiJobs]);

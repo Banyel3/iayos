@@ -1964,6 +1964,22 @@ def get_agency_conversations(request, filter: str = "all"):
             from accounts.models import JobReview
             worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
             client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+
+            # Backjob summary for conversation list cards
+            from accounts.models import JobDispute
+            active_dispute = JobDispute.objects.filter(
+                jobID=job,
+                status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+            ).order_by('-openedDate').first()
+            backjob_info = None
+            if active_dispute:
+                backjob_info = {
+                    "has_backjob": True,
+                    "dispute_id": active_dispute.disputeID,
+                    "status": active_dispute.status,
+                    "reason": active_dispute.reason,
+                    "priority": active_dispute.priority,
+                }
             
             result.append({
                 "id": conv.conversationID,
@@ -1988,7 +2004,8 @@ def get_agency_conversations(request, filter: str = "all"):
                 "unread_count": unread_count,
                 "is_archived": is_archived,
                 "status": conv.status,
-                "created_at": conv.createdAt.isoformat()
+                "created_at": conv.createdAt.isoformat(),
+                "backjob": backjob_info,
             })
         
         return Response({
@@ -2049,6 +2066,36 @@ def get_agency_conversation_messages(request, conversation_id: int):
         
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
+
+        # Backjob chat lock: keep conversation visible but lock messaging until admin opens negotiation.
+        from accounts.models import JobDispute
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=["OPEN", "UNDER_REVIEW", "IN_NEGOTIATION"],
+        ).order_by("-openedDate").first()
+
+        backjob_info = None
+        can_send_message = True
+        can_send_reason = None
+
+        if active_dispute:
+            backjob_info = {
+                "has_backjob": True,
+                "dispute_id": active_dispute.disputeID,
+                "status": active_dispute.status,
+                "reason": active_dispute.reason,
+                "priority": active_dispute.priority,
+                "backjob_started": active_dispute.backjobStarted,
+                "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
+                "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
+            }
+
+            if active_dispute.status in ["OPEN", "UNDER_REVIEW"]:
+                can_send_message = False
+                can_send_reason = (
+                    "Chat is temporarily locked while admin reviews this backjob. "
+                    "Messaging will open once admin moves it to negotiation."
+                )
         
         # Get messages
         messages = Message.objects.filter(
@@ -2059,7 +2106,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         Message.objects.filter(
             conversationID=conv,
             isRead=False
-        ).exclude(sender=agency_profile).update(isRead=True)
+        ).exclude(sender__accountFK=account).exclude(senderAgency=agency).update(isRead=True)
         
         # Reset unread count
         conv.unreadCountWorker = 0
@@ -2150,6 +2197,34 @@ def get_agency_conversation_messages(request, conversation_id: int):
         from accounts.models import JobReview
         worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
         client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+
+        # Active backjob/dispute info for agency chat banners/actions.
+        from accounts.models import JobDispute
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+        ).order_by('-openedDate').first()
+
+        backjob_info = None
+        if active_dispute:
+            backjob_info = {
+                "has_backjob": True,
+                "dispute_id": active_dispute.disputeID,
+                "reason": active_dispute.reason,
+                "description": active_dispute.description,
+                "status": active_dispute.status,
+                "priority": active_dispute.priority,
+                "opened_date": active_dispute.openedDate.isoformat() if active_dispute.openedDate else None,
+                "backjob_started": active_dispute.backjobStarted,
+                "backjob_started_at": active_dispute.backjobStartedAt.isoformat() if active_dispute.backjobStartedAt else None,
+                "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
+                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
+                "client_confirmed": active_dispute.clientConfirmedBackjob,
+                "client_confirmed_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
+            }
         
         messages_list = []
         
@@ -2160,12 +2235,15 @@ def get_agency_conversation_messages(request, conversation_id: int):
         base_url = f"{scheme}://{host}"
         
         for msg in messages:
-            # Hide admin-authored negotiation messages from participant chat views.
-            if msg.sender_admin:
-                continue
-
-            # Check if message is from agency (either via senderAgency or via agency_profile)
-            is_mine = (msg.senderAgency and msg.senderAgency == agency) or (msg.sender and msg.sender == agency_profile)
+            # Check if message is from agency account (stable across dual profiles)
+            is_mine = (
+                (msg.senderAgency and msg.senderAgency == agency)
+                or (
+                    msg.sender
+                    and msg.sender.accountFK
+                    and msg.sender.accountFK.accountID == account.accountID
+                )
+            )
             sent_by_agency = is_mine
             
             # Get sender name from either Profile or Agency
@@ -2231,6 +2309,8 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     "client_rejection_reason": skip_request.client_rejection_reason,
                 })
         
+        payment_released_at = getattr(job, 'paymentReleasedAt', None)
+
         return Response({
             "conversation_id": conv.conversationID,
             "job": {
@@ -2246,6 +2326,8 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "actual_start_date": job.actual_start_date.isoformat() if hasattr(job, 'actual_start_date') and job.actual_start_date else None,
                 "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
                 "daily_escrow_total": float(job.daily_escrow_total) if hasattr(job, 'daily_escrow_total') and job.daily_escrow_total else None,
+                "paymentReleasedToWorker": bool(getattr(job, 'paymentReleasedToWorker', False)),
+                "paymentReleasedAt": payment_released_at.isoformat() if payment_released_at else None,
                 "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
@@ -2263,7 +2345,11 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
             "messages": messages_list,
             "total_messages": len(messages_list),
-            "status": conv.status
+            "status": conv.status,
+            "my_role": "AGENCY",
+            "backjob": backjob_info,
+            "can_send_message": can_send_message,
+            "can_send_reason": can_send_reason,
         })
         
     except Exception as e:
@@ -2320,38 +2406,49 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
         
-        # Block sending messages if conversation is COMPLETED AND not under backjob review
+        # Block sending messages if conversation is COMPLETED and there is no active backjob cycle.
+        # Legacy compatibility: some existing records may remain IN_NEGOTIATION even after
+        # worker schedule confirmation/backjob start. Treat these as active for chat reopen.
         if conv.status == Conversation.ConversationStatus.COMPLETED:
-            # Check if there's an active backjob that was approved
+            # Check if there's an active backjob that should keep chat open
             from accounts.models import JobDispute
             job = conv.relatedJobPosting
             active_dispute = JobDispute.objects.filter(
                 jobID=job,
-                status="UNDER_REVIEW"  # Backjob is under review
-            ).first()
+                status__in=["UNDER_REVIEW", "IN_NEGOTIATION"]
+            ).order_by('-openedDate').first()
+
+            has_active_backjob_cycle = bool(
+                active_dispute and (
+                    active_dispute.status == "UNDER_REVIEW"
+                    or active_dispute.workerScheduleConfirmed
+                    or active_dispute.backjobStarted
+                    or active_dispute.workerMarkedBackjobComplete
+                    or active_dispute.clientConfirmedBackjob
+                )
+            )
             
-            if not active_dispute:
+            if not has_active_backjob_cycle:
                 # No active backjob - conversation is truly closed
                 return Response({
                     "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
                     "conversation_status": "COMPLETED"
                 }, status=400)
-            else:
-                # Backjob is active - automatically reopen conversation
+            if active_dispute.status == "IN_NEGOTIATION":
+                # Admin opened negotiation - allow chat and reopen thread if needed.
                 conv.status = Conversation.ConversationStatus.ACTIVE
                 conv.archivedByClient = False
                 conv.archivedByWorker = False
                 conv.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
                 print(f"🔄 Auto-reopened conversation {conv.conversationID} for active backjob {active_dispute.disputeID}")
-                # Continue to message creation below
         
         sanitized_text = censor_contact_info(payload.message_text)
 
-        # Create message - use senderAgency for agency users without profile
+        # Create message as agency-authored (avoid dual-profile ambiguity).
         message = Message.objects.create(
             conversationID=conv,
-            sender=agency_profile,  # May be None
-            senderAgency=agency if not agency_profile else None,  # Use agency if no profile
+            sender=None,
+            senderAgency=agency,
             messageText=sanitized_text,
             messageType=payload.message_type,
             isRead=False
@@ -2365,8 +2462,6 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         
         # Get sender name
         sender_name = agency.businessName
-        if agency_profile:
-            sender_name = f"{agency_profile.firstName} {agency_profile.lastName}".strip() or agency.businessName
         
         # Send WebSocket notification (if available)
         try:
@@ -2383,7 +2478,7 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
                             "conversation_id": conv.conversationID,
                             "message_id": message.messageID,
                             "sender_name": sender_name,
-                            "sender_avatar": agency_profile.profileImg if agency_profile else None,
+                            "sender_avatar": None,
                             "message": message.messageText,
                             "type": message.messageType,
                             "created_at": message.createdAt.isoformat(),
@@ -2399,7 +2494,7 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
             "message": {
                 "message_id": message.messageID,
                 "sender_name": sender_name,
-                "sender_avatar": agency_profile.profileImg if agency_profile else None,
+                "sender_avatar": None,
                 "message_text": message.messageText,
                 "message_type": message.messageType,
                 "is_read": False,
@@ -2480,6 +2575,23 @@ def upload_agency_chat_image(request, conversation_id: int):
             return Response(
                 {"error": "You are not authorized to access this conversation"},
                 status=403
+            )
+
+        # Enforce the same backjob lock for image messages.
+        from accounts.models import JobDispute
+        active_dispute = JobDispute.objects.filter(
+            jobID=job,
+            status__in=["OPEN", "UNDER_REVIEW", "IN_NEGOTIATION"],
+        ).order_by("-openedDate").first()
+
+        if active_dispute and active_dispute.status in ["OPEN", "UNDER_REVIEW"]:
+            return Response(
+                {
+                    "error": "Chat is temporarily locked while admin reviews this backjob. Messaging will open once admin moves it to negotiation.",
+                    "backjob_status": active_dispute.status,
+                    "chat_locked": True,
+                },
+                status=403,
             )
         
         # Validate file size (5MB max)

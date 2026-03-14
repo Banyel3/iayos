@@ -168,7 +168,8 @@ export default function AgencyChatScreen() {
   useMessageListener(conversationId);
 
   // WebSocket: Typing indicator
-  const { isTyping, sendTyping } = useTypingIndicator(conversationId);
+  const { isTyping, typingUserName, sendTyping } =
+    useTypingIndicator(conversationId);
 
   // Auto-scroll to bottom when new messages arrive
   const isNearBottom = () => {
@@ -560,6 +561,40 @@ export default function AgencyChatScreen() {
   const { client, assigned_employee, assigned_employees, job, messages } =
     conversation;
 
+  const isPaymentReleased = !!job.paymentReleasedToWorker;
+
+  const isAgencyBackjob =
+    conversation.backjob?.has_backjob &&
+    !isPaymentReleased &&
+    conversation.my_role === "AGENCY";
+  const isBackjobExecutionPhase =
+    !!conversation.backjob?.backjob_started ||
+    conversation.backjob?.status === "UNDER_REVIEW" ||
+    conversation.backjob?.status === "RESOLVED";
+
+  // Legacy compatibility: old jobs may keep completed job flags set even when
+  // an active backjob cycle is still running. Keep conversation open until the
+  // active backjob is actually finalized.
+  const hasActiveBackjobCycle =
+    !!conversation.backjob?.has_backjob &&
+    !isPaymentReleased &&
+    !conversation.backjob?.client_confirmed_complete &&
+    conversation.backjob?.status !== "RESOLVED";
+
+  const isConversationClosed =
+    (conversation.status === "COMPLETED" && !hasActiveBackjobCycle) ||
+    (job.clientMarkedComplete &&
+      job.workerReviewed &&
+      job.clientReviewed &&
+      !hasActiveBackjobCycle);
+
+  const backjobStatus = conversation.backjob?.status;
+  const isBackjobReviewLocked =
+    conversation.backjob?.has_backjob === true && backjobStatus === "OPEN";
+  const chatDisabledReason =
+    conversation.can_send_reason ||
+    "Chat is temporarily locked while admin reviews this backjob. Messaging opens once scheduling starts.";
+
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Main Chat Area */}
@@ -661,27 +696,38 @@ export default function AgencyChatScreen() {
                       )}
                     </div>
                   )}
-                {conversation.backjob.status === "UNDER_REVIEW" &&
-                  conversation.my_role === "AGENCY" && (
-                    <div className="mt-2">
-                      {!conversation.backjob.backjob_started ? (
+                {isAgencyBackjob && (
+                  <div className="mt-2">
+                      {!isBackjobExecutionPhase &&
+                      conversation.backjob.worker_schedule_confirmed ? (
                         <div className="text-xs text-gray-500 italic">
                           Waiting for client to confirm...
                         </div>
-                      ) : (
-                        !conversation.backjob.worker_marked_complete && (
-                          <Button
-                            size="sm"
-                            className="w-full bg-green-600 hover:bg-green-700"
-                            onClick={() => setShowBackjobCompleteModal(true)}
-                          >
-                            <CheckCircle className="h-3 w-3 mr-1" /> Mark
-                            Complete
-                          </Button>
-                        )
-                      )}
-                    </div>
-                  )}
+                      ) : isBackjobExecutionPhase &&
+                        !conversation.backjob.worker_marked_complete ? (
+                        <Button
+                          size="sm"
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          onClick={() => setShowBackjobCompleteModal(true)}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" /> Mark
+                          Complete
+                        </Button>
+                      ) : null}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isBackjobReviewLocked && (
+              <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-semibold text-orange-800">
+                    Chat Locked During Admin Review
+                  </span>
+                </div>
+                <p className="text-xs text-orange-700">{chatDisabledReason}</p>
               </div>
             )}
 
@@ -844,7 +890,7 @@ export default function AgencyChatScreen() {
                   <span className="w-1 h-1 bg-gray-300 rounded-full animate-bounce [animation-delay:0.2s]" />
                   <span className="w-1 h-1 bg-gray-300 rounded-full animate-bounce [animation-delay:0.4s]" />
                 </span>
-                {client.name} is typing...
+                {(typingUserName || "Someone")} is typing...
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -854,9 +900,14 @@ export default function AgencyChatScreen() {
         {/* Message Input - Floating Style */}
         <div className="p-4 bg-transparent mt-auto z-10">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {job.clientMarkedComplete &&
-            job.workerReviewed &&
-            job.clientReviewed ? (
+            {!isConnected && !isConversationClosed && (
+              <div className="px-4 pt-3 text-xs text-amber-700 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+                <WifiOff className="h-3.5 w-3.5" />
+                Live updates reconnecting. You can still send messages.
+              </div>
+            )}
+
+            {isConversationClosed ? (
               <div className="p-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-widest">
                 Conversation Closed
               </div>
@@ -865,10 +916,20 @@ export default function AgencyChatScreen() {
                 onSend={handleSendMessage}
                 onTyping={sendTyping}
                 onImageSelect={handleImageSelect}
-                disabled={!isConnected || sendMutation.isPending}
+                disabled={
+                  sendMutation.isPending ||
+                  isBackjobReviewLocked ||
+                  conversation.can_send_message === false ||
+                  isConversationClosed
+                }
                 isUploading={isUploading}
                 placeholder={
-                  isConnected ? "Type a message..." : "Reconnecting..."
+                  sendMutation.isPending
+                    ? "Sending..."
+                    : isBackjobReviewLocked ||
+                        conversation.can_send_message === false
+                      ? chatDisabledReason
+                      : "Type a message..."
                 }
               />
             )}
@@ -1287,3 +1348,4 @@ export default function AgencyChatScreen() {
     </div>
   );
 }
+

@@ -622,11 +622,11 @@ export default function JobDetailScreen() {
 
   // Cancel job mutation (for clients only)
   const cancelJobMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (reason: string) => {
       const response = await apiRequest(ENDPOINTS.CANCEL_JOB(parseInt(id)), {
         method: "PATCH",
         body: JSON.stringify({
-          reason: "Cancelled by client from job details",
+          reason,
           actor_notes: "",
         }),
       });
@@ -851,17 +851,37 @@ export default function JobDetailScreen() {
       return;
     }
 
-    setCountdownConfig({
-      visible: true,
-      title: "Cancel Job",
-      message:
-        "Are you sure you want to cancel this job? Refund/release follows platform cancellation rules, and in-progress cancellations may include worker compensation.",
-      confirmLabel: "Cancel Job",
-      confirmStyle: "destructive",
-      countdownSeconds: 5,
-      onConfirm: () => cancelJobMutation.mutate(),
-      icon: "close-circle",
-      iconColor: Colors.error,
+    const chooseCancellationReason = (onSelect: (reason: string) => void) => {
+      Alert.alert("Select Cancellation Reason", "A reason is required to cancel this job.", [
+        {
+          text: "No Longer Needed",
+          onPress: () => onSelect("Client no longer needs the service"),
+        },
+        {
+          text: "Budget Constraints",
+          onPress: () => onSelect("Client cancelled due to budget constraints"),
+        },
+        {
+          text: "Scheduling Conflict",
+          onPress: () => onSelect("Client cancelled due to scheduling conflict"),
+        },
+        { text: "Back", style: "cancel" },
+      ]);
+    };
+
+    chooseCancellationReason((reason) => {
+      setCountdownConfig({
+        visible: true,
+        title: "Cancel Job",
+        message:
+          "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
+        confirmLabel: "Cancel Job",
+        confirmStyle: "destructive",
+        countdownSeconds: 5,
+        onConfirm: () => cancelJobMutation.mutate(reason),
+        icon: "close-circle",
+        iconColor: Colors.error,
+      });
     });
   };
 
@@ -3478,6 +3498,22 @@ export default function JobDetailScreen() {
             </View>
 
             {/* Submit Button */}
+            <Text style={styles.termsText}>
+              By proceeding you agree to our{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/terms")}
+              >
+                terms
+              </Text>{" "}
+              and{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/privacy")}
+              >
+                policy
+              </Text>
+            </Text>
             <TouchableOpacity
               style={[
                 styles.submitButton,
@@ -3716,6 +3752,22 @@ export default function JobDetailScreen() {
             </View>
 
             {/* Submit Button */}
+            <Text style={styles.termsText}>
+              By proceeding you agree to our{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/terms")}
+              >
+                terms
+              </Text>{" "}
+              and{" "}
+              <Text
+                style={styles.termsLink}
+                onPress={() => router.push("/legal/privacy")}
+              >
+                policy
+              </Text>
+            </Text>
             <TouchableOpacity
               style={[
                 styles.submitButton,
@@ -5067,5 +5119,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.primary,
+  },
+  termsText: {
+    fontSize: 11,
+    color: Colors.textHint,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  termsLink: {
+    color: Colors.primary,
+    textDecorationLine: "underline",
   },
 });

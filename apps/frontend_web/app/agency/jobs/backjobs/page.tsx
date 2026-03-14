@@ -106,21 +106,21 @@ export default function AgencyBackjobsPage() {
         return (
           <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
             <Clock className="w-3 h-3 mr-1" />
-            Pending Admin Review
+            Awaiting Schedule
           </Badge>
         );
       case "IN_NEGOTIATION":
         return (
           <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">
             <RefreshCw className="w-3 h-3 mr-1" />
-            In Negotiation
+            Scheduling
           </Badge>
         );
       case "UNDER_REVIEW":
         return (
           <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
             <AlertCircle className="w-3 h-3 mr-1" />
-            Action Required
+            In Progress
           </Badge>
         );
       case "RESOLVED":
@@ -190,14 +190,6 @@ export default function AgencyBackjobsPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <Button
-          variant="ghost"
-          className="mb-4 pl-0 hover:bg-transparent hover:text-emerald-600"
-          onClick={() => router.push("/agency/jobs")}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Jobs
-        </Button>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Backjobs</h1>
@@ -218,7 +210,7 @@ export default function AgencyBackjobsPage() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Action Required</p>
+                <p className="text-sm text-gray-500">In Progress</p>
                 <p className="text-2xl font-bold text-black">
                   {backjobs.filter((b) => b.status === "UNDER_REVIEW").length}
                 </p>
@@ -279,7 +271,7 @@ export default function AgencyBackjobsPage() {
             filter === "OPEN" ? "bg-[#00BAF1] hover:bg-[#00BAF1]/90" : ""
           }
         >
-          Pending Review
+          Awaiting Schedule
         </Button>
         <Button
           variant={filter === "IN_NEGOTIATION" ? "default" : "outline"}
@@ -290,7 +282,7 @@ export default function AgencyBackjobsPage() {
               : ""
           }
         >
-          Negotiation
+          Scheduling
         </Button>
         <Button
           variant={filter === "UNDER_REVIEW" ? "default" : "outline"}
@@ -301,7 +293,7 @@ export default function AgencyBackjobsPage() {
               : ""
           }
         >
-          Action Required
+          In Progress
         </Button>
         <Button
           variant={filter === "RESOLVED" ? "default" : "outline"}
