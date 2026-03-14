@@ -277,11 +277,11 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "OPEN":
-        return { label: "Pending Review", color: "blue", icon: Clock };
+        return { label: "Awaiting Schedule", color: "blue", icon: Clock };
       case "IN_NEGOTIATION":
-        return { label: "In Negotiation", color: "blue", icon: Clock };
+        return { label: "Scheduling", color: "blue", icon: Clock };
       case "UNDER_REVIEW":
-        return { label: "Action Required", color: "amber", icon: AlertCircle };
+        return { label: "In Progress", color: "amber", icon: AlertCircle };
       case "RESOLVED":
         return { label: "Completed", color: "green", icon: CheckCircle };
       case "CLOSED":
@@ -468,12 +468,12 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
               </div>
               <p className="text-gray-600">
                 {dispute.status === "UNDER_REVIEW"
-                  ? "Please review and complete the backjob work requested by the client."
+                  ? "Backjob is in execution workflow. Coordinate dispatch, start confirmation, and completion."
                   : dispute.status === "IN_NEGOTIATION"
-                    ? "Waiting for schedule confirmation to move backjob into action-required stage."
+                    ? "Schedule is being coordinated. Confirm the proposed date to begin backjob execution."
                     : dispute.status === "RESOLVED"
                       ? "This backjob has been completed successfully."
-                      : "This backjob request is pending admin review."}
+                      : "Waiting for schedule setup to begin backjob execution."}
               </p>
               {dispute.scheduled_date && (
                 <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">

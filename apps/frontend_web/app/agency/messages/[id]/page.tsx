@@ -560,16 +560,16 @@ export default function AgencyChatScreen() {
   // Agency conversation uses client, assigned_employee(s), and job
   const { client, assigned_employee, assigned_employees, job, messages } =
     conversation;
+  const isConversationClosed =
+    conversation.status === "COMPLETED" ||
+    (job.clientMarkedComplete && job.workerReviewed && job.clientReviewed);
 
   const backjobStatus = conversation.backjob?.status;
   const isBackjobReviewLocked =
-    conversation.backjob?.has_backjob === true &&
-    (backjobStatus === "OPEN" || backjobStatus === "UNDER_REVIEW");
-  const isConversationClosed =
-    job.clientMarkedComplete && job.workerReviewed && job.clientReviewed;
+    conversation.backjob?.has_backjob === true && backjobStatus === "OPEN";
   const chatDisabledReason =
     conversation.can_send_reason ||
-    "Chat is temporarily locked while admin reviews this backjob. Messaging opens once admin starts negotiation.";
+    "Chat is temporarily locked while admin reviews this backjob. Messaging opens once scheduling starts.";
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -865,9 +865,7 @@ export default function AgencyChatScreen() {
         {/* Message Input - Floating Style */}
         <div className="p-4 bg-transparent mt-auto z-10">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            {job.clientMarkedComplete &&
-            job.workerReviewed &&
-            job.clientReviewed ? (
+            {isConversationClosed ? (
               <div className="p-4 text-center text-xs font-semibold text-gray-400 uppercase tracking-widest">
                 Conversation Closed
               </div>

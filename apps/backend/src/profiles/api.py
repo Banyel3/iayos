@@ -2508,6 +2508,13 @@ def send_message(request, data: SendMessageSchema):
                 {"error": "You are not a participant in this conversation"},
                 status=403
             )
+
+        # Prevent new messages once conversation is closed/archived.
+        if conversation.status == Conversation.ConversationStatus.COMPLETED:
+            return Response(
+                {"error": "This conversation is closed"},
+                status=403,
+            )
         
         sanitized_text = censor_contact_info(data.message_text)
 
