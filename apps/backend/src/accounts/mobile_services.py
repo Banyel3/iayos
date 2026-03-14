@@ -3315,7 +3315,7 @@ def submit_review_mobile(
             if review_target == 'EMPLOYEE' and employee_id:
                 # Agency job - reviewing a specific employee
                 try:
-                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__accountFK').get(
+                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__agency').get(
                         assignmentID=employee_id,
                         job=job
                     )
@@ -3409,11 +3409,14 @@ def submit_review_mobile(
                 ).exists()
             elif job.assignedAgencyFK:
                 # Check agency employee assignments
-                is_worker = JobEmployeeAssignment.objects.filter(
-                    job=job,
-                    employee__accountFK=user,
-                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                ).exists()
+                is_worker = (
+                    (job.assignedAgencyFK.accountFK.accountID == user.accountID)
+                    or JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        employee__agency=user,
+                        status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                    ).exists()
+                )
             
             if not is_worker:
                 return {'success': False, 'error': 'You are not a worker for this job'}
