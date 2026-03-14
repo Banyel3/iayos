@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   Image,
   Alert,
   ActionSheetIOS,
@@ -5258,12 +5257,16 @@ export default function ChatScreen() {
               </View>
 
               {/* Modal Content - ScrollView for the review form */}
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <ScrollView
-                  style={styles.reviewModalContent}
-                  keyboardShouldPersistTaps="handled"
-                  contentContainerStyle={{ paddingBottom: 40 }}
-                >
+              <ScrollView
+                style={styles.reviewModalContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={
+                  Platform.OS === "ios" ? "interactive" : "on-drag"
+                }
+                nestedScrollEnabled
+                contentContainerStyle={styles.reviewModalContentContainer}
+                showsVerticalScrollIndicator
+              >
                   {/* Check if we're in view mode */}
                   {reviewModalMode === "view" ? (
                     // View Reviews Mode - Show both parties' reviews with actual data
@@ -6525,8 +6528,7 @@ export default function ChatScreen() {
                       <View style={{ height: 20 }} />
                     </>
                   )}
-                </ScrollView>
-              </TouchableWithoutFeedback>
+              </ScrollView>
             </SafeAreaView>
           </Modal>
         </View>
@@ -9172,9 +9174,13 @@ const styles = StyleSheet.create({
   },
   reviewModalContent: {
     flex: 1,
+    backgroundColor: Colors.white,
+  },
+  reviewModalContentContainer: {
+    flexGrow: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
-    backgroundColor: Colors.white,
+    paddingBottom: 80,
   },
   // Team job review checklist (below banner)
   teamReviewChecklist: {
