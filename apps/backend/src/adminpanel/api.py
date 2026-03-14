@@ -1,7 +1,7 @@
 import json
 from django.http import HttpRequest
 from typing import List, Optional
-from ninja import Router, Schema
+from ninja import Router, Schema, Query
 # from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
 # from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
 from ninja.responses import Response
@@ -1722,7 +1722,14 @@ def get_reviews_stats(request):
 
 
 @router.get("/reviews/all", auth=cookie_auth)
-def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | None = None, reviewer_type: str | None = None, min_rating: float | None = None):
+def get_all_reviews(request, 
+    page: int = 1, 
+    page_size: int = 20, 
+    status: Optional[str] = Query(None), 
+    reviewer_type: Optional[str] = Query(None), 
+    min_rating: Optional[float] = Query(None), 
+    reviewee_id: Optional[str] = Query(None), 
+    reviewer_id: Optional[str] = Query(None)):
     """
     Get paginated list of all general user reviews.
     
@@ -1732,9 +1739,19 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | N
     - status: Filter by status (ACTIVE, FLAGGED, HIDDEN, DELETED)
     - reviewer_type: Filter by reviewer type (CLIENT, WORKER)
     - min_rating: Minimum rating filter (1.0 - 5.0)
+    - reviewee_id: Filter by reviewee account ID
+    - reviewer_id: Filter by reviewer account ID
     """
     try:
-        result = get_reviews_list_optimized(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
+        result = get_reviews_list_optimized(
+            page=page, 
+            page_size=page_size, 
+            status=status, 
+            reviewer_type=reviewer_type, 
+            min_rating=min_rating,
+            reviewee_id=reviewee_id,
+            reviewer_id=reviewer_id
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"Error fetching all reviews: {str(e)}")

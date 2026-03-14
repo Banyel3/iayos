@@ -107,6 +107,11 @@ export default function ClientDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
+  // Reviews state
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
+
   const fetchClient = async () => {
     try {
       setLoading(true);
@@ -136,11 +141,46 @@ export default function ClientDetailPage() {
     }
   };
 
+  const fetchReviews = async () => {
+    try {
+      setReviewsLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/adminpanel/reviews/all?reviewee_id=${id}`,
+        {
+          credentials: "include",
+        },
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch reviews");
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        setReviews(data.reviews || []);
+      }
+    } catch (err: any) {
+      console.error("Error fetching reviews:", err);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchClient();
     }
   }, [id]);
+
+  useEffect(() => {
+    setReviews([]);
+  }, [id]);
+
+  useEffect(() => {
+    if (id && activeTab === "reviews") {
+      fetchReviews();
+    }
+  }, [id, activeTab]);
 
   // Account action handlers
   const handleSuspend = async () => {
@@ -271,10 +311,12 @@ export default function ClientDetailPage() {
       { bg: string; text: string; label: string }
     > = {
       active: { bg: "bg-green-100", text: "text-green-800", label: "Active" },
+      verified: { bg: "bg-green-100", text: "text-green-800", label: "Verified" },
       inactive: { bg: "bg-gray-100", text: "text-gray-800", label: "Inactive" },
       suspended: { bg: "bg-red-100", text: "text-red-800", label: "Suspended" },
+      banned: { bg: "bg-red-100", text: "text-red-800", label: "Banned" },
     };
-    const config = variants[status.toLowerCase()] || variants.inactive;
+    const config = variants[status?.toLowerCase()] || variants.inactive;
     return (
       <span
         className={`px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}
@@ -451,7 +493,7 @@ export default function ClientDetailPage() {
 
 
             {/* Tabs Section */}
-            <Tabs defaultValue="details" className="w-full">
+            <Tabs defaultValue="details" value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="bg-white p-1 rounded-xl shadow-sm inline-flex mb-6 border-none">
                 <TabsTrigger 
                   value="details" 
@@ -542,12 +584,20 @@ export default function ClientDetailPage() {
                         <Shield className="h-4 w-4 text-[#00BAF1]" />
                         KYC Information
                       </h3>
-                      <div className="bg-gray-50 rounded-xl p-6">
-                        <div className="space-y-1">
-                          <p className="text-sm text-gray-500">Current KYC Status</p>
-                          <div className="flex items-center gap-3">
-                            {getKYCBadge(client.kyc_status)}
+                      <div className="bg-gray-50/80 rounded-2xl p-6 border border-gray-100/50">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 font-bold tracking-wider uppercase">Current KYC Status</p>
+                            <div className="flex items-center gap-3">
+                              {getKYCBadge(client.kyc_status)}
+                            </div>
                           </div>
+                          {client.kyc_status !== "APPROVED" && (
+                            <Button variant="outline" size="sm" className="w-full md:w-auto bg-white hover:bg-gray-50">
+                              <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                              Review Documents
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </section>
@@ -566,11 +616,86 @@ export default function ClientDetailPage() {
               </TabsContent>
 
               <TabsContent value="reviews">
-                <Card className="border-none shadow-sm bg-white">
-                  <CardContent className="py-20 text-center">
-                    <Star className="h-16 w-16 text-gray-200 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Reviews</h3>
-                    <p className="text-gray-500">client reviews and feedback will appear here.</p>
+                <Card className="border-none shadow-sm bg-white overflow-hidden">
+                  <CardHeader className="border-b border-gray-50 bg-white py-6 px-8">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-xl font-bold text-gray-900">Client Reviews</CardTitle>
+                        <p className="text-sm text-gray-500 mt-1">Feedback from workers who have worked with this client</p>
+                      </div>
+                      <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+                        <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+                        <span className="text-lg font-bold text-[#00BAF1]">{client.client_data?.rating?.toFixed(1) || "0.0"}</span>
+                        <span className="text-xs text-[#00BAF1]/70 font-medium">/ 5.0</span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {reviewsLoading ? (
+                      <div className="py-20 text-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-[#00BAF1] mx-auto mb-4" />
+                        <p className="text-gray-500 font-medium">Fetching reviews...</p>
+                      </div>
+                    ) : reviews.length > 0 ? (
+                      <div className="divide-y divide-gray-50">
+                        {reviews.map((review) => (
+                          <div key={review.id} className="p-8 hover:bg-gray-50/50 transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex gap-4">
+                                <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-[#00BAF1] font-bold border border-blue-100">
+                                  {review.reviewer_name?.charAt(0)}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-bold text-gray-900">{review.reviewer_name}</h4>
+                                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider py-0 px-2 bg-white">
+                                      {review.reviewer_type || "Worker"}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star 
+                                        key={i} 
+                                        className={`h-3.5 w-3.5 ${i < Math.floor(review.rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-200"}`} 
+                                      />
+                                    ))}
+                                    <span className="text-xs text-gray-400 ml-1 font-medium">
+                                      {new Date(review.created_at).toLocaleDateString(undefined, { 
+                                        year: 'numeric', 
+                                        month: 'short', 
+                                        day: 'numeric' 
+                                      })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase mb-1">Related Job</p>
+                                <p className="text-xs font-semibold text-[#00BAF1] hover:underline cursor-pointer flex items-center justify-end gap-1">
+                                  {review.job_title}
+                                  <ExternalLink className="h-3 w-3" />
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-4 ml-16">
+                              <p className="text-gray-600 leading-relaxed bg-gray-50/50 p-4 rounded-xl border border-gray-100/50 italic">
+                                &ldquo;{review.comment || "No comment provided."}&rdquo;
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-20 text-center">
+                        <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                          <Star className="h-10 w-10 text-gray-200" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">No reviews yet</h3>
+                        <p className="text-gray-500 max-w-xs mx-auto leading-relaxed">
+                          This client hasn&apos;t received any feedback from workers yet.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
