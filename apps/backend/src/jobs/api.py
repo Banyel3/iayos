@@ -7537,8 +7537,8 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
     Create a new team job with multiple skill slot requirements.
     
     Team jobs require:
-    - At least one skill slot
-    - At least 1 worker total across all slots
+    - At least 2 skill slots
+    - At least 2 workers total across all slots
     - Budget and allocation type
     
     Escrow (50% of total budget) is held on creation.
