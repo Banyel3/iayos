@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_BASE } from "@/lib/api/config";
 import {
   User,
@@ -143,22 +143,47 @@ export default function UserSubmittedDataSection({
   const [confirmedData, setConfirmedData] = useState<IndividualConfirmedData | AgencyConfirmedData | null>(null);
   const [hasData, setHasData] = useState(false);
   const [extractionStatus, setExtractionStatus] = useState<string>("");
-  const [userEditedFields, setUserEditedFields] = useState<string[]>([]);
+   const [userEditedFields, setUserEditedFields] = useState<string[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const fetchData = async () => {
+    if (!isMounted.current) return;
     try {
       setLoading(true);
       setError(null);
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       const endpoint = isAgency
         ? `${API_BASE}/api/adminpanel/kyc/agency/${kycId}/extracted-data`
         : `${API_BASE}/api/adminpanel/kyc/${kycId}/extracted-data`;
 
-      const response = await fetch(endpoint, { credentials: "include" });
+      const response = await fetch(endpoint, { 
+        credentials: "include",
+        signal: controller.signal 
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to fetch: ${response.status}`);
       }
+
+      if (!isMounted.current) return;
 
       const result = await response.json();
 
@@ -203,11 +228,14 @@ export default function UserSubmittedDataSection({
           setConfirmedData(confirmed);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (!isMounted.current || err.name === "AbortError") return;
       console.error("Error fetching user submitted data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   };
 
