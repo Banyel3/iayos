@@ -9423,6 +9423,26 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
                     "error": "No assigned worker found to mark absent for this skip day request"
                 }, status=400)
 
+            # Safety gate: reject the entire approval if any target worker already checked in.
+            # This prevents partial updates when one worker is not eligible for skip-day absent marking.
+            existing_attendance_by_worker = {
+                row.workerID_id: row
+                for row in DailyAttendance.objects.filter(
+                    jobID=job,
+                    date=skip_request.request_date,
+                    workerID__in=target_workers,
+                )
+            }
+            for worker in target_workers:
+                existing_row = existing_attendance_by_worker.get(worker.workerProfileID)
+                if existing_row and existing_row.time_in:
+                    worker_name = "Unknown Worker"
+                    if worker.profileID:
+                        worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}".strip()
+                    return Response({
+                        "error": f"Cannot approve skip day because {worker_name} already checked in for the requested date"
+                    }, status=400)
+
             now = timezone.now()
             for worker in target_workers:
                 attendance, _ = DailyAttendance.objects.get_or_create(
@@ -9437,11 +9457,6 @@ def review_daily_skip_day(request, job_id: int, skip_request_id: int, data: Revi
                         'notes': f'Skip day approved by client (request #{skip_request.skipRequestID})',
                     },
                 )
-
-                if attendance.time_in:
-                    return Response({
-                        "error": "Cannot approve skip day because a worker already checked in for the requested date"
-                    }, status=400)
 
                 if not attendance.worker_confirmed:
                     attendance.worker_confirmed = True
