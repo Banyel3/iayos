@@ -7449,7 +7449,7 @@ def worker_check_in(request, job_id: int):
     Creates attendance record with time_in and marks worker_confirmed=True.
     
     Constraints:
-    - Only from 6 AM onwards
+    - Only from 6 AM onwards (except QA testing day-offset flow)
     - Only for IN_PROGRESS daily-rate jobs
     - Only once per day per worker
     """
@@ -7474,11 +7474,14 @@ def worker_check_in(request, job_id: int):
         if job.status != 'IN_PROGRESS':
             return Response({"error": f"Job must be in progress. Current status: {job.status}"}, status=400)
         
-        # Validate time constraint: from 6 AM onwards
+        # Validate time constraint: from 6 AM onwards.
+        # QA/testing fast-forwarded day flow may check in at any time.
         current_time = _get_ph_current_time()
         start_time = dt_time(6, 0, 0)   # 6 AM
+        qa_day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+        is_qa_offset_checkin = _is_testing_mode_enabled() and qa_day_offset > 0
         
-        if current_time < start_time:
+        if current_time < start_time and not is_qa_offset_checkin:
             _log_mobile(
                 "worker_check_in_blocked_time_window",
                 account_id=getattr(request.auth, "accountID", None),
