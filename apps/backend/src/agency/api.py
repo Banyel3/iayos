@@ -2413,23 +2413,29 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
         
-        # Enforce backjob chat lock until admin opens negotiation.
-        from accounts.models import JobDispute
-        active_dispute = JobDispute.objects.filter(
-            jobID=job,
-            status__in=["OPEN", "UNDER_REVIEW", "IN_NEGOTIATION"],
-        ).order_by("-openedDate").first()
-
-        if active_dispute and active_dispute.status in ["OPEN", "UNDER_REVIEW"]:
-            return Response({
-                "error": "Chat is temporarily locked while admin reviews this backjob. Messaging will open once admin moves it to negotiation.",
-                "backjob_status": active_dispute.status,
-                "chat_locked": True,
-            }, status=403)
-
-        # Block sending messages if conversation is COMPLETED and there is no negotiable backjob.
+        # Block sending messages if conversation is COMPLETED and there is no active backjob cycle.
+        # Legacy compatibility: some existing records may remain IN_NEGOTIATION even after
+        # worker schedule confirmation/backjob start. Treat these as active for chat reopen.
         if conv.status == Conversation.ConversationStatus.COMPLETED:
-            if not active_dispute:
+            # Check if there's an active backjob that should keep chat open
+            from accounts.models import JobDispute
+            job = conv.relatedJobPosting
+            active_dispute = JobDispute.objects.filter(
+                jobID=job,
+                status__in=["UNDER_REVIEW", "IN_NEGOTIATION"]
+            ).order_by('-openedDate').first()
+
+            has_active_backjob_cycle = bool(
+                active_dispute and (
+                    active_dispute.status == "UNDER_REVIEW"
+                    or active_dispute.workerScheduleConfirmed
+                    or active_dispute.backjobStarted
+                    or active_dispute.workerMarkedBackjobComplete
+                    or active_dispute.clientConfirmedBackjob
+                )
+            )
+            
+            if not has_active_backjob_cycle:
                 # No active backjob - conversation is truly closed
                 return Response({
                     "error": "This conversation is closed. Messages can only be sent after admin approves a backjob request.",
