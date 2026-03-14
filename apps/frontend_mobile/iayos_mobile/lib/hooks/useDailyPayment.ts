@@ -656,9 +656,8 @@ export interface ClientMarkNoWorkResponse {
 }
 
 /**
- * Worker checks in for a daily job (from chat screen)
- * Creates attendance record with time_in.
- * Constraints: Only between 6 AM - 8 PM
+ * Worker marks on-the-way for a daily job (from chat screen).
+ * Creates/updates attendance in DISPATCHED state (time_in is set later by client verify-arrival).
  */
 export const useWorkerCheckIn = () => {
   const queryClient = useQueryClient();
@@ -671,7 +670,7 @@ export const useWorkerCheckIn = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Check-in failed"));
+        throw new Error(getErrorMessage(error, "Mark on-the-way failed"));
       }
       return response.json() as Promise<CheckInOutResponse>;
     },
@@ -682,15 +681,15 @@ export const useWorkerCheckIn = () => {
 
       Toast.show({
         type: "success",
-        text1: "Checked In ✅",
-        text2: data.message || "You've clocked in for today",
+        text1: "On The Way ✅",
+        text2: data.message || "Marked as on the way",
         position: "top",
       });
     },
     onError: (error: Error) => {
       Toast.show({
         type: "error",
-        text1: "Check-in Failed",
+        text1: "On The Way Failed",
         text2: error.message,
         position: "top",
       });
@@ -699,7 +698,7 @@ export const useWorkerCheckIn = () => {
 };
 
 /**
- * Worker cancels check-in within 10-second grace window.
+ * Worker cancels on-the-way within 10-second grace window.
  */
 export const useWorkerCancelCheckIn = () => {
   const queryClient = useQueryClient();
@@ -712,7 +711,7 @@ export const useWorkerCancelCheckIn = () => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(getErrorMessage(error, "Cancel check-in failed"));
+        throw new Error(getErrorMessage(error, "Cancel on-the-way failed"));
       }
       return response.json() as Promise<CancelCheckInResponse>;
     },
@@ -723,8 +722,8 @@ export const useWorkerCancelCheckIn = () => {
 
       Toast.show({
         type: "success",
-        text1: "Check-in Cancelled",
-        text2: data.message || "Your check-in has been undone",
+        text1: "On The Way Cancelled",
+        text2: data.message || "Your on-the-way status has been undone",
         position: "top",
       });
     },
