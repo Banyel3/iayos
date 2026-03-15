@@ -3178,7 +3178,10 @@ export default function ChatScreen() {
 
                         // No attendance yet - worker marks on the way first
                         if (!todayAttendance || !todayAttendance.time_in) {
-                          if (todayAttendance?.is_dispatched) {
+                          if (
+                            todayAttendance?.is_dispatched &&
+                            !!todayAttendance?.worker_confirmed_at
+                          ) {
                             return (
                               <View style={styles.dailyStatusContainer}>
                                 <View style={styles.checkedInBadge}>
@@ -4202,6 +4205,7 @@ export default function ChatScreen() {
               {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
               {conversation.is_team_job &&
                 conversation.job?.payment_model !== "DAILY" &&
+                !isProjectMultiDayJob &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "WORKER" &&
                 user &&
@@ -4285,6 +4289,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 conversation.job.payment_model !== "DAILY" &&
+                !isProjectMultiDayJob &&
                 conversation.team_worker_assignments &&
                 conversation.team_worker_assignments.length > 0 &&
                 (() => {
