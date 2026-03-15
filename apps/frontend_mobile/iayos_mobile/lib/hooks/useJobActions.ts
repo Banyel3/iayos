@@ -680,13 +680,15 @@ export function useDispatchProjectEmployee() {
 
       return response.json() as Promise<{ employee_name: string }>;
     },
-    onSuccess: (data: { employee_name: string }) => {
+    onSuccess: (data: { employee_name: string }, { jobId }) => {
       Toast.show({
         type: "success",
         text1: "Employee Dispatched",
         text2: `${data.employee_name} is on the way`,
       });
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -722,13 +724,15 @@ export function useConfirmProjectArrival() {
 
       return response.json() as Promise<{ employee_name: string }>;
     },
-    onSuccess: (data: { employee_name: string }) => {
+    onSuccess: (data: { employee_name: string }, { jobId }) => {
       Toast.show({
         type: "success",
         text1: "Arrival Confirmed",
         text2: `${data.employee_name} is now on site`,
       });
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -772,7 +776,7 @@ export function useAgencyMarkProjectComplete() {
         all_complete: boolean;
       }>;
     },
-    onSuccess: (data: { employee_name: string; all_complete: boolean }) => {
+    onSuccess: (data: { employee_name: string; all_complete: boolean }, { jobId }) => {
       Toast.show({
         type: "success",
         text1: "Work Marked Complete",
@@ -781,6 +785,8 @@ export function useAgencyMarkProjectComplete() {
           : `${data.employee_name}'s work marked complete`,
       });
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -835,7 +841,7 @@ export function useApproveAgencyProjectEmployee() {
 
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, { jobId }) => {
       const msg = data.all_approved
         ? "All employees approved! Job completed."
         : `${data.employee_name} approved (${data.approved_count}/${data.total_count})`;
@@ -846,6 +852,7 @@ export function useApproveAgencyProjectEmployee() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
@@ -900,7 +907,7 @@ export function useApproveAgencyProjectJob() {
 
       return response.json();
     },
-    onSuccess: (data, { paymentMethod }) => {
+    onSuccess: (data, { jobId, paymentMethod }) => {
       if (paymentMethod === "CASH") {
         Toast.show({
           type: "success",
@@ -916,6 +923,7 @@ export function useApproveAgencyProjectJob() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },

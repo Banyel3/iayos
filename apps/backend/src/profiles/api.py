@@ -1815,8 +1815,24 @@ def get_conversation_messages(request, conversation_id: int):
             }
 
         # Compatibility self-heal: stale jobs/conversations that already satisfy closure criteria.
+        effective_job_status = cancellation_snapshot.get("effective_status") or job.status
+
+        # Legacy cancellation compatibility: normalize stale job status when
+        # cancellation evidence exists but status was never persisted as CANCELLED.
+        if cancellation_snapshot.get("is_cancelled") and job.status != 'CANCELLED':
+            try:
+                job.status = 'CANCELLED'
+                if not job.completedAt:
+                    cancelled_at_dt = getattr(job, 'cancelledAt', None)
+                    job.completedAt = cancelled_at_dt or timezone.now()
+                job.save(update_fields=['status', 'completedAt'])
+                effective_job_status = 'CANCELLED'
+                print(f"   ✅ [CONVO AUTO-HEAL] Job #{job.jobID} normalized to CANCELLED")
+            except Exception as heal_err:
+                print(f"   ⚠️ [CONVO AUTO-HEAL] Cancel status heal skipped: {heal_err}")
+
         if (
-            job.status in ['ACTIVE', 'IN_PROGRESS']
+            effective_job_status in ['ACTIVE', 'IN_PROGRESS']
             and job.workerMarkedComplete
             and job.clientMarkedComplete
             and worker_reviewed
@@ -1832,7 +1848,7 @@ def get_conversation_messages(request, conversation_id: int):
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Job heal skipped: {heal_err}")
 
         if (
-            job.status == 'COMPLETED'
+            effective_job_status == 'COMPLETED'
             and worker_reviewed
             and client_reviewed
             and conversation.status != Conversation.ConversationStatus.COMPLETED
@@ -1843,6 +1859,19 @@ def get_conversation_messages(request, conversation_id: int):
                 print(f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} marked COMPLETED")
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Conversation status heal skipped: {heal_err}")
+
+        # Legacy cancellation compatibility: cancelled jobs should be treated as
+        # terminal conversations even if older records never toggled conversation status.
+        if (
+            effective_job_status == 'CANCELLED'
+            and conversation.status != Conversation.ConversationStatus.COMPLETED
+        ):
+            try:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=['status'])
+                print(f"   ✅ [CONVO AUTO-HEAL] Cancelled conversation #{conversation.conversationID} marked COMPLETED")
+            except Exception as heal_err:
+                print(f"   ⚠️ [CONVO AUTO-HEAL] Cancelled conversation heal skipped: {heal_err}")
 
         if job.status == 'COMPLETED' and worker_reviewed and client_reviewed:
             try:

@@ -7884,6 +7884,17 @@ def worker_complete_assignment_endpoint(request, assignment_id: int, payload: Te
     try:
         notes = payload.completion_notes if payload else None
         print(f"✅ Worker completing assignment #{assignment_id}")
+
+        from accounts.models import JobWorkerAssignment
+
+        try:
+            assignment = JobWorkerAssignment.objects.select_related('jobID').get(assignmentID=assignment_id)
+        except JobWorkerAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found"}, status=404)
+
+        project_gate_error = _project_multi_day_gate_error(assignment.jobID)
+        if project_gate_error:
+            return Response(project_gate_error, status=400)
         
         result = worker_complete_team_assignment(
             assignment_id=assignment_id,
@@ -7983,6 +7994,15 @@ def approve_team_job_completion(request, job_id: int, payment_method: str = Form
     This closes the job and team conversation.
     """
     from jobs.team_job_services import client_approve_team_job
+
+    try:
+        job = JobPosting.objects.get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    project_gate_error = _project_multi_day_gate_error(job)
+    if project_gate_error:
+        return Response(project_gate_error, status=400)
     
     result = client_approve_team_job(
         job_id=job_id,
@@ -8003,6 +8023,15 @@ def worker_mark_team_complete(request, job_id: int, assignment_id: int, notes: s
     Worker marks their individual assignment as complete in a team job.
     """
     from jobs.team_job_services import worker_complete_team_assignment
+
+    try:
+        job = JobPosting.objects.get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    project_gate_error = _project_multi_day_gate_error(job)
+    if project_gate_error:
+        return Response(project_gate_error, status=400)
     
     result = worker_complete_team_assignment(
         assignment_id=assignment_id,
@@ -8153,6 +8182,8 @@ def get_job_receipt(request, job_id: int):
             except Exception:
                 pass
 
+        latest_cancel_log = None
+
         if is_cancelled_job and (
             not cancellation_stage or
             not cancelled_by_role or
@@ -8167,6 +8198,7 @@ def get_job_receipt(request, job_id: int):
                     jobID=job,
                     newStatus=Job.JobStatus.CANCELLED,
                 ).order_by('-createdAt').first()
+                latest_cancel_log = cancel_log
 
                 if cancel_log and not cancelled_at:
                     cancelled_at = getattr(cancel_log, 'createdAt', None)
@@ -8200,6 +8232,28 @@ def get_job_receipt(request, job_id: int):
                             cancellation_reason = reason_match.group(1).strip()
             except Exception:
                 pass
+
+        if is_cancelled_job:
+            if not cancellation_stage:
+                cancellation_stage = "LEGACY_CANCELLED"
+
+            if not cancelled_by_role and latest_cancel_log and latest_cancel_log.changedBy:
+                changed_by = latest_cancel_log.changedBy
+                try:
+                    if changed_by == job.clientID.profileID.accountFK:
+                        cancelled_by_role = "CLIENT"
+                    elif job.assignedWorkerID and changed_by == job.assignedWorkerID.profileID.accountFK:
+                        cancelled_by_role = "WORKER"
+                    elif job.assignedAgencyFK and changed_by == job.assignedAgencyFK.accountFK:
+                        cancelled_by_role = "AGENCY"
+                except Exception:
+                    pass
+
+            if not cancelled_by_role:
+                cancelled_by_role = "UNKNOWN"
+
+            if not cancellation_reason and latest_cancel_log and latest_cancel_log.notes:
+                cancellation_reason = str(latest_cancel_log.notes).strip()
         # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
         if is_cancelled_job:
             actual_worker_earnings = worker_compensation_amount
@@ -8279,6 +8333,11 @@ def get_job_receipt(request, job_id: int):
             related_transactions = Transaction.objects.filter(
                 relatedJobPosting=job
             ).select_related('walletID__accountFK').order_by('-createdAt')[:10]  # Last 10 transactions
+
+            if not related_transactions and is_cancelled_job:
+                related_transactions = Transaction.objects.filter(
+                    description__icontains=f"job {job.jobID}"
+                ).select_related('walletID__accountFK').order_by('-createdAt')[:10]
             
             for txn in related_transactions:
                 affected_account = getattr(getattr(txn, 'walletID', None), 'accountFK', None)
@@ -8332,6 +8391,76 @@ def get_job_receipt(request, job_id: int):
                         earning_amount_from_transactions += Decimal(str(txn.amount))
                     elif txn.transactionType == Transaction.TransactionType.PENDING_EARNING:
                         pending_earning_amount_from_transactions += Decimal(str(txn.amount))
+
+            # Legacy fallback: synthesize receipt timeline rows for old cancelled jobs
+            # when no linked transactions exist yet.
+            if is_cancelled_job and not transactions:
+                timeline_ts = cancelled_at.isoformat() if cancelled_at else (job.updatedAt.isoformat() if job.updatedAt else None)
+                synthetic_id = -1
+
+                if actual_client_paid > Decimal('0.00'):
+                    transactions.append({
+                        'id': synthetic_id,
+                        'type': 'PAYMENT',
+                        'amount': float(actual_client_paid),
+                        'status': 'COMPLETED',
+                        'description': 'Legacy cancellation settlement (client net paid)',
+                        'reference_number': None,
+                        'payment_method': 'WALLET',
+                        'affected_account_id': job.clientID.profileID.accountFK.accountID,
+                        'affected_role': 'CLIENT',
+                        'affected_name': resolve_account_name(job.clientID.profileID.accountFK),
+                        'impact': 'DEBIT',
+                        'created_at': timeline_ts,
+                        'completed_at': timeline_ts,
+                    })
+                    synthetic_id -= 1
+
+                if client_refund_amount > Decimal('0.00'):
+                    transactions.append({
+                        'id': synthetic_id,
+                        'type': 'REFUND',
+                        'amount': float(client_refund_amount),
+                        'status': 'COMPLETED',
+                        'description': 'Legacy cancellation settlement refund',
+                        'reference_number': None,
+                        'payment_method': 'WALLET',
+                        'affected_account_id': job.clientID.profileID.accountFK.accountID,
+                        'affected_role': 'CLIENT',
+                        'affected_name': resolve_account_name(job.clientID.profileID.accountFK),
+                        'impact': 'CREDIT',
+                        'created_at': timeline_ts,
+                        'completed_at': timeline_ts,
+                    })
+                    synthetic_id -= 1
+
+                if actual_worker_earnings > Decimal('0.00'):
+                    worker_account = None
+                    worker_role = 'WORKER'
+                    worker_name = 'Worker'
+                    if job.assignedWorkerID:
+                        worker_account = job.assignedWorkerID.profileID.accountFK
+                        worker_name = resolve_account_name(worker_account)
+                    elif job.assignedAgencyFK:
+                        worker_account = job.assignedAgencyFK.accountFK
+                        worker_role = 'AGENCY'
+                        worker_name = job.assignedAgencyFK.businessName
+
+                    transactions.append({
+                        'id': synthetic_id,
+                        'type': 'EARNING',
+                        'amount': float(actual_worker_earnings),
+                        'status': 'COMPLETED',
+                        'description': 'Legacy cancellation settlement compensation',
+                        'reference_number': None,
+                        'payment_method': 'WALLET',
+                        'affected_account_id': worker_account.accountID if worker_account else None,
+                        'affected_role': worker_role,
+                        'affected_name': worker_name,
+                        'impact': 'CREDIT',
+                        'created_at': timeline_ts,
+                        'completed_at': timeline_ts,
+                    })
         except Exception as e:
             print(f"⚠️ Error fetching transactions for receipt: {e}")
 
@@ -10352,6 +10481,10 @@ def approve_agency_project_employee(
         # Verify this is a PROJECT job
         if job.payment_model == 'DAILY':
             return Response({"error": "This endpoint is for PROJECT jobs only"}, status=400)
+
+        project_gate_error = _project_multi_day_gate_error(job)
+        if project_gate_error:
+            return Response(project_gate_error, status=400)
         
         # Verify it's an agency job
         if not job.assignedAgencyFK:
@@ -10607,6 +10740,10 @@ def approve_agency_project_job(
             return Response({
                 "error": "This endpoint is for PROJECT jobs only. Use daily payment endpoints for daily-rate jobs."
             }, status=400)
+
+        project_gate_error = _project_multi_day_gate_error(job)
+        if project_gate_error:
+            return Response(project_gate_error, status=400)
         
         # Verify it's an agency job
         if not job.assignedAgencyFK:

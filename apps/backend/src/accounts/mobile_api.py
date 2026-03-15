@@ -7895,8 +7895,13 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
-        if job.payment_model != 'DAILY':
-            return Response({"error": "This is not a daily-rate job"}, status=400)
+        is_daily_job = job.payment_model == 'DAILY'
+        is_project_multiday_job = (
+            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+        )
+
+        if not (is_daily_job or is_project_multiday_job):
+            return Response({"error": "This endpoint supports DAILY and PROJECT multi-day jobs only"}, status=400)
 
         if not job.clientID or job.clientID.profileID.accountFK != request.auth:
             return Response({"error": "Only the job client can mark no-work days"}, status=403)

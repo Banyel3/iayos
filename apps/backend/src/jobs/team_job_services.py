@@ -16,6 +16,69 @@ from accounts.models import (
 from profiles.models import Conversation, ConversationParticipant
 
 
+def _get_required_project_days(job: Job) -> int:
+    configured = int(getattr(job, 'duration_days', 0) or 0)
+    if configured > 0:
+        return configured
+
+    expected = str(getattr(job, 'expectedDuration', '') or '').strip().lower()
+    if expected:
+        import re
+        match = re.search(r'(\d+)', expected)
+        if match:
+            try:
+                parsed = int(match.group(1))
+                if parsed > 0:
+                    return parsed
+            except ValueError:
+                pass
+
+    return 1
+
+
+def _get_elapsed_project_days(job: Job) -> int:
+    qa_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    total_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
+
+    if total_days_worked > 0:
+        return max(0, total_days_worked + qa_offset)
+
+    started_at = getattr(job, 'clientConfirmedWorkStartedAt', None)
+    if not started_at:
+        return max(0, qa_offset)
+
+    start_date = timezone.localtime(started_at).date()
+    today = timezone.localdate()
+    elapsed = (today - start_date).days + 1
+    return max(0, elapsed + qa_offset)
+
+
+def _project_multi_day_gate_error(job: Job):
+    payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+    if payment_model != 'PROJECT':
+        return None
+
+    required_days = _get_required_project_days(job)
+    if required_days <= 1:
+        return None
+
+    elapsed_days = _get_elapsed_project_days(job)
+    if elapsed_days >= required_days:
+        return None
+
+    return {
+        'success': False,
+        'error': (
+            f"This is a {required_days}-day project job. "
+            f"Final completion and payment are only allowed on day {required_days}."
+        ),
+        'required_days': required_days,
+        'elapsed_days': elapsed_days,
+        'remaining_days': required_days - elapsed_days,
+        'payment_model': payment_model,
+    }
+
+
 def _job_date_window(job) -> tuple:
     """Return (start_date, end_date) where end defaults to start for single-day jobs."""
     start_date = getattr(job, 'preferredStartDate', None)
@@ -1069,6 +1132,10 @@ def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str 
     job = assignment.jobID
     if job.status != 'IN_PROGRESS':
         return {'success': False, 'error': 'Job is not in progress'}
+
+    project_gate_error = _project_multi_day_gate_error(job)
+    if project_gate_error:
+        return project_gate_error
     
     # Mark individual completion
     assignment.worker_marked_complete = True
@@ -1205,6 +1272,10 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     
     if job.status != 'IN_PROGRESS':
         return {'success': False, 'error': f'Cannot complete job with status {job.status}'}
+
+    project_gate_error = _project_multi_day_gate_error(job)
+    if project_gate_error:
+        return project_gate_error
     
     # Check if all workers have marked complete
     incomplete_workers = JobWorkerAssignment.objects.filter(

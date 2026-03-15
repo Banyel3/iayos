@@ -45,6 +45,70 @@ def _get_effective_work_date(job):
     return base_date + timedelta(days=day_offset)
 
 
+def _get_required_project_days(job) -> int:
+    configured = int(getattr(job, "duration_days", 0) or 0)
+    if configured > 0:
+        return configured
+
+    expected = str(getattr(job, "expectedDuration", "") or "").strip().lower()
+    if expected:
+        import re
+
+        match = re.search(r"(\d+)", expected)
+        if match:
+            try:
+                parsed = int(match.group(1))
+                if parsed > 0:
+                    return parsed
+            except ValueError:
+                pass
+
+    return 1
+
+
+def _get_elapsed_project_days(job) -> int:
+    qa_offset = _get_clamped_qa_day_offset(job)
+    total_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+
+    if total_days_worked > 0:
+        return max(0, total_days_worked + qa_offset)
+
+    started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
+    if not started_at:
+        return max(0, qa_offset)
+
+    start_date = timezone.localtime(started_at).date()
+    today = timezone.localdate()
+    elapsed = (today - start_date).days + 1
+    return max(0, elapsed + qa_offset)
+
+
+def _project_multi_day_gate_error(job):
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "PROJECT":
+        return None
+
+    required_days = _get_required_project_days(job)
+    if required_days <= 1:
+        return None
+
+    elapsed_days = _get_elapsed_project_days(job)
+    if elapsed_days >= required_days:
+        return None
+
+    return {
+        "success": False,
+        "error": (
+            f"This is a {required_days}-day project job. "
+            f"Final completion and payment are only allowed on day {required_days}."
+        ),
+        "required_days": required_days,
+        "elapsed_days": elapsed_days,
+        "remaining_days": required_days - elapsed_days,
+        "payment_model": payment_model,
+    }
+
+
 @router.post("/upload", auth=cookie_auth, response=schemas.AgencyKYCUploadResponse)
 def upload_agency_kyc(request):
     """
@@ -4316,6 +4380,10 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
                 'success': False,
                 'error': 'This endpoint is for PROJECT jobs only. Use daily endpoints for daily-rate jobs.'
             }, status=400)
+
+        project_gate_error = _project_multi_day_gate_error(job)
+        if project_gate_error:
+            return Response(project_gate_error, status=400)
         
         # Verify job belongs to this agency
         if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
