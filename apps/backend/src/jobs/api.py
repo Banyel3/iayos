@@ -10516,6 +10516,103 @@ def finish_daily_job(request, job_id: int):
     }
 
 
+@router.post("/{job_id}/project/finish", auth=dual_auth)
+@require_kyc
+def finish_project_multiday_job(request, job_id: int):
+    """
+    Client-only action to finish a PROJECT multi-day job after planned days are done.
+    Mirrors DAILY finish behavior and intentionally bypasses legacy
+    workerMarkedComplete dependency from the single-day flow.
+    """
+    try:
+        job = Job.objects.select_related('clientID__profileID__accountFK').get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.payment_model != 'PROJECT':
+        return Response({"error": "This endpoint is only for PROJECT jobs"}, status=400)
+
+    if job.status != 'IN_PROGRESS':
+        return Response({"error": f"Job must be IN_PROGRESS. Current status: {job.status}"}, status=400)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response({"error": "Only the job client can finish this project job"}, status=403)
+
+    required_days = _get_required_project_days(job)
+    if required_days <= 1:
+        return Response(
+            {"error": "Use standard completion flow for single-day project jobs"},
+            status=400,
+        )
+
+    project_gate_error = _project_multi_day_gate_error(job)
+    if project_gate_error:
+        return Response(project_gate_error, status=400)
+
+    now = timezone.now()
+    old_status = job.status
+    job.status = 'COMPLETED'
+    job.clientMarkedComplete = True
+    job.workerMarkedComplete = True
+    if not job.remainingPaymentPaid:
+        job.remainingPaymentPaid = True
+        job.remainingPaymentPaidAt = now
+    job.save(update_fields=[
+        'status',
+        'clientMarkedComplete',
+        'workerMarkedComplete',
+        'remainingPaymentPaid',
+        'remainingPaymentPaidAt',
+        'updatedAt',
+    ])
+
+    JobLog.objects.create(
+        jobID=job,
+        actionType=JobLog.ActionType.JOB_EDITED,
+        oldStatus=old_status,
+        newStatus='COMPLETED',
+        changedBy=request.auth,
+        notes='[PROJECT] Client marked multi-day project job as finished',
+        metadata={
+            'event': 'project_multiday_job_finished',
+            'required_days': required_days,
+            'elapsed_days': _get_elapsed_project_days(job),
+            'duration_days': int(getattr(job, 'duration_days', 0) or 0),
+            'total_days_worked': int(getattr(job, 'total_days_worked', 0) or 0),
+        },
+    )
+
+    try:
+        from profiles.models import Conversation, Message
+        conv = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conv:
+            Message.create_system_message(conv, f"✅ Client marked PROJECT job '{job.title}' as finished.")
+    except Exception:
+        pass
+
+    try:
+        broadcast_job_status_update(job.jobID, {
+            'event': 'project_multiday_job_finished',
+            'job_id': job.jobID,
+            'status': job.status,
+            'client_marked_complete': job.clientMarkedComplete,
+            'worker_marked_complete': job.workerMarkedComplete,
+            'remaining_payment_paid': job.remainingPaymentPaid,
+            'timestamp': now.isoformat(),
+        })
+    except Exception:
+        pass
+
+    return {
+        'success': True,
+        'message': 'Project job marked as finished. Reviews can now be submitted.',
+        'job_id': job.jobID,
+        'status': job.status,
+        'client_marked_complete': job.clientMarkedComplete,
+        'worker_marked_complete': job.workerMarkedComplete,
+    }
+
+
 @router.post("/{job_id}/daily/cancel", auth=dual_auth)
 @require_kyc
 def cancel_daily_job(request, job_id: int, data: CancelDailyJobSchema):
