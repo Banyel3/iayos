@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.db import transaction as db_transaction
 from django.db.models import Q
 from django.conf import settings
-from datetime import timedelta
+from datetime import datetime, timedelta
 import re
 from zoneinfo import ZoneInfo
 from .content_filter import contains_contact_info
@@ -2264,14 +2264,87 @@ def get_conversation_messages(request, conversation_id: int):
             effective_work_date = today
             
             # Query attendance records for today
-            attendance_records = DailyAttendance.objects.filter(
+            attendance_records = list(DailyAttendance.objects.filter(
                 jobID=job,
                 date=today
             ).select_related(
                 'workerID__profileID',  # Freelance worker
                 'employeeID',  # Agency employee
                 'assignmentID__workerID__profileID'  # Team worker
-            )
+            ))
+
+            # Backward compatibility auto-heal for legacy agency PROJECT multi-day jobs:
+            # if employees were dispatched via old assignment flags without creating
+            # DailyAttendance rows, create DISPATCHED/PENDING rows so client can use
+            # attendance-based Verify Arrival flow immediately.
+            if is_project_multiday and is_agency_conversation and assigned_employees_list:
+                from agency.models import AgencyEmployee
+
+                existing_employee_ids = {
+                    record.employeeID.employeeID
+                    for record in attendance_records
+                    if getattr(record, 'employeeID', None)
+                }
+
+                healed_rows = 0
+
+                for employee_payload in assigned_employees_list:
+                    employee_id = employee_payload.get('id')
+                    if not employee_id or employee_id in existing_employee_ids:
+                        continue
+
+                    if not employee_payload.get('dispatched'):
+                        continue
+
+                    employee = AgencyEmployee.objects.filter(employeeID=employee_id).first()
+                    if not employee:
+                        continue
+
+                    dispatched_at = None
+                    arrived_at = None
+                    dispatched_at_raw = employee_payload.get('dispatchedAt')
+                    arrived_at_raw = employee_payload.get('clientConfirmedArrivalAt')
+
+                    if dispatched_at_raw:
+                        try:
+                            dispatched_at = datetime.fromisoformat(str(dispatched_at_raw).replace('Z', '+00:00'))
+                        except Exception:
+                            dispatched_at = None
+
+                    if arrived_at_raw:
+                        try:
+                            arrived_at = datetime.fromisoformat(str(arrived_at_raw).replace('Z', '+00:00'))
+                        except Exception:
+                            arrived_at = None
+
+                    client_confirmed_arrival = bool(employee_payload.get('clientConfirmedArrival'))
+                    healed_status = 'PENDING' if client_confirmed_arrival else 'DISPATCHED'
+
+                    healed_record, _ = DailyAttendance.objects.update_or_create(
+                        jobID=job,
+                        employeeID=employee,
+                        date=today,
+                        defaults={
+                            'workerID': None,
+                            'assignmentID': None,
+                            'time_in': arrived_at if client_confirmed_arrival else None,
+                            'time_out': None,
+                            'status': healed_status,
+                            'worker_confirmed': True,
+                            'worker_confirmed_at': dispatched_at or timezone.now(),
+                            'client_confirmed': client_confirmed_arrival,
+                            'client_confirmed_at': arrived_at if client_confirmed_arrival else None,
+                            'amount_earned': Decimal('0.00'),
+                            'notes': 'Auto-healed from legacy dispatch markers (PROJECT multi-day)',
+                        }
+                    )
+
+                    attendance_records.append(healed_record)
+                    existing_employee_ids.add(employee_id)
+                    healed_rows += 1
+
+                if healed_rows > 0:
+                    print(f"   🔧 [ATTENDANCE AUTO-HEAL] Created {healed_rows} missing PROJECT multi-day attendance rows")
             
             for record in attendance_records:
                 # Determine worker info based on worker type
