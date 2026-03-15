@@ -22,6 +22,7 @@ import {
   Shadows,
 } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import Swipeable from "react-native-gesture-handler/Swipeable";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, fetchJson, apiRequest } from "@/lib/api/config";
 import { JobCardSkeleton } from "@/components/ui/SkeletonLoader";
@@ -592,8 +593,11 @@ export default function JobsScreen() {
   const renderJobCard = (job: MyJob) => {
     const urgencyColors = getUrgencyColor(job.urgency_level);
     const statusColors = getStatusBadgeColor(job.status);
+    const canDeleteJob =
+      isClient && job.status !== "IN_PROGRESS" && job.status !== "COMPLETED";
+    const useSwipeToDelete = canDeleteJob && activeTab === "open";
 
-    return (
+    const cardContent = (
       <TouchableOpacity
         key={job.job_id}
         style={styles.jobCard}
@@ -663,35 +667,33 @@ export default function JobsScreen() {
               </View>
             )}
 
-          {/* Delete Button (only for clients on non-in-progress/completed jobs) */}
-          {isClient &&
-            job.status !== "IN_PROGRESS" &&
-            job.status !== "COMPLETED" && (
-              <TouchableOpacity
-                style={[
-                  styles.deleteButton,
-                  deleteJobMutation.isPending && styles.deleteButtonDisabled,
-                ]}
-                onPress={(e) => {
-                  e.stopPropagation(); // Prevent card press
-                  if (!deleteJobMutation.isPending) {
-                    handleDeleteJob(job.job_id, job.status, job.job_type);
-                  }
-                }}
-                activeOpacity={0.7}
-                disabled={deleteJobMutation.isPending}
-              >
-                {deleteJobMutation.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.error} />
-                ) : (
-                  <Ionicons
-                    name="trash-outline"
-                    size={20}
-                    color={Colors.error}
-                  />
-                )}
-              </TouchableOpacity>
-            )}
+          {/* Delete Button (hidden on client Open tab; replaced by swipe-to-delete) */}
+          {canDeleteJob && !useSwipeToDelete && (
+            <TouchableOpacity
+              style={[
+                styles.deleteButton,
+                deleteJobMutation.isPending && styles.deleteButtonDisabled,
+              ]}
+              onPress={(e) => {
+                e.stopPropagation(); // Prevent card press
+                if (!deleteJobMutation.isPending) {
+                  handleDeleteJob(job.job_id, job.status, job.job_type);
+                }
+              }}
+              activeOpacity={0.7}
+              disabled={deleteJobMutation.isPending}
+            >
+              {deleteJobMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <Ionicons
+                  name="trash-outline"
+                  size={20}
+                  color={Colors.error}
+                />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Job Title and Category */}
@@ -892,6 +894,38 @@ export default function JobsScreen() {
           </View>
         )}
       </TouchableOpacity>
+    );
+
+    if (!useSwipeToDelete) {
+      return cardContent;
+    }
+
+    const renderRightActions = () => (
+      <TouchableOpacity
+        style={styles.swipeDeleteAction}
+        onPress={() => {
+          if (!deleteJobMutation.isPending) {
+            handleDeleteJob(job.job_id, job.status, job.job_type);
+          }
+        }}
+        disabled={deleteJobMutation.isPending}
+        activeOpacity={0.8}
+      >
+        {deleteJobMutation.isPending ? (
+          <ActivityIndicator size="small" color={Colors.white} />
+        ) : (
+          <>
+            <Ionicons name="trash-outline" size={20} color={Colors.white} />
+            <Text style={styles.swipeDeleteText}>Delete</Text>
+          </>
+        )}
+      </TouchableOpacity>
+    );
+
+    return (
+      <Swipeable key={`swipe-${job.job_id}`} renderRightActions={renderRightActions}>
+        {cardContent}
+      </Swipeable>
     );
   };
 
@@ -1859,6 +1893,21 @@ const styles = StyleSheet.create({
   },
   deleteButtonDisabled: {
     opacity: 0.5,
+  },
+  swipeDeleteAction: {
+    backgroundColor: Colors.error,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 86,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+    marginLeft: Spacing.sm,
+    gap: 4,
+  },
+  swipeDeleteText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "600",
   },
   backjobButton: {
     flexDirection: "row",

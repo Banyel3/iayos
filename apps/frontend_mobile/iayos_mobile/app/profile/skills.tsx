@@ -340,61 +340,56 @@ export default function SkillsScreen() {
         >
           <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss}>
             <Pressable
-              style={styles.modalContent}
+              style={styles.addModalContent}
               onPress={(e) => e.stopPropagation()}
             >
-              <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Skill</Text>
-                  <Pressable onPress={() => setShowAddModal(false)}>
-                    <Ionicons
-                      name="close"
-                      size={24}
-                      color={Colors.textPrimary}
-                    />
-                  </Pressable>
-                </View>
+              <View style={styles.modalHeaderFixed}>
+                <Text style={styles.modalTitle}>Add Skill</Text>
+                <Pressable onPress={() => setShowAddModal(false)}>
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={Colors.textPrimary}
+                  />
+                </Pressable>
+              </View>
 
-                {availableLoading ? (
-                  <View style={styles.modalLoading}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.loadingText}>
-                      Loading available skills...
-                    </Text>
-                  </View>
-                ) : isAtSkillLimit ? (
-                  <View style={styles.modalEmpty}>
-                    <Ionicons
-                      name="alert-circle"
-                      size={48}
-                      color={Colors.warning}
-                    />
-                    <Text style={styles.modalEmptyTitle}>Skill Limit Reached</Text>
-                    <Text style={styles.modalEmptyText}>
-                      You already have {MAX_WORKER_SKILLS} skills. Remove one
-                      first to add a new skill.
-                    </Text>
-                  </View>
-                ) : availableToAdd.length === 0 ? (
-                  <View style={styles.modalEmpty}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={48}
-                      color={Colors.success}
-                    />
-                    <Text style={styles.modalEmptyTitle}>
-                      All Skills Added!
-                    </Text>
-                    <Text style={styles.modalEmptyText}>
-                      You've added all available specializations to your
-                      profile.
-                    </Text>
-                  </View>
-                ) : (
-                  <>
-                    <Text style={styles.modalLabel}>Select a Skill</Text>
+              {availableLoading ? (
+                <View style={styles.modalLoading}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Loading available skills...</Text>
+                </View>
+              ) : isAtSkillLimit ? (
+                <View style={styles.modalEmpty}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={48}
+                    color={Colors.warning}
+                  />
+                  <Text style={styles.modalEmptyTitle}>Skill Limit Reached</Text>
+                  <Text style={styles.modalEmptyText}>
+                    You already have {MAX_WORKER_SKILLS} skills. Remove one
+                    first to add a new skill.
+                  </Text>
+                </View>
+              ) : availableToAdd.length === 0 ? (
+                <View style={styles.modalEmpty}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={48}
+                    color={Colors.success}
+                  />
+                  <Text style={styles.modalEmptyTitle}>All Skills Added!</Text>
+                  <Text style={styles.modalEmptyText}>
+                    You've added all available specializations to your profile.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.addModalBody}>
                     <ScrollView
                       style={styles.skillsList}
+                      contentContainerStyle={styles.skillsListContent}
                       showsVerticalScrollIndicator={false}
                       nestedScrollEnabled={true}
                     >
@@ -403,20 +398,14 @@ export default function SkillsScreen() {
                           key={skill.id}
                           style={[
                             styles.skillOption,
-                            selectedSkill?.id === skill.id &&
-                              styles.skillOptionSelected,
+                            selectedSkill?.id === skill.id && styles.skillOptionSelected,
                           ]}
                           onPress={() => setSelectedSkill(skill)}
                         >
                           <View style={styles.skillOptionInfo}>
-                            <Text style={styles.skillOptionName}>
-                              {skill.name}
-                            </Text>
+                            <Text style={styles.skillOptionName}>{skill.name}</Text>
                             {skill.description ? (
-                              <Text
-                                style={styles.skillOptionDesc}
-                                numberOfLines={2}
-                              >
+                              <Text style={styles.skillOptionDesc} numberOfLines={2}>
                                 {skill.description}
                               </Text>
                             ) : null}
@@ -431,69 +420,64 @@ export default function SkillsScreen() {
                         </Pressable>
                       ))}
                     </ScrollView>
+                  </View>
 
+                  <View style={styles.addModalFooter}>
                     {selectedSkill && (
-                      <View style={styles.experienceSection}>
-                        <Text style={styles.modalLabel}>
-                          Years of Experience
-                        </Text>
-                        <TextInput
-                          style={styles.experienceInput}
-                          value={experienceYears}
-                          onChangeText={setExperienceYears}
-                          keyboardType="number-pad"
-                          placeholder="0"
-                          maxLength={2}
-                          returnKeyType="done"
-                          onSubmitEditing={Keyboard.dismiss}
-                          blurOnSubmit={true}
-                        />
-                        <Text style={styles.experienceHint}>
-                          Tap outside or press Done to close keyboard
-                        </Text>
+                      <View style={styles.experienceSkillTypeRow}>
+                        <View style={styles.experienceInlineSection}>
+                          <Text style={styles.modalLabel}>Years</Text>
+                          <TextInput
+                            style={styles.experienceInputCompact}
+                            value={experienceYears}
+                            onChangeText={setExperienceYears}
+                            keyboardType="number-pad"
+                            placeholder="0"
+                            maxLength={2}
+                            returnKeyType="done"
+                            onSubmitEditing={Keyboard.dismiss}
+                            blurOnSubmit={true}
+                          />
+                        </View>
 
-                        <Text
-                          style={[styles.modalLabel, { marginTop: Spacing.md }]}
-                        >
-                          Skill Type
-                        </Text>
-                        <View style={styles.skillTypeRow}>
-                          <Pressable
-                            style={[
-                              styles.skillTypeChip,
-                              addSkillType === "PRIMARY" &&
-                                styles.skillTypeChipActive,
-                            ]}
-                            onPress={() => setAddSkillType("PRIMARY")}
-                          >
-                            <Text
+                        <View style={styles.skillTypeInlineSection}>
+                          <Text style={styles.modalLabel}>Skill Type</Text>
+                          <View style={styles.skillTypeRow}>
+                            <Pressable
                               style={[
-                                styles.skillTypeChipText,
-                                addSkillType === "PRIMARY" &&
-                                  styles.skillTypeChipTextActive,
+                                styles.skillTypeChip,
+                                addSkillType === "PRIMARY" && styles.skillTypeChipActive,
                               ]}
+                              onPress={() => setAddSkillType("PRIMARY")}
                             >
-                              Primary
-                            </Text>
-                          </Pressable>
-                          <Pressable
-                            style={[
-                              styles.skillTypeChip,
-                              addSkillType === "SECONDARY" &&
-                                styles.skillTypeChipActive,
-                            ]}
-                            onPress={() => setAddSkillType("SECONDARY")}
-                          >
-                            <Text
+                              <Text
+                                style={[
+                                  styles.skillTypeChipText,
+                                  addSkillType === "PRIMARY" &&
+                                    styles.skillTypeChipTextActive,
+                                ]}
+                              >
+                                Primary
+                              </Text>
+                            </Pressable>
+                            <Pressable
                               style={[
-                                styles.skillTypeChipText,
-                                addSkillType === "SECONDARY" &&
-                                  styles.skillTypeChipTextActive,
+                                styles.skillTypeChip,
+                                addSkillType === "SECONDARY" && styles.skillTypeChipActive,
                               ]}
+                              onPress={() => setAddSkillType("SECONDARY")}
                             >
-                              Secondary
-                            </Text>
-                          </Pressable>
+                              <Text
+                                style={[
+                                  styles.skillTypeChipText,
+                                  addSkillType === "SECONDARY" &&
+                                    styles.skillTypeChipTextActive,
+                                ]}
+                              >
+                                Secondary
+                              </Text>
+                            </Pressable>
+                          </View>
                         </View>
                       </View>
                     )}
@@ -510,12 +494,12 @@ export default function SkillsScreen() {
                       {addSkill.isPending ? (
                         <ActivityIndicator size="small" color={Colors.white} />
                       ) : (
-                        <Text style={styles.modalButtonText}>Add Skill</Text>
+                        <Text style={styles.modalButtonText}>Add a Skill</Text>
                       )}
                     </Pressable>
-                  </>
-                )}
-              </ScrollView>
+                  </View>
+                </>
+              )}
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
@@ -852,6 +836,30 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     maxHeight: "80%",
   },
+  addModalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: "85%",
+    minHeight: "65%",
+    overflow: "hidden",
+  },
+  modalHeaderFixed: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  addModalBody: {
+    flex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -891,6 +899,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     marginBottom: Spacing.md,
   },
+  skillsListContent: {
+    paddingBottom: Spacing.md,
+  },
   skillOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -919,6 +930,37 @@ const styles = StyleSheet.create({
   },
   experienceSection: {
     marginBottom: Spacing.lg,
+  },
+  addModalFooter: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  experienceSkillTypeRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  experienceInlineSection: {
+    width: 96,
+  },
+  skillTypeInlineSection: {
+    flex: 1,
+  },
+  experienceInputCompact: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    textAlign: "center",
+    fontSize: 20,
   },
   experienceInput: {
     borderWidth: 1,

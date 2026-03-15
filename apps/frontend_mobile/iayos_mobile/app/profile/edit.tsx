@@ -1141,10 +1141,11 @@ const styles = StyleSheet.create({
 
   // Management Section (Certifications)
   managementSection: {
-    marginBottom: Spacing.lg,
-    padding: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.large,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    padding: Spacing.lg,
     ...Shadows.small,
   },
   managementHeader: {
