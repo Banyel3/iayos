@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
 from django.db import transaction as db_transaction
+from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional
@@ -141,6 +142,142 @@ def get_effective_work_date(job: Job):
 def _has_meaningful_text(value: str) -> bool:
     """Require at least one alphabetic character to reject numeric/symbol-only payloads."""
     return bool(re.search(r"[A-Za-z]", value or ""))
+
+
+def _self_heal_worker_team_assignments(worker_profile: WorkerProfile) -> int:
+    """
+    Backward-compatible cleanup for legacy team assignments that still look ACTIVE
+    even when the linked job is already cancelled or completed.
+    """
+    active_qs = JobWorkerAssignment.objects.filter(
+        workerID=worker_profile,
+        assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+    )
+
+    cancelled_qs = active_qs.filter(
+        Q(jobID__status=JobPosting.JobStatus.CANCELLED)
+        | Q(jobID__cancelledAt__isnull=False)
+        | (Q(jobID__cancelledByRole__isnull=False) & ~Q(jobID__cancelledByRole=""))
+    )
+    cancelled_ids = list(cancelled_qs.values_list("assignmentID", flat=True))
+    cancelled_fixed = 0
+    if cancelled_ids:
+        cancelled_fixed = JobWorkerAssignment.objects.filter(
+            assignmentID__in=cancelled_ids
+        ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.REMOVED)
+
+    completed_qs = active_qs.filter(
+        Q(jobID__status=JobPosting.JobStatus.COMPLETED)
+        | Q(jobID__clientMarkedComplete=True)
+    )
+    if cancelled_ids:
+        completed_qs = completed_qs.exclude(assignmentID__in=cancelled_ids)
+
+    completed_ids = list(completed_qs.values_list("assignmentID", flat=True))
+    completed_fixed = 0
+    if completed_ids:
+        completed_fixed = JobWorkerAssignment.objects.filter(
+            assignmentID__in=completed_ids
+        ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.COMPLETED)
+
+    return cancelled_fixed + completed_fixed
+
+
+def _derive_and_self_heal_job_date_window(job: JobPosting):
+    """
+    Self-heal legacy jobs that are missing start/end day metadata.
+    Returns (start_date, end_date, duration_days).
+    """
+    start_date = getattr(job, "preferredStartDate", None)
+    end_date = getattr(job, "scheduled_end_date", None)
+    actual_start_date = getattr(job, "actual_start_date", None)
+    started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
+    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    if duration_days <= 0:
+        duration_days = _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+
+    attendance_dates = []
+    try:
+        from accounts.models import DailyAttendance
+
+        attendance_dates = list(
+            DailyAttendance.objects.filter(jobID=job)
+            .values_list("date", flat=True)
+            .distinct()
+        )
+    except Exception:
+        attendance_dates = []
+
+    earliest_attendance = min(attendance_dates) if attendance_dates else None
+    latest_attendance = max(attendance_dates) if attendance_dates else None
+
+    changed_fields: List[str] = []
+
+    if not start_date:
+        start_date = (
+            actual_start_date
+            or (timezone.localtime(started_at).date() if started_at else None)
+            or earliest_attendance
+        )
+        if start_date:
+            job.preferredStartDate = start_date
+            changed_fields.append("preferredStartDate")
+
+    if not actual_start_date and start_date:
+        job.actual_start_date = start_date
+        changed_fields.append("actual_start_date")
+
+    if not end_date and start_date:
+        if duration_days > 1:
+            end_date = start_date + timedelta(days=duration_days - 1)
+        elif latest_attendance and latest_attendance >= start_date:
+            end_date = latest_attendance
+        else:
+            end_date = start_date
+        job.scheduled_end_date = end_date
+        changed_fields.append("scheduled_end_date")
+
+    if duration_days <= 0 and start_date and end_date:
+        inferred_duration = max(1, (end_date - start_date).days + 1)
+        job.duration_days = inferred_duration
+        duration_days = inferred_duration
+        changed_fields.append("duration_days")
+
+    if attendance_dates:
+        confirmed_days = 0
+        try:
+            from accounts.models import DailyAttendance
+
+            confirmed_days = (
+                DailyAttendance.objects.filter(jobID=job, client_confirmed=True)
+                .values_list("date", flat=True)
+                .distinct()
+                .count()
+            )
+        except Exception:
+            confirmed_days = 0
+
+        if confirmed_days > int(getattr(job, "total_days_worked", 0) or 0):
+            job.total_days_worked = confirmed_days
+            changed_fields.append("total_days_worked")
+
+    if changed_fields:
+        try:
+            job.save(update_fields=list(dict.fromkeys(changed_fields)))
+            print(
+                f"🛠️ Self-healed legacy job dates for job #{job.jobID}: "
+                f"{', '.join(changed_fields)}"
+            )
+        except Exception as heal_err:
+            print(f"⚠️ Failed to persist legacy date self-heal for job #{job.jobID}: {heal_err}")
+
+    if not start_date and end_date:
+        start_date = end_date
+
+    if not end_date and start_date:
+        end_date = start_date
+
+    return start_date, end_date, max(duration_days, 1)
 
 
 def broadcast_job_status_update(job_id, update_data):
@@ -1845,6 +1982,7 @@ def get_worker_schedule(request):
         # Team job assignments for this worker
         team_job_ids = []
         if worker_profile:
+            _self_heal_worker_team_assignments(worker_profile)
             team_job_ids = list(
                 JobWorkerAssignment.objects.filter(
                     workerID=worker_profile,
@@ -1879,22 +2017,22 @@ def get_worker_schedule(request):
                 JobPosting.JobStatus.IN_PROGRESS,
                 JobPosting.JobStatus.COMPLETED,
             ],
-            preferredStartDate__isnull=False,
         ).select_related('clientID__profileID').order_by('preferredStartDate', 'jobID')
 
         payload_jobs = []
         for j in jobs:
-            start_date = j.preferredStartDate
+            start_date, end_date, duration_days = _derive_and_self_heal_job_date_window(j)
             if not start_date:
                 continue
 
-            end_date = j.scheduled_end_date or start_date
             payload_jobs.append(
                 {
                     "id": j.jobID,
                     "title": j.title,
                     "preferred_start_date": start_date.isoformat()[:10],
                     "scheduled_end_date": end_date.isoformat()[:10],
+                    "duration_days": duration_days,
+                    "total_days_worked": int(j.total_days_worked or 0),
                     "status": j.status,
                     "client_name": (
                         f"{j.clientID.profileID.firstName} {j.clientID.profileID.lastName}"
@@ -2416,8 +2554,11 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             overlapping_job = JobPosting.objects.filter(
                 assignedWorkerID=worker_profile,
                 status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                cancelledAt__isnull=True,
                 preferredStartDate__lte=job.scheduled_end_date,
                 scheduled_end_date__gte=job.preferredStartDate,
+            ).filter(
+                Q(cancelledByRole__isnull=True) | Q(cancelledByRole="")
             ).exclude(jobID=job.jobID).first()
             if overlapping_job:
                 return Response(
@@ -2444,6 +2585,9 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         active_regular_job = JobPosting.objects.filter(
             assignedWorkerID=worker_profile,
             status=JobPosting.JobStatus.IN_PROGRESS,
+            cancelledAt__isnull=True,
+        ).filter(
+            Q(cancelledByRole__isnull=True) | Q(cancelledByRole="")
         ).exclude(jobID=job.jobID).first()
 
         if active_regular_job:
@@ -2469,9 +2613,16 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 status=400,
             )
 
+        # Self-heal legacy ACTIVE assignments linked to cancelled/completed jobs
+        _self_heal_worker_team_assignments(worker_profile)
+
         active_team_assignment = JobWorkerAssignment.objects.filter(
             workerID=worker_profile,
-            assignment_status='ACTIVE',
+            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+            jobID__status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+            jobID__cancelledAt__isnull=True,
+        ).filter(
+            Q(jobID__cancelledByRole__isnull=True) | Q(jobID__cancelledByRole="")
         ).select_related('jobID').first()
 
         if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
@@ -2680,8 +2831,11 @@ def accept_application(request, job_id: int, application_id: int):
             overlapping_job = JobPosting.objects.filter(
                 assignedWorkerID=worker,
                 status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+                cancelledAt__isnull=True,
                 preferredStartDate__lte=job.scheduled_end_date,
                 scheduled_end_date__gte=job.preferredStartDate,
+            ).filter(
+                Q(cancelledByRole__isnull=True) | Q(cancelledByRole="")
             ).exclude(jobID=job.jobID).first()
             if overlapping_job:
                 worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
