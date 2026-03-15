@@ -1012,6 +1012,8 @@ export interface ClientConfirmResponse {
   status: AttendanceStatus;
   amount_earned: number;
   payment_processed: boolean;
+  payment_method?: "WALLET" | "CASH";
+  cash_payment_proof_url?: string | null;
   message: string;
 }
 
@@ -1192,18 +1194,41 @@ export const useClientConfirmAttendance = () => {
     mutationFn: async ({
       attendanceId,
       approvedStatus,
+      paymentMethod,
+      cashProofImage,
     }: {
       attendanceId: number;
       approvedStatus?: "PRESENT" | "HALF_DAY" | "ABSENT";
+      paymentMethod?: "WALLET" | "CASH";
+      cashProofImage?: {
+        uri: string;
+        name?: string;
+        type?: string;
+      };
     }): Promise<ClientConfirmResponse> => {
-      let url = ENDPOINTS.CLIENT_CONFIRM_ATTENDANCE(attendanceId);
+      const formData = new FormData();
       if (approvedStatus) {
-        url += `?approved_status=${approvedStatus}`;
+        formData.append("approved_status", approvedStatus);
       }
 
-      const response = await apiRequest(url, {
+      const selectedMethod = paymentMethod || "WALLET";
+      formData.append("payment_method", selectedMethod);
+
+      if (selectedMethod === "CASH" && cashProofImage?.uri) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage.uri,
+          type: cashProofImage.type || "image/jpeg",
+          name: cashProofImage.name || `daily_cash_proof_${attendanceId}.jpg`,
+        } as any);
+      }
+
+      const response = await apiRequest(
+        ENDPOINTS.CLIENT_CONFIRM_ATTENDANCE(attendanceId),
+        {
         method: "POST",
-      });
+          body: formData,
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -1223,8 +1248,11 @@ export const useClientConfirmAttendance = () => {
           status: data.status,
           amount_earned: data.amount_earned,
           payment_processed: data.payment_processed,
+          payment_method: data.payment_method || row?.payment_method || "WALLET",
+          cash_payment_proof_url:
+            data.cash_payment_proof_url || row?.cash_payment_proof_url || null,
         }),
-      );
+      });
 
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
@@ -1235,7 +1263,9 @@ export const useClientConfirmAttendance = () => {
         type: "success",
         text1: "Attendance Confirmed ✅",
         text2: data.payment_processed
-          ? `Payment of ₱${data.amount_earned.toFixed(0)} processed`
+          ? data.payment_method === "CASH"
+            ? `Cash payout of ₱${data.amount_earned.toFixed(0)} released`
+            : `Payment of ₱${data.amount_earned.toFixed(0)} processed`
           : "Awaiting worker confirmation",
         position: "top",
       });

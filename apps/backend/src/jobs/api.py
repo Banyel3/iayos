@@ -9828,6 +9828,9 @@ def get_daily_attendance(request, job_id: int, start_date: str = None, end_date:
             'worker_confirmed': attendance.worker_confirmed,
             'client_confirmed': attendance.client_confirmed,
             'payment_processed': attendance.payment_processed,
+            'payment_method': attendance.payment_method,
+            'cash_payment_proof_url': attendance.cash_payment_proof_url,
+            'cash_payment_verified': attendance.cash_payment_verified,
             'notes': attendance.notes,
         })
     
