@@ -1418,52 +1418,31 @@ export interface RequestDailySkipDayPayload {
 }
 
 export interface ClientReviewDailySkipDayPayload {
-
-  interface SkipDayReviewResponse {
-    success: boolean;
-    message?: string;
-    skip_request?: {
-      skip_request_id: number;
-      status: "PENDING" | "APPROVED" | "REJECTED";
-      client_rejection_reason?: string | null;
-    };
-    processed_attendance?: Array<{
-      attendance_id: number;
-      worker_id?: number;
-      worker_account_id?: number;
-      status: string;
-      client_confirmed: boolean;
-      amount_earned: number;
-      payment_processed: boolean;
-      absent_penalty_amount?: number;
-    }>;
-  }
   jobId: number;
   skipRequestId: number;
   approve: boolean;
   reason?: string;
-      return response.json() as Promise<{
-        success: boolean;
-        message?: string;
-        skip_request?: {
-          skip_request_id?: number;
-          status?: "PENDING" | "APPROVED" | "REJECTED";
-          client_rejection_reason?: string | null;
-        };
-      }>;
 }
 
-      const skipRequestId = Number(data?.skip_request?.skip_request_id);
-      const status = data?.skip_request?.status;
-      if (skipRequestId && status) {
-        patchConversationSkipRequestStatus(
-          queryClient,
-          variables.jobId,
-          skipRequestId,
-          status,
-          data?.skip_request?.client_rejection_reason ?? null,
-        );
-      }
+interface SkipDayReviewResponse {
+  success: boolean;
+  message?: string;
+  skip_request?: {
+    skip_request_id: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    client_rejection_reason?: string | null;
+  };
+  processed_attendance?: Array<{
+    attendance_id: number;
+    worker_id?: number;
+    worker_account_id?: number;
+    status: string;
+    client_confirmed: boolean;
+    amount_earned: number;
+    payment_processed: boolean;
+    absent_penalty_amount?: number;
+  }>;
+}
 
 export interface ClientQASkipNextDayPayload {
   jobId: number;
@@ -1567,11 +1546,10 @@ export const useClientReviewDailySkipDay = () => {
         );
       }
 
-      return response.json() as Promise<{ success: boolean; message?: string }>;
+      return response.json() as Promise<SkipDayReviewResponse>;
     },
-    onSuccess: (data) => {
     onSuccess: (data, variables) => {
-      const response = data as SkipDayReviewResponse;
+      const response = data;
       const skipStatus = response?.skip_request?.status;
       if (skipStatus) {
         patchConversationSkipRequestStatus(
