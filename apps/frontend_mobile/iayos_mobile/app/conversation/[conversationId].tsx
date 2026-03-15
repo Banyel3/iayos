@@ -481,9 +481,13 @@ export default function ChatScreen() {
   const normalizedConversationStatus = (
     conversation?.status || ""
   ).toUpperCase();
-  const normalizedJobStatus = (conversation?.job?.status || "").toUpperCase();
+  const normalizedJobStatus = (
+    conversation?.job?.effective_status || conversation?.job?.status || ""
+  ).toUpperCase();
+  const hasCancellationCompatFlag = conversation?.job?.is_cancelled === true;
   const isJobCompleted = normalizedJobStatus === "COMPLETED";
-  const isJobCancelled = normalizedJobStatus === "CANCELLED";
+  const isJobCancelled =
+    normalizedJobStatus === "CANCELLED" || hasCancellationCompatFlag;
   const isJobInProgress = normalizedJobStatus === "IN_PROGRESS";
   const isJobActive = normalizedJobStatus === "ACTIVE";
   const isJobAssigned = normalizedJobStatus === "ASSIGNED";

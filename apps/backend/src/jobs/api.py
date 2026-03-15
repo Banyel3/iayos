@@ -8126,8 +8126,34 @@ def get_job_receipt(request, job_id: int):
         cancellation_reason = getattr(job, 'cancellationReason', None)
         client_refund_amount = Decimal(str(getattr(job, 'clientRefundAmount', Decimal('0.00')) or Decimal('0.00')))
         worker_compensation_amount = Decimal(str(getattr(job, 'workerCompensationAmount', Decimal('0.00')) or Decimal('0.00')))
+        is_cancelled_job = job.status == Job.JobStatus.CANCELLED
 
-        if job.status == Job.JobStatus.CANCELLED and (
+        if not is_cancelled_job:
+            is_cancelled_job = bool(
+                cancelled_at
+                or cancelled_by_role
+                or cancellation_stage
+                or cancellation_reason
+                or client_refund_amount > Decimal('0.00')
+                or worker_compensation_amount > Decimal('0.00')
+            )
+
+        if not is_cancelled_job:
+            try:
+                from accounts.models import JobLog
+
+                legacy_cancel_log = JobLog.objects.filter(
+                    jobID=job,
+                    newStatus=Job.JobStatus.CANCELLED,
+                ).order_by('-createdAt').first()
+                if legacy_cancel_log:
+                    is_cancelled_job = True
+                    if not cancelled_at:
+                        cancelled_at = getattr(legacy_cancel_log, 'createdAt', None)
+            except Exception:
+                pass
+
+        if is_cancelled_job and (
             not cancellation_stage or
             not cancelled_by_role or
             client_refund_amount == Decimal('0.00') or
@@ -8141,6 +8167,9 @@ def get_job_receipt(request, job_id: int):
                     jobID=job,
                     newStatus=Job.JobStatus.CANCELLED,
                 ).order_by('-createdAt').first()
+
+                if cancel_log and not cancelled_at:
+                    cancelled_at = getattr(cancel_log, 'createdAt', None)
 
                 if cancel_log and cancel_log.notes:
                     notes = str(cancel_log.notes)
@@ -8172,7 +8201,7 @@ def get_job_receipt(request, job_id: int):
             except Exception:
                 pass
         # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
-        if job.status == Job.JobStatus.CANCELLED:
+        if is_cancelled_job:
             actual_worker_earnings = worker_compensation_amount
             if payment_model == 'DAILY' and actual_worker_earnings == Decimal('0.00'):
                 actual_worker_earnings = daily_earned_total
@@ -8307,14 +8336,14 @@ def get_job_receipt(request, job_id: int):
             print(f"⚠️ Error fetching transactions for receipt: {e}")
 
         # For cancelled jobs, prefer earnings from transaction history over model-level compensation fields.
-        if job.status == Job.JobStatus.CANCELLED:
+        if is_cancelled_job:
             if earning_amount_from_transactions > Decimal('0.00'):
                 actual_worker_earnings = earning_amount_from_transactions
             elif pending_earning_amount_from_transactions > Decimal('0.00'):
                 actual_worker_earnings = pending_earning_amount_from_transactions
 
         platform_fee_retained = Decimal('0.00')
-        if job.status == Job.JobStatus.CANCELLED and job.escrowPaid:
+        if is_cancelled_job and job.escrowPaid:
             platform_fee_retained = max(
                 Decimal('0.00'),
                 actual_client_paid - actual_worker_earnings - materials_cost,
@@ -8390,7 +8419,7 @@ def get_job_receipt(request, job_id: int):
                 'job_type': job.jobType,
                 
                 # Status and dates
-                'status': job.status,
+                'status': Job.JobStatus.CANCELLED if is_cancelled_job else job.status,
                 'created_at': job.createdAt.isoformat() if job.createdAt else None,
                 'started_at': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
                 'worker_completed_at': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
@@ -8461,14 +8490,14 @@ def get_job_receipt(request, job_id: int):
 
                 # Cancellation settlement details (for cancelled jobs)
                 'cancellation': {
-                    'is_cancelled': job.status == Job.JobStatus.CANCELLED,
+                    'is_cancelled': is_cancelled_job,
                     'reason': cancellation_reason,
                     'stage': cancellation_stage,
                     'cancelled_by_role': cancelled_by_role,
                     'summary': (
                         f"Cancelled by {cancelled_by_role or 'UNKNOWN'}"
                         + (f" at {cancellation_stage}" if cancellation_stage else "")
-                    ) if job.status == Job.JobStatus.CANCELLED else None,
+                    ) if is_cancelled_job else None,
                     'client_refund_amount': float(client_refund_amount),
                     'worker_compensation_amount': float(worker_compensation_amount),
                     'platform_fee_retained': float(platform_fee_retained),
