@@ -83,6 +83,12 @@ export type ConversationDetail = {
     id: number;
     title: string;
     status: string;
+    is_cancelled?: boolean;
+    effective_status?: string;
+    cancelled_at?: string | null;
+    cancelled_by_role?: string | null;
+    cancellation_stage?: string | null;
+    cancellation_reason?: string | null;
     budget: number;
     location: string;
     preferred_start_date?: string;

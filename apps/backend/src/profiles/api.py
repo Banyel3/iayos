@@ -70,6 +70,28 @@ def _get_effective_work_date(job):
 
     return base_date + timedelta(days=day_offset)
 
+
+def _get_job_cancellation_snapshot(job):
+    """Provide backward-compatible cancellation signals for legacy jobs."""
+    cancelled_at = getattr(job, "cancelledAt", None)
+    cancelled_by_role = getattr(job, "cancelledByRole", None)
+    cancellation_stage = getattr(job, "cancellationStage", None)
+    cancellation_reason = getattr(job, "cancellationReason", None)
+
+    status_value = str(getattr(job, "status", "") or "").upper()
+    is_cancelled = status_value == "CANCELLED" or bool(
+        cancelled_at or cancelled_by_role or cancellation_stage or cancellation_reason
+    )
+
+    return {
+        "is_cancelled": is_cancelled,
+        "effective_status": "CANCELLED" if is_cancelled else status_value,
+        "cancelled_at": cancelled_at.isoformat() if cancelled_at else None,
+        "cancelled_by_role": cancelled_by_role,
+        "cancellation_stage": cancellation_stage,
+        "cancellation_reason": cancellation_reason,
+    }
+
 # ============================================================
 # DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
 # These endpoints are kept as stubs for backward compatibility
@@ -951,6 +973,7 @@ def get_conversations(request, filter: str = "all"):
                 
                 unread_count = participant.unread_count if participant else 0
                 is_archived = participant.is_archived if participant else False
+                cancellation_snapshot = _get_job_cancellation_snapshot(job)
                 
                 result.append({
                     "id": conv.conversationID,
@@ -959,6 +982,8 @@ def get_conversations(request, filter: str = "all"):
                         "id": job.jobID,
                         "title": job.title,
                         "status": job.status,
+                        "is_cancelled": cancellation_snapshot["is_cancelled"],
+                        "effective_status": cancellation_snapshot["effective_status"],
                         "budget": float(job.budget),
                         "location": job.location,
                         "is_team_job": job.is_team_job,
@@ -993,6 +1018,7 @@ def get_conversations(request, filter: str = "all"):
             
             # Get job info
             job = conv.relatedJobPosting
+            cancellation_snapshot = _get_job_cancellation_snapshot(job)
             
             # Count unread messages
             unread_count = conv.unreadCountClient if is_client else conv.unreadCountWorker
@@ -1104,6 +1130,8 @@ def get_conversations(request, filter: str = "all"):
                     "id": job.jobID,
                     "title": job.title,
                     "status": job.status,
+                    "is_cancelled": cancellation_snapshot["is_cancelled"],
+                    "effective_status": cancellation_snapshot["effective_status"],
                     "budget": float(job.budget),
                     "location": job.location,
                     "workerMarkedComplete": job.workerMarkedComplete,
@@ -1476,6 +1504,7 @@ def get_conversation_messages(request, conversation_id: int):
         
         # Get job info
         job = conversation.relatedJobPosting
+        cancellation_snapshot = _get_job_cancellation_snapshot(job)
         
         # Get all messages with attachments
         messages = Message.objects.filter(
@@ -2496,6 +2525,12 @@ def get_conversation_messages(request, conversation_id: int):
                 "id": job.jobID,
                 "title": job.title,
                 "status": job.status,
+                "is_cancelled": cancellation_snapshot["is_cancelled"],
+                "effective_status": cancellation_snapshot["effective_status"],
+                "cancelled_at": cancellation_snapshot["cancelled_at"],
+                "cancelled_by_role": cancellation_snapshot["cancelled_by_role"],
+                "cancellation_stage": cancellation_snapshot["cancellation_stage"],
+                "cancellation_reason": cancellation_snapshot["cancellation_reason"],
                 "payment_model": getattr(job, 'payment_model', 'PROJECT'),  # PROJECT or DAILY
                 "daily_rate": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
                 "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
