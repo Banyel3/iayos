@@ -3,11 +3,25 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Alert } from "react-native";
 import websocketService, {
   WebSocketMessage,
   ChatMessage,
   ConnectionState,
 } from "../services/websocket";
+
+const CONTACT_INFO_BLOCKED_MESSAGE =
+  "For safety, sharing phone numbers or email addresses in chat is not allowed.";
+const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+const PH_PHONE_REGEX = /\b(\+63|63|0)?9\d{9}\b/;
+
+function containsContactInfo(text: string): boolean {
+  if (!text) {
+    return false;
+  }
+
+  return EMAIL_REGEX.test(text) || PH_PHONE_REGEX.test(text);
+}
 
 function invalidateConversationMessageQueries(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -158,6 +172,11 @@ export function useSendMessage() {
       text: string,
       type: "TEXT" | "IMAGE" = "TEXT"
     ): Promise<boolean> => {
+      if (type === "TEXT" && containsContactInfo(text)) {
+        Alert.alert("Message blocked", CONTACT_INFO_BLOCKED_MESSAGE);
+        throw new Error("CONTACT_INFO_BLOCKED");
+      }
+
       if (!websocketService.isConnected()) {
         try {
           await websocketService.connect();
@@ -199,6 +218,19 @@ export function useSendMessage() {
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
           invalidateConversationMessageQueries(queryClient, conversationId);
           return true;
+        }
+
+        try {
+          const errorData = await response.json();
+          if (errorData?.error_code === "CONTACT_INFO_BLOCKED") {
+            Alert.alert(
+              "Message blocked",
+              errorData.error || CONTACT_INFO_BLOCKED_MESSAGE
+            );
+            throw new Error("CONTACT_INFO_BLOCKED");
+          }
+        } catch {
+          // Ignore non-JSON error bodies and continue to generic error handling.
         }
 
         console.error(
@@ -277,6 +309,16 @@ export function useMessageListener(conversationId?: number) {
       if (data.type === "message_read" && conversationId) {
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
         invalidateConversationMessageQueries(queryClient, conversationId);
+      }
+
+      if (
+        data.type === "error" &&
+        (data as any).error_code === "CONTACT_INFO_BLOCKED"
+      ) {
+        Alert.alert(
+          "Message blocked",
+          (data as any).error || CONTACT_INFO_BLOCKED_MESSAGE
+        );
       }
     });
 

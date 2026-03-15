@@ -4,12 +4,26 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import websocketService, {
   WebSocketMessage,
   ChatMessage,
   ConnectionState,
 } from "../services/websocket";
 import { API_BASE_URL } from "@/lib/api/config";
+
+const CONTACT_INFO_BLOCKED_MESSAGE =
+  "For safety, sharing phone numbers or email addresses in chat is not allowed.";
+const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+const PH_PHONE_REGEX = /\b(\+63|63|0)?9\d{9}\b/;
+
+function containsContactInfo(text: string): boolean {
+  if (!text) {
+    return false;
+  }
+
+  return EMAIL_REGEX.test(text) || PH_PHONE_REGEX.test(text);
+}
 
 /**
  * Hook to manage WebSocket connection state
@@ -81,6 +95,11 @@ export function useSendMessage() {
       text: string,
       type: "TEXT" | "IMAGE" = "TEXT",
     ): Promise<boolean> => {
+      if (type === "TEXT" && containsContactInfo(text)) {
+        toast.error(CONTACT_INFO_BLOCKED_MESSAGE);
+        return false;
+      }
+
       // Try WebSocket first
       const sent = websocketService.sendMessage(conversationId, text, type);
 
@@ -118,6 +137,16 @@ export function useSendMessage() {
             queryKey: ["messages", conversationId],
           });
           return true;
+        }
+
+        try {
+          const errorData = await response.json();
+          if (errorData?.error_code === "CONTACT_INFO_BLOCKED") {
+            toast.error(errorData.error || CONTACT_INFO_BLOCKED_MESSAGE);
+            return false;
+          }
+        } catch {
+          // Ignore non-JSON error bodies and fall through to generic handling.
         }
 
         console.error(
@@ -174,6 +203,13 @@ export function useMessageListener(conversationId?: number) {
             queryKey: ["agency-messages", conversationId],
           });
         }
+      }
+
+      if (
+        data.type === "error" &&
+        (data as any).error_code === "CONTACT_INFO_BLOCKED"
+      ) {
+        toast.error((data as any).error || CONTACT_INFO_BLOCKED_MESSAGE);
       }
     });
 

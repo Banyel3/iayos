@@ -4,10 +4,11 @@ from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import Conversation, ConversationParticipant, Message, Profile
-from .content_filter import censor_contact_info
+from .content_filter import contains_contact_info
 from accounts.models import Job, JobReview, Agency
 
 User = get_user_model()
+CONTACT_INFO_BLOCKED_MESSAGE = "For safety, sharing phone numbers or email addresses in chat is not allowed."
 
 
 class InboxConsumer(AsyncWebsocketConsumer):
@@ -142,6 +143,15 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 }
             )
             print(f"[InboxWS] 📤 Message broadcasted to group {room_group_name}")
+        except ValueError as e:
+            if str(e) == "CONTACT_INFO_BLOCKED":
+                await self.send(text_data=json.dumps({
+                    "type": "error",
+                    "error_code": "CONTACT_INFO_BLOCKED",
+                    "error": CONTACT_INFO_BLOCKED_MESSAGE,
+                }))
+                return
+            raise
         except json.JSONDecodeError as e:
             print(f"[InboxWS] ❌ JSON decode error: {str(e)}")
         except Exception as e:
@@ -446,7 +456,10 @@ class InboxConsumer(AsyncWebsocketConsumer):
     def save_message(self, conversation_id, message_text, message_type):
         """Save a message - supports both Profile and Agency senders"""
         try:
-            sanitized_text = censor_contact_info(message_text)
+            normalized_message_type = (message_type or "TEXT").upper()
+            if normalized_message_type == "TEXT" and contains_contact_info(message_text):
+                raise ValueError("CONTACT_INFO_BLOCKED")
+
             conversation = Conversation.objects.get(conversationID=conversation_id)
             
             # Try to get profile for sender
@@ -479,8 +492,8 @@ class InboxConsumer(AsyncWebsocketConsumer):
                 conversationID=conversation, 
                 sender=profile,  # None if agency user
                 senderAgency=agency,  # None if profile user
-                messageText=sanitized_text,
-                messageType=message_type, 
+                messageText=message_text,
+                messageType=normalized_message_type,
                 isRead=False
             )
             print(f"[InboxWS] ✅ Message created with ID: {message.messageID}")
@@ -754,6 +767,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }
             )
             print(f"[WebSocket] 📤 Message broadcasted to group")
+        except ValueError as e:
+            if str(e) == "CONTACT_INFO_BLOCKED":
+                await self.send(text_data=json.dumps({
+                    "type": "error",
+                    "error_code": "CONTACT_INFO_BLOCKED",
+                    "error": CONTACT_INFO_BLOCKED_MESSAGE,
+                }))
+                return
+            raise
         except json.JSONDecodeError as e:
             print(f"[WebSocket] ❌ JSON decode error: {str(e)}")
         except Exception as e:
@@ -809,7 +831,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, message_text, message_type):
         try:
-            sanitized_text = censor_contact_info(message_text)
+            normalized_message_type = (message_type or "TEXT").upper()
+            if normalized_message_type == "TEXT" and contains_contact_info(message_text):
+                raise ValueError("CONTACT_INFO_BLOCKED")
+
             print(f"[WebSocket] 🔍 Looking up profile for user: {self.user.email}")
             profile_type = getattr(self.user, 'profile_type', None)
             if profile_type:
@@ -828,8 +853,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.create(
                 conversationID=conversation, 
                 sender=profile, 
-                messageText=sanitized_text,
-                messageType=message_type, 
+                messageText=message_text,
+                messageType=normalized_message_type,
                 isRead=False
             )
             print(f"[WebSocket] ✅ Message created with ID: {message.messageID}")

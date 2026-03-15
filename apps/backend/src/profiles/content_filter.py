@@ -1,53 +1,22 @@
 import re
-from typing import Match
-
-# Matches email-like strings even when users insert separators between characters,
-# e.g. "j o h n @ g m a i l . c o m" or "john,@gmail,com".
-EMAIL_OBFUSCATED_RE = re.compile(
-    r"""(?ix)
-    \b
-    (?:[a-z0-9](?:[\s,./\\()_\-]*[a-z0-9]){1,63})
-    \s*(?:@|\(at\)|\[at\]|\{at\})\s*
-    (?:[a-z0-9](?:[\s,./\\()_\-]*[a-z0-9]){1,63})
-    (?:\s*(?:\.|\(dot\)|\[dot\]|\{dot\})\s*(?:[a-z](?:[\s,./\\()_\-]*[a-z]){1,24})){1,3}
-    \b
-    """
-)
-
-# Generic phone candidate matcher with separators. We validate the digits shape
-# before redacting to avoid false positives.
-PHONE_CANDIDATE_RE = re.compile(r"(?<!\w)(?:\+?\d[\d\s,./\\()_\-]{7,24}\d)(?!\w)")
 
 
-def _is_valid_mobile_number(candidate: str) -> bool:
-    digits = re.sub(r"\D", "", candidate)
-
-    # PH local format: 09XXXXXXXXX (11 digits)
-    if len(digits) == 11 and digits.startswith("09"):
-        return True
-
-    # PH intl format: 639XXXXXXXXX (12 digits)
-    if len(digits) == 12 and digits.startswith("639"):
-        return True
-
-    # PH w/o leading 0/country: 9XXXXXXXXX (10 digits)
-    if len(digits) == 10 and digits.startswith("9"):
-        return True
-
-    return False
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+PH_PHONE_RE = re.compile(r"\b(\+63|63|0)?9\d{9}\b")
 
 
-def _replace_phone_if_mobile(match: Match[str]) -> str:
-    value = match.group(0)
-    if _is_valid_mobile_number(value):
-        return "[mobile number hidden]"
-    return value
+def contains_contact_info(text: str) -> bool:
+    if not text:
+        return False
+
+    return bool(EMAIL_RE.search(text) or PH_PHONE_RE.search(text))
 
 
 def censor_contact_info(text: str) -> str:
+    """Compatibility helper retained for non-chat call sites."""
     if not text:
         return text
 
-    sanitized = EMAIL_OBFUSCATED_RE.sub("[email hidden]", text)
-    sanitized = PHONE_CANDIDATE_RE.sub(_replace_phone_if_mobile, sanitized)
+    sanitized = EMAIL_RE.sub("[email hidden]", text)
+    sanitized = PH_PHONE_RE.sub("[mobile number hidden]", sanitized)
     return sanitized

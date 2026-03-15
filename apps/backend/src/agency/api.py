@@ -2440,9 +2440,11 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
     """
     try:
         from profiles.models import Conversation, Message
-        from profiles.content_filter import censor_contact_info
+        from profiles.content_filter import contains_contact_info
         from accounts.models import Profile, Agency
         from .models import AgencyKYC
+
+        contact_info_blocked_message = "For safety, sharing phone numbers or email addresses in chat is not allowed."
         
         account = request.auth
         
@@ -2515,20 +2517,28 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
                 conv.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
                 print(f"🔄 Auto-reopened conversation {conv.conversationID} for active backjob {active_dispute.disputeID}")
         
-        sanitized_text = censor_contact_info(payload.message_text)
+        normalized_message_type = (payload.message_type or "TEXT").upper()
+        if normalized_message_type == "TEXT" and contains_contact_info(payload.message_text):
+            return Response(
+                {
+                    "error": contact_info_blocked_message,
+                    "error_code": "CONTACT_INFO_BLOCKED",
+                },
+                status=400,
+            )
 
         # Create message as agency-authored (avoid dual-profile ambiguity).
         message = Message.objects.create(
             conversationID=conv,
             sender=None,
             senderAgency=agency,
-            messageText=sanitized_text,
-            messageType=payload.message_type,
+            messageText=payload.message_text,
+            messageType=normalized_message_type,
             isRead=False
         )
         
         # Update conversation - Note: Message.save() already handles some of this
-        conv.lastMessageText = sanitized_text[:100] if len(sanitized_text) > 100 else sanitized_text
+        conv.lastMessageText = payload.message_text[:100] if len(payload.message_text) > 100 else payload.message_text
         conv.lastMessageSender = agency_profile  # May be None for agency users
         conv.unreadCountClient += 1  # Increment client's unread
         conv.save(update_fields=['lastMessageText', 'lastMessageSender', 'unreadCountClient', 'updatedAt'])

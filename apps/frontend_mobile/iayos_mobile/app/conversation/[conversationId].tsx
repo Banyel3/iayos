@@ -2091,7 +2091,9 @@ export default function ChatScreen() {
         }, 100);
       } catch (error) {
         console.error("[ChatScreen] Failed to send message:", error);
-        Alert.alert("Error", getErrorMessage(error, "Failed to send message"));
+        if (!(error instanceof Error && error.message === "CONTACT_INFO_BLOCKED")) {
+          Alert.alert("Error", getErrorMessage(error, "Failed to send message"));
+        }
         throw error; // Re-throw so MessageInput keeps the text for retry
       } finally {
         setIsSending(false);

@@ -5,6 +5,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
+
+const CONTACT_INFO_BLOCKED_MESSAGE =
+  "For safety, sharing phone numbers or email addresses in chat is not allowed.";
+const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+const PH_PHONE_REGEX = /\b(\+63|63|0)?9\d{9}\b/;
+
+function containsContactInfo(text: string): boolean {
+  if (!text) {
+    return false;
+  }
+
+  return EMAIL_REGEX.test(text) || PH_PHONE_REGEX.test(text);
+}
 
 // Types
 export type AgencyConversationJob = {
@@ -248,6 +262,11 @@ export function useAgencySendMessage() {
       text: string;
       type?: "TEXT" | "IMAGE";
     }) => {
+      if (type === "TEXT" && containsContactInfo(text)) {
+        toast.error(CONTACT_INFO_BLOCKED_MESSAGE);
+        throw new Error("CONTACT_INFO_BLOCKED");
+      }
+
       const response = await fetch(
         `${API_BASE}/api/agency/conversations/${conversationId}/send`,
         {
@@ -262,6 +281,16 @@ export function useAgencySendMessage() {
       );
 
       if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          if (errorData?.error_code === "CONTACT_INFO_BLOCKED") {
+            toast.error(errorData.error || CONTACT_INFO_BLOCKED_MESSAGE);
+            throw new Error("CONTACT_INFO_BLOCKED");
+          }
+        } catch {
+          // Ignore non-JSON error responses and fall through.
+        }
+
         throw new Error(`Failed to send message: ${response.statusText}`);
       }
 
