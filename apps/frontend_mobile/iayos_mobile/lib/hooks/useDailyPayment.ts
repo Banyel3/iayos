@@ -1238,21 +1238,17 @@ export const useClientConfirmAttendance = () => {
     },
     onSuccess: (data) => {
       const nowIso = new Date().toISOString();
-      patchConversationAttendanceById(
-        queryClient,
-        data.attendance_id,
-        (row) => ({
-          ...row,
-          client_confirmed: true,
-          client_confirmed_at: row?.client_confirmed_at || nowIso,
-          status: data.status,
-          amount_earned: data.amount_earned,
-          payment_processed: data.payment_processed,
-          payment_method: data.payment_method || row?.payment_method || "WALLET",
-          cash_payment_proof_url:
-            data.cash_payment_proof_url || row?.cash_payment_proof_url || null,
-        }),
-      });
+      patchConversationAttendanceById(queryClient, data.attendance_id, (row) => ({
+        ...row,
+        client_confirmed: true,
+        client_confirmed_at: row?.client_confirmed_at || nowIso,
+        status: data.status,
+        amount_earned: data.amount_earned,
+        payment_processed: data.payment_processed,
+        payment_method: data.payment_method || row?.payment_method || "WALLET",
+        cash_payment_proof_url:
+          data.cash_payment_proof_url || row?.cash_payment_proof_url || null,
+      }));
 
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
