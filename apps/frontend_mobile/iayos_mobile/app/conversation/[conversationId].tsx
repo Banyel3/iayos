@@ -5421,62 +5421,6 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* CLIENT: Confirm Work Started Button (Regular Jobs Only) */}
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
-                conversation.my_role === "CLIENT" &&
-                canUseRegularProjectActions &&
-                !isRegularJobTerminal && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.cancelJobButton]}
-                    onPress={handleCancelJob}
-                    disabled={cancelJobMutation.isPending}
-                  >
-                    {cancelJobMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>Cancel Job</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-              {/* CLIENT: Cancel Daily Job Button */}
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                conversation.job?.payment_model === "DAILY" &&
-                conversation.my_role === "CLIENT" &&
-                !isJobCompleted &&
-                !isJobCancelled && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.cancelJobButton]}
-                    onPress={handleCancelDailyJob}
-                    disabled={cancelDailyJobMutation.isPending}
-                  >
-                    {cancelDailyJobMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>
-                          Cancel Daily Job
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
@@ -8931,9 +8875,6 @@ const styles = StyleSheet.create({
   },
   confirmWorkStartedButton: {
     backgroundColor: Colors.success,
-  },
-  cancelJobButton: {
-    backgroundColor: Colors.error,
   },
   markCompleteButton: {
     backgroundColor: Colors.primary,
