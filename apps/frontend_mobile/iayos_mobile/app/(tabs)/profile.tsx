@@ -87,7 +87,7 @@ export default function ProfileScreen() {
   ).toUpperCase();
 
   const hasProfileType = Boolean(user?.profile_data?.profileType);
-  const shouldFetchMetrics = hasProfileType;
+  const shouldFetchMetrics = hasProfileType && !isWorker;
   const {
     data: profileMetrics,
     isLoading: isMetricsLoading,
@@ -218,11 +218,7 @@ export default function ProfileScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingBottom: 120,
-          flexGrow: 1,
-          backgroundColor: Colors.backgroundSecondary,
-        }}
+        contentContainerStyle={{ paddingBottom: 120, flexGrow: 1, backgroundColor: Colors.backgroundSecondary }}
         style={{ backgroundColor: Colors.primaryLight }}
       >
         {/* Header with Profile Info */}
@@ -317,132 +313,23 @@ export default function ProfileScreen() {
           {/* Profile Switcher Section */}
           {!isDualStatusLoading && dualStatus && (
             <View style={styles.section}>
-              {isWorker ? (
-                // Worker account - show client profile option
-                dualStatus.has_client_profile ? (
-                  // Has client profile - show switch button
-                  <TouchableOpacity
-                    style={styles.switchProfileCard}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      Alert.alert(
-                        "Switch to Client Profile",
-                        "Switch to your client profile to post jobs and hire workers. You can switch back anytime.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Switch",
-                            style: "default",
-                            onPress: () => switchProfile.mutate("CLIENT"),
-                          },
-                        ],
-                      );
-                    }}
-                    disabled={switchProfile.isPending}
-                  >
-                    <View style={styles.switchProfileContent}>
-                      <View style={styles.switchIconContainer}>
-                        {switchProfile.isPending ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={Colors.primary}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="briefcase"
-                            size={24}
-                            color={Colors.primary}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.switchTextContainer}>
-                        <Text style={styles.switchProfileTitle}>
-                          {switchProfile.isPending
-                            ? "Switching..."
-                            : "Switch to Client Profile"}
-                        </Text>
-                        <Text style={styles.switchProfileDescription}>
-                          Post jobs and hire workers
-                        </Text>
-                      </View>
-                      {!switchProfile.isPending && (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={24}
-                          color={Colors.textSecondary}
-                        />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ) : (
-                  // No client profile - show create option
-                  <View style={styles.createProfileCard}>
-                    <View style={styles.createProfileHeader}>
-                      <Ionicons
-                        name="briefcase-outline"
-                        size={28}
-                        color={Colors.primary}
-                      />
-                      <Text style={styles.createProfileTitle}>
-                        Want to hire workers too?
-                      </Text>
-                    </View>
-                    <Text style={styles.createProfileDescription}>
-                      Create a client profile to post jobs and hire skilled
-                      workers for your projects.
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.createProfileButton}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        Alert.alert(
-                          "Create Client Profile",
-                          "This will create a separate client profile for posting jobs. You can switch between worker and client profiles anytime. Continue?",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Create",
-                              style: "default",
-                              onPress: () => createClient.mutate(),
-                            },
-                          ],
-                        );
-                      }}
-                      disabled={createClient.isPending}
-                    >
-                      {createClient.isPending ? (
-                        <ActivityIndicator size="small" color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="add-circle-outline"
-                            size={20}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.createProfileButtonText}>
-                            Create Client Profile
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )
-              ) : // Client account - show worker profile option
-              dualStatus.has_worker_profile ? (
-                // Has worker profile - show switch button
+            {isWorker ? (
+              // Worker account - show client profile option
+              dualStatus.has_client_profile ? (
+                // Has client profile - show switch button
                 <TouchableOpacity
                   style={styles.switchProfileCard}
                   activeOpacity={0.8}
                   onPress={() => {
                     Alert.alert(
-                      "Switch to Worker Profile",
-                      "Switch to your worker profile to find jobs and offer services. You can switch back anytime.",
+                      "Switch to Client Profile",
+                      "Switch to your client profile to post jobs and hire workers. You can switch back anytime.",
                       [
                         { text: "Cancel", style: "cancel" },
                         {
                           text: "Switch",
                           style: "default",
-                          onPress: () => switchProfile.mutate("WORKER"),
+                          onPress: () => switchProfile.mutate("CLIENT"),
                         },
                       ],
                     );
@@ -458,7 +345,7 @@ export default function ProfileScreen() {
                         />
                       ) : (
                         <Ionicons
-                          name="hammer"
+                          name="briefcase"
                           size={24}
                           color={Colors.primary}
                         />
@@ -468,10 +355,10 @@ export default function ProfileScreen() {
                       <Text style={styles.switchProfileTitle}>
                         {switchProfile.isPending
                           ? "Switching..."
-                          : "Switch to Worker Profile"}
+                          : "Switch to Client Profile"}
                       </Text>
                       <Text style={styles.switchProfileDescription}>
-                        Find jobs and offer your services
+                        Post jobs and hire workers
                       </Text>
                     </View>
                     {!switchProfile.isPending && (
@@ -484,42 +371,42 @@ export default function ProfileScreen() {
                   </View>
                 </TouchableOpacity>
               ) : (
-                // No worker profile - show create option
+                // No client profile - show create option
                 <View style={styles.createProfileCard}>
                   <View style={styles.createProfileHeader}>
                     <Ionicons
-                      name="hammer-outline"
+                      name="briefcase-outline"
                       size={28}
                       color={Colors.primary}
                     />
                     <Text style={styles.createProfileTitle}>
-                      Want to work on jobs too?
+                      Want to hire workers too?
                     </Text>
                   </View>
                   <Text style={styles.createProfileDescription}>
-                    Create a worker profile to apply for jobs and offer your
-                    services to clients.
+                    Create a client profile to post jobs and hire skilled
+                    workers for your projects.
                   </Text>
                   <TouchableOpacity
                     style={styles.createProfileButton}
                     activeOpacity={0.8}
                     onPress={() => {
                       Alert.alert(
-                        "Create Worker Profile",
-                        "This will create a separate worker profile for applying to jobs. You can switch between client and worker profiles anytime. Continue?",
+                        "Create Client Profile",
+                        "This will create a separate client profile for posting jobs. You can switch between worker and client profiles anytime. Continue?",
                         [
                           { text: "Cancel", style: "cancel" },
                           {
                             text: "Create",
                             style: "default",
-                            onPress: () => createWorker.mutate(),
+                            onPress: () => createClient.mutate(),
                           },
                         ],
                       );
                     }}
-                    disabled={createWorker.isPending}
+                    disabled={createClient.isPending}
                   >
-                    {createWorker.isPending ? (
+                    {createClient.isPending ? (
                       <ActivityIndicator size="small" color={Colors.white} />
                     ) : (
                       <>
@@ -529,182 +416,277 @@ export default function ProfileScreen() {
                           color={Colors.white}
                         />
                         <Text style={styles.createProfileButtonText}>
-                          Create Worker Profile
+                          Create Client Profile
                         </Text>
                       </>
                     )}
                   </TouchableOpacity>
                 </View>
-              )}
-            </View>
-          )}
-
-          {/* Wallet Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Wallet</Text>
-            <TouchableOpacity
-              style={styles.walletCard}
-              activeOpacity={0.8}
-              onPress={() => router.push("/wallet" as any)}
-            >
-              <View style={styles.walletHeader}>
-                <View style={styles.walletIconContainer}>
+              )
+            ) : // Client account - show worker profile option
+            dualStatus.has_worker_profile ? (
+              // Has worker profile - show switch button
+              <TouchableOpacity
+                style={styles.switchProfileCard}
+                activeOpacity={0.8}
+                onPress={() => {
+                  Alert.alert(
+                    "Switch to Worker Profile",
+                    "Switch to your worker profile to find jobs and offer services. You can switch back anytime.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Switch",
+                        style: "default",
+                        onPress: () => switchProfile.mutate("WORKER"),
+                      },
+                    ],
+                  );
+                }}
+                disabled={switchProfile.isPending}
+              >
+                <View style={styles.switchProfileContent}>
+                  <View style={styles.switchIconContainer}>
+                    {switchProfile.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <Ionicons
+                        name="hammer"
+                        size={24}
+                        color={Colors.primary}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.switchTextContainer}>
+                    <Text style={styles.switchProfileTitle}>
+                      {switchProfile.isPending
+                        ? "Switching..."
+                        : "Switch to Worker Profile"}
+                    </Text>
+                    <Text style={styles.switchProfileDescription}>
+                      Find jobs and offer your services
+                    </Text>
+                  </View>
+                  {!switchProfile.isPending && (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                  )}
+                </View>
+              </TouchableOpacity>
+            ) : (
+              // No worker profile - show create option
+              <View style={styles.createProfileCard}>
+                <View style={styles.createProfileHeader}>
                   <Ionicons
-                    name="wallet-outline"
-                    size={24}
+                    name="hammer-outline"
+                    size={28}
                     color={Colors.primary}
                   />
-                </View>
-                <View style={styles.walletInfo}>
-                  <Text style={styles.walletLabel}>Available Balance</Text>
-                  {walletLoading ? (
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                  ) : walletError ? (
-                    <TouchableOpacity onPress={() => refetchWallet()}>
-                      <Text style={styles.walletBalanceError}>
-                        Tap to retry
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.walletBalance}>
-                      {formatCurrency(availableBalanceValue)}
-                    </Text>
-                  )}
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={24}
-                  color={Colors.textSecondary}
-                />
-              </View>
-
-              {/* Reserved Balance Indicator */}
-              {!walletLoading && !walletError && reservedBalanceValue > 0 && (
-                <View style={styles.reservedBalanceContainer}>
-                  <Ionicons
-                    name="lock-closed"
-                    size={14}
-                    color={Colors.warning}
-                  />
-                  <Text style={styles.reservedBalanceText}>
-                    {formatCurrency(reservedBalanceValue)} reserved in escrow
+                  <Text style={styles.createProfileTitle}>
+                    Want to work on jobs too?
                   </Text>
                 </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Action Buttons */}
-            <View style={styles.walletActions}>
-              {isWorker ? (
+                <Text style={styles.createProfileDescription}>
+                  Create a worker profile to apply for jobs and offer your
+                  services to clients.
+                </Text>
                 <TouchableOpacity
-                  style={[
-                    styles.withdrawButton,
-                    { backgroundColor: "#54B7EB" },
-                  ]}
+                  style={styles.createProfileButton}
                   activeOpacity={0.8}
-                  onPress={() => router.push("/wallet/withdraw" as any)}
+                  onPress={() => {
+                    Alert.alert(
+                      "Create Worker Profile",
+                      "This will create a separate worker profile for applying to jobs. You can switch between client and worker profiles anytime. Continue?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Create",
+                          style: "default",
+                          onPress: () => createWorker.mutate(),
+                        },
+                      ],
+                    );
+                  }}
+                  disabled={createWorker.isPending}
                 >
-                  <Ionicons
-                    name="arrow-up-circle-outline"
-                    size={20}
-                    color={Colors.white}
-                  />
-                  <Text style={styles.withdrawText}>Withdraw</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.addFundsButton}
-                  activeOpacity={0.8}
-                  onPress={() => router.push("/payments/deposit" as any)}
-                >
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={20}
-                    color={Colors.white}
-                  />
-                  <Text style={styles.addFundsText}>Add Funds</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          {/* Client Trust Metrics */}
-          {!isWorker && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Performance</Text>
-              {renderTrustMetrics()}
-            </View>
-          )}
-
-          {/* Worker Performance Stats (was Worker Info, stripped of Profile Type) */}
-          {isWorker && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Performance</Text>
-              <View style={styles.menuCard}>
-                <MenuItem
-                  icon="star-outline"
-                  label="Rating"
-                  value={
-                    typeof profileMetrics?.rating === "number" &&
-                    profileMetrics.rating > 0
-                      ? `${profileMetrics.rating.toFixed(1)} / 5`
-                      : user?.profile_data?.workerRating &&
-                          user.profile_data.workerRating > 0
-                        ? `${user.profile_data.workerRating} / 5`
-                        : "0.0"
-                  }
-                  showArrow={true}
-                  onPress={() => router.push("/profile/reviews" as any)}
-                />
-                <MenuItem
-                  icon="briefcase-outline"
-                  label="Jobs Completed"
-                  value={String(
-                    typeof profileMetrics?.jobs_completed === "number"
-                      ? profileMetrics.jobs_completed
-                      : (user?.profile_data?.jobsCompleted ?? 0),
+                  {createWorker.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={20}
+                        color={Colors.white}
+                      />
+                      <Text style={styles.createProfileButtonText}>
+                        Create Worker Profile
+                      </Text>
+                    </>
                   )}
-                  noBorder={true}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Wallet Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Wallet</Text>
+          <TouchableOpacity
+            style={styles.walletCard}
+            activeOpacity={0.8}
+            onPress={() => router.push("/wallet" as any)}
+          >
+            <View style={styles.walletHeader}>
+              <View style={styles.walletIconContainer}>
+                <Ionicons
+                  name="wallet-outline"
+                  size={24}
+                  color={Colors.primary}
                 />
               </View>
+              <View style={styles.walletInfo}>
+                <Text style={styles.walletLabel}>Available Balance</Text>
+                {walletLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : walletError ? (
+                  <TouchableOpacity onPress={() => refetchWallet()}>
+                    <Text style={styles.walletBalanceError}>Tap to retry</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.walletBalance}>
+                    {formatCurrency(availableBalanceValue)}
+                  </Text>
+                )}
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={24}
+                color={Colors.textSecondary}
+              />
             </View>
-          )}
 
-          {/* Account & Settings Links */}
+            {/* Reserved Balance Indicator */}
+            {!walletLoading && !walletError && reservedBalanceValue > 0 && (
+              <View style={styles.reservedBalanceContainer}>
+                <Ionicons name="lock-closed" size={14} color={Colors.warning} />
+                <Text style={styles.reservedBalanceText}>
+                  {formatCurrency(reservedBalanceValue)} reserved in escrow
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Action Buttons */}
+          <View style={styles.walletActions}>
+            {isWorker ? (
+              <TouchableOpacity
+                style={[styles.withdrawButton, { backgroundColor: '#54B7EB' }]}
+                activeOpacity={0.8}
+                onPress={() => router.push("/wallet/withdraw" as any)}
+              >
+                <Ionicons
+                  name="arrow-up-circle-outline"
+                  size={20}
+                  color={Colors.white}
+                />
+                <Text style={styles.withdrawText}>Withdraw</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.addFundsButton}
+                activeOpacity={0.8}
+                onPress={() => router.push("/payments/deposit" as any)}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={20}
+                  color={Colors.white}
+                />
+                <Text style={styles.addFundsText}>Add Funds</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Client Trust Metrics */}
+        {!isWorker && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>General</Text>
+            <Text style={styles.sectionTitle}>Performance</Text>
+            {renderTrustMetrics()}
+          </View>
+        )}
+
+        {/* Worker Performance Stats (was Worker Info, stripped of Profile Type) */}
+        {isWorker && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Performance</Text>
             <View style={styles.menuCard}>
               <MenuItem
-                icon="person-circle-outline"
-                label="Account Information"
-                onPress={() => router.push("/profile/account-info" as any)}
+                icon="star-outline"
+                label="Rating"
+                value={
+                  user?.profile_data?.workerRating &&
+                  user.profile_data.workerRating > 0
+                    ? `${user.profile_data.workerRating} / 5`
+                    : "0.0"
+                }
+                showArrow={true}
+                onPress={() => router.push("/profile/reviews" as any)}
               />
               <MenuItem
-                icon="settings-outline"
-                label="Settings"
-                onPress={() => router.push("/profile/settings" as any)}
+                icon="briefcase-outline"
+                label="Jobs Completed"
+                value={String(user?.profile_data?.jobsCompleted ?? 0)}
                 noBorder={true}
               />
             </View>
           </View>
+        )}
 
-          {/* Logout Button */}
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-              activeOpacity={0.8}
-              testID="profile-logout-button"
-            >
-              <Ionicons name="log-out-outline" size={22} color={Colors.error} />
-              <Text style={styles.logoutText}>Logout</Text>
-            </TouchableOpacity>
+        {/* Account & Settings Links */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>General</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="person-circle-outline"
+              label="Account Information"
+              onPress={() => router.push("/profile/account-info" as any)}
+            />
+            <MenuItem
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => router.push("/notifications" as any)}
+            />
+            <MenuItem
+              icon="settings-outline"
+              label="Settings"
+              onPress={() => router.push("/profile/settings" as any)}
+              noBorder={true}
+            />
           </View>
+        </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>iAyos v1.0.0</Text>
-            <Text style={styles.footerSubtext}>May sira? May iAyos.</Text>
-          </View>
+        {/* Logout Button */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.8}
+            testID="profile-logout-button"
+          >
+            <Ionicons name="log-out-outline" size={22} color={Colors.error} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>iAyos v1.0.0</Text>
+          <Text style={styles.footerSubtext}>May sira? May iAyos.</Text>
+        </View>
         </View>
       </ScrollView>
       <CalendarFAB />
@@ -736,7 +718,7 @@ function InfoRow({
         <Ionicons name={icon as any} size={20} color={Colors.textSecondary} />
         <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <Text style={[styles.infoValue, { color: valueColor }]}>{value}</Text>
         {showArrow && (
           <Ionicons name="chevron-forward" size={16} color={Colors.textHint} />
@@ -784,15 +766,7 @@ function MenuItem({
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         {value ? (
-          <Text
-            style={{
-              fontSize: 16,
-              color: Colors.textSecondary,
-              fontFamily: "Inter_500Medium",
-            }}
-          >
-            {value}
-          </Text>
+          <Text style={{ fontSize: 16, color: Colors.textSecondary, fontFamily: "Inter_500Medium" }}>{value}</Text>
         ) : null}
         {showArrow && (
           <Ionicons name="chevron-forward" size={20} color={Colors.textHint} />

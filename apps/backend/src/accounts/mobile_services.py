@@ -5,7 +5,7 @@ from django.conf import settings
 from .models import (
     Accounts, Profile, WorkerProfile, ClientProfile,
     JobPosting, JobApplication, Specializations, JobPhoto, JobReview, Job, Agency,
-    JobSkillSlot, JobWorkerAssignment, JobLog
+    JobSkillSlot, JobWorkerAssignment
 )
 from django.db.models import Q, Count, Avg, Prefetch
 from django.utils import timezone
@@ -78,38 +78,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c
-
-
-def _derive_cancellation_reason(job: JobPosting) -> Optional[str]:
-    """Return the best available cancellation reason for legacy/partial records."""
-    direct_reason = (job.cancellationReason or "").strip()
-    if direct_reason:
-        return direct_reason
-
-    try:
-        log = JobLog.objects.filter(
-            jobID=job,
-            newStatus=JobPosting.JobStatus.CANCELLED,
-        ).order_by('-createdAt').first()
-
-        if not log or not log.notes:
-            return None
-
-        notes = str(log.notes).strip()
-        if not notes:
-            return None
-
-        lower_notes = notes.lower()
-        marker = 'reason='
-        marker_index = lower_notes.rfind(marker)
-        if marker_index != -1:
-            parsed = notes[marker_index + len(marker):].strip(' ;.')
-            if parsed:
-                return parsed
-
-        return notes
-    except Exception:
-        return None
 
 
 def get_mobile_job_list(
@@ -512,6 +480,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         assigned_agency = None
         if job.assignedAgencyFK:
             try:
+                from agency.models import Agency
                 agency = job.assignedAgencyFK
                 
                 # Calculate agency average rating
@@ -631,20 +600,6 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         except Exception as e:
             print(f"   ⚠️ Distance calculation error: {e}")
 
-        cancellation_reason = _derive_cancellation_reason(job)
-
-        worker_marked_on_the_way = bool(getattr(job, 'workerMarkedOnTheWay', False))
-        worker_marked_on_the_way_at = getattr(job, 'workerMarkedOnTheWayAt', None)
-        worker_marked_job_started = bool(getattr(job, 'workerMarkedJobStarted', False))
-        worker_marked_job_started_at = getattr(job, 'workerMarkedJobStartedAt', None)
-        client_confirmed_work_started = bool(getattr(job, 'clientConfirmedWorkStarted', False))
-        client_confirmed_work_started_at = getattr(job, 'clientConfirmedWorkStartedAt', None)
-
-        cancelled_at = getattr(job, 'cancelledAt', None)
-        cancelled_by_role = getattr(job, 'cancelledByRole', None)
-        cancellation_stage = getattr(job, 'cancellationStage', None)
-        client_refund_amount = getattr(job, 'clientRefundAmount', Decimal('0.00'))
-        worker_compensation_amount = getattr(job, 'workerCompensationAmount', Decimal('0.00'))
         job_data = {
             'id': job.jobID,
             'title': job.title,
@@ -675,18 +630,6 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'remaining_payment_paid': job.remainingPaymentPaid,
             'downpayment_amount': float(job.budget * Decimal('0.5')),
             'remaining_amount': float(job.budget * Decimal('0.5')),
-            'worker_marked_on_the_way': worker_marked_on_the_way,
-            'worker_marked_on_the_way_at': worker_marked_on_the_way_at.isoformat() if worker_marked_on_the_way_at else None,
-            'worker_marked_job_started': worker_marked_job_started,
-            'worker_marked_job_started_at': worker_marked_job_started_at.isoformat() if worker_marked_job_started_at else None,
-            'client_confirmed_work_started': client_confirmed_work_started,
-            'client_confirmed_work_started_at': client_confirmed_work_started_at.isoformat() if client_confirmed_work_started_at else None,
-            'cancelled_at': cancelled_at.isoformat() if cancelled_at else None,
-            'cancelled_by_role': cancelled_by_role,
-            'cancellation_stage': cancellation_stage,
-            'cancellation_reason': cancellation_reason,
-            'client_refund_amount': float(client_refund_amount or 0),
-            'worker_compensation_amount': float(worker_compensation_amount or 0),
             'estimated_completion': ml_prediction,
             # Universal job fields for ML accuracy
             'job_scope': job.job_scope,
@@ -1208,11 +1151,6 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     job_scope=job_data.get('job_scope'),
                     skill_level_required=job_data.get('skill_level_required'),
                     work_environment=job_data.get('work_environment'),
-                    # Defensive initialization for worker timeline markers
-                    workerMarkedOnTheWay=False,
-                    workerMarkedOnTheWayAt=None,
-                    workerMarkedJobStarted=False,
-                    workerMarkedJobStartedAt=None,
                 )
                 
                 # Create skill slots for multi-employee agency invites
@@ -1974,42 +1912,12 @@ def search_mobile_jobs(query: str, user: Accounts, page: int = 1, limit: int = 2
         }
 
 
-def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]:
+def get_job_categories_mobile() -> Dict[str, Any]:
     """
-    Get job categories/specializations for mobile.
-    If worker_id is provided, return only categories mapped to that worker's skills.
+    Get all job categories/specializations for mobile
     """
     try:
-        categories_qs = Specializations.objects.all()
-
-        if worker_id:
-            # Support multiple worker_id formats sent by mobile/web flows:
-            # 1) WorkerProfile.id (auto PK)
-            # 2) Profile.profileID (legacy/public profile id)
-            # 3) Accounts.accountID (account id)
-            worker = WorkerProfile.objects.filter(
-                Q(id=worker_id)
-                | Q(profileID__profileID=worker_id)
-                | Q(profileID__accountFK__accountID=worker_id)
-            ).first()
-            if not worker:
-                return {
-                    'success': False,
-                    'error': 'Worker not found'
-                }
-
-            from .models import workerSpecialization
-
-            worker_skill_spec_ids = list(
-                workerSpecialization.objects.filter(workerID=worker)
-                .values_list('specializationID__specializationID', flat=True)
-            )
-
-            categories_qs = categories_qs.filter(
-                specializationID__in=worker_skill_spec_ids
-            )
-
-        categories = categories_qs.order_by('specializationName')
+        categories = Specializations.objects.all().order_by('specializationName')
 
         category_list = [
             {
@@ -2422,9 +2330,7 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
                     'specializationId': ws.specializationID.specializationID,
                     'name': ws.specializationID.specializationName,
                     'experienceYears': ws.experienceYears,
-                    'certificationCount': cert_count,
-                    'skillType': ws.skillType,
-                    'isPrimary': ws.skillType == 'PRIMARY'
+                    'certificationCount': cert_count
                 })
             
             # Calculate average rating from reviews
@@ -2555,9 +2461,7 @@ def get_worker_detail_mobile(user, worker_id):
                 'specializationId': ws.specializationID.specializationID,
                 'name': ws.specializationID.specializationName,
                 'experienceYears': ws.experienceYears,
-                'certificationCount': cert_count,
-                'skillType': ws.skillType,
-                'isPrimary': ws.skillType == 'PRIMARY'
+                'certificationCount': cert_count
             })
 
         # Build detailed worker data
@@ -2712,9 +2616,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
                 'specializationId': ws.specializationID.specializationID,
                 'name': ws.specializationID.specializationName,
                 'experienceYears': ws.experienceYears,
-                'certificationCount': cert_count,
-                'skillType': ws.skillType,
-                'isPrimary': ws.skillType == 'PRIMARY'
+                'certificationCount': cert_count
             })
 
         # Calculate distance if user has location
@@ -2875,25 +2777,11 @@ def get_agency_detail_mobile(user, agency_id):
 
         # For now, use simplified data from AgencyEmployee model
         # AgencyEmployee doesn't link to WorkerProfile, so we'll use the employee data directly
-        # Collect all unique specializations from employees
-        all_specs = set()
-        for emp_all in agency_employees_qs:
-            specs_list = emp_all.get_specializations_list()
-            # Add roles from legacy 'role' field, splitting by various delimiters
-            if emp_all.role:
-                import re
-                roles = re.split(r'[,;/\x00-\x1F\x7F-\x9F]', emp_all.role)
-                for r in roles:
-                    trimmed_r = r.strip()
-                    if trimmed_r:
-                        all_specs.add(trimmed_r)
-            
-            # Add from specializations list
-            for s in specs_list:
-                if s:
-                    all_specs.add(s)
-        
-        specializations = sorted(list(all_specs))
+        avg_rating = 0.0
+        review_count = 0
+        total_jobs_completed = 0
+        active_workers = agency_employees_qs.count()
+        specializations = []  # TODO: Implement when employee-specialization relationship exists
 
         # Build employees list from AgencyEmployee
         workers_list = []
@@ -2905,19 +2793,16 @@ def get_agency_detail_mobile(user, agency_id):
                 'profilePicture': emp.avatar or None,
                 'rating': round(float(emp.rating), 1) if emp.rating else 0.0,
                 'completedJobs': emp.totalJobsCompleted,
-                'specialization': emp.role or None,
-                'specializations': emp.get_specializations_list()
+                'specialization': emp.role or None
             })
         
         # Calculate overall rating from employees
-        employee_ratings = [float(emp.rating) for emp in agency_employees_qs if emp.rating]
+        employee_ratings = [emp.rating for emp in agency_employees_qs if emp.rating]
         if employee_ratings:
             avg_rating = sum(employee_ratings) / len(employee_ratings)
         
         # Calculate total jobs from employees
         total_jobs_completed = sum(emp.totalJobsCompleted for emp in agency_employees_qs)
-        active_workers = agency_employees_qs.count()
-        review_count = 0 # TODO: Implement when review model for agencies is ready
 
         # Build agency detail data matching mobile interface
         agency_data = {
@@ -3315,7 +3200,7 @@ def submit_review_mobile(
             if review_target == 'EMPLOYEE' and employee_id:
                 # Agency job - reviewing a specific employee
                 try:
-                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__agency').get(
+                    assignment = JobEmployeeAssignment.objects.select_related('employee', 'employee__accountFK').get(
                         assignmentID=employee_id,
                         job=job
                     )
@@ -3409,14 +3294,11 @@ def submit_review_mobile(
                 ).exists()
             elif job.assignedAgencyFK:
                 # Check agency employee assignments
-                is_worker = (
-                    (job.assignedAgencyFK.accountFK.accountID == user.accountID)
-                    or JobEmployeeAssignment.objects.filter(
-                        job=job,
-                        employee__agency=user,
-                        status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                    ).exists()
-                )
+                is_worker = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    employee__accountFK=user,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                ).exists()
             
             if not is_worker:
                 return {'success': False, 'error': 'You are not a worker for this job'}

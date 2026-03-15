@@ -32,11 +32,7 @@ import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
-import {
-  EstimatedTimeCard,
-  JobLifecycleTimeline,
-  type EstimatedCompletion,
-} from "@/components";
+import { EstimatedTimeCard, type EstimatedCompletion } from "@/components";
 import JobReceiptModal from "@/components/JobReceiptModal";
 import CountdownConfirmModal from "@/components/CountdownConfirmModal";
 import InfoModal from "@/components/InfoModal";
@@ -47,7 +43,6 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
-  useStartTeamJobWithAvailable,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -137,22 +132,9 @@ interface JobDetail {
   total_workers_assigned?: number;
   // Missing fields
   preferred_start_date?: string;
-  scheduled_end_date?: string;
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
-  workerMarkedOnTheWay?: boolean;
-  workerMarkedOnTheWayAt?: string | null;
-  workerMarkedJobStarted?: boolean;
-  workerMarkedJobStartedAt?: string | null;
-  clientConfirmedWorkStarted?: boolean;
-  clientConfirmedWorkStartedAt?: string | null;
-  cancelledAt?: string | null;
-  cancelledByRole?: string | null;
-  cancellationStage?: string | null;
-  cancellationReason?: string | null;
-  clientRefundAmount?: number;
-  workerCompensationAmount?: number;
 }
 
 interface JobApplication {
@@ -223,23 +205,27 @@ const getWorkEnvironmentInfo = (env: string) => {
 const WORKER_PAYMENT_INFO_ITEMS = [
   {
     icon: "lock-closed-outline" as const,
-    label: "Secured Payment",
-    description: "Client funds are held in escrow.",
+    label: "Your earnings are secured",
+    description:
+      "The client's escrow payment is held before you even start working — your pay is guaranteed.",
   },
   {
     icon: "checkmark-circle-outline" as const,
-    label: "Client Approval",
-    description: "Payment moves to Pending after job completion.",
+    label: "Client approval releases payment",
+    description:
+      "Once you complete the job and the client approves, payment moves to your Pending Earnings.",
   },
   {
     icon: "time-outline" as const,
-    label: "7-day Hold",
-    description: "Short hold for dispute protection before funds are released.",
+    label: "7-day buffer period",
+    description:
+      "A brief hold for dispute protection before earnings are released to your wallet.",
   },
   {
     icon: "card-outline" as const,
-    label: "Withdraw Anytime",
-    description: "Send your earnings to your GCash.",
+    label: "Withdraw anytime",
+    description:
+      "Transfer your wallet balance to your registered GCash account whenever you're ready.",
   },
 ];
 
@@ -297,13 +283,6 @@ export default function JobDetailScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
-
-  // Bug 1 fix: detect if the current worker is already assigned to this job
-  // Used to hide the Apply button for assigned workers (e.g. coming from Calendar)
-  const isCurrentWorkerAssigned =
-    String(job?.assignedWorker?.id ?? "") ===
-      String(user?.profile_data?.id ?? "") &&
-    String(job?.assignedWorker?.id ?? "") !== "";
 
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
@@ -466,7 +445,6 @@ export default function JobDetailScreen() {
         total_workers_assigned: jobData.total_workers_assigned,
         // Missing fields mapping
         preferred_start_date: jobData.preferred_start_date,
-        scheduled_end_date: jobData.scheduled_end_date,
         payment_model:
           jobData.payment_model ||
           (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
@@ -478,23 +456,6 @@ export default function JobDetailScreen() {
             ? jobData.budget / jobData.duration_days
             : undefined),
         duration_days: jobData.duration_days,
-        workerMarkedOnTheWay: Boolean(jobData.worker_marked_on_the_way),
-        workerMarkedOnTheWayAt: jobData.worker_marked_on_the_way_at || null,
-        workerMarkedJobStarted: Boolean(jobData.worker_marked_job_started),
-        workerMarkedJobStartedAt: jobData.worker_marked_job_started_at || null,
-        clientConfirmedWorkStarted: Boolean(
-          jobData.client_confirmed_work_started,
-        ),
-        clientConfirmedWorkStartedAt:
-          jobData.client_confirmed_work_started_at || null,
-        cancelledAt: jobData.cancelled_at || null,
-        cancelledByRole: jobData.cancelled_by_role || null,
-        cancellationStage: jobData.cancellation_stage || null,
-        cancellationReason: jobData.cancellation_reason || null,
-        clientRefundAmount: Number(jobData.client_refund_amount || 0),
-        workerCompensationAmount: Number(
-          jobData.worker_compensation_amount || 0,
-        ),
       } as JobDetail;
     },
     enabled: isValidJobId, // Only fetch if we have a valid job ID
@@ -562,7 +523,7 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Application submitted successfully! You can view your application status in Jobs > Applied tab.",
+        "Application submitted successfully! You can view your application status in My Applications.",
       );
       setShowApplicationModal(false);
       setProposalMessage("");
@@ -572,10 +533,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
-      router.push({
-        pathname: "/(tabs)/jobs",
-        params: { tab: "applications" },
-      } as any);
+      safeGoBack(router, "/(tabs)/jobs");
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -601,7 +559,7 @@ export default function JobDetailScreen() {
       console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
 
       if (data.success && data.conversation_id) {
-        const route = `/conversation/${data.conversation_id}`;
+        const route = `/messages/${data.conversation_id}`;
         console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
       } else {
@@ -620,26 +578,16 @@ export default function JobDetailScreen() {
     }
   };
 
-  // Cancel job mutation (for clients only)
-  const cancelJobMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      const response = await apiRequest(ENDPOINTS.CANCEL_JOB(parseInt(id)), {
-        method: "PATCH",
-        body: JSON.stringify({
-          reason,
-          actor_notes: "",
-        }),
+  // Delete job mutation (for clients only)
+  const deleteJobMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(ENDPOINTS.DELETE_JOB(parseInt(id)), {
+        method: "DELETE",
       });
-
-      if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as any;
-        throw new Error(errorData.error || "Failed to cancel job");
-      }
-
       return response;
     },
     onSuccess: () => {
-      Alert.alert("Cancelled", "Job has been cancelled successfully.", [
+      Alert.alert("Deleted", "Job request has been deleted successfully.", [
         {
           text: "OK",
           onPress: () => router.replace("/"),
@@ -648,7 +596,7 @@ export default function JobDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
     onError: (error: Error) => {
-      Alert.alert("Error", `Failed to cancel job: ${error.message}`);
+      Alert.alert("Error", `Failed to delete job: ${error.message}`);
     },
   });
 
@@ -728,7 +676,6 @@ export default function JobDetailScreen() {
   const {
     data: applicationsData,
     isLoading: applicationsLoading,
-    error: applicationsError,
     refetch: refetchApplications,
   } = useQuery<{ applications: JobApplication[]; total: number }>({
     queryKey: ["job-applications", id],
@@ -736,35 +683,19 @@ export default function JobDetailScreen() {
       applications: JobApplication[];
       total: number;
     }> => {
-      if (!isClient || !isValidJobId) {
+      if (!isClient || !isValidJobId || job?.jobType !== "LISTING") {
         return { applications: [], total: 0 };
       }
       const response = await apiRequest(
         ENDPOINTS.JOB_APPLICATIONS(parseInt(id)),
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch applications");
-      }
-
       const data = await response.json();
-      // Handle potential nested data structure e.g. { success: true, applications: [] }
-      const apps =
-        data.applications || (data.data && data.data.applications) || [];
-      const totalCount = data.total ?? data.count ?? apps.length;
-      return { applications: apps, total: totalCount };
+      return data as { applications: JobApplication[]; total: number };
     },
-    enabled: isClient && isValidJobId && !!job && job.jobType === "LISTING",
+    enabled: isClient && isValidJobId && !!job && job?.jobType === "LISTING",
   });
 
   const applications = applicationsData?.applications || [];
-  const showApplicationsSection =
-    isClient &&
-    job?.jobType === "LISTING" &&
-    !job?.assignedWorker &&
-    job?.is_team_job !== true;
-  const showAgencySuggestionSection =
-    isClient && job?.jobType === "INVITE" && !!job?.assignedAgency;
 
   // Accept application mutation
   const acceptApplicationMutation = useMutation({
@@ -842,59 +773,31 @@ export default function JobDetailScreen() {
     });
   };
 
-  const handleCancelJob = () => {
-    if (job?.status === "COMPLETED" || job?.status === "CANCELLED") {
+  const handleDeleteJob = () => {
+    if (job?.status === "IN_PROGRESS") {
       Alert.alert(
-        "Cannot Cancel",
-        "Completed or cancelled jobs can no longer be cancelled.",
+        "Cannot Delete",
+        "You cannot delete a job that is currently in progress.",
       );
       return;
     }
 
-    const chooseCancellationReason = (onSelect: (reason: string) => void) => {
-      Alert.alert("Select Cancellation Reason", "A reason is required to cancel this job.", [
-        {
-          text: "No Longer Needed",
-          onPress: () => onSelect("Client no longer needs the service"),
-        },
-        {
-          text: "Budget Constraints",
-          onPress: () => onSelect("Client cancelled due to budget constraints"),
-        },
-        {
-          text: "Scheduling Conflict",
-          onPress: () => onSelect("Client cancelled due to scheduling conflict"),
-        },
-        { text: "Back", style: "cancel" },
-      ]);
-    };
-
-    chooseCancellationReason((reason) => {
-      setCountdownConfig({
-        visible: true,
-        title: "Cancel Job",
-        message:
-          "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
-        confirmLabel: "Cancel Job",
-        confirmStyle: "destructive",
-        countdownSeconds: 5,
-        onConfirm: () => cancelJobMutation.mutate(reason),
-        icon: "close-circle",
-        iconColor: Colors.error,
-      });
+    setCountdownConfig({
+      visible: true,
+      title: "Delete Job Request",
+      message:
+        "Are you sure you want to delete this job request? This action cannot be undone.",
+      confirmLabel: "Delete",
+      confirmStyle: "destructive",
+      countdownSeconds: 5,
+      onConfirm: () => deleteJobMutation.mutate(),
+      icon: "trash",
+      iconColor: Colors.error,
     });
   };
 
   const handleApply = () => {
     if (!job) return;
-
-    if (isTeamJob || job.is_team_job) {
-      Alert.alert(
-        "Team Job",
-        "Please apply through a specific skill slot for this team job.",
-      );
-      return;
-    }
 
     setProposedBudget(job.budget.replace(/[^0-9.]/g, ""));
     setBudgetOption("ACCEPT");
@@ -910,14 +813,6 @@ export default function JobDetailScreen() {
   };
 
   const handleSubmitApplication = () => {
-    if (isTeamJob || job?.is_team_job) {
-      Alert.alert(
-        "Invalid Submission",
-        "Team jobs require selecting a skill slot before applying.",
-      );
-      return;
-    }
-
     if (!proposalMessage.trim()) {
       Alert.alert("Error", "Please provide a proposal message");
       return;
@@ -1010,8 +905,6 @@ export default function JobDetailScreen() {
       ? (computedWorkersAssigned / computedWorkersNeeded) * 100
       : job?.team_fill_percentage || 0;
   const isTeamFilled = computedFillPercentage >= 100;
-  const isAgencyInviteTeamJob =
-    isTeamJob && job?.jobType === "INVITE" && !!job?.assignedAgency;
 
   // Team job apply mutation
   const applyToSkillSlot = useApplyToSkillSlot();
@@ -1035,14 +928,6 @@ export default function JobDetailScreen() {
   // Accept/reject team applications
   const acceptTeamApplication = useAcceptTeamApplication();
   const rejectTeamApplication = useRejectTeamApplication();
-  const startTeamJobWithAvailable = useStartTeamJobWithAvailable();
-  const hasUnfilledTeamSlots =
-    isTeamJob &&
-    (job?.skill_slots || []).some(
-      (slot) => (slot.workers_assigned || 0) < (slot.workers_needed || 0),
-    );
-  const showStartAnywayButton =
-    isTeamJob && isClient && job?.status === "ACTIVE" && hasUnfilledTeamSlots;
 
   // Check if current worker is assigned to this team job
   const currentWorkerAssignment = job?.worker_assignments?.find(
@@ -1152,21 +1037,22 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    setCountdownConfig({
-      visible: true,
-      title: "Accept Team Application",
-      message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
-      confirmLabel: "Accept",
-      confirmStyle: "default",
-      countdownSeconds: 6,
-      onConfirm: () =>
-        acceptTeamApplication.mutate({
-          jobId: parseInt(id),
-          applicationId,
-        }),
-      icon: "checkmark-circle",
-      iconColor: Colors.success,
-    });
+    Alert.alert(
+      "Accept Team Application",
+      `Assign ${workerName} to this team job?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Accept",
+          style: "default",
+          onPress: () =>
+            acceptTeamApplication.mutate({
+              jobId: parseInt(id),
+              applicationId,
+            }),
+        },
+      ],
+    );
   };
 
   const handleRejectTeamApplication = (
@@ -1296,58 +1182,11 @@ export default function JobDetailScreen() {
 
   const urgencyColors = getUrgencyColor(job.urgency);
 
-  const dailyDuration = Number(job.duration_days || 0);
-  const dailyStartDate = job.preferred_start_date
-    ? new Date(job.preferred_start_date)
-    : null;
-  const dailyEndDate =
-    job.scheduled_end_date &&
-    !Number.isNaN(new Date(job.scheduled_end_date).getTime())
-      ? new Date(job.scheduled_end_date)
-      : dailyStartDate && dailyDuration > 0
-        ? new Date(
-            dailyStartDate.getFullYear(),
-            dailyStartDate.getMonth(),
-            dailyStartDate.getDate() + dailyDuration - 1,
-          )
-        : null;
-  const todayDate = new Date();
-  const dayProgress =
-    job.payment_model === "DAILY" && dailyStartDate && dailyDuration > 0
-      ? Math.min(
-          Math.max(
-            Math.floor(
-              (new Date(
-                todayDate.getFullYear(),
-                todayDate.getMonth(),
-                todayDate.getDate(),
-              ).getTime() -
-                new Date(
-                  dailyStartDate.getFullYear(),
-                  dailyStartDate.getMonth(),
-                  dailyStartDate.getDate(),
-                ).getTime()) /
-                (1000 * 60 * 60 * 24),
-            ) + 1,
-            1,
-          ),
-          dailyDuration,
-        )
-      : null;
-
   const formatReviewDate = (value?: string) => {
     if (!value) return null;
     const date = new Date(value);
     if (isNaN(date.getTime())) return null;
     return date.toLocaleDateString();
-  };
-
-  const formatCancellationStage = (stage?: string | null) => {
-    if (!stage) return "Cancelled";
-    return stage
-      .split("_")
-      .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-      .join(" ");
   };
 
   const renderReviewCard = (title: string, review?: JobReviewSummary) => {
@@ -1386,13 +1225,7 @@ export default function JobDetailScreen() {
 
   const submitJobReport = (
     type: "job" | "user",
-    reason:
-      | "spam"
-      | "harassment"
-      | "fraud"
-      | "inappropriate"
-      | "fake_profile"
-      | "other",
+    reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other",
   ) => {
     const isUserReport = type === "user";
     const reportedUserId = isUserReport ? job.postedBy?.id : undefined;
@@ -1409,37 +1242,23 @@ export default function JobDetailScreen() {
       },
       {
         onSuccess: () => {
-          Alert.alert(
-            "Report Submitted",
-            "Thank you. Your report has been submitted for admin review.",
-          );
+          Alert.alert("Report Submitted", "Thank you. Your report has been submitted for admin review.");
         },
         onError: (error) => {
-          Alert.alert(
-            "Report Failed",
-            error instanceof Error ? error.message : "Failed to submit report",
-          );
+          Alert.alert("Report Failed", error instanceof Error ? error.message : "Failed to submit report");
         },
       },
     );
   };
 
   const openJobReportMenu = () => {
-    const reportUserAvailable =
-      !!job.postedBy?.id && job.postedBy.id !== user?.accountID;
+    const reportUserAvailable = !!job.postedBy?.id && job.postedBy.id !== user?.accountID;
 
     const openReasonMenu = (type: "job" | "user") => {
       if (Platform.OS === "ios") {
         ActionSheetIOS.showActionSheetWithOptions(
           {
-            options: [
-              "Cancel",
-              "Spam",
-              "Harassment",
-              "Fraud/Scam",
-              "Inappropriate",
-              "Fake Profile",
-            ],
+            options: ["Cancel", "Spam", "Harassment", "Fraud/Scam", "Inappropriate", "Fake Profile"],
             cancelButtonIndex: 0,
             destructiveButtonIndex: 1,
             title: type === "job" ? "Report Job" : "Report User",
@@ -1460,30 +1279,17 @@ export default function JobDetailScreen() {
         "Select a reason",
         [
           { text: "Spam", onPress: () => submitJobReport(type, "spam") },
-          {
-            text: "Harassment",
-            onPress: () => submitJobReport(type, "harassment"),
-          },
+          { text: "Harassment", onPress: () => submitJobReport(type, "harassment") },
           { text: "Fraud/Scam", onPress: () => submitJobReport(type, "fraud") },
-          {
-            text: "Inappropriate",
-            onPress: () => submitJobReport(type, "inappropriate"),
-          },
-          {
-            text: "Fake Profile",
-            onPress: () => submitJobReport(type, "fake_profile"),
-          },
+          { text: "Inappropriate", onPress: () => submitJobReport(type, "inappropriate") },
+          { text: "Fake Profile", onPress: () => submitJobReport(type, "fake_profile") },
           { text: "Cancel", style: "cancel" },
         ],
       );
     };
 
     if (Platform.OS === "ios") {
-      const options = [
-        "Cancel",
-        "Report Job",
-        ...(reportUserAvailable ? ["Report User"] : []),
-      ];
+      const options = ["Cancel", "Report Job", ...(reportUserAvailable ? ["Report User"] : [])];
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
@@ -1501,9 +1307,7 @@ export default function JobDetailScreen() {
 
     Alert.alert("Report", "Choose what to report", [
       { text: "Report Job", onPress: () => openReasonMenu("job") },
-      ...(reportUserAvailable
-        ? [{ text: "Report User", onPress: () => openReasonMenu("user") }]
-        : []),
+      ...(reportUserAvailable ? [{ text: "Report User", onPress: () => openReasonMenu("user") }] : []),
       { text: "Cancel", style: "cancel" },
     ]);
   };
@@ -1533,26 +1337,26 @@ export default function JobDetailScreen() {
               />
             </TouchableOpacity>
           )}
-          {/* Cancel button - for job owner on non-terminal project jobs */}
+          {/* Delete button - for job owner on non-active jobs */}
           {user?.accountID === job.postedBy?.id &&
-            job.status !== "COMPLETED" &&
-            job.status !== "CANCELLED" && (
-            <TouchableOpacity
-              onPress={handleCancelJob}
-              style={styles.deleteButton}
-              disabled={cancelJobMutation.isPending}
-            >
-              {cancelJobMutation.isPending ? (
-                <ActivityIndicator size="small" color={Colors.error} />
-              ) : (
-                <Ionicons
-                  name="close-circle-outline"
-                  size={24}
-                  color={Colors.error}
-                />
-              )}
-            </TouchableOpacity>
-          )}
+            job.status !== "IN_PROGRESS" &&
+            job.status !== "COMPLETED" && (
+              <TouchableOpacity
+                onPress={handleDeleteJob}
+                style={styles.deleteButton}
+                disabled={deleteJobMutation.isPending}
+              >
+                {deleteJobMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.error} />
+                ) : (
+                  <Ionicons
+                    name="trash-outline"
+                    size={24}
+                    color={Colors.error}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
           {isWorker && (
             <SaveButton
               jobId={parseInt(id)}
@@ -1616,11 +1420,7 @@ export default function JobDetailScreen() {
             />
             <Text style={styles.jobStartDate}>
               {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
-                  (dailyEndDate
-                    ? ` | End: ${dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                    : "") +
-                  (dayProgress ? ` | Day ${dayProgress}/${dailyDuration}` : "")
+                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
                 : `Posted ${job.postedAt}`}
             </Text>
           </View>
@@ -1629,15 +1429,10 @@ export default function JobDetailScreen() {
           {isTeamJob && (
             <View style={styles.teamJobHeaderBadge}>
               <Ionicons name="people-circle" size={20} color={Colors.white} />
-              <Text style={styles.teamJobHeaderBadgeText}>
-                {isAgencyInviteTeamJob ? "Employees Assigned" : "Team Job"}
-              </Text>
+              <Text style={styles.teamJobHeaderBadgeText}>Team Job</Text>
               <View style={styles.teamJobHeaderDivider} />
               <Text style={styles.teamJobHeaderCount}>
-                {computedWorkersAssigned}/{computedWorkersNeeded}{" "}
-                {isAgencyInviteTeamJob
-                  ? "employees assigned"
-                  : "workers filled"}
+                {computedWorkersAssigned}/{computedWorkersNeeded} workers filled
               </Text>
               {isTeamFilled && (
                 <Ionicons
@@ -1650,50 +1445,6 @@ export default function JobDetailScreen() {
             </View>
           )}
         </View>
-
-        <View style={styles.section}>
-          <JobLifecycleTimeline
-            workerMarkedOnTheWay={job.workerMarkedOnTheWay}
-            workerMarkedOnTheWayAt={job.workerMarkedOnTheWayAt}
-            workerMarkedJobStarted={job.workerMarkedJobStarted}
-            workerMarkedJobStartedAt={job.workerMarkedJobStartedAt}
-            clientConfirmedWorkStarted={job.clientConfirmedWorkStarted}
-            clientConfirmedWorkStartedAt={job.clientConfirmedWorkStartedAt}
-          />
-        </View>
-
-        {job.status === "CANCELLED" && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Cancellation Summary</Text>
-            <View style={styles.cancellationCard}>
-              <Text style={styles.cancellationTitle}>
-                {formatCancellationStage(job.cancellationStage)}
-              </Text>
-              {job.cancellationReason ? (
-                <Text style={styles.cancellationLine}>
-                  Reason: {job.cancellationReason}
-                </Text>
-              ) : null}
-              {job.cancelledByRole ? (
-                <Text style={styles.cancellationLine}>
-                  Cancelled by: {job.cancelledByRole}
-                </Text>
-              ) : null}
-              {job.clientRefundAmount && job.clientRefundAmount > 0 ? (
-                <Text style={styles.cancellationLine}>
-                  Client refund: PHP {job.clientRefundAmount.toFixed(2)}
-                </Text>
-              ) : null}
-              {job.workerCompensationAmount &&
-              job.workerCompensationAmount > 0 ? (
-                <Text style={styles.cancellationLine}>
-                  Worker compensation: PHP{" "}
-                  {job.workerCompensationAmount.toFixed(2)}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        )}
 
         {/* Description */}
         <View style={styles.section}>
@@ -1715,29 +1466,28 @@ export default function JobDetailScreen() {
               <Text style={styles.detailLabel}>Budget</Text>
               <Text style={styles.detailValue}>{job.budget}</Text>
               {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
-                <View style={{ marginTop: 2 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 2,
+                  }}
+                >
                   <Text style={{ fontSize: 11, color: Colors.primary }}>
-                    Daily Rate: ₱
+                    📅 Daily Rate: ₱
                     {Number(job.daily_rate_agreed).toLocaleString()}/day
                   </Text>
-                  {dailyDuration > 0 && (
-                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
-                      Duration: {dailyDuration} days
-                      {dayProgress
-                        ? ` (Day ${dayProgress}/${dailyDuration})`
-                        : ""}
+                  {job.duration_days ? (
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: Colors.textSecondary,
+                        marginLeft: 4,
+                      }}
+                    >
+                      ({job.duration_days}d)
                     </Text>
-                  )}
-                  {dailyEndDate && (
-                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
-                      End Date:{" "}
-                      {dailyEndDate.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </Text>
-                  )}
+                  ) : null}
                 </View>
               ) : (
                 <Text
@@ -1747,7 +1497,7 @@ export default function JobDetailScreen() {
                     marginTop: 2,
                   }}
                 >
-                  Project Based
+                  💼 Project Based
                 </Text>
               )}
             </View>
@@ -1979,50 +1729,6 @@ export default function JobDetailScreen() {
                   </Text>
                 </View>
               </View>
-            )}
-
-            {showStartAnywayButton && (
-              <TouchableOpacity
-                style={styles.startAnywayButton}
-                onPress={() =>
-                  Alert.alert(
-                    "Start Job Anyway",
-                    "Not all positions are filled. Start this team job with currently assigned workers?",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Start Job",
-                        onPress: () =>
-                          startTeamJobWithAvailable.mutate({
-                            jobId: parseInt(id),
-                          }),
-                      },
-                    ],
-                  )
-                }
-                disabled={startTeamJobWithAvailable.isPending}
-              >
-                {startTeamJobWithAvailable.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="play-circle-outline"
-                      size={18}
-                      color={Colors.primary}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.startAnywayButtonTitle}>
-                        Start Job Anyway
-                      </Text>
-                      <Text style={styles.startAnywayButtonSubtitle}>
-                        Not all positions are filled - job will start with
-                        current workers
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </TouchableOpacity>
             )}
 
             <Text style={[styles.sectionTitle, { marginTop: 4 }]}>
@@ -2449,344 +2155,286 @@ export default function JobDetailScreen() {
           )}
 
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
-        {showApplicationsSection && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Applications</Text>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                {applications.length > 0 && (
-                  <View style={styles.applicationsBadge}>
-                    <Text style={styles.applicationsBadgeText}>
-                      {applications.length}
-                    </Text>
-                  </View>
-                )}
-                {job.status !== "IN_PROGRESS" && (
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      backgroundColor: Colors.primary,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 16,
-                      gap: 4,
-                    }}
-                    onPress={() => {
-                      const catId =
-                        typeof job.category === "object"
-                          ? job.category.id
-                          : undefined;
-                      router.push({
-                        pathname: "/jobs/invite-workers" as any,
-                        params: {
-                          jobId: id,
-                          categoryId: catId?.toString() || "",
-                        },
-                      });
-                    }}
-                  >
-                    <Ionicons
-                      name="person-add-outline"
-                      size={14}
-                      color={Colors.white}
-                    />
-                    <Text
+        {isClient &&
+          job.jobType === "LISTING" &&
+          !job.assignedWorker &&
+          !isTeamJob && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Applications</Text>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  {applications.length > 0 && (
+                    <View style={styles.applicationsBadge}>
+                      <Text style={styles.applicationsBadgeText}>
+                        {applications.length}
+                      </Text>
+                    </View>
+                  )}
+                  {job.status !== "IN_PROGRESS" && (
+                    <TouchableOpacity
                       style={{
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: "600",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: Colors.primary,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 16,
+                        gap: 4,
+                      }}
+                      onPress={() => {
+                        const catId =
+                          typeof job.category === "object"
+                            ? job.category.id
+                            : undefined;
+                        router.push({
+                          pathname: "/jobs/invite-workers" as any,
+                          params: {
+                            jobId: id,
+                            categoryId: catId?.toString() || "",
+                          },
+                        });
                       }}
                     >
-                      Invite Workers
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                      <Ionicons
+                        name="person-add-outline"
+                        size={14}
+                        color={Colors.white}
+                      />
+                      <Text
+                        style={{
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Invite Workers
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
 
-            {applicationsLoading ? (
-              <View style={{ padding: Spacing.xl, alignItems: "center" }}>
+              {applicationsLoading ? (
                 <ActivityIndicator size="small" color={Colors.primary} />
-              </View>
-            ) : applicationsError ? (
-              <View style={{ padding: Spacing.xl, alignItems: "center" }}>
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={48}
-                  color={Colors.error}
-                />
-                <Text
-                  style={[
-                    Typography.body.medium,
-                    { color: Colors.error, marginTop: Spacing.sm },
-                  ]}
-                >
-                  Failed to load applications
-                </Text>
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={() => refetchApplications()}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.retryButtonText}>Try Again</Text>
-                </TouchableOpacity>
-              </View>
-            ) : applications.length === 0 ? (
-              <View style={styles.emptyApplications}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={48}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.emptyApplicationsText}>
-                  No applications yet
-                </Text>
-                <Text style={styles.emptyApplicationsSubtext}>
-                  Workers who apply will appear here
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.applicationsList}>
-                {applications.map((application) => (
-                  <View key={application.id} style={styles.applicationCard}>
-                    {/* Worker Info */}
-                    <View style={styles.applicationWorkerInfo}>
-                      {application.worker.avatar ? (
-                        <Image
-                          source={{ uri: application.worker.avatar }}
-                          style={styles.applicationAvatar}
-                        />
-                      ) : (
+              ) : applications.length === 0 ? (
+                <View style={styles.emptyApplications}>
+                  <Ionicons
+                    name="document-text-outline"
+                    size={48}
+                    color={Colors.textSecondary}
+                  />
+                  <Text style={styles.emptyApplicationsText}>
+                    No applications yet
+                  </Text>
+                  <Text style={styles.emptyApplicationsSubtext}>
+                    Workers who apply will appear here
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.applicationsList}>
+                  {applications.map((application) => (
+                    <View key={application.id} style={styles.applicationCard}>
+                      {/* Worker Info */}
+                      <View style={styles.applicationWorkerInfo}>
+                        {application.worker.avatar ? (
+                          <Image
+                            source={{ uri: application.worker.avatar }}
+                            style={styles.applicationAvatar}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.applicationAvatar,
+                              {
+                                backgroundColor: Colors.background,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="person"
+                              size={24}
+                              color={Colors.textSecondary}
+                            />
+                          </View>
+                        )}
+                        <View style={styles.applicationWorkerDetails}>
+                          <Text style={styles.applicationWorkerName}>
+                            {application.worker.name}
+                          </Text>
+                          <View style={styles.applicationWorkerMeta}>
+                            {application.worker.rating > 0 ? (
+                              <>
+                                <Ionicons
+                                  name="star"
+                                  size={14}
+                                  color="#F59E0B"
+                                />
+                                <Text style={styles.applicationWorkerRating}>
+                                  {application.worker.rating.toFixed(1)}
+                                </Text>
+                              </>
+                            ) : (
+                              <Text
+                                style={[
+                                  styles.applicationWorkerRating,
+                                  { color: Colors.textSecondary },
+                                ]}
+                              >
+                                New
+                              </Text>
+                            )}
+                            {application.worker.city && (
+                              <>
+                                <Text style={styles.applicationMetaDot}>•</Text>
+                                <Text style={styles.applicationWorkerCity}>
+                                  {application.worker.city}
+                                </Text>
+                              </>
+                            )}
+                          </View>
+                        </View>
                         <View
                           style={[
-                            styles.applicationAvatar,
-                            {
-                              backgroundColor: Colors.background,
-                              alignItems: "center",
-                              justifyContent: "center",
-                            },
+                            styles.applicationStatusBadge,
+                            application.status === "PENDING" &&
+                              styles.statusPending,
+                            application.status === "ACCEPTED" &&
+                              styles.statusAccepted,
+                            application.status === "REJECTED" &&
+                              styles.statusRejected,
                           ]}
                         >
-                          <Ionicons
-                            name="person"
-                            size={24}
-                            color={Colors.textSecondary}
-                          />
-                        </View>
-                      )}
-                      <View style={styles.applicationWorkerDetails}>
-                        <Text style={styles.applicationWorkerName}>
-                          {application.worker.name}
-                        </Text>
-                        <View style={styles.applicationWorkerMeta}>
-                          {application.worker.rating > 0 ? (
-                            <>
-                              <Ionicons name="star" size={14} color="#F59E0B" />
-                              <Text style={styles.applicationWorkerRating}>
-                                {application.worker.rating.toFixed(1)}
-                              </Text>
-                            </>
-                          ) : (
-                            <Text
-                              style={[
-                                styles.applicationWorkerRating,
-                                { color: Colors.textSecondary },
-                              ]}
-                            >
-                              New
-                            </Text>
-                          )}
-                          {application.worker.city && (
-                            <>
-                              <Text style={styles.applicationMetaDot}>•</Text>
-                              <Text style={styles.applicationWorkerCity}>
-                                {application.worker.city}
-                              </Text>
-                            </>
-                          )}
+                          <Text style={styles.applicationStatusText}>
+                            {application.status}
+                          </Text>
                         </View>
                       </View>
-                      <View
-                        style={[
-                          styles.applicationStatusBadge,
-                          application.status === "PENDING" &&
-                            styles.statusPending,
-                          application.status === "ACCEPTED" &&
-                            styles.statusAccepted,
-                          application.status === "REJECTED" &&
-                            styles.statusRejected,
-                        ]}
-                      >
-                        <Text style={styles.applicationStatusText}>
-                          {application.status}
-                        </Text>
-                      </View>
-                    </View>
 
-                    {/* Proposal Details */}
-                    {application.proposal_message && (
-                      <View style={styles.proposalSection}>
-                        <Text style={styles.proposalLabel}>Proposal:</Text>
-                        <Text style={styles.proposalText} numberOfLines={3}>
-                          {application.proposal_message}
-                        </Text>
-                      </View>
-                    )}
-
-                    <View style={styles.applicationDetails}>
-                      {application.budget_option === "NEGOTIATE" && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="cash-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            Proposed: ₱
-                            {application.proposed_budget.toLocaleString()}
+                      {/* Proposal Details */}
+                      {application.proposal_message && (
+                        <View style={styles.proposalSection}>
+                          <Text style={styles.proposalLabel}>Proposal:</Text>
+                          <Text style={styles.proposalText} numberOfLines={3}>
+                            {application.proposal_message}
                           </Text>
                         </View>
                       )}
-                      {application.estimated_duration && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="time-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            {application.estimated_duration}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
 
-                    {/* View Chat Button for Accepted Applications */}
-                    {application.status === "ACCEPTED" && !job?.is_team_job && (
-                      <TouchableOpacity
-                        style={[styles.viewChatButton, { marginTop: 8 }]}
-                        onPress={handleViewChat}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons
-                          name="chatbubble-outline"
-                          size={18}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.viewChatButtonText}>View Chat</Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {/* Action Buttons */}
-                    {application.status === "PENDING" && (
-                      <View style={styles.applicationActions}>
-                        <TouchableOpacity
-                          style={styles.rejectButton}
-                          onPress={() =>
-                            handleRejectApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={rejectApplicationMutation.isPending}
-                        >
-                          {rejectApplicationMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.error}
+                      <View style={styles.applicationDetails}>
+                        {application.budget_option === "NEGOTIATE" && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name="cash-outline"
+                              size={16}
+                              color={Colors.textSecondary}
                             />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={20}
+                            <Text style={styles.applicationDetailText}>
+                              Proposed: ₱
+                              {application.proposed_budget.toLocaleString()}
+                            </Text>
+                          </View>
+                        )}
+                        {application.estimated_duration && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name="time-outline"
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.applicationDetailText}>
+                              {application.estimated_duration}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* View Chat Button for Accepted Applications */}
+                      {application.status === "ACCEPTED" &&
+                        !job?.is_team_job && (
+                          <TouchableOpacity
+                            style={[styles.viewChatButton, { marginTop: 8 }]}
+                            onPress={handleViewChat}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons
+                              name="chatbubble-outline"
+                              size={18}
+                              color={Colors.white}
+                            />
+                            <Text style={styles.viewChatButtonText}>
+                              View Chat
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+
+                      {/* Action Buttons */}
+                      {application.status === "PENDING" && (
+                        <View style={styles.applicationActions}>
+                          <TouchableOpacity
+                            style={styles.rejectButton}
+                            onPress={() =>
+                              handleRejectApplication(
+                                application.id,
+                                application.worker.name,
+                              )
+                            }
+                            disabled={rejectApplicationMutation.isPending}
+                          >
+                            {rejectApplicationMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
                                 color={Colors.error}
                               />
-                              <Text style={styles.rejectButtonText}>
-                                Reject
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() =>
-                            handleAcceptApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={acceptApplicationMutation.isPending}
-                        >
-                          {acceptApplicationMutation.isPending ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle-outline"
-                                size={20}
-                                color="#FFF"
-                              />
-                              <Text style={styles.acceptButtonText}>
-                                Accept
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Agency Invite Suggestions - Client can suggest preferred workers */}
-        {showAgencySuggestionSection && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Agency Worker Suggestions</Text>
-            </View>
-            <View style={styles.emptyApplications}>
-              <Ionicons
-                name="people-outline"
-                size={48}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.emptyApplicationsText}>
-                Suggest preferred workers
-              </Text>
-              <Text style={styles.emptyApplicationsSubtext}>
-                Share suggested workers for this agency-assigned job.
-              </Text>
-              {job.status !== "IN_PROGRESS" && (
-                <TouchableOpacity
-                  style={styles.retryButton}
-                  onPress={() => {
-                    const catId =
-                      typeof job.category === "object"
-                        ? job.category.id
-                        : undefined;
-                    router.push({
-                      pathname: "/jobs/invite-workers" as any,
-                      params: {
-                        jobId: id,
-                        categoryId: catId?.toString() || "",
-                      },
-                    });
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.retryButtonText}>Suggest Workers</Text>
-                </TouchableOpacity>
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={20}
+                                  color={Colors.error}
+                                />
+                                <Text style={styles.rejectButtonText}>
+                                  Reject
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={() =>
+                              handleAcceptApplication(
+                                application.id,
+                                application.worker.name,
+                              )
+                            }
+                            disabled={acceptApplicationMutation.isPending}
+                          >
+                            {acceptApplicationMutation.isPending ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={20}
+                                  color="#FFF"
+                                />
+                                <Text style={styles.acceptButtonText}>
+                                  Accept
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
-          </View>
-        )}
+          )}
 
         {/* Job Feedback */}
         {jobHasFeedback && (
@@ -3050,9 +2698,7 @@ export default function JobDetailScreen() {
                     </View>
                     <Text style={styles.posterRatingText}>
                       {job.assignedAgency.workers_assigned} worker
-                      {job.assignedAgency.workers_assigned !== 1
-                        ? "s"
-                        : ""}{" "}
+                      {job.assignedAgency.workers_assigned !== 1 ? "s" : ""}{" "}
                       assigned
                     </Text>
                   </View>
@@ -3315,68 +2961,72 @@ export default function JobDetailScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Apply Button (Fixed at bottom) - Only for non-team LISTING jobs */}
-      {isWorker &&
-        job?.jobType !== "INVITE" &&
-        !job?.is_team_job &&
-        job?.status === "ACTIVE" &&
-        !isCurrentWorkerAssigned && (
-          <View style={styles.applyButtonContainer} pointerEvents="box-none">
-            {hasApplied ? (
-              <View style={styles.appliedContainer}>
-                <View style={styles.appliedRow}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={24}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.appliedText}>
-                    You have already applied to this job
-                  </Text>
-                </View>
-                {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
-                  <TouchableOpacity
-                    style={styles.viewChatButton}
-                    onPress={handleViewChat}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="chatbubble-outline"
-                      size={18}
-                      color={Colors.white}
-                    />
-                    <Text style={styles.viewChatButtonText}>View Chat</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[
-                  styles.applyButton,
-                  (!user?.kycVerified || hasApplied) &&
-                    styles.applyButtonDisabled,
-                ]}
-                onPress={handleApply}
-                activeOpacity={0.8}
-                disabled={!user?.kycVerified || hasApplied}
-              >
-                <Text
-                  style={[
-                    styles.applyButtonText,
-                    (!user?.kycVerified || hasApplied) &&
-                      styles.applyButtonTextDisabled,
-                  ]}
-                >
-                  {!user?.kycVerified
-                    ? "KYC Verification Required"
-                    : hasApplied
-                      ? "Already Applied"
-                      : "Apply for this Job"}
+      {/* Apply Button (Fixed at bottom) - Only for LISTING jobs, not INVITE jobs */}
+      {isWorker && job?.jobType !== "INVITE" && (
+        <View style={styles.applyButtonContainer}>
+          {!user?.kycVerified && (
+            <View style={styles.kycWarningBanner}>
+              <Ionicons name="warning" size={20} color={Colors.warning} />
+              <Text style={styles.kycWarningText}>
+                Complete KYC verification to apply for jobs
+              </Text>
+            </View>
+          )}
+          {hasApplied ? (
+            <View style={styles.appliedContainer}>
+              <View style={styles.appliedRow}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={Colors.success}
+                />
+                <Text style={styles.appliedText}>
+                  You have already applied to this job
                 </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+              </View>
+              {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
+                <TouchableOpacity
+                  style={styles.viewChatButton}
+                  onPress={handleViewChat}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="chatbubble-outline"
+                    size={18}
+                    color={Colors.white}
+                  />
+                  <Text style={styles.viewChatButtonText}>View Chat</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.applyButton,
+                (!user?.kycVerified || hasApplied) &&
+                  styles.applyButtonDisabled,
+              ]}
+              onPress={handleApply}
+              activeOpacity={0.8}
+              disabled={!user?.kycVerified || hasApplied}
+            >
+              <Text
+                style={[
+                  styles.applyButtonText,
+                  (!user?.kycVerified || hasApplied) &&
+                    styles.applyButtonTextDisabled,
+                ]}
+              >
+                {!user?.kycVerified
+                  ? "KYC Verification Required"
+                  : hasApplied
+                    ? "Already Applied"
+                    : "Apply for this Job"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {/* Image Modal */}
       <Modal visible={showImageModal} transparent animationType="fade">
@@ -3498,22 +3148,6 @@ export default function JobDetailScreen() {
             </View>
 
             {/* Submit Button */}
-            <Text style={styles.termsText}>
-              By proceeding you agree to our{" "}
-              <Text
-                style={styles.termsLink}
-                onPress={() => router.push("/legal/terms")}
-              >
-                terms
-              </Text>{" "}
-              and{" "}
-              <Text
-                style={styles.termsLink}
-                onPress={() => router.push("/legal/privacy")}
-              >
-                policy
-              </Text>
-            </Text>
             <TouchableOpacity
               style={[
                 styles.submitButton,
@@ -3752,22 +3386,6 @@ export default function JobDetailScreen() {
             </View>
 
             {/* Submit Button */}
-            <Text style={styles.termsText}>
-              By proceeding you agree to our{" "}
-              <Text
-                style={styles.termsLink}
-                onPress={() => router.push("/legal/terms")}
-              >
-                terms
-              </Text>{" "}
-              and{" "}
-              <Text
-                style={styles.termsLink}
-                onPress={() => router.push("/legal/privacy")}
-              >
-                policy
-              </Text>
-            </Text>
             <TouchableOpacity
               style={[
                 styles.submitButton,
@@ -3822,7 +3440,8 @@ export default function JobDetailScreen() {
           setPendingApply(false);
           setShowApplicationModal(true);
         }}
-        title="How It Works"
+        title="How Your Earnings Work 💰"
+        subtitle="Here's what happens after you're hired"
         items={WORKER_PAYMENT_INFO_ITEMS}
       />
     </SafeAreaView>
@@ -3895,25 +3514,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.xs,
-  },
-  cancellationCard: {
-    marginTop: 8,
-    backgroundColor: "#FFF7ED",
-    borderColor: "#FED7AA",
-    borderWidth: 1,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    gap: 4,
-  },
-  cancellationTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#9A3412",
-    marginBottom: 2,
-  },
-  cancellationLine: {
-    fontSize: 12,
-    color: "#9A3412",
   },
   jobCategory: {
     fontSize: Typography.fontSize.base,
@@ -4794,28 +4394,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   conversationLockText: {
-    startAnywayButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginTop: Spacing.sm,
-      marginBottom: Spacing.sm,
-      padding: Spacing.md,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      borderColor: Colors.primary,
-      backgroundColor: Colors.primary + "10",
-    },
-    startAnywayButtonTitle: {
-      ...Typography.body.medium,
-      fontWeight: "700",
-      color: Colors.primary,
-    },
-    startAnywayButtonSubtitle: {
-      ...Typography.body.small,
-      color: Colors.textSecondary,
-      marginTop: 2,
-    },
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     lineHeight: 18,
@@ -5105,29 +4683,5 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSize.md,
     fontWeight: "700",
-  },
-  retryButton: {
-    marginTop: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-  },
-  retryButtonText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: "600",
-    color: Colors.primary,
-  },
-  termsText: {
-    fontSize: 11,
-    color: Colors.textHint,
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  termsLink: {
-    color: Colors.primary,
-    textDecorationLine: "underline",
   },
 });
