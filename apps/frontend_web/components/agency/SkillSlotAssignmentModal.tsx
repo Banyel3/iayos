@@ -372,7 +372,7 @@ export default function SkillSlotAssignmentModal({
                 <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
-                      validation.isValid ? "bg-[#00BAF1]" : "bg-[#00BAF1]"
+                      validation.isValid ? "bg-[#00BAF1]" : "bg-red-400"
                     }`}
                     style={{
                       width: `${Math.min(100, (validation.totalAssigned / validation.totalNeeded) * 100)}%`,

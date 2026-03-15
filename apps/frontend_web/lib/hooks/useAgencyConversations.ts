@@ -6,19 +6,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 import { toast } from "sonner";
-
-const CONTACT_INFO_BLOCKED_MESSAGE =
-  "For safety, sharing phone numbers or email addresses in chat is not allowed.";
-const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
-const PH_PHONE_REGEX = /\b(\+63|63|0)?9\d{9}\b/;
-
-function containsContactInfo(text: string): boolean {
-  if (!text) {
-    return false;
-  }
-
-  return EMAIL_REGEX.test(text) || PH_PHONE_REGEX.test(text);
-}
+import {
+  containsContactInfo,
+  CONTACT_INFO_BLOCKED_MESSAGE,
+} from "@/lib/utils/contact-filter";
 
 // Types
 export type AgencyConversationJob = {
