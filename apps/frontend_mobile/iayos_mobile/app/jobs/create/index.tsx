@@ -112,6 +112,24 @@ interface SkillSlot {
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
 }
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const toCalendarDay = (date: Date): Date =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const getInclusiveCalendarDays = (start: Date, end: Date): number => {
+  const startDay = toCalendarDay(start).getTime();
+  const endDay = toCalendarDay(end).getTime();
+  return Math.floor((endDay - startDay) / DAY_IN_MS) + 1;
+};
+
+const formatLocalDateYYYYMMDD = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 // Predefined job title suggestions based on category
 // Keys MUST match Specializations.specializationName from seed_data.py
 const TITLE_SUGGESTIONS: Record<string, string[]> = {
@@ -383,6 +401,8 @@ export default function CreateJobScreen() {
 
   const hasInsufficientBalance = walletBalance < requiredDownpayment;
   const shortfallAmount = requiredDownpayment - walletBalance;
+  const shouldShowBalanceWarning =
+    hasInsufficientBalance && requiredDownpayment > 0;
 
   // Fetch worker's materials if workerId is provided
   const { data: workerMaterialsData, isLoading: materialsLoading } = useQuery({
@@ -435,13 +455,13 @@ export default function CreateJobScreen() {
           id: number;
           name: string;
           specializations: string[];
-            workers: {
-              id: number;
-              firstName: string;
-              lastName: string;
-              specialization: string;
-              specializations: string[];
-            }[];
+          workers: {
+            id: number;
+            firstName: string;
+            lastName: string;
+            specialization: string;
+            specializations: string[];
+          }[];
         };
       }>(ENDPOINTS.AGENCY_DETAIL(Number(agencyId)));
       return response.agency;
@@ -686,12 +706,7 @@ export default function CreateJobScreen() {
       if (startDate && isOneDayJob) {
         setDurationDays("1");
       } else if (startDate && scheduledEndDate) {
-        // Calculate difference in milliseconds
-        const diffTime = Math.abs(
-          scheduledEndDate.getTime() - startDate.getTime(),
-        );
-        // Convert to days and add 1 (inclusive)
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        const diffDays = getInclusiveCalendarDays(startDate, scheduledEndDate);
         setDurationDays(diffDays.toString());
       }
     }
@@ -1144,7 +1159,7 @@ export default function CreateJobScreen() {
       Alert.alert("Error", "Please select an end date for the job");
       return;
     }
-    if (finalEndDate < startDate) {
+    if (getInclusiveCalendarDays(startDate, finalEndDate) < 1) {
       Alert.alert("Error", "End date cannot be before start date");
       return;
     }
@@ -1203,10 +1218,10 @@ export default function CreateJobScreen() {
       expected_duration: duration.trim() || undefined,
       urgency_level: urgency ?? null,
       preferred_start_date: startDate
-        ? startDate.toISOString().split("T")[0]
+        ? formatLocalDateYYYYMMDD(startDate)
         : undefined,
       scheduled_end_date: finalEndDate
-        ? finalEndDate.toISOString().split("T")[0]
+        ? formatLocalDateYYYYMMDD(finalEndDate)
         : undefined,
       downpayment_method: "WALLET", // Jobs only use Wallet payment
       // Universal job fields for ML accuracy - explicitly passed
@@ -1984,9 +1999,15 @@ export default function CreateJobScreen() {
                         setShowDatePicker(Platform.OS === "ios");
                         if (selectedDate) {
                           setStartDate(selectedDate);
+                          if (isOneDayJob) {
+                            setScheduledEndDate(selectedDate);
+                          }
                           if (
                             scheduledEndDate &&
-                            scheduledEndDate < selectedDate
+                            getInclusiveCalendarDays(
+                              selectedDate,
+                              scheduledEndDate,
+                            ) < 1
                           ) {
                             setScheduledEndDate(null);
                           }
@@ -2058,6 +2079,14 @@ export default function CreateJobScreen() {
                         setShowEndDatePicker(Platform.OS === "ios");
                         if (selectedDate) {
                           setScheduledEndDate(selectedDate);
+                          if (
+                            startDate &&
+                            getInclusiveCalendarDays(startDate, selectedDate) >
+                              1 &&
+                            isOneDayJob
+                          ) {
+                            setIsOneDayJob(false);
+                          }
                         }
                       }}
                     />
@@ -2073,7 +2102,11 @@ export default function CreateJobScreen() {
                   const next = !isOneDayJob;
                   setIsOneDayJob(next);
                   if (next) {
-                    setScheduledEndDate(null);
+                    if (startDate) {
+                      setScheduledEndDate(startDate);
+                    } else {
+                      setScheduledEndDate(null);
+                    }
                     // Force PROJECT payment model for one-day jobs
                     setPaymentModel("PROJECT");
                   }
@@ -2443,32 +2476,18 @@ export default function CreateJobScreen() {
 
               {/* Payment Model Selector */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Payment Model</Text>
                 {isAgencyHire ? (
                   <>
-                    <View
-                      style={[
-                        styles.optionButton,
-                        styles.optionButtonActive,
-                        { width: "100%" },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.optionButtonText,
-                          styles.optionButtonTextActive,
-                        ]}
-                      >
-                        Fixed Budget (Project)
-                      </Text>
-                    </View>
+                    <Text style={styles.label}>Payment Terms</Text>
                     <Text style={styles.hint}>
-                      Agency hires use fixed budget only. Payment is settled at
-                      project completion.
+                      Client to agency jobs are project rate only. Agencies
+                      handle employee salaries internally, so daily-rate
+                      selection is not available.
                     </Text>
                   </>
                 ) : (
                   <>
+                    <Text style={styles.label}>Payment Model</Text>
                     <View style={styles.buttonGroup}>
                       <TouchableOpacity
                         style={[
@@ -2782,9 +2801,7 @@ export default function CreateJobScreen() {
               <View
                 style={[
                   styles.walletBalanceCard,
-                  hasInsufficientBalance &&
-                    budget &&
-                    styles.walletBalanceCardWarning,
+                  shouldShowBalanceWarning && styles.walletBalanceCardWarning,
                 ]}
               >
                 <View style={styles.walletBalanceHeader}>
@@ -2792,9 +2809,7 @@ export default function CreateJobScreen() {
                     name="wallet"
                     size={24}
                     color={
-                      hasInsufficientBalance && budget
-                        ? Colors.warning
-                        : Colors.primary
+                      shouldShowBalanceWarning ? Colors.warning : Colors.primary
                     }
                   />
                   <Text style={styles.walletBalanceLabel}>
@@ -2804,8 +2819,7 @@ export default function CreateJobScreen() {
                 <Text
                   style={[
                     styles.walletBalanceAmount,
-                    hasInsufficientBalance &&
-                      budget &&
+                    shouldShowBalanceWarning &&
                       styles.walletBalanceAmountWarning,
                   ]}
                 >
@@ -2823,20 +2837,20 @@ export default function CreateJobScreen() {
                     </Text>
                   </View>
                 )}
-                {budget && parseFloat(budget) > 0 && (
+                {requiredDownpayment > 0 && (
                   <View style={styles.walletBalanceDetails}>
                     <Text style={styles.walletBalanceDetailText}>
                       Required downpayment (50%): ₱
                       {requiredDownpayment.toFixed(2)}
                     </Text>
-                    {hasInsufficientBalance && (
+                    {shouldShowBalanceWarning && (
                       <Text style={styles.walletBalanceShortfall}>
                         Short by: ₱{shortfallAmount.toFixed(2)}
                       </Text>
                     )}
                   </View>
                 )}
-                {hasInsufficientBalance && budget && (
+                {shouldShowBalanceWarning && (
                   <TouchableOpacity
                     style={styles.depositButton}
                     onPress={() =>

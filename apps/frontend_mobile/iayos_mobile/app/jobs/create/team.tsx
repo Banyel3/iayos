@@ -276,6 +276,7 @@ export default function CreateTeamJobScreen() {
   const escrowAmount = paymentModel === "DAILY" ? budgetNum : budgetNum * 0.5;
   const platformFee = budgetNum * 0.1;
   const totalDue = escrowAmount + platformFee;
+  const shortfallAmount = Math.max(0, totalDue - walletBalance);
   const hasEnoughBalance = walletBalance >= totalDue;
 
   // AI Price Prediction
@@ -543,8 +544,6 @@ export default function CreateTeamJobScreen() {
         return "Computed total budget is too low (minimum ₱100)";
     }
     if (!barangay || !street) return "Please provide a complete location";
-    if (!hasEnoughBalance)
-      return `Insufficient wallet balance. Need ₱${totalDue.toFixed(2)}`;
     if (startDate && scheduledEndDate && scheduledEndDate < startDate) {
       return "Scheduled end date cannot be earlier than preferred start date";
     }
@@ -564,6 +563,25 @@ export default function CreateTeamJobScreen() {
 
   // Submit form
   const handleSubmit = () => {
+    if (!hasEnoughBalance) {
+      Alert.alert(
+        "Insufficient Wallet Balance",
+        `You need ₱${totalDue.toFixed(2)} to post this team job, but your wallet only has ₱${walletBalance.toFixed(2)}.\n\nYou're short by ₱${shortfallAmount.toFixed(2)}.\n\nWould you like to deposit funds now?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Deposit Funds",
+            onPress: () =>
+              router.push({
+                pathname: "/payments/deposit",
+                params: { amount: Math.ceil(shortfallAmount).toString() },
+              } as any),
+          },
+        ],
+      );
+      return;
+    }
+
     const error = validateForm();
     if (error) {
       Alert.alert("Validation Error", error);
@@ -1113,7 +1131,7 @@ export default function CreateTeamJobScreen() {
                         </Text>
                         {!hasEnoughBalance && (
                           <Text style={styles.insufficientText}>
-                            (Need ₱{(totalDue - walletBalance).toFixed(2)} more)
+                            (Need ₱{shortfallAmount.toFixed(2)} more)
                           </Text>
                         )}
                       </>
@@ -1131,9 +1149,7 @@ export default function CreateTeamJobScreen() {
                           router.push({
                             pathname: "/payments/deposit",
                             params: {
-                              amount: Math.ceil(
-                                totalDue - walletBalance,
-                              ).toString(),
+                              amount: Math.ceil(shortfallAmount).toString(),
                             },
                           } as any)
                         }
@@ -1512,15 +1528,13 @@ export default function CreateTeamJobScreen() {
           <TouchableOpacity
             style={[
               styles.submitButton,
-              (!hasEnoughBalance ||
-                skillSlots.length < 1 ||
+              (skillSlots.length < 1 ||
                 totalWorkersNeeded < 2 ||
                 createJobMutation.isPending) &&
                 styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={
-              !hasEnoughBalance ||
               skillSlots.length < 1 ||
               totalWorkersNeeded < 2 ||
               createJobMutation.isPending
