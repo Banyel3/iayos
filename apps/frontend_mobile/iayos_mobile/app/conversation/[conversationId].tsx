@@ -2718,6 +2718,92 @@ export default function ChatScreen() {
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
 
+  const attendanceRows = Array.isArray(conversation.attendance_today)
+    ? conversation.attendance_today
+    : [];
+
+  const clientAttendanceRows =
+    conversation.my_role === "CLIENT" &&
+    conversation.is_team_job &&
+    isTeamProjectAttendance
+      ? (() => {
+          const assignments = Array.isArray(conversation.team_worker_assignments)
+            ? conversation.team_worker_assignments
+            : [];
+          const consumedAttendanceIndexes = new Set<number>();
+
+          const merged = assignments.map((assignment) => {
+            const matchIndex = attendanceRows.findIndex((row: any, idx: number) => {
+              if (consumedAttendanceIndexes.has(idx)) {
+                return false;
+              }
+
+              const rowAccountId = Number(row?.worker_account_id);
+              const rowWorkerId = Number(row?.worker_id);
+              const assignmentAccountId = Number(assignment?.account_id);
+              const assignmentWorkerId = Number(assignment?.worker_id);
+
+              const accountMatch =
+                Number.isFinite(rowAccountId) &&
+                Number.isFinite(assignmentAccountId) &&
+                rowAccountId === assignmentAccountId;
+
+              const workerMatch =
+                Number.isFinite(rowWorkerId) &&
+                Number.isFinite(assignmentWorkerId) &&
+                rowWorkerId === assignmentWorkerId;
+
+              return accountMatch || workerMatch;
+            });
+
+            if (matchIndex >= 0) {
+              consumedAttendanceIndexes.add(matchIndex);
+              const matchedRow: any = attendanceRows[matchIndex];
+              return {
+                ...matchedRow,
+                worker_id: matchedRow?.worker_id ?? assignment.worker_id,
+                worker_account_id:
+                  matchedRow?.worker_account_id ?? assignment.account_id,
+                worker_name: matchedRow?.worker_name || assignment.name,
+                worker_avatar: matchedRow?.worker_avatar || assignment.avatar,
+                assignment_id: assignment.assignment_id,
+                awaiting_worker: false,
+              };
+            }
+
+            return {
+              attendance_id: `awaiting-${assignment.assignment_id}`,
+              worker_id: assignment.worker_id,
+              worker_account_id: assignment.account_id,
+              worker_name: assignment.name,
+              worker_avatar: assignment.avatar,
+              date:
+                conversation.effective_work_date ||
+                new Date().toISOString().slice(0, 10),
+              time_in: null,
+              time_out: null,
+              status: "AWAITING_WORKER",
+              is_dispatched: false,
+              worker_confirmed: false,
+              worker_confirmed_at: null,
+              client_confirmed: false,
+              client_confirmed_at: null,
+              amount_earned: 0,
+              payment_processed: false,
+              notes: "Awaiting worker on-the-way",
+              assignment_id: assignment.assignment_id,
+              awaiting_worker: true,
+            };
+          });
+
+          const unmatchedAttendance = attendanceRows.filter(
+            (_row: any, idx: number) => !consumedAttendanceIndexes.has(idx),
+          );
+
+          return [...merged, ...unmatchedAttendance];
+        })()
+      : attendanceRows;
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Custom Header */}
@@ -3953,12 +4039,12 @@ export default function ChatScreen() {
                         style={styles.teamWorkersScrollView}
                         contentContainerStyle={styles.teamWorkersScrollContent}
                       >
-                        {conversation.attendance_today &&
-                        conversation.attendance_today.length > 0 ? (
-                          conversation.attendance_today.map(
+                        {clientAttendanceRows &&
+                        clientAttendanceRows.length > 0 ? (
+                          clientAttendanceRows.map(
                             (attendance: any) => (
                               <View
-                                key={attendance.attendance_id}
+                                key={String(attendance.attendance_id)}
                                 style={[
                                   styles.teamWorkerCardCompact,
                                   attendance.client_confirmed &&
@@ -4010,7 +4096,18 @@ export default function ChatScreen() {
                                   </View>
                                 </View>
 
-                                {attendance.client_confirmed ? (
+                                {attendance.awaiting_worker ? (
+                                  <View style={styles.pendingBadge}>
+                                    <Ionicons
+                                      name="time-outline"
+                                      size={14}
+                                      color={Colors.warning}
+                                    />
+                                    <Text style={styles.pendingText}>
+                                      Awaiting worker...
+                                    </Text>
+                                  </View>
+                                ) : attendance.client_confirmed ? (
                                   <View style={styles.arrivedBadgeCompact}>
                                     <Ionicons
                                       name={
