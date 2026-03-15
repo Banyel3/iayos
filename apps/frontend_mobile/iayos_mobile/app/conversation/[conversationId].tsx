@@ -540,6 +540,8 @@ export default function ChatScreen() {
     isServerMarkedClosed ||
     isConversationArchived ||
     computedConversationClosed;
+  const isPaymentReleased =
+    conversation?.job?.paymentBuffer?.is_payment_released === true;
 
   // User can submit a review once completion/payment requirements are met.
   // Do not depend on conversation closed flags here because those can be stale.
@@ -5540,6 +5542,7 @@ export default function ChatScreen() {
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
             !isJobCancelled &&
+            !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed &&
             viewerHasReviewed &&
@@ -5612,6 +5615,7 @@ export default function ChatScreen() {
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
             !isJobCancelled &&
+            !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed &&
             (!viewerHasReviewed || !counterpartyHasReviewed) && (

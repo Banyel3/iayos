@@ -385,6 +385,24 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     {"error": "Invalid date format. Use YYYY-MM-DD"},
                     status=400
                 )
+
+        # Parse scheduled end date if provided
+        scheduled_end_date = None
+        scheduled_end_date_raw = getattr(data, "scheduled_end_date", None)
+        if isinstance(scheduled_end_date_raw, str) and scheduled_end_date_raw:
+            try:
+                scheduled_end_date = datetime.strptime(scheduled_end_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid scheduled_end_date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+
+        if preferred_start_date and scheduled_end_date and scheduled_end_date < preferred_start_date:
+            return Response(
+                {"error": "scheduled_end_date cannot be earlier than preferred_start_date"},
+                status=400
+            )
         
         # Calculate 50% downpayment (escrow)
         downpayment = Decimal(str(data.budget)) * Decimal('0.5')
@@ -479,6 +497,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     expectedDuration=data.expected_duration,
                     urgency=data.urgency.upper() if data.urgency else "MEDIUM",
                     preferredStartDate=preferred_start_date,
+                    scheduled_end_date=scheduled_end_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
                     status=JobPosting.JobStatus.ACTIVE
@@ -579,6 +598,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 expectedDuration=data.expected_duration,
                 urgency=data.urgency.upper() if data.urgency else "MEDIUM",
                 preferredStartDate=preferred_start_date,
+                scheduled_end_date=scheduled_end_date,
                 materialsNeeded=data.materials_needed if data.materials_needed else [],
                 status=JobPosting.JobStatus.ACTIVE
             )
@@ -771,6 +791,24 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     {"error": "Invalid date format. Use YYYY-MM-DD"},
                     status=400
                 )
+
+        # Parse scheduled end date if provided
+        scheduled_end_date = None
+        scheduled_end_date_raw = data.scheduled_end_date
+        if isinstance(scheduled_end_date_raw, str) and scheduled_end_date_raw:
+            try:
+                scheduled_end_date = datetime.strptime(scheduled_end_date_raw, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"error": "Invalid scheduled_end_date format. Use YYYY-MM-DD"},
+                    status=400
+                )
+
+        if preferred_start_date and scheduled_end_date and scheduled_end_date < preferred_start_date:
+            return Response(
+                {"error": "scheduled_end_date cannot be earlier than preferred_start_date"},
+                status=400
+            )
         
         # Determine payment model
         payment_model = (data.payment_model or "PROJECT").upper()
@@ -902,6 +940,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     expectedDuration=data.expected_duration,
                     urgency=urgency_value,
                     preferredStartDate=preferred_start_date,
+                    scheduled_end_date=scheduled_end_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
                     inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
@@ -1130,6 +1169,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     expectedDuration=data.expected_duration,
                     urgency=urgency_value,
                     preferredStartDate=preferred_start_date,
+                    scheduled_end_date=scheduled_end_date,
                     materialsNeeded=data.materials_needed if data.materials_needed else [],
                     jobType=job_type,
                     inviteStatus=JobPosting.InviteStatus.PENDING if job_type == JobPosting.JobType.INVITE else None,
