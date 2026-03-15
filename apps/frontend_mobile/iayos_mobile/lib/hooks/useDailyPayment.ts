@@ -898,6 +898,18 @@ export const useApproveRateChange = () => {
 /**
  * Cancel remaining days (get refund)
  */
+export interface CancelDailyJobResponse {
+  success: boolean;
+  message?: string;
+  cancelled_by?: string;
+  days_completed?: number;
+  total_paid_out?: number;
+  escrow_collected?: number;
+  refund_amount?: number;
+  platform_fee_retained?: number;
+  refunded_escrow_only?: boolean;
+}
+
 export const useCancelDailyJob = () => {
   const queryClient = useQueryClient();
 
@@ -908,7 +920,7 @@ export const useCancelDailyJob = () => {
     }: {
       jobId: number;
       reason: string;
-    }): Promise<{ success: boolean; message?: string }> => {
+    }): Promise<CancelDailyJobResponse> => {
       const response = await apiRequest(ENDPOINTS.DAILY_CANCEL(jobId), {
         method: "POST",
         body: JSON.stringify({ reason }),
@@ -918,19 +930,24 @@ export const useCancelDailyJob = () => {
         const error = await response.json();
         throw new Error(getErrorMessage(error, "Failed to cancel job"));
       }
-      return response.json() as Promise<{ success: boolean; message?: string }>;
+      return response.json() as Promise<CancelDailyJobResponse>;
     },
-    onSuccess: (data: { success: boolean; message?: string }, variables) => {
+    onSuccess: (data: CancelDailyJobResponse, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["dailySummary", variables.jobId],
       });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
 
+      const refundAmount = Number(data.refund_amount || 0).toFixed(2);
+      const retainedFee = Number(data.platform_fee_retained || 0).toFixed(2);
+
       Toast.show({
         type: "success",
         text1: "Job Cancelled",
-        text2: data.message || "Unused escrow will be refunded",
+        text2:
+          data.message ||
+          `Unused escrow refunded: ₱${refundAmount}. Platform fee retained: ₱${retainedFee}.`,
         position: "top",
       });
     },

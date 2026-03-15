@@ -927,7 +927,7 @@ export default function ChatScreen() {
 
     Alert.alert(
       "Cancel Daily Job",
-      "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
+      "Only unused daily escrow is refundable. Any completed days stay paid, and the platform fee is retained. Continue cancelling this daily job?",
       [
         { text: "Keep Job", style: "cancel" },
         {
@@ -3109,7 +3109,9 @@ export default function ChatScreen() {
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.teamArrivalHeader}>
                     <Text style={styles.teamArrivalTitle}>
-                      {isProjectMultiDayJob ? "Attendance" : "📅 Daily Attendance"}
+                      {isProjectMultiDayJob
+                        ? "Attendance"
+                        : "📅 Daily Attendance"}
                     </Text>
                     <Text style={styles.teamArrivalProgress}>
                       {format(
@@ -3730,8 +3732,9 @@ export default function ChatScreen() {
                         PROJECT Duration Reached
                       </Text>
                       <Text style={styles.dailyEndActionsText}>
-                        Worked {totalDaysWorked}/{configuredDurationDays} day(s).
-                        You can extend this project by 1 day or finish the job now.
+                        Worked {totalDaysWorked}/{configuredDurationDays}{" "}
+                        day(s). You can extend this project by 1 day or finish
+                        the job now.
                       </Text>
 
                       <View style={styles.dailyEndActionsButtons}>
@@ -3756,11 +3759,20 @@ export default function ChatScreen() {
                           disabled={projectExtendOneDayMutation.isPending}
                         >
                           {projectExtendOneDayMutation.isPending ? (
-                            <ActivityIndicator size="small" color={Colors.white} />
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
                           ) : (
                             <>
-                              <Ionicons name="add-circle" size={16} color={Colors.white} />
-                              <Text style={styles.dailyEndButtonText}>Extend +1 Day</Text>
+                              <Ionicons
+                                name="add-circle"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.dailyEndButtonText}>
+                                Extend +1 Day
+                              </Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -3802,11 +3814,20 @@ export default function ChatScreen() {
                         >
                           {approveTeamJobCompletionMutation.isPending ||
                           approveCompletionMutation.isPending ? (
-                            <ActivityIndicator size="small" color={Colors.white} />
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
                           ) : (
                             <>
-                              <Ionicons name="flag" size={16} color={Colors.white} />
-                              <Text style={styles.dailyEndButtonText}>Job Finished</Text>
+                              <Ionicons
+                                name="flag"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.dailyEndButtonText}>
+                                Job Finished
+                              </Text>
                             </>
                           )}
                         </TouchableOpacity>
