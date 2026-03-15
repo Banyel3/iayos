@@ -1974,7 +1974,7 @@ export default function JobDetailScreen() {
                   </Text>
                   <Text style={styles.conversationLockText}>
                     {isClient && job.assignedAgency
-                      ? "agency still assigning workers..."
+                      ? "The agency is still assigning workers…"
                       : isClient
                         ? `Select ${computedWorkersNeeded - computedWorkersAssigned} more worker(s) to start the team conversation`
                         : "Team chat will be available once all positions are filled"}

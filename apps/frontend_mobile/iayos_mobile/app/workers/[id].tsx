@@ -51,6 +51,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useWorkerReviews } from "@/lib/hooks/useReviews";
 import { useSubmitReport } from "@/lib/hooks/useReports";
+import { getVerificationLevelTag } from "@/lib/utils/verification-utils";
 
 interface Skill {
   id: number; // workerSpecialization ID
@@ -117,19 +118,6 @@ interface WorkerDetail {
   certifications?: WorkerCertification[];
   materials?: WorkerMaterial[];
 }
-
-const getVerificationLevelTag = (
-  verificationLevel?: number,
-  verified?: boolean,
-) => {
-  if (typeof verificationLevel === "number" && !Number.isNaN(verificationLevel)) {
-    return `Verification Level ${verificationLevel}`;
-  }
-  if (verified) {
-    return "Verification Level 1";
-  }
-  return null;
-};
 
 // Skeleton component for loading state
 const WorkerDetailSkeleton = () => {

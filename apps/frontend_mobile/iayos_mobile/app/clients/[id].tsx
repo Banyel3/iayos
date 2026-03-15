@@ -40,6 +40,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS, getAbsoluteMediaUrl } from "@/lib/api/config";
 import { useClientReviews } from "@/lib/hooks/useReviews";
 import { useSubmitReport } from "@/lib/hooks/useReports";
+import { getVerificationLevelTag } from "@/lib/utils/verification-utils";
 
 interface ClientDetail {
   id: number;
@@ -60,19 +61,6 @@ interface ClientDetail {
   verified: boolean;
   verificationLevel?: number;
 }
-
-const getVerificationLevelTag = (
-  verificationLevel?: number,
-  verified?: boolean,
-) => {
-  if (typeof verificationLevel === "number" && !Number.isNaN(verificationLevel)) {
-    return `Verification Level ${verificationLevel}`;
-  }
-  if (verified) {
-    return "Verification Level 1";
-  }
-  return null;
-};
 
 // Skeleton component for loading state
 const ClientDetailSkeleton = () => {
@@ -160,19 +148,38 @@ export default function ClientDetailScreen() {
       if (!response.ok) {
         throw new Error("Failed to fetch client details");
       }
-      const data = (await response.json()) as { client: any };
-      // Transform profile picture URL for local storage compatibility
+      const raw: unknown = await response.json();
+      const data =
+        raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const client =
+        "client" in data && data.client !== null && typeof data.client === "object"
+          ? (data.client as Record<string, unknown>)
+          : data;
+      // Explicitly pick and normalize fields for type safety
       return {
-        ...data.client,
-        profilePicture:
-          getAbsoluteMediaUrl(data.client.profilePicture) || undefined,
+        id: Number(client.id),
+        firstName: String(client.firstName ?? ""),
+        lastName: String(client.lastName ?? ""),
+        email: String(client.email ?? ""),
+        phoneNumber: client.phoneNumber != null ? String(client.phoneNumber) : undefined,
+        profilePicture: getAbsoluteMediaUrl(client.profilePicture as string | undefined) || undefined,
+        description: client.description != null ? String(client.description) : undefined,
+        rating: Number(client.rating ?? 0),
+        reviewCount: Number(client.reviewCount ?? 0),
+        jobsPosted: Number(client.jobsPosted ?? 0),
+        jobsCompleted: Number(client.jobsCompleted ?? 0),
+        totalSpent: Number(client.totalSpent ?? 0),
+        city: client.city != null ? String(client.city) : undefined,
+        province: client.province != null ? String(client.province) : undefined,
+        joinedDate: client.joinedDate != null ? String(client.joinedDate) : undefined,
+        verified: Boolean(client.verified),
         verificationLevel:
-          typeof data.client.verificationLevel === "number"
-            ? data.client.verificationLevel
-            : typeof data.client.verification_level === "number"
-              ? data.client.verification_level
+          typeof client.verificationLevel === "number"
+            ? client.verificationLevel
+            : typeof client.verification_level === "number"
+              ? (client.verification_level as number)
               : undefined,
-      };
+      } satisfies ClientDetail;
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 minutes

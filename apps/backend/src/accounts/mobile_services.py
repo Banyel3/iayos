@@ -2930,11 +2930,6 @@ def get_agency_detail_mobile(user, agency_id):
                 reviewerType="CLIENT",
                 jobID__assignedAgencyFK=agency,
             )
-            | Q(
-                revieweeAgencyID__isnull=True,
-                reviewerType="CLIENT",
-                jobID__assignedAgencyFK=agency,
-            )
         ).aggregate(
             avg_rating=Avg('rating'),
             review_count=Count('reviewID')
