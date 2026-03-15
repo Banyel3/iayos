@@ -5531,8 +5531,31 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     jobID=job,
                     reviewerID=request.auth,
                     reviewerType="CLIENT",
+                    status="ACTIVE",
                     revieweeEmployeeID__isnull=False
                 ).values_list('revieweeEmployeeID', flat=True))
+
+                legacy_client_reviews = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    status="ACTIVE",
+                    revieweeEmployeeID__isnull=True,
+                    revieweeAgencyID__isnull=True,
+                )
+
+                agency_account_id = None
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                    agency_account_id = job.assignedAgencyFK.accountFK_id
+                elif job.assignedEmployeeID and job.assignedEmployeeID.agency_id:
+                    agency_account_id = job.assignedEmployeeID.agency_id
+
+                if len(all_assigned_employee_ids) == 1 and all_assigned_employee_ids[0] not in reviewed_employee_ids:
+                    legacy_employee_review_exists = legacy_client_reviews.exclude(
+                        revieweeID_id=agency_account_id
+                    ).exists() if agency_account_id else legacy_client_reviews.exists()
+                    if legacy_employee_review_exists:
+                        reviewed_employee_ids.append(all_assigned_employee_ids[0])
                 
                 employees_needing_review = [
                     eid for eid in all_assigned_employee_ids 
@@ -5544,8 +5567,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     jobID=job,
                     reviewerID=request.auth,
                     reviewerType="CLIENT",
+                    status="ACTIVE",
                     revieweeAgencyID__isnull=False
                 ).exists()
+
+                if not agency_review_exists and agency_account_id:
+                    agency_review_exists = legacy_client_reviews.filter(
+                        revieweeID_id=agency_account_id
+                    ).exists()
                 
                 # Build pending employees info
                 pending_employees = []
@@ -5653,14 +5682,40 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     jobID=job,
                     reviewerID=request.auth,
                     reviewerType="CLIENT",
+                    status="ACTIVE",
                     revieweeEmployeeID__isnull=False
                 ).values_list('revieweeEmployeeID', flat=True)
+
+                reviewed_employee_ids_set = set(reviewed_employees)
+
+                legacy_client_reviews = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    status="ACTIVE",
+                    revieweeEmployeeID__isnull=True,
+                    revieweeAgencyID__isnull=True,
+                )
+
+                agency_account_id = None
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                    agency_account_id = job.assignedAgencyFK.accountFK_id
+                elif job.assignedEmployeeID and job.assignedEmployeeID.agency_id:
+                    agency_account_id = job.assignedEmployeeID.agency_id
+
+                assigned_employee_ids = list(assigned_employees)
+                if len(assigned_employee_ids) == 1 and assigned_employee_ids[0] not in reviewed_employee_ids_set:
+                    legacy_employee_review_exists = legacy_client_reviews.exclude(
+                        revieweeID_id=agency_account_id
+                    ).exists() if agency_account_id else legacy_client_reviews.exists()
+                    if legacy_employee_review_exists:
+                        reviewed_employee_ids_set.add(assigned_employee_ids[0])
                 
-                all_employees_reviewed = set(assigned_employees).issubset(set(reviewed_employees))
+                all_employees_reviewed = set(assigned_employee_ids).issubset(reviewed_employee_ids_set)
                 
                 # For backward compatibility, also check legacy single employee
                 if not assigned_employees and job.assignedEmployeeID:
-                    all_employees_reviewed = job.assignedEmployeeID.employeeID in reviewed_employees
+                    all_employees_reviewed = job.assignedEmployeeID.employeeID in reviewed_employee_ids_set
                 
                 job_completed = False
                 agency_side_review_exists = JobReview.objects.filter(
