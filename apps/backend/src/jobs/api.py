@@ -7752,6 +7752,10 @@ def confirm_backjob_started(request, job_id: int):
                 for assignment in assignments:
                     is_dispatched = bool(getattr(assignment, 'dispatched', False))
                     dispatched_at = getattr(assignment, 'dispatchedAt', None)
+                    has_legacy_progress_signal = (
+                        assignment.status == 'IN_PROGRESS'
+                        or bool(getattr(assignment, 'clientConfirmedArrival', False))
+                    )
 
                     if not is_dispatched:
                         undispatched_names.append(assignment.employee.fullName)
@@ -7759,6 +7763,11 @@ def confirm_backjob_started(request, job_id: int):
 
                     # If cycle start is known, dispatch must be from this cycle.
                     if backjob_cycle_start and (not dispatched_at or dispatched_at < backjob_cycle_start):
+                        # Backward compatibility: older in-progress assignments may
+                        # not have cycle-aligned dispatch timestamps. If work already
+                        # progressed, treat dispatch as valid for this cycle.
+                        if has_legacy_progress_signal:
+                            continue
                         undispatched_names.append(assignment.employee.fullName)
 
                 if undispatched_names:

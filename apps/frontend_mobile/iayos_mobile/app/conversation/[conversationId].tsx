@@ -842,12 +842,22 @@ export default function ChatScreen() {
       return true;
     }
 
-    if (!backjobCycleStartMs || !statusAt) {
-      return false;
+    if (!backjobCycleStartMs) {
+      return true;
+    }
+
+    // Backward compatibility: older in-progress jobs may have boolean dispatch/
+    // arrival state but missing timestamp fields.
+    if (!statusAt) {
+      return true;
     }
 
     const statusMs = new Date(statusAt).getTime();
-    return Number.isFinite(statusMs) && statusMs >= backjobCycleStartMs;
+    if (!Number.isFinite(statusMs)) {
+      return true;
+    }
+
+    return statusMs >= backjobCycleStartMs;
   };
 
   const isTeamArrivalInCurrentBackjobCycle = (

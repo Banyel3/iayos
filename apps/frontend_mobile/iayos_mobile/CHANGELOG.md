@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated payload date formatting to local `YYYY-MM-DD` output instead of UTC-based conversion to prevent date shifting.
   - **Impact**: Multi-day job requests now stay correctly recognized as multi-day when end date is the following day.
 
+- **Backjob Legacy In-Progress Compatibility (Dispatch/Start Flow)**
+  - Added compatibility fallback in mobile backjob status gating so legacy in-progress records with missing timestamp fields still count dispatched/arrived when boolean status is already true.
+  - Prevents old active backjob threads from being blocked by strict cycle timestamp checks after workflow updates.
+  - **Impact**: Existing in-progress backjobs can proceed through testing without creating a new job request.
+
 - **Global Mandatory Review Gate (All Pending Jobs List)**
   - Upgraded mobile pending-review blocker to render all pending review jobs instead of only the first item.
   - Added per-job `Review Now` actions so users can jump directly into each required conversation.
