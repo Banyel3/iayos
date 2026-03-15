@@ -4574,7 +4574,18 @@ def client_approve_job_completion(
     """
     try:
         print(f"✅ Client approving job {job_id} completion")
-        
+
+        # Reject JSON requests — payment_method and cash_proof_image must come from
+        # multipart/form-data.  Accepting JSON would silently fall through to the
+        # Form() default ("WALLET") and charge the wallet even when the user
+        # selected a different method.
+        content_type = getattr(request, 'content_type', '')
+        if 'application/json' in content_type.lower():
+            return Response(
+                {"error": "This endpoint requires multipart/form-data. JSON payloads are not supported."},
+                status=415,
+            )
+
         # Get payment method from form data (default to WALLET)
         payment_method_upper = payment_method.upper() if payment_method else 'WALLET'
         if payment_method_upper not in ['WALLET', 'CASH']:
@@ -4746,22 +4757,24 @@ def client_approve_job_completion(
                     status=500
                 )
         
-        # Mark as complete by client and save payment method
+        # Prepare in-memory completion fields.
+        # NOTE: job.save() is intentionally deferred until after payment processing
+        # succeeds, so that a payment failure never leaves the job in a COMPLETED
+        # state without a recorded payment.
         old_status = job.status
         job.clientMarkedComplete = True
         job.clientMarkedCompleteAt = timezone.now()
         job.finalPaymentMethod = payment_method_upper
         job.paymentMethodSelectedAt = timezone.now()
-        
-        # Save cash proof URL if provided
+
+        # Stage cash proof URL if provided
         if cash_proof_url:
             job.cashPaymentProofUrl = cash_proof_url
             job.cashProofUploadedAt = timezone.now()
-        
-        job.status = "COMPLETED"
-        job.save()
 
-        print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
+        job.status = "COMPLETED"
+
+        print(f"📋 Client approved job {job_id} completion with {payment_method_upper} payment. Processing payment…")
         
         # NOTE: Do NOT close conversation here - keep it ACTIVE until both parties have reviewed.
         # Conversation will be closed in the review submission endpoint after both reviews are submitted.
@@ -5086,29 +5099,12 @@ def client_approve_job_completion(
             }, status=400)
                 
         except Exception as payment_error:
-            print(f"⚠️ Error processing payment: {str(payment_error)}")
+            print(f"⚠️ Error processing payment for job {job_id}: {type(payment_error).__name__}: {str(payment_error)}")
             import traceback
             traceback.print_exc()
 
-            # Roll back completion flags so clients still see payment selection prompt.
-            try:
-                job.clientMarkedComplete = False
-                job.clientMarkedCompleteAt = None
-                job.status = old_status
-                job.finalPaymentMethod = None
-                job.paymentMethodSelectedAt = None
-                if payment_method_upper == 'CASH':
-                    job.cashPaymentProofUrl = None
-                    job.cashProofUploadedAt = None
-                job.save()
-            except Exception as rollback_error:
-                print(f"⚠️ Failed to rollback job {job_id} after payment error: {rollback_error}")
-
             return Response(
-                {
-                    "error": "Final payment failed. Job was not completed.",
-                    "details": str(payment_error),
-                },
+                {"error": "Final payment failed. Job was not completed. Please try again or contact support."},
                 status=500,
             )
         

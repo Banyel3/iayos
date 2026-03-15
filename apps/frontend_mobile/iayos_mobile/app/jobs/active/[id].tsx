@@ -370,17 +370,17 @@ export default function ActiveJobDetailScreen() {
 
       return response.json();
     },
-    onSuccess: () => {
-      Alert.alert(
-        "Success",
-        "Job completion approved and payment processed.",
-        [
-          {
-            text: "OK",
-            onPress: () => safeGoBack(router, "/(tabs)/jobs"),
-          },
-        ]
-      );
+    onSuccess: (_, variables) => {
+      const message =
+        variables.paymentMethod === "CASH"
+          ? "Job completion approved. Cash proof uploaded and payment recorded."
+          : "Job completion approved and wallet payment processed.";
+      Alert.alert("Success", message, [
+        {
+          text: "OK",
+          onPress: () => safeGoBack(router, "/(tabs)/jobs"),
+        },
+      ]);
       queryClient.invalidateQueries({ queryKey: ["jobs", "active", id] });
       queryClient.invalidateQueries({ queryKey: ["jobs", "active"] });
     },
@@ -448,11 +448,21 @@ export default function ActiveJobDetailScreen() {
     const uri = result.assets[0].uri;
 
     if (target === "TEAM") {
-      clientApproveMutation.mutate({
-        jobId: Number(id),
-        paymentMethod: "CASH",
-        cashProofImage: uri,
-      });
+      clientApproveMutation.mutate(
+        { jobId: Number(id), paymentMethod: "CASH", cashProofImage: uri },
+        {
+          onSuccess: (data) => {
+            Alert.alert(
+              "Success",
+              data.message || "Team job completed! Cash proof uploaded and payment recorded.",
+              [{ text: "OK", onPress: () => safeGoBack(router, "/(tabs)/jobs") }]
+            );
+          },
+          onError: (error: Error) => {
+            Alert.alert("Error", error.message || "Failed to approve completion");
+          },
+        }
+      );
       return;
     }
 
@@ -589,14 +599,14 @@ export default function ActiveJobDetailScreen() {
             clientApproveMutation.mutate(
               { jobId: Number(id), paymentMethod: "WALLET" },
               {
-                onSuccess: () => {
+                onSuccess: (data) => {
                   Alert.alert(
                     "Success",
-                    "Team job completed! Payment processed.",
+                    data.message || "Team job completed! Wallet payment processed.",
                     [{ text: "OK", onPress: () => safeGoBack(router, "/(tabs)/jobs") }]
                   );
                 },
-                onError: (error: any) => {
+                onError: (error: Error) => {
                   Alert.alert(
                     "Error",
                     error.message || "Failed to approve completion"
