@@ -1526,6 +1526,30 @@ export default function ChatScreen() {
         ],
       );
     } else if (conversation.is_agency_job) {
+      const isEmployeeComplete = (employee: any) =>
+        employee.agencyMarkedComplete ||
+        employee.employeeMarkedComplete ||
+        employee.marked_complete ||
+        employee.status === "COMPLETED";
+
+      const assignedEmployees = conversation.assigned_employees || [];
+      const incompleteWorkflowEmployees = assignedEmployees.filter(
+        (employee) =>
+          !employee.dispatched ||
+          !employee.clientConfirmedArrival ||
+          !isEmployeeComplete(employee),
+      );
+
+      // Defensive guard: keep client-side approval gate aligned with backend workflow validation.
+      if (incompleteWorkflowEmployees.length > 0) {
+        Alert.alert(
+          "Cannot Approve Yet",
+          "Some assigned employees have not completed the full workflow (dispatch, arrival confirmation, and agency completion).",
+          [{ text: "OK" }],
+        );
+        return;
+      }
+
       // Agency PROJECT job approval
       approveAgencyProjectJobMutation.mutate({
         jobId: conversation.job.id,
@@ -6064,6 +6088,8 @@ export default function ChatScreen() {
                   const allComplete = conversation.assigned_employees.every(
                     (e) => isEmployeeComplete(e),
                   );
+                  const allWorkflowComplete =
+                    allDispatched && allArrived && allComplete;
 
                   const notDispatchedEmployees =
                     conversation.assigned_employees.filter((e) => !e.dispatched);
@@ -6260,7 +6286,7 @@ export default function ChatScreen() {
                       )}
 
                       {/* Single agency-level approve & pay button */}
-                      {allComplete &&
+                      {allWorkflowComplete &&
                         !conversation.job.clientMarkedComplete && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>

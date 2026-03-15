@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency PROJECT Client Approval Workflow Guard (Prevents False 'Workflow Incomplete')**
+  - Tightened client-side `Approve & Pay Agency` visibility to require full employee workflow completion: dispatched + arrival confirmed + agency marked complete.
+  - Added a defensive pre-submit check before agency approval mutation so stale/partial workflow states are blocked client-side with a clear message.
+  - **Impact**: Prevents backend rejection `Cannot approve - workflow incomplete` when client attempts to finish/approve before all agency workflow steps are truly complete.
+
 - **Client Arrival Gating Requires Full Agency Dispatch (Team PROJECT)**
   - Updated client-side conversation flow so `Confirm Arrival` actions are hidden until all assigned agency employees are dispatched.
   - Added explicit per-employee pending dispatch messaging (e.g., `Employee X has not been dispatched.`) when dispatch is incomplete.
