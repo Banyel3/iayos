@@ -5,7 +5,7 @@
 from decimal import Decimal
 from typing import Optional
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 
@@ -1535,15 +1535,23 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         return {'success': False, 'error': 'No remaining payment is due for this team job'}
 
     # Pre-validate wallet balance BEFORE updating job flags.
+    # Use available balance (balance - reserved) to avoid violating
+    # wallet_balance_gte_reserved DB constraint on deduction.
     if payment_method_upper == 'WALLET':
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user,
             defaults={'balance': Decimal('0.00')}
         )
-        if wallet.balance < remaining_amount:
+        available_balance = wallet.availableBalance
+        if available_balance < remaining_amount:
             return {
                 'success': False,
-                'error': f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} but only have ₱{wallet.balance:,.2f}. Please deposit more funds or choose CASH payment.'
+                'error': (
+                    f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} '
+                    f'but only have ₱{available_balance:,.2f} available '
+                    f'(₱{wallet.balance:,.2f} balance, ₱{wallet.reservedBalance:,.2f} reserved). '
+                    'Please deposit more funds or choose CASH payment.'
+                )
             }
 
     old_status = job.status
@@ -1557,15 +1565,41 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
 
         if payment_method_upper == 'WALLET':
             client_wallet = Wallet.objects.select_for_update().get(accountFK=client_user)
-            # Re-validate balance after acquiring the row lock to prevent races
-            if client_wallet.balance < remaining_amount:
-                raise ValueError(
-                    f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
-                    f'but only have ₱{client_wallet.balance:,.2f}. '
-                    'Please deposit more funds or choose CASH payment.'
-                )
+            # Re-validate available balance after acquiring row lock to prevent races.
+            available_balance = client_wallet.availableBalance
+            if available_balance < remaining_amount:
+                return {
+                    'success': False,
+                    'error': (
+                        f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
+                        f'but only have ₱{available_balance:,.2f} available '
+                        f'(₱{client_wallet.balance:,.2f} balance, '
+                        f'₱{client_wallet.reservedBalance:,.2f} reserved). '
+                        'Please deposit more funds or choose CASH payment.'
+                    )
+                }
+
+            new_balance = client_wallet.balance - remaining_amount
+            if new_balance < client_wallet.reservedBalance:
+                return {
+                    'success': False,
+                    'error': (
+                        'Insufficient available wallet funds after considering reserved balance. '
+                        f'Available: ₱{available_balance:,.2f}, required: ₱{remaining_amount:,.2f}.'
+                    )
+                }
+
             client_wallet.balance -= remaining_amount
-            client_wallet.save(update_fields=['balance'])
+            try:
+                client_wallet.save(update_fields=['balance'])
+            except IntegrityError:
+                return {
+                    'success': False,
+                    'error': (
+                        'Payment could not be completed because wallet funds are reserved by other pending jobs. '
+                        'Please retry, deposit more funds, or choose CASH payment.'
+                    )
+                }
 
         Transaction.objects.create(
             walletID=client_wallet,
