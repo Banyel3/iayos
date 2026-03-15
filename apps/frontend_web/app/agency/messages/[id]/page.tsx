@@ -738,12 +738,22 @@ export default function AgencyChatScreen() {
       return true;
     }
 
-    if (!backjobCycleStartMs || !statusAt) {
-      return false;
+    if (!backjobCycleStartMs) {
+      return true;
+    }
+
+    // Backward compatibility: older in-progress rows may have status flags but
+    // missing timestamp fields.
+    if (!statusAt) {
+      return true;
     }
 
     const statusMs = new Date(statusAt).getTime();
-    return Number.isFinite(statusMs) && statusMs >= backjobCycleStartMs;
+    if (!Number.isFinite(statusMs)) {
+      return true;
+    }
+
+    return statusMs >= backjobCycleStartMs;
   };
 
   const allEmployeesDispatched = shouldShowProjectWorkflow
