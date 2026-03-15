@@ -42,7 +42,9 @@ import {
   ReceiptTransaction,
 } from "../lib/hooks/useJobReceipt";
 import { getAbsoluteMediaUrl } from "../lib/api/config";
-import ReceiptDisclaimer, { RECEIPT_DISCLAIMER_TEXT } from "./ReceiptDisclaimer";
+import ReceiptDisclaimer, {
+  RECEIPT_DISCLAIMER_TEXT,
+} from "./ReceiptDisclaimer";
 import { downloadJobReceiptPdf } from "../lib/utils/generate-receipt-pdf";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -62,8 +64,10 @@ export default function JobReceiptModal({
 }: JobReceiptModalProps) {
   const { data, isLoading, error } = useJobReceipt(jobId, visible);
   const receipt = data?.receipt as JobReceipt | undefined;
-  const isCancelledReceipt = (receipt?.status || "").toUpperCase() === "CANCELLED";
-  const isDailyPaymentModel = (receipt?.payment?.payment_model || "PROJECT").toUpperCase() === "DAILY";
+  const isCancelledReceipt =
+    (receipt?.status || "").toUpperCase() === "CANCELLED";
+  const isDailyPaymentModel =
+    (receipt?.payment?.payment_model || "PROJECT").toUpperCase() === "DAILY";
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -73,7 +77,11 @@ export default function JobReceiptModal({
       await downloadJobReceiptPdf(
         {
           completed_at: receipt.completed_at,
-          job: { id: receipt.job_id, title: receipt.title, status: receipt.status },
+          job: {
+            id: receipt.job_id,
+            title: receipt.title,
+            status: receipt.status,
+          },
           payments: {
             job_budget: receipt.payment?.budget,
             platform_fee: receipt.payment?.platform_fee,
@@ -82,13 +90,23 @@ export default function JobReceiptModal({
             escrow_amount: receipt.payment?.escrow_amount,
             remaining_payment: receipt.payment?.final_payment,
           },
-          client: receipt.client ? { name: receipt.client.name, email: receipt.client.contact ?? undefined } : null,
-          worker: receipt.worker ? { name: receipt.worker.name, email: receipt.worker.contact ?? undefined } : null,
+          client: receipt.client
+            ? {
+                name: receipt.client.name,
+                email: receipt.client.contact ?? undefined,
+              }
+            : null,
+          worker: receipt.worker
+            ? {
+                name: receipt.worker.name,
+                email: receipt.worker.contact ?? undefined,
+              }
+            : null,
         },
-        userRole
+        userRole,
       );
     } catch (err) {
-      console.log('PDF download error:', err);
+      console.log("PDF download error:", err);
     } finally {
       setIsDownloading(false);
     }
@@ -185,7 +203,7 @@ ${RECEIPT_DISCLAIMER_TEXT}
           <View style={styles.errorContainer}>
             <Ionicons name="alert-circle" size={48} color={Colors.error} />
             <Text style={styles.errorText}>{error.message}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={() => { }}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => {}}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           </View>
@@ -253,63 +271,109 @@ ${RECEIPT_DISCLAIMER_TEXT}
             </View>
 
             {/* Cancellation Settlement Card */}
-            {receipt.status === "CANCELLED" && receipt.cancellation?.is_cancelled && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Cancellation Settlement</Text>
-                <View style={styles.divider} />
+            {receipt.status === "CANCELLED" &&
+              receipt.cancellation?.is_cancelled && (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Cancellation Settlement</Text>
+                  <View style={styles.divider} />
 
-                <View style={styles.infoRow}>
-                  <Ionicons name="layers-outline" size={16} color={Colors.textSecondary} />
-                  <Text style={styles.infoText}>
-                    Stage: {receipt.cancellation.stage || "N/A"}
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Ionicons name="person-outline" size={16} color={Colors.textSecondary} />
-                  <Text style={styles.infoText}>
-                    Cancelled by: {receipt.cancellation.cancelled_by_role || "N/A"}
-                  </Text>
-                </View>
-
-                {!!receipt.cancellation.summary && (
                   <View style={styles.infoRow}>
-                    <Ionicons name="document-text-outline" size={16} color={Colors.textSecondary} />
-                    <Text style={styles.infoText}>{receipt.cancellation.summary}</Text>
-                  </View>
-                )}
-
-                <View style={styles.infoRow}>
-                  <Ionicons name="refresh-outline" size={16} color={Colors.success} />
-                  <Text style={styles.infoText}>
-                    Client refund: {formatCurrency(receipt.cancellation.client_refund_amount)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Ionicons name="wallet-outline" size={16} color={Colors.primary} />
-                  <Text style={styles.infoText}>
-                    Worker compensation: {formatCurrency(receipt.cancellation.worker_compensation_amount)}
-                  </Text>
-                </View>
-
-                {(receipt.cancellation.platform_fee_retained ?? 0) > 0 && (
-                  <View style={styles.infoRow}>
-                    <Ionicons name="pricetag-outline" size={16} color={Colors.warning} />
+                    <Ionicons
+                      name="layers-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
                     <Text style={styles.infoText}>
-                      Platform fee retained: {formatCurrency(receipt.cancellation.platform_fee_retained ?? 0)}
+                      Stage: {receipt.cancellation.stage || "N/A"}
                     </Text>
                   </View>
-                )}
 
-                {!!receipt.cancellation.reason && (
-                  <View style={{ marginTop: Spacing.sm }}>
-                    <Text style={[styles.infoText, { color: Colors.textSecondary }]}>Reason</Text>
-                    <Text style={styles.infoText}>{receipt.cancellation.reason}</Text>
+                  <View style={styles.infoRow}>
+                    <Ionicons
+                      name="person-outline"
+                      size={16}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.infoText}>
+                      Cancelled by:{" "}
+                      {receipt.cancellation.cancelled_by_role || "N/A"}
+                    </Text>
                   </View>
-                )}
-              </View>
-            )}
+
+                  {!!receipt.cancellation.summary && (
+                    <View style={styles.infoRow}>
+                      <Ionicons
+                        name="document-text-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.infoText}>
+                        {receipt.cancellation.summary}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.infoRow}>
+                    <Ionicons
+                      name="refresh-outline"
+                      size={16}
+                      color={Colors.success}
+                    />
+                    <Text style={styles.infoText}>
+                      Client refund:{" "}
+                      {formatCurrency(
+                        receipt.cancellation.client_refund_amount,
+                      )}
+                    </Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Ionicons
+                      name="wallet-outline"
+                      size={16}
+                      color={Colors.primary}
+                    />
+                    <Text style={styles.infoText}>
+                      Worker compensation:{" "}
+                      {formatCurrency(
+                        receipt.cancellation.worker_compensation_amount,
+                      )}
+                    </Text>
+                  </View>
+
+                  {(receipt.cancellation.platform_fee_retained ?? 0) > 0 && (
+                    <View style={styles.infoRow}>
+                      <Ionicons
+                        name="pricetag-outline"
+                        size={16}
+                        color={Colors.warning}
+                      />
+                      <Text style={styles.infoText}>
+                        Platform fee retained:{" "}
+                        {formatCurrency(
+                          receipt.cancellation.platform_fee_retained ?? 0,
+                        )}
+                      </Text>
+                    </View>
+                  )}
+
+                  {!!receipt.cancellation.reason && (
+                    <View style={{ marginTop: Spacing.sm }}>
+                      <Text
+                        style={[
+                          styles.infoText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        Reason
+                      </Text>
+                      <Text style={styles.infoText}>
+                        {receipt.cancellation.reason}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
             {/* Receipt Disclaimer */}
             <ReceiptDisclaimer />
@@ -348,7 +412,7 @@ ${RECEIPT_DISCLAIMER_TEXT}
                       ₱
                       {formatCurrency(receipt.payment.worker_earnings).replace(
                         "₱",
-                        ""
+                        "",
                       )}{" "}
                       has been added to the wallet.
                     </Text>
@@ -360,8 +424,8 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 ) : (
                   <View style={styles.bufferContent}>
                     <Text style={styles.bufferText}>
-                      Earnings are held for {receipt.buffer.buffer_days}{" "}
-                      days to allow for backjob requests.
+                      Earnings are held for {receipt.buffer.buffer_days} days to
+                      allow for backjob requests.
                     </Text>
                     <View style={styles.bufferStats}>
                       <View style={styles.bufferStat}>
@@ -373,7 +437,7 @@ ${RECEIPT_DISCLAIMER_TEXT}
                       <View style={styles.bufferStat}>
                         <Text style={styles.bufferStatValue}>
                           {formatReceiptDate(receipt.buffer.end_date)?.split(
-                            ","
+                            ",",
                           )[0] ?? "—"}
                         </Text>
                         <Text style={styles.bufferStatLabel}>Release Date</Text>
@@ -436,7 +500,9 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>
-                  {isDailyPaymentModel ? "Daily Escrow (Prepaid)" : "50% Escrow (Downpayment)"}
+                  {isDailyPaymentModel
+                    ? "Daily Escrow (Prepaid)"
+                    : "50% Escrow (Downpayment)"}
                 </Text>
                 <Text style={styles.paymentValue}>
                   {formatCurrency(receipt.payment.escrow_amount)}
@@ -488,32 +554,44 @@ ${RECEIPT_DISCLAIMER_TEXT}
                   {formatCurrency(
                     isCancelledReceipt
                       ? userRole === "CLIENT"
-                        ? (receipt.payment.actual_client_paid ?? receipt.payment.total_client_paid)
-                        : (receipt.payment.actual_worker_earnings ?? receipt.payment.worker_earnings)
+                        ? (receipt.payment.actual_client_paid ??
+                          receipt.payment.total_client_paid)
+                        : (receipt.payment.actual_worker_earnings ??
+                          receipt.payment.worker_earnings)
                       : userRole === "CLIENT"
                         ? receipt.payment.total_client_paid
-                        : receipt.payment.worker_earnings
+                        : receipt.payment.worker_earnings,
                   )}
                 </Text>
               </View>
 
               {isCancelledReceipt && (
                 <>
-                  <View style={[styles.paymentRow, { marginTop: 4 }]}> 
-                    <Text style={[styles.paymentLabel, { color: Colors.error, fontWeight: "700" }]}>
+                  <View style={[styles.paymentRow, { marginTop: 4 }]}>
+                    <Text
+                      style={[
+                        styles.paymentLabel,
+                        { color: Colors.error, fontWeight: "700" },
+                      ]}
+                    >
                       This job was cancelled. Settlement values are shown below.
                     </Text>
                   </View>
                   <View style={styles.paymentRow}>
-                    <Text style={styles.paymentLabel}>Expected Worker Earnings (full job)</Text>
+                    <Text style={styles.paymentLabel}>
+                      Expected Worker Earnings (full job)
+                    </Text>
                     <Text style={styles.paymentValue}>
                       {formatCurrency(
-                        receipt.payment.expected_worker_earnings ?? receipt.payment.worker_earnings,
+                        receipt.payment.expected_worker_earnings ??
+                          receipt.payment.worker_earnings,
                       )}
                     </Text>
                   </View>
                   <View style={styles.paymentRow}>
-                    <Text style={styles.paymentLabel}>Actual Worker Earnings (from transaction history)</Text>
+                    <Text style={styles.paymentLabel}>
+                      Actual Worker Earnings (from transaction history)
+                    </Text>
                     <Text style={[styles.paymentValue, styles.positiveAmount]}>
                       {formatCurrency(
                         receipt.payment.actual_worker_earnings ??
@@ -604,7 +682,6 @@ ${RECEIPT_DISCLAIMER_TEXT}
               />
             </View>
 
-
             {/* Parties Card */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Parties</Text>
@@ -678,74 +755,73 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 <View style={styles.divider} />
 
                 {receipt.transactions.map(
-                  (txn: ReceiptTransaction, index: number) => (
+                  (txn: ReceiptTransaction, index: number) =>
                     (() => {
-                      const isCredit =
-                        txn.impact
-                          ? txn.impact === "CREDIT"
-                          : txn.type === "EARNING" ||
-                            txn.type === "PENDING_EARNING" ||
-                            txn.type === "REFUND" ||
-                            txn.type === "DEPOSIT" ||
-                            txn.type === "MATERIALS_REIMBURSEMENT";
+                      const isCredit = txn.impact
+                        ? txn.impact === "CREDIT"
+                        : txn.type === "EARNING" ||
+                          txn.type === "PENDING_EARNING" ||
+                          txn.type === "REFUND" ||
+                          txn.type === "DEPOSIT" ||
+                          txn.type === "MATERIALS_REIMBURSEMENT";
 
                       return (
-                    <View
-                      key={txn.id}
-                      style={[
-                        styles.transactionRow,
-                        index < receipt.transactions.length - 1 &&
-                        styles.transactionBorder,
-                      ]}
-                    >
-                      <View style={styles.transactionIcon}>
-                        <Ionicons
-                          name={
-                            txn.type === "EARNING" ||
-                              txn.type === "PENDING_EARNING"
-                              ? "arrow-down"
-                              : txn.type === "PAYMENT"
-                                ? "arrow-up"
-                                : "swap-horizontal"
-                          }
-                          size={16}
-                          color={
-                            txn.type === "EARNING" ||
-                              txn.type === "PENDING_EARNING"
-                              ? Colors.success
-                              : Colors.error
-                          }
-                        />
-                      </View>
-                      <View style={styles.transactionInfo}>
-                        <Text style={styles.transactionType}>
-                          {getTransactionTypeLabel(txn.type)}
-                        </Text>
-                        <Text style={styles.transactionMeta}>
-                          {isCredit ? "Added to" : "Incurred by"}: {txn.affected_name || "Unknown"}
-                          {txn.affected_role ? ` (${txn.affected_role})` : ""}
-                        </Text>
-                        <Text style={styles.transactionDate}>
-                          {formatReceiptDate(txn.created_at)}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[
-                          styles.transactionAmount,
-                          isCredit
-                            ? styles.positiveAmount
-                            : styles.negativeAmount,
-                        ]}
-                      >
-                        {isCredit
-                          ? "+"
-                          : "-"}
-                        {formatCurrency(txn.amount)}
-                      </Text>
-                    </View>
+                        <View
+                          key={txn.id}
+                          style={[
+                            styles.transactionRow,
+                            index < receipt.transactions.length - 1 &&
+                              styles.transactionBorder,
+                          ]}
+                        >
+                          <View style={styles.transactionIcon}>
+                            <Ionicons
+                              name={
+                                txn.type === "EARNING" ||
+                                txn.type === "PENDING_EARNING"
+                                  ? "arrow-down"
+                                  : txn.type === "PAYMENT"
+                                    ? "arrow-up"
+                                    : "swap-horizontal"
+                              }
+                              size={16}
+                              color={
+                                txn.type === "EARNING" ||
+                                txn.type === "PENDING_EARNING"
+                                  ? Colors.success
+                                  : Colors.error
+                              }
+                            />
+                          </View>
+                          <View style={styles.transactionInfo}>
+                            <Text style={styles.transactionType}>
+                              {getTransactionTypeLabel(txn.type)}
+                            </Text>
+                            <Text style={styles.transactionMeta}>
+                              {isCredit ? "Added to" : "Incurred by"}:{" "}
+                              {txn.affected_name || "Unknown"}
+                              {txn.affected_role
+                                ? ` (${txn.affected_role})`
+                                : ""}
+                            </Text>
+                            <Text style={styles.transactionDate}>
+                              {formatReceiptDate(txn.created_at)}
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.transactionAmount,
+                              isCredit
+                                ? styles.positiveAmount
+                                : styles.negativeAmount,
+                            ]}
+                          >
+                            {isCredit ? "+" : "-"}
+                            {formatCurrency(txn.amount)}
+                          </Text>
+                        </View>
                       );
-                    })()
-                  )
+                    })(),
                 )}
               </View>
             )}
@@ -860,8 +936,8 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   headerActionButton: {
