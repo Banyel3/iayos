@@ -11,3 +11,4 @@ export {
 } from "./EstimatedTimeCard";
 
 export { JobLifecycleTimeline } from "./JobLifecycleTimeline";
+export { default as PendingReviewModal } from "./PendingReviewModal";
