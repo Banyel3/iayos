@@ -872,6 +872,29 @@ export default function AgencyChatScreen() {
       )
     : false;
 
+  const shouldShowDailyWorkflow =
+    (job.status === "IN_PROGRESS" ||
+      job.status === "COMPLETED" ||
+      job.clientMarkedComplete ||
+      job.workerMarkedComplete) &&
+    job.payment_model === "DAILY" &&
+    assigned_employees?.length > 0;
+
+  const dailyAttendanceDispatchedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => {
+        const status = String(record.status || "").toUpperCase();
+        return status === "DISPATCHED" || Boolean(record.time_in);
+      })
+      .map((record) => record.employee_id),
+  );
+
+  const dailyDispatchedCount = shouldShowDailyWorkflow
+    ? assigned_employees.filter((e: AssignedEmployee) =>
+        dailyAttendanceDispatchedIds.has(e.employeeId),
+      ).length
+    : 0;
+
   const canMarkBackjobCompleteNow =
     isAgencyBackjob &&
     isBackjobExecutionPhase &&
@@ -1235,6 +1258,65 @@ export default function AgencyChatScreen() {
                   );
                 }
                 return null;
+              })()}
+
+            {shouldShowDailyWorkflow &&
+              (() => {
+                const totalCount = assigned_employees.length;
+                const pendingDispatch = assigned_employees.filter(
+                  (e: AssignedEmployee) =>
+                    !dailyAttendanceDispatchedIds.has(e.employeeId),
+                );
+
+                if (job.clientMarkedComplete && !hasActiveBackjobCycle) {
+                  return null;
+                }
+
+                if (pendingDispatch.length === 0) {
+                  return (
+                    <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-700 font-medium">
+                      All employees marked on the way ({dailyDispatchedCount}/
+                      {totalCount}). Waiting for client arrival confirmations.
+                    </div>
+                  );
+                }
+
+                return (
+                  <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-blue-900">
+                          Mark On The Way Pending ({pendingDispatch.length}/
+                          {totalCount})
+                        </span>
+                      </div>
+                      <div className="space-y-1.5 text-xs">
+                        {pendingDispatch.map((employee: AssignedEmployee) => (
+                          <div
+                            key={`daily-dispatch-${employee.employeeId}`}
+                            className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                          >
+                            <span>{employee.name}</span>
+                            <Button
+                              size="sm"
+                              className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                dispatchEmployeeMutation.mutate({
+                                  jobId: job.id,
+                                  employeeId: employee.employeeId,
+                                });
+                              }}
+                              disabled={dispatchEmployeeMutation.isPending}
+                            >
+                              Mark On The Way
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
               })()}
 
             {/* Message Map */}
