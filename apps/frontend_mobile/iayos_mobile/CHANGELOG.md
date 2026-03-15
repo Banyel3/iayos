@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team PROJECT Repeated-Backjob Review Freshness Parity**
+  - Hardened conversation review refresh after edit by awaiting conversation refetch before advancing to the next editable review target.
+  - Added conversation/messages cache invalidation on review edit success.
+  - Updated backend conversation review selection to prioritize latest edited records (`updatedAt` then `createdAt`) for repeated backjob cycles.
+  - **Impact**: In team PROJECT jobs, second-backjob review edits now reflect immediately and consistently instead of showing stale old review values.
+
 - **Team Review List Scroll in View Reviews Modal**
   - Removed the review section height cap in the conversation review modal so long team worker review lists are no longer clipped.
   - Keeps modal scrolling handled by the existing outer `ScrollView`, allowing clients to scroll through all worker reviews.

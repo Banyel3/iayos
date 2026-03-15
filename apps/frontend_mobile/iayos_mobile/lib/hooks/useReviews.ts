@@ -261,6 +261,9 @@ export function useEditReview() {
       queryClient.invalidateQueries({
         queryKey: reviewKeys.all,
       });
+      // Keep conversation cards and message payload in sync after review edits
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
 }
