@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Client Backjob Banner Hidden After Payment Release**
+  - Updated conversation banner visibility to hide backjob-request/review-reminder prompts once payment release rights are waived (`paymentBuffer.is_payment_released === true`).
+  - Prevents outdated CTA prompts after client completes release-payment flow.
+  - **Impact**: Conversation state now reflects post-release behavior and removes misleading backjob actions.
+
 - **DAILY Skip-Day Absence Penalty + State Sync**
   - Client-approved DAILY skip-day now updates conversation state immediately with optimistic cache sync to prevent stale buttons and duplicate-click rejections.
   - Added attendance row patching for approved skip-day responses so ABSENT/payment-processed state appears without waiting for refetch.

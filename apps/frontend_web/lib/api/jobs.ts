@@ -611,6 +611,7 @@ export interface CreateListingJobParams {
   expected_duration?: string | null;
   urgency_level?: "LOW" | "MEDIUM" | "HIGH";
   preferred_start_date?: string | null;
+  scheduled_end_date?: string | null;
   materials_needed?: string[];
 }
 

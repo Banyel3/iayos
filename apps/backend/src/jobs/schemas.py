@@ -11,6 +11,7 @@ class CreateJobPostingSchema(Schema):
     expected_duration: Optional[str] = None
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     preferred_start_date: Optional[str] = None
+    scheduled_end_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
 
@@ -34,6 +35,7 @@ class CreateJobPostingMobileSchema(Schema):
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     urgency_level: Optional[str] = None  # Frontend alias for urgency
     preferred_start_date: Optional[str] = None
+    scheduled_end_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET only
     downpayment_method: Optional[str] = None  # Frontend alias for payment_method
