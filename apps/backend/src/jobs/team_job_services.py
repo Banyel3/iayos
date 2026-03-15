@@ -79,6 +79,43 @@ def _project_multi_day_gate_error(job: Job):
     }
 
 
+def _self_heal_team_assignment_completion_flags(job: Job) -> int:
+    """
+    Backward-compatibility self-heal for legacy/inconsistent assignment states.
+
+    Some older flows left `worker_marked_complete=False` even when assignment
+    status and/or timestamps already indicate completion. Normalize those rows
+    so client final approval + payment can proceed safely.
+
+    Returns number of healed assignment rows.
+    """
+    healed_count = 0
+    now = timezone.now()
+
+    assignments = JobWorkerAssignment.objects.filter(jobID=job)
+    for assignment in assignments:
+        should_heal = False
+
+        # Legacy/inconsistent signals that imply worker completion.
+        if assignment.worker_marked_complete_at is not None:
+            should_heal = True
+        elif assignment.assignment_status == JobWorkerAssignment.AssignmentStatus.COMPLETED:
+            should_heal = True
+        elif getattr(job, 'workerMarkedComplete', False) and assignment.client_confirmed_arrival:
+            # Historical compatibility: job-level completion was already set and
+            # this assignment had already passed client arrival confirmation.
+            should_heal = True
+
+        if should_heal and not assignment.worker_marked_complete:
+            assignment.worker_marked_complete = True
+            if assignment.worker_marked_complete_at is None:
+                assignment.worker_marked_complete_at = now
+            assignment.save(update_fields=['worker_marked_complete', 'worker_marked_complete_at', 'updatedAt'])
+            healed_count += 1
+
+    return healed_count
+
+
 def _job_date_window(job) -> tuple:
     """Return (start_date, end_date) where end defaults to start for single-day jobs."""
     start_date = getattr(job, 'preferredStartDate', None)
@@ -1328,6 +1365,9 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
         return project_gate_error
+
+    # Self-heal legacy assignment completion flags before enforcing gate.
+    healed_assignments = _self_heal_team_assignment_completion_flags(job)
     
     # Check if all workers have marked complete
     incomplete_workers = JobWorkerAssignment.objects.filter(
@@ -1455,6 +1495,7 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         'payment_method': payment_method_upper,
         'amount_paid': float(remaining_amount),
         'workers_completed': job.total_workers_assigned,
+        'healed_assignments': healed_assignments,
         'message': 'Team job completed successfully',
         'new_wallet_balance': float(wallet.balance) if payment_method_upper == 'WALLET' else None,
     }
