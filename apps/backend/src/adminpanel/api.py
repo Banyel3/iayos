@@ -843,6 +843,7 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
     Returns dispute info, evidence images, and negotiation chat metadata.
     """
     from accounts.models import JobDispute
+    from django.db.models import Count
     from profiles.models import Conversation
     try:
         dispute = JobDispute.objects.select_related(
@@ -863,9 +864,14 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
         agency = getattr(job, 'assignedAgencyFK', None)
 
         # Admin can always audit conversation history for this job dispute.
-        conversation = Conversation.objects.filter(
-            relatedJobPosting=job
-        ).order_by('-conversationID').first()
+        # Some legacy data can contain more than one conversation row for a job;
+        # prefer the thread that actually has chat history.
+        conversation = (
+            Conversation.objects.filter(relatedJobPosting=job)
+            .annotate(message_count=Count('messages'))
+            .order_by('-message_count', '-updatedAt', '-conversationID')
+            .first()
+        )
         negotiation_conversation_id = conversation.conversationID if conversation else None
 
         # Evidence images
@@ -1077,49 +1083,74 @@ def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_s
     except Conversation.DoesNotExist:
         return {"success": False, "error": "Conversation not found"}
 
-    messages_qs = Message.objects.filter(conversationID=conversation).select_related(
-        'sender', 'senderAgency', 'sender_admin'
-    ).order_by('createdAt')
+    try:
+        messages_qs = Message.objects.filter(conversationID=conversation).select_related(
+            'sender', 'senderAgency', 'sender_admin'
+        ).order_by('createdAt')
 
-    total = messages_qs.count()
-    offset = (page - 1) * page_size
-    messages_page = messages_qs[offset: offset + page_size]
+        total = messages_qs.count()
+        offset = (page - 1) * page_size
+        messages_page = messages_qs[offset: offset + page_size]
 
-    def _serialize(msg):
-        if msg.sender:
-            sender_type = 'profile'
-            sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
-            sender_id = msg.sender.profileID
-        elif msg.senderAgency:
-            sender_type = 'agency'
-            sender_name = msg.senderAgency.businessName
-            sender_id = msg.senderAgency.agencyID
-        elif msg.sender_admin:
-            sender_type = 'admin'
-            sender_name = f"Admin ({msg.sender_admin.email})"
-            sender_id = msg.sender_admin.accountID
-        else:
+        def _serialize(msg):
             sender_type = 'system'
             sender_name = None
             sender_id = None
-        return {
-            "id": msg.messageID,
-            "text": msg.messageText,
-            "type": msg.messageType,
-            "sender_type": sender_type,
-            "sender_name": sender_name,
-            "sender_id": sender_id,
-            "created_at": msg.createdAt.isoformat(),
-        }
 
-    return {
-        "success": True,
-        "conversation_id": conv_id,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "messages": [_serialize(m) for m in messages_page]
-    }
+            # Use *_id fields first so malformed legacy relations don't crash serialization.
+            if msg.sender_id:
+                sender_type = 'profile'
+                sender_id = msg.sender_id
+                try:
+                    if msg.sender:
+                        sender_name = f"{msg.sender.firstName} {msg.sender.lastName}".strip()
+                except Exception:
+                    sender_name = None
+            elif msg.senderAgency_id:
+                sender_type = 'agency'
+                sender_id = msg.senderAgency_id
+                try:
+                    if msg.senderAgency:
+                        sender_name = msg.senderAgency.businessName
+                except Exception:
+                    sender_name = None
+            elif msg.sender_admin_id:
+                sender_type = 'admin'
+                sender_id = msg.sender_admin_id
+                try:
+                    if msg.sender_admin:
+                        sender_name = f"Admin ({msg.sender_admin.email})"
+                except Exception:
+                    sender_name = "Admin"
+
+            return {
+                "id": msg.messageID,
+                "text": msg.messageText,
+                "type": msg.messageType,
+                "sender_type": sender_type,
+                "sender_name": sender_name,
+                "sender_id": sender_id,
+                "created_at": msg.createdAt.isoformat() if msg.createdAt else None,
+            }
+
+        serialized_messages = []
+        for message in messages_page:
+            try:
+                serialized_messages.append(_serialize(message))
+            except Exception:
+                # Skip only malformed rows; keep the rest of the audit trail available.
+                continue
+
+        return {
+            "success": True,
+            "conversation_id": conv_id,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "messages": serialized_messages,
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to load messages: {str(e)}"}
 
 
 @router.post("/conversations/{conv_id}/send-message", auth=cookie_auth)

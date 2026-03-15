@@ -67,7 +67,7 @@ interface ChatMessage {
   id: number;
   text: string;
   sender_type: "profile" | "agency" | "admin" | "system";
-  sender_name: string;
+  sender_name: string | null;
   created_at: string;
 }
 
@@ -176,6 +176,7 @@ export default function BackjobDetailPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const [showScheduledDateModal, setShowScheduledDateModal] = useState(false);
@@ -215,10 +216,23 @@ export default function BackjobDetailPage() {
           credentials: "include",
         },
       );
+      if (!res.ok) {
+        const body = await res.text();
+        const shortBody = body ? body.slice(0, 180) : "No response body";
+        setMessagesError(
+          `Unable to load conversation audit messages (${res.status}). ${shortBody}`,
+        );
+        return;
+      }
       const data = await res.json();
-      if (data.success && data.messages) setMessages(data.messages);
+      if (data.success && data.messages) {
+        setMessages(data.messages);
+        setMessagesError(null);
+      } else {
+        setMessagesError(data?.error || "Unable to load conversation audit messages.");
+      }
     } catch {
-      /* silent */
+      setMessagesError("Unable to load conversation audit messages.");
     }
   }, []);
 
@@ -596,10 +610,17 @@ export default function BackjobDetailPage() {
                 >
                   <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {messages.length === 0 ? (
-                      <div className="text-center text-gray-400 text-sm py-8">
-                        <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                        No messages yet. Start the negotiation below.
-                      </div>
+                      messagesError ? (
+                        <div className="text-center text-red-500 text-sm py-8">
+                          <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-70" />
+                          {messagesError}
+                        </div>
+                      ) : (
+                        <div className="text-center text-gray-400 text-sm py-8">
+                          <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                          No messages yet. Start the negotiation below.
+                        </div>
+                      )
                     ) : (
                       messages.map((msg) => {
                         if (msg.sender_type === "system") {
@@ -626,7 +647,7 @@ export default function BackjobDetailPage() {
                               {isAdmin ? (
                                 <Shield className="h-4 w-4" />
                               ) : (
-                                msg.sender_name.charAt(0).toUpperCase()
+                                (msg.sender_name || "?").charAt(0).toUpperCase()
                               )}
                             </div>
                             <div
@@ -636,7 +657,7 @@ export default function BackjobDetailPage() {
                                 <span
                                   className={`text-xs font-semibold ${isAdmin ? "text-sky-600" : "text-gray-600"}`}
                                 >
-                                  {isAdmin ? "Admin" : msg.sender_name}
+                                  {isAdmin ? "Admin" : (msg.sender_name || "Unknown")}
                                 </span>
                                 <span className="text-xs text-gray-400">
                                   {fmtDate(msg.created_at)}
