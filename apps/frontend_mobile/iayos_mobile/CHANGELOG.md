@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **DAILY Per-Click Payment Method Selection (Wallet or Cash Proof)**
+  - Added per-attendance client prompt in conversation flow for DAILY jobs to choose `Wallet` or `Cash` when confirming a checked-out worker.
+  - Added cash-proof image capture/upload support in DAILY attendance confirmation (`cash_proof_image` multipart payload).
+  - Updated backend DAILY attendance confirmation to accept payment method + optional cash proof, and to persist payment metadata per attendance row.
+  - Added attendance-level payout tracking fields (`payment_method`, `cash_payment_proof_url`, `cash_payment_verified`, timestamps) with migration.
+  - **Impact**: DAILY payouts now support explicit method choice per worker/day confirmation while preserving existing wallet flow and backwards compatibility.
+
 - **Team PROJECT Repeated-Backjob Review Freshness Parity**
   - Hardened conversation review refresh after edit by awaiting conversation refetch before advancing to the next editable review target.
   - Added conversation/messages cache invalidation on review edit success.

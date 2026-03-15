@@ -3237,6 +3237,24 @@ class DailyAttendance(models.Model):
         help_text='Whether payment has been moved to pendingEarnings'
     )
     payment_processed_at = models.DateTimeField(null=True, blank=True)
+    payment_method = models.CharField(
+        max_length=20,
+        choices=Transaction.PaymentMethod.choices,
+        default='WALLET',
+        help_text='Payment method used when processing this attendance row'
+    )
+    cash_payment_proof_url = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text='Cash proof image URL for CASH confirmations'
+    )
+    cash_proof_uploaded_at = models.DateTimeField(null=True, blank=True)
+    cash_payment_verified = models.BooleanField(
+        default=False,
+        help_text='True when CASH proof has been accepted and payout released'
+    )
+    cash_payment_verified_at = models.DateTimeField(null=True, blank=True)
     
     notes = models.TextField(blank=True, default='')
     
@@ -3251,6 +3269,7 @@ class DailyAttendance(models.Model):
             models.Index(fields=['workerID', 'date'], name='daily_att_worker_date_idx'),
             models.Index(fields=['status'], name='daily_att_status_idx'),
             models.Index(fields=['payment_processed'], name='daily_att_payment_idx'),
+            models.Index(fields=['payment_method'], name='daily_att_method_idx'),
         ]
         constraints = [
             models.UniqueConstraint(

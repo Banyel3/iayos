@@ -2349,6 +2349,160 @@ export default function ChatScreen() {
     ]);
   }, [conversation, openReportReasonPicker]);
 
+  const pickCashProofFromGallery = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    return {
+      uri: asset.uri,
+      name: `daily_cash_proof_${Date.now()}.jpg`,
+      type: asset.mimeType || "image/jpeg",
+    };
+  }, []);
+
+  const pickCashProofFromCamera = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Denied",
+        "Camera permission is required to capture cash proof.",
+      );
+      return null;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    return {
+      uri: asset.uri,
+      name: `daily_cash_proof_${Date.now()}.jpg`,
+      type: asset.mimeType || "image/jpeg",
+    };
+  }, []);
+
+  const selectDailyCashProofImage = useCallback(async () => {
+    if (Platform.OS === "ios") {
+      return new Promise<
+        { uri: string; name: string; type: string } | null
+      >((resolve) => {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: ["Cancel", "Take Photo", "Choose from Library"],
+            cancelButtonIndex: 0,
+          },
+          async (buttonIndex) => {
+            if (buttonIndex === 1) {
+              resolve(await pickCashProofFromCamera());
+              return;
+            }
+            if (buttonIndex === 2) {
+              resolve(await pickCashProofFromGallery());
+              return;
+            }
+            resolve(null);
+          },
+        );
+      });
+    }
+
+    return new Promise<{ uri: string; name: string; type: string } | null>(
+      (resolve) => {
+        Alert.alert("Cash Payment Proof", "Attach proof image", [
+          {
+            text: "Take Photo",
+            onPress: async () => resolve(await pickCashProofFromCamera()),
+          },
+          {
+            text: "Choose from Library",
+            onPress: async () => resolve(await pickCashProofFromGallery()),
+          },
+          { text: "Cancel", style: "cancel", onPress: () => resolve(null) },
+        ]);
+      },
+    );
+  }, [pickCashProofFromCamera, pickCashProofFromGallery]);
+
+  const confirmDailyAttendanceWithPayment = useCallback(
+    async (attendance: any) => {
+      if (!conversation?.job?.id) {
+        return;
+      }
+
+      Alert.alert(
+        "Choose Payment Method",
+        `Confirm ${attendance.worker_name || "worker"} attendance and choose payout method for ₱${Number(attendance.amount_earned || 0).toLocaleString()}.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Wallet",
+            onPress: () =>
+              setCountdownConfig({
+                visible: true,
+                title: "Confirm Attendance",
+                message: `Confirm attendance and process wallet payout of ₱${Number(attendance.amount_earned || 0).toLocaleString()}?`,
+                confirmLabel: "Confirm Wallet",
+                countdownSeconds: 7,
+                onConfirm: () => {
+                  setCountdownConfig(null);
+                  clientConfirmAttendanceMutation.mutate({
+                    attendanceId: attendance.attendance_id,
+                    paymentMethod: "WALLET",
+                  });
+                },
+                icon: "wallet",
+                iconColor: Colors.warning,
+              }),
+          },
+          {
+            text: "Cash",
+            onPress: async () => {
+              const proof = await selectDailyCashProofImage();
+              if (!proof) {
+                return;
+              }
+
+              setCountdownConfig({
+                visible: true,
+                title: "Confirm Cash Payment",
+                message:
+                  "Confirm attendance and release payout immediately with attached cash proof?",
+                confirmLabel: "Confirm Cash",
+                countdownSeconds: 7,
+                onConfirm: () => {
+                  setCountdownConfig(null);
+                  clientConfirmAttendanceMutation.mutate({
+                    attendanceId: attendance.attendance_id,
+                    paymentMethod: "CASH",
+                    cashProofImage: proof,
+                  });
+                },
+                icon: "cash",
+                iconColor: Colors.success,
+              });
+            },
+          },
+        ],
+      );
+    },
+    [conversation?.job?.id, clientConfirmAttendanceMutation, selectDailyCashProofImage],
+  );
+
   // Pick image from camera
   const pickImageFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -4238,30 +4392,27 @@ export default function ChatScreen() {
                                 <TouchableOpacity
                                   style={styles.confirmArrivalButtonCompact}
                                   onPress={() =>
-                                    setCountdownConfig({
-                                      visible: true,
-                                      title: isProjectMultiDayJob
-                                        ? "Confirm Attendance"
-                                        : "Confirm Attendance",
-                                      message: isProjectMultiDayJob
-                                        ? `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`
-                                        : `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
-                                      confirmLabel: isProjectMultiDayJob
-                                        ? "Confirm Day"
-                                        : "Confirm & Pay",
-                                      countdownSeconds: 7,
-                                      onConfirm: () => {
-                                        setCountdownConfig(null);
-                                        clientConfirmAttendanceMutation.mutate({
-                                          attendanceId:
-                                            attendance.attendance_id,
-                                        });
-                                      },
-                                      icon: isProjectMultiDayJob
-                                        ? "checkmark-circle"
-                                        : "wallet",
-                                      iconColor: Colors.warning,
-                                    })
+                                    isProjectMultiDayJob
+                                      ? setCountdownConfig({
+                                          visible: true,
+                                          title: "Confirm Attendance",
+                                          message: `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`,
+                                          confirmLabel: "Confirm Day",
+                                          countdownSeconds: 7,
+                                          onConfirm: () => {
+                                            setCountdownConfig(null);
+                                            clientConfirmAttendanceMutation.mutate({
+                                              attendanceId:
+                                                attendance.attendance_id,
+                                              paymentMethod: "WALLET",
+                                            });
+                                          },
+                                          icon: "checkmark-circle",
+                                          iconColor: Colors.warning,
+                                        })
+                                      : void confirmDailyAttendanceWithPayment(
+                                          attendance,
+                                        )
                                   }
                                   disabled={
                                     clientConfirmAttendanceMutation.isPending
@@ -4495,11 +4646,19 @@ export default function ChatScreen() {
                                   </View>
                                 )}
 
-                                <View style={styles.teamProjectArrivalWorkerTextBlock}>
-                                  <Text style={styles.teamProjectArrivalWorkerName}>
+                                <View
+                                  style={
+                                    styles.teamProjectArrivalWorkerTextBlock
+                                  }
+                                >
+                                  <Text
+                                    style={styles.teamProjectArrivalWorkerName}
+                                  >
                                     {firstName}
                                   </Text>
-                                  <Text style={styles.teamProjectArrivalWorkerSkill}>
+                                  <Text
+                                    style={styles.teamProjectArrivalWorkerSkill}
+                                  >
                                     {assignment.skill || "Team Worker"}
                                   </Text>
                                 </View>
@@ -4558,7 +4717,9 @@ export default function ChatScreen() {
                                     />
                                   ) : (
                                     <Text
-                                      style={styles.teamProjectConfirmArrivalText}
+                                      style={
+                                        styles.teamProjectConfirmArrivalText
+                                      }
                                     >
                                       Confirm
                                     </Text>

@@ -7942,7 +7942,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
     - DAILY jobs: uses DailyPaymentService and can process per-day payout.
     - PROJECT multi-day jobs: records attendance only (no per-day payout).
     """
+    import uuid
     from django.utils import timezone
+    from django.core.files.storage import default_storage
     from .models import DailyAttendance
     from jobs.daily_payment_service import DailyPaymentService
     
@@ -7965,6 +7967,30 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
         if job.clientID.profileID.accountFK != request.auth:
             return Response({"error": "Only the job client can confirm attendance"}, status=403)
         
+        # Support both query/body payloads for backwards compatibility.
+        approved_status = (
+            request.POST.get('approved_status')
+            or approved_status
+            or request.GET.get('approved_status')
+        )
+        payment_method = (
+            request.POST.get('payment_method')
+            or request.GET.get('payment_method')
+            or 'WALLET'
+        )
+        payment_method = str(payment_method).upper()
+        cash_proof_image = request.FILES.get('cash_proof_image')
+        cash_proof_url = None
+
+        if payment_method not in ['WALLET', 'CASH']:
+            return Response({"error": "Invalid payment method. Choose WALLET or CASH"}, status=400)
+
+        if payment_method == 'CASH' and cash_proof_image:
+            file_ext = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+            file_name = f"daily_cash_proofs/job_{job.jobID}/attendance_{attendance.attendanceID}_{uuid.uuid4().hex[:8]}.{file_ext}"
+            saved_path = default_storage.save(file_name, cash_proof_image)
+            cash_proof_url = default_storage.url(saved_path)
+
         # Check if already confirmed
         if attendance.client_confirmed:
             return Response({
@@ -8007,7 +8033,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             result = DailyPaymentService.confirm_attendance_client(
                 attendance,
                 request.auth,
-                approved_status=approved_status
+                approved_status=approved_status,
+                payment_method=payment_method,
+                cash_proof_url=cash_proof_url,
             )
 
             if not result.get('success'):
@@ -8034,6 +8062,8 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
+            "payment_method": attendance.payment_method,
+            "cash_payment_proof_url": attendance.cash_payment_proof_url,
             "total_days_worked": synced_days_worked,
             "message": (
                 "Attendance confirmed. Day recorded for final project payout."

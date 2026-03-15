@@ -287,7 +287,9 @@ class DailyPaymentService:
     def confirm_attendance_client(
         attendance: DailyAttendance,
         user: Accounts,
-        approved_status: str = None
+        approved_status: str = None,
+        payment_method: str = 'WALLET',
+        cash_proof_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Client confirms attendance for a worker's day.
@@ -295,6 +297,10 @@ class DailyPaymentService:
         """
         if attendance.client_confirmed:
             return {'success': False, 'error': 'Attendance already confirmed by client'}
+
+        payment_method_upper = str(payment_method or 'WALLET').upper()
+        if payment_method_upper not in ['WALLET', 'CASH']:
+            return {'success': False, 'error': 'Invalid payment method. Choose WALLET or CASH'}
         
         # Client can override status
         if approved_status and approved_status in ['PRESENT', 'HALF_DAY', 'ABSENT']:
@@ -315,7 +321,11 @@ class DailyPaymentService:
         # Check if both confirmed
         if attendance.is_confirmed():
             # Auto-process payment if both confirmed
-            return DailyPaymentService.process_day_payment(attendance)
+            return DailyPaymentService.process_day_payment(
+                attendance,
+                payment_method=payment_method_upper,
+                cash_proof_url=cash_proof_url,
+            )
         
         return {
             'success': True,
@@ -328,10 +338,16 @@ class DailyPaymentService:
     
     @staticmethod
     @transaction.atomic
-    def process_day_payment(attendance: DailyAttendance) -> Dict[str, Any]:
+    def process_day_payment(
+        attendance: DailyAttendance,
+        payment_method: str = 'WALLET',
+        cash_proof_url: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Process payment for a confirmed day of work.
-        Moves funds from escrow to worker's pendingEarnings (7-day buffer).
+
+        WALLET: adds earnings to pendingEarnings (7-day buffer).
+        CASH: credits wallet balance immediately after proof upload.
         """
         if attendance.payment_processed:
             return {'success': False, 'error': 'Payment already processed for this day'}
@@ -339,11 +355,21 @@ class DailyPaymentService:
         if not attendance.is_confirmed():
             return {'success': False, 'error': 'Attendance not fully confirmed yet'}
         
+        payment_method_upper = str(payment_method or 'WALLET').upper()
+        if payment_method_upper not in ['WALLET', 'CASH']:
+            return {'success': False, 'error': 'Invalid payment method. Choose WALLET or CASH'}
+
         if attendance.status in ['ABSENT', 'PENDING', 'DISPUTED']:
             penalty_amount = Decimal('0.00')
             if attendance.status == 'ABSENT':
                 penalty_amount = DailyPaymentService.apply_absent_penalty(attendance)
 
+            attendance.payment_method = payment_method_upper
+            if payment_method_upper == 'CASH' and cash_proof_url:
+                attendance.cash_payment_proof_url = cash_proof_url
+                attendance.cash_proof_uploaded_at = timezone.now()
+                attendance.cash_payment_verified = True
+                attendance.cash_payment_verified_at = timezone.now()
             attendance.payment_processed = True
             attendance.payment_processed_at = timezone.now()
             attendance.save()
@@ -352,16 +378,28 @@ class DailyPaymentService:
                 'message': f'No payment for {attendance.status} status',
                 'amount': 0,
                 'absent_penalty_amount': float(penalty_amount),
+                'payment_method': payment_method_upper,
             }
         
         job = attendance.jobID
         amount = attendance.amount_earned
         
         if amount <= 0:
+            attendance.payment_method = payment_method_upper
+            if payment_method_upper == 'CASH' and cash_proof_url:
+                attendance.cash_payment_proof_url = cash_proof_url
+                attendance.cash_proof_uploaded_at = timezone.now()
+                attendance.cash_payment_verified = True
+                attendance.cash_payment_verified_at = timezone.now()
             attendance.payment_processed = True
             attendance.payment_processed_at = timezone.now()
             attendance.save()
-            return {'success': True, 'amount': 0, 'message': 'Zero amount, no payment needed'}
+            return {
+                'success': True,
+                'amount': 0,
+                'message': 'Zero amount, no payment needed',
+                'payment_method': payment_method_upper,
+            }
         
         # Get worker's wallet
         worker_account = None
@@ -379,8 +417,14 @@ class DailyPaymentService:
         except Wallet.DoesNotExist:
             wallet = Wallet.objects.create(accountFK=worker_account)
         
-        # Add to pending earnings (7-day buffer)
-        wallet.pendingEarnings += amount
+        if payment_method_upper == 'CASH' and not cash_proof_url:
+            return {'success': False, 'error': 'Cash proof is required for CASH payment'}
+
+        # WALLET keeps 7-day pending buffer; CASH is immediately released.
+        if payment_method_upper == 'CASH':
+            wallet.balance += amount
+        else:
+            wallet.pendingEarnings += amount
         wallet.save()
         
         # Update job tracking
@@ -396,16 +440,26 @@ class DailyPaymentService:
         # Create transaction record
         Transaction.objects.create(
             walletID=wallet,
-            transactionType='PENDING_EARNING',
+            transactionType='EARNING' if payment_method_upper == 'CASH' else 'PENDING_EARNING',
             amount=amount,
             balanceAfter=wallet.balance,
             status='COMPLETED',
-            description=f'Daily payment for {attendance.date} - Job #{job.jobID}',
+            description=(
+                f'Daily cash payment for {attendance.date} - Job #{job.jobID}'
+                if payment_method_upper == 'CASH'
+                else f'Daily payment for {attendance.date} - Job #{job.jobID}'
+            ),
             relatedJobPosting=job,
-            paymentMethod='WALLET'
+            paymentMethod=payment_method_upper,
         )
         
         # Mark attendance as processed
+        attendance.payment_method = payment_method_upper
+        if payment_method_upper == 'CASH':
+            attendance.cash_payment_proof_url = cash_proof_url
+            attendance.cash_proof_uploaded_at = timezone.now()
+            attendance.cash_payment_verified = True
+            attendance.cash_payment_verified_at = timezone.now()
         attendance.payment_processed = True
         attendance.payment_processed_at = timezone.now()
         attendance.save()
@@ -415,7 +469,11 @@ class DailyPaymentService:
             accountFK=worker_account,
             notificationType='PAYMENT_RECEIVED',
             title='Daily Payment Received',
-            message=f'P{float(amount):,.2f} earned for {attendance.date} has been added to your pending earnings.',
+            message=(
+                f'P{float(amount):,.2f} cash payment for {attendance.date} is now available in your wallet balance.'
+                if payment_method_upper == 'CASH'
+                else f'P{float(amount):,.2f} earned for {attendance.date} has been added to your pending earnings.'
+            ),
             relatedJobID=job.jobID
         )
         
@@ -424,7 +482,14 @@ class DailyPaymentService:
             'amount': float(amount),
             'date': str(attendance.date),
             'pending_earnings': float(wallet.pendingEarnings),
-            'message': f'₱{amount} added to pending earnings (7-day buffer)'
+            'wallet_balance': float(wallet.balance),
+            'payment_method': payment_method_upper,
+            'cash_payment_verified': payment_method_upper == 'CASH',
+            'message': (
+                f'₱{amount} released immediately to wallet balance (cash proof verified)'
+                if payment_method_upper == 'CASH'
+                else f'₱{amount} added to pending earnings (7-day buffer)'
+            )
         }
     
     @staticmethod

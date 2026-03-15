@@ -2284,6 +2284,9 @@ def get_conversation_messages(request, conversation_id: int):
                     "client_confirmed_at": record.client_confirmed_at.isoformat() if record.client_confirmed_at else None,
                     "amount_earned": float(record.amount_earned) if record.amount_earned else 0.0,
                     "payment_processed": record.payment_processed,
+                    "payment_method": record.payment_method,
+                    "cash_payment_proof_url": record.cash_payment_proof_url,
+                    "cash_payment_verified": record.cash_payment_verified,
                     "notes": record.notes or "",
                 })
             
