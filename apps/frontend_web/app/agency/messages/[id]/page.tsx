@@ -13,7 +13,6 @@ import {
   useAgencySendMessage,
   useAgencyMarkComplete,
   useAgencySubmitReview,
-  useUploadCompletionPhoto,
   AssignedEmployee,
 } from "@/lib/hooks/useAgencyConversations";
 import {

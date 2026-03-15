@@ -13,6 +13,7 @@ from accounts.models import Accounts, Agency
 import logging
 from django.conf import settings
 from django.utils import timezone
+import datetime
 from datetime import timedelta
 from jobs.cancellation_service import cancel_job_with_scenarios
 
@@ -4323,8 +4324,8 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         # Allow dispatch for jobs that are ASSIGNED, ACTIVE, IN_PROGRESS, or
         # COMPLETED (backjob redispatch).  COMPLETED jobs always have an
         # associated dispute so we simply check for any dispute record.
-        has_dispute = JobDispute.objects.filter(jobID=job).exists()
         dispute_for_dispatch = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
+        has_dispute = dispute_for_dispatch is not None
 
         logger.info(
             f"[dispatch-project v2] job={job_id} status={job.status} "
@@ -4374,9 +4375,22 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         # was already true from the original job cycle.
         backjob_cycle_start = None
         if dispute_for_dispatch:
+            # Priority order matches the original: workerScheduleConfirmedAt,
+            # scheduled_date, in_negotiation_at, openedDate.
+            # scheduled_date is a DateField; promote it to a timezone-aware
+            # datetime (start-of-day UTC) so it is comparable with the
+            # timezone-aware assignment.dispatchedAt DateTimeField.
+            scheduled_raw = getattr(dispute_for_dispatch, 'scheduled_date', None)
+            if scheduled_raw is not None:
+                scheduled_dt = timezone.make_aware(
+                    datetime.datetime.combine(scheduled_raw, datetime.time.min)
+                )
+            else:
+                scheduled_dt = None
+
             backjob_cycle_start = (
                 getattr(dispute_for_dispatch, 'workerScheduleConfirmedAt', None)
-                or getattr(dispute_for_dispatch, 'scheduled_date', None)
+                or scheduled_dt
                 or getattr(dispute_for_dispatch, 'in_negotiation_at', None)
                 or dispute_for_dispatch.openedDate
             )
