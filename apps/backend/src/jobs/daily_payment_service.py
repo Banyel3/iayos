@@ -906,10 +906,17 @@ class DailyPaymentService:
             return {'success': False, 'error': f'Cannot cancel job in {job.status} status'}
         
         # Calculate paid-out principal based on processed attendance.
-        total_paid = DailyAttendance.objects.filter(
+        paid_attendance_qs = DailyAttendance.objects.filter(
             jobID=job,
             payment_processed=True
-        ).aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+        )
+        total_paid = paid_attendance_qs.aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+        processed_days_count = paid_attendance_qs.count()
+
+        pending_attendance_count = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=False,
+        ).exclude(status='ABSENT').count()
 
         escrow_collected = Decimal(str(job.daily_escrow_total or Decimal('0.00')))
         if escrow_collected < Decimal('0.00'):
@@ -918,6 +925,17 @@ class DailyPaymentService:
         refundable_escrow = escrow_collected - total_paid
         if refundable_escrow < Decimal('0.00'):
             refundable_escrow = Decimal('0.00')
+
+        if processed_days_count == 0 and pending_attendance_count == 0:
+            cancellation_stage = 'BEFORE_FIRST_PAID_DAY'
+        elif processed_days_count == 0 and pending_attendance_count > 0:
+            cancellation_stage = 'DAY_IN_PROGRESS_NO_PAYOUT_YET'
+        elif refundable_escrow > Decimal('0.00') and pending_attendance_count > 0:
+            cancellation_stage = 'MID_DAY_AFTER_SOME_PAYOUT'
+        elif refundable_escrow > Decimal('0.00'):
+            cancellation_stage = 'BETWEEN_PAID_DAYS'
+        else:
+            cancellation_stage = 'AFTER_ALL_DAYS_PAID'
 
         platform_fee_retained = (escrow_collected * DailyPaymentService.PLATFORM_FEE_PERCENT).quantize(Decimal('0.01'))
 
@@ -955,16 +973,31 @@ class DailyPaymentService:
         job.save()
 
         # Notify client
+        client_cancel_message = (
+            f"Daily job cancelled ({cancellation_stage}). "
+            f"₱{refundable_escrow} unused escrow refunded to your wallet. "
+            f"Platform fee retained: ₱{platform_fee_retained}."
+        )
+
         Notification.objects.create(
             accountFK=client_account,
             notificationType='JOB_CANCELLED',
             title='Job Cancelled',
-            message=(
-                f"Daily job cancelled. ₱{refundable_escrow} unused escrow refunded to your wallet. "
-                f"Platform fee retained: ₱{platform_fee_retained}."
-            ),
+            message=client_cancel_message,
             relatedJobID=job.jobID
         )
+
+        if refundable_escrow > Decimal('0.00'):
+            Notification.objects.create(
+                accountFK=client_account,
+                notificationType='PAYMENT_REFUNDED',
+                title='Unused Escrow Refunded',
+                message=(
+                    f"Refunded ₱{refundable_escrow} unused daily escrow to your wallet. "
+                    f"Platform fee retained: ₱{platform_fee_retained}."
+                ),
+                relatedJobID=job.jobID
+            )
 
         # Notify worker/agency participants so mobile can surface consistent cancellation context.
         recipients: List[Accounts] = []
@@ -985,7 +1018,7 @@ class DailyPaymentService:
                 title='Daily Job Cancelled',
                 message=(
                     f"Job '{job.title}' was cancelled by {cancelled_by.lower()}. "
-                    f"Reason: {reason}."
+                    f"Stage: {cancellation_stage}. Reason: {reason}."
                 ),
                 relatedJobID=job.jobID
             )
@@ -993,6 +1026,10 @@ class DailyPaymentService:
         return {
             'success': True,
             'cancelled_by': cancelled_by,
+            'cancellation_stage': cancellation_stage,
+            'days_planned': int(job.duration_days or 0),
+            'days_paid': int(processed_days_count),
+            'days_with_unprocessed_attendance': int(pending_attendance_count),
             'days_completed': job.total_days_worked,
             'total_paid_out': float(total_paid),
             'escrow_collected': float(escrow_collected),
@@ -1000,7 +1037,8 @@ class DailyPaymentService:
             'platform_fee_retained': float(platform_fee_retained),
             'refunded_escrow_only': True,
             'message': (
-                f'Job cancelled. ₱{refundable_escrow} unused escrow refunded to client. '
+                f'Job cancelled ({cancellation_stage}). '
+                f'₱{refundable_escrow} unused escrow refunded to client. '
                 f'Platform fee retained: ₱{platform_fee_retained}.'
             )
         }

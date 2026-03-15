@@ -354,9 +354,12 @@ export default function DailyJobDetailScreen() {
                 const result = await cancelJobMutation.mutateAsync({ jobId, reason });
                 const refund = Number(result?.refund_amount || 0).toFixed(2);
                 const retained = Number(result?.platform_fee_retained || 0).toFixed(2);
+                const stage = result?.cancellation_stage
+                  ? result.cancellation_stage.replace(/_/g, " ").toLowerCase()
+                  : null;
                 Alert.alert(
                   "Job Cancelled",
-                  `Unused escrow refunded: ₱${refund}\nPlatform fee retained: ₱${retained}`,
+                  `Unused escrow refunded: ₱${refund}\nPlatform fee retained: ₱${retained}${stage ? `\nStage: ${stage}` : ""}`,
                 );
                 safeGoBack(router, "/(tabs)/jobs");
               } catch (error: unknown) {

@@ -902,6 +902,10 @@ export interface CancelDailyJobResponse {
   success: boolean;
   message?: string;
   cancelled_by?: string;
+  cancellation_stage?: string;
+  days_planned?: number;
+  days_paid?: number;
+  days_with_unprocessed_attendance?: number;
   days_completed?: number;
   total_paid_out?: number;
   escrow_collected?: number;
@@ -941,13 +945,16 @@ export const useCancelDailyJob = () => {
 
       const refundAmount = Number(data.refund_amount || 0).toFixed(2);
       const retainedFee = Number(data.platform_fee_retained || 0).toFixed(2);
+      const stageLabel = data.cancellation_stage
+        ? data.cancellation_stage.replace(/_/g, " ").toLowerCase()
+        : null;
 
       Toast.show({
         type: "success",
         text1: "Job Cancelled",
         text2:
           data.message ||
-          `Unused escrow refunded: ₱${refundAmount}. Platform fee retained: ₱${retainedFee}.`,
+          `Unused escrow refunded: ₱${refundAmount}. Platform fee retained: ₱${retainedFee}.${stageLabel ? ` Stage: ${stageLabel}.` : ""}`,
         position: "top",
       });
     },
