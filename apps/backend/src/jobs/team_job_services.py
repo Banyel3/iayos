@@ -249,6 +249,10 @@ def create_team_job(
     if payment_model_upper not in ['PROJECT', 'DAILY']:
         return {'success': False, 'error': 'Invalid payment_model. Choose PROJECT or DAILY'}
 
+    payment_method_upper = str(payment_method or 'WALLET').upper()
+    if payment_method_upper != 'WALLET':
+        return {'success': False, 'error': 'Team job creation currently supports WALLET payment only'}
+
     effective_total_budget = Decimal(str(total_budget))
     effective_daily_rate: Optional[Decimal] = None
     effective_duration_days: Optional[int] = None
@@ -311,7 +315,7 @@ def create_team_job(
     total_needed = escrow_amount + platform_fee
     wallet = None
     
-    if payment_method == 'WALLET':
+    if payment_method_upper == 'WALLET':
         try:
             wallet = Wallet.objects.get(accountFK=client_profile_obj.accountFK)
             if wallet.balance < total_needed:
@@ -383,7 +387,7 @@ def create_team_job(
         created_slots.append(slot)
     
     # Handle payment (if wallet)
-    if payment_method == 'WALLET':
+    if payment_method_upper == 'WALLET':
         # Deduct from wallet
         if wallet is None:
             return {'success': False, 'error': 'Wallet not found'}
@@ -1301,8 +1305,6 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     Client approves team job completion. This closes the job and team conversation.
     Requires all workers to have marked their assignments as complete.
     """
-    from profiles.models import Conversation, ConversationParticipant
-    
     try:
         job = Job.objects.get(jobID=job_id)
     except Job.DoesNotExist:
@@ -1348,10 +1350,10 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     if payment_method_upper == 'CASH' and not cash_proof_url:
         return {'success': False, 'error': 'Cash proof image is required for CASH payment'}
 
-    # Remaining final payment follows the same 50% + materials pattern as regular PROJECT jobs.
+    # Remaining final payment follows single-job behavior: remainingPayment + materialsCost.
     remaining_amount = (job.remainingPayment or Decimal('0.00')) + (job.materialsCost or Decimal('0.00'))
     if remaining_amount <= 0:
-        remaining_amount = (job.budget or Decimal('0.00')) * Decimal('0.5')
+        return {'success': False, 'error': 'No remaining payment is due for this team job'}
 
     # Pre-validate wallet balance BEFORE updating job flags.
     if payment_method_upper == 'WALLET':
@@ -1414,21 +1416,8 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
 
         job.save()
     
-    # Close team conversation
-    try:
-        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-        if conversation:
-            conversation.status = Conversation.ConversationStatus.COMPLETED
-            conversation.save()
-            print(f"✅ Team conversation {conversation.conversationID} closed for completed team job {job_id}")
-            
-            # Auto-archive if both parties have reviewed
-            from profiles.conversation_service import archive_conversation, should_auto_archive
-            if should_auto_archive(conversation):
-                archive_result = archive_conversation(conversation)
-                print(f"📦 {archive_result.get('message', 'Team conversation auto-archived')}")
-    except Exception as e:
-        print(f"⚠️ Failed to close team conversation: {str(e)}")
+    # NOTE: Keep conversation ACTIVE after approval, consistent with single-job flow.
+    # Conversation should only close after both parties submit reviews.
     
     # Update all assignments to COMPLETED status
     JobWorkerAssignment.objects.filter(

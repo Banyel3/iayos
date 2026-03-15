@@ -234,16 +234,19 @@ export default function ActiveJobDetailScreen() {
       ? job.worker_assignments.find((a) => a.worker_id === currentWorkerId)
       : null;
 
-  // Check if all workers in team have marked complete
+  // Keep completion gating aligned with backend, which only checks ACTIVE assignments.
+  const activeAssignments = job?.worker_assignments
+    ? job.worker_assignments.filter((a) => a.assignment_status === "ACTIVE")
+    : [];
+
   const allWorkersComplete =
-    job?.is_team_job && job?.worker_assignments
-      ? job.worker_assignments.every((a) => a.worker_marked_complete)
+    job?.is_team_job && activeAssignments.length > 0
+      ? activeAssignments.every((a) => a.worker_marked_complete)
       : false;
 
-  // Count completed workers
-  const completedWorkersCount =
-    job?.worker_assignments?.filter((a) => a.worker_marked_complete).length ||
-    0;
+  const completedWorkersCount = activeAssignments.filter(
+    (a) => a.worker_marked_complete,
+  ).length;
 
   // Upload photos helper function
   const uploadPhotos = async (jobId: string): Promise<boolean> => {
@@ -545,6 +548,7 @@ export default function ActiveJobDetailScreen() {
           onPress: () => {
             workerCompleteMutation.mutate(
               {
+                jobId: Number(id),
                 assignmentId: selectedAssignment.assignment_id,
                 completionNotes: completionNotes,
               },
