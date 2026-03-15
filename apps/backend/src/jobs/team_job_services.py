@@ -216,6 +216,9 @@ def create_team_job(
     scheduled_end_date: Optional[str] = None,
     materials_needed: Optional[list] = None,
     payment_method: str = 'WALLET',
+    payment_model: str = 'PROJECT',
+    daily_rate: Optional[Decimal] = None,
+    duration_days: Optional[int] = None,
     job_scope: str = 'MODERATE_PROJECT',
     skill_level_required: str = 'INTERMEDIATE',
     work_environment: str = 'INDOOR'
@@ -242,16 +245,36 @@ def create_team_job(
     if missing:
         return {'success': False, 'error': f'Invalid specialization IDs: {missing}'}
     
+    payment_model_upper = str(payment_model or 'PROJECT').upper()
+    if payment_model_upper not in ['PROJECT', 'DAILY']:
+        return {'success': False, 'error': 'Invalid payment_model. Choose PROJECT or DAILY'}
+
+    effective_total_budget = Decimal(str(total_budget))
+    effective_daily_rate: Optional[Decimal] = None
+    effective_duration_days: Optional[int] = None
+
+    if payment_model_upper == 'DAILY':
+        if daily_rate is None or duration_days is None:
+            return {'success': False, 'error': 'daily_rate and duration_days are required for DAILY team jobs'}
+
+        effective_daily_rate = Decimal(str(daily_rate))
+        effective_duration_days = int(duration_days)
+        if effective_daily_rate <= 0 or effective_duration_days <= 0:
+            return {'success': False, 'error': 'daily_rate and duration_days must be positive'}
+
+        # DAILY team budget is derived from rate/day per worker.
+        effective_total_budget = effective_daily_rate * Decimal(str(effective_duration_days)) * Decimal(str(total_workers))
+
     # Calculate budget allocation
     budget_allocations = calculate_budget_allocation(
-        Decimal(str(total_budget)), skill_slots_data, allocation_type
+        effective_total_budget, skill_slots_data, allocation_type
     )
     
     # Validate manual allocation totals match
     if allocation_type == 'MANUAL_ALLOCATION':
         allocated_sum = sum(alloc['budget'] for alloc in budget_allocations)
-        if abs(allocated_sum - Decimal(str(total_budget))) > Decimal('1'):  # Allow ₱1 variance
-            return {'success': False, 'error': f'Manual allocation total (₱{allocated_sum}) does not match total budget (₱{total_budget})'}
+        if abs(allocated_sum - effective_total_budget) > Decimal('1'):  # Allow ₱1 variance
+            return {'success': False, 'error': f'Manual allocation total (₱{allocated_sum}) does not match total budget (₱{effective_total_budget})'}
     
     # Get client's base profile
     client_profile_obj = (
@@ -278,10 +301,15 @@ def create_team_job(
         },
     )
     
-    # Check wallet balance for escrow (50% of total) + platform fee (10% of total)
-    escrow_amount = Decimal(str(total_budget)) * Decimal('0.5')
-    platform_fee = Decimal(str(total_budget)) * settings.PLATFORM_FEE_RATE  # 10% of total budget
+    # Check wallet balance for escrow + platform fee
+    # PROJECT: 50% escrow; DAILY: 100% escrow upfront
+    escrow_amount = (
+        effective_total_budget if payment_model_upper == 'DAILY'
+        else effective_total_budget * Decimal('0.5')
+    )
+    platform_fee = effective_total_budget * settings.PLATFORM_FEE_RATE  # 10% of total budget
     total_needed = escrow_amount + platform_fee
+    wallet = None
     
     if payment_method == 'WALLET':
         try:
@@ -315,7 +343,9 @@ def create_team_job(
         title=title,
         description=description,
         location=location,
-        budget=Decimal(str(total_budget)),
+        budget=effective_total_budget,
+        escrowAmount=escrow_amount,
+        remainingPayment=Decimal('0.00') if payment_model_upper == 'DAILY' else (effective_total_budget * Decimal('0.5')),
         urgency=urgency,
         preferredStartDate=preferred_start_date_obj,
         scheduled_end_date=scheduled_end_date_obj,
@@ -323,6 +353,9 @@ def create_team_job(
         jobType='LISTING',  # Team jobs are listings
         status='ACTIVE',
         is_team_job=True,
+        payment_model=payment_model_upper,
+        daily_rate_agreed=float(effective_daily_rate) if payment_model_upper == 'DAILY' and effective_daily_rate is not None else None,
+        duration_days=effective_duration_days if payment_model_upper == 'DAILY' else None,
         budget_allocation_type=allocation_type,
         team_job_start_threshold=Decimal(str(team_start_threshold)),
         job_scope=job_scope,
@@ -352,6 +385,8 @@ def create_team_job(
     # Handle payment (if wallet)
     if payment_method == 'WALLET':
         # Deduct from wallet
+        if wallet is None:
+            return {'success': False, 'error': 'Wallet not found'}
         wallet.balance -= total_needed
         wallet.reservedBalance += escrow_amount  # Hold escrow
         wallet.save()
@@ -364,7 +399,20 @@ def create_team_job(
             amount=escrow_amount,
             balanceAfter=wallet.balance,
             status='COMPLETED',
-            description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
+            description=(
+                f"Team job escrow ({'100%' if payment_model_upper == 'DAILY' else '50%'}) for: {title} "
+                f"(Platform fee: ₱{platform_fee})"
+            )
+        )
+
+    if payment_model_upper == 'DAILY' and effective_daily_rate is not None and effective_duration_days is not None:
+        from jobs.daily_payment_service import DailyPaymentService
+
+        DailyPaymentService.create_daily_job(
+            job=job,
+            daily_rate=effective_daily_rate,
+            duration_days=effective_duration_days,
+            num_workers=total_workers,
         )
     
     # NOTE: Conversation is NOT created here. It will be created automatically
@@ -376,6 +424,8 @@ def create_team_job(
         'job_id': job.jobID,
         'skill_slots_created': len(created_slots),
         'total_workers_needed': total_workers,
+        'payment_model': payment_model_upper,
+        'total_budget': float(effective_total_budget),
         'escrow_amount': float(escrow_amount),
         'platform_fee': float(platform_fee),
         'message': f'Team job created with {len(created_slots)} skill slots requiring {total_workers} workers'

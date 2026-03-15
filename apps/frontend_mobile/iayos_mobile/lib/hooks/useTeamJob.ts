@@ -90,7 +90,9 @@ export function useTeamJobDetail(jobId: number, enabled: boolean = true) {
         const error = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(getErrorMessage(error, "Failed to fetch team job details"));
+        throw new Error(
+          getErrorMessage(error, "Failed to fetch team job details"),
+        );
       }
       return response.json() as Promise<TeamJobDetail>;
     },
@@ -297,7 +299,9 @@ export function useWorkerCompleteAssignment() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(getErrorMessage(data, "Failed to mark assignment complete"));
+        throw new Error(
+          getErrorMessage(data, "Failed to mark assignment complete"),
+        );
       }
       return data;
     },
@@ -347,10 +351,13 @@ export function useClientApproveTeamJob() {
         } as any);
       }
 
-      const response = await apiRequest(ENDPOINTS.TEAM_APPROVE_COMPLETION(jobId), {
-        method: "POST",
-        body: formData as any,
-      });
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_APPROVE_COMPLETION(jobId),
+        {
+          method: "POST",
+          body: formData as any,
+        },
+      );
 
       const data = (await response.json()) as {
         success?: boolean;
@@ -438,7 +445,9 @@ export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
         const error = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(getErrorMessage(error, "Failed to fetch team job applications"));
+        throw new Error(
+          getErrorMessage(error, "Failed to fetch team job applications"),
+        );
       }
       return response.json() as Promise<{
         applications: TeamJobApplication[];

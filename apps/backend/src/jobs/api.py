@@ -8028,6 +8028,9 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             scheduled_end_date=payload.scheduled_end_date,
             materials_needed=payload.materials_needed,
             payment_method=payload.payment_method or 'WALLET',
+            payment_model=(payload.payment_model or 'PROJECT'),
+            daily_rate=Decimal(str(payload.daily_rate)) if payload.daily_rate is not None else None,
+            duration_days=payload.duration_days,
             job_scope=payload.job_scope or 'MODERATE_PROJECT',
             skill_level_required=payload.skill_level_required or 'INTERMEDIATE',
             work_environment=payload.work_environment or 'INDOOR'
