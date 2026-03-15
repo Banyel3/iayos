@@ -1491,10 +1491,19 @@ export default function ChatScreen() {
 
       const remainingAmount = (baseRemaining + materialsCostVal).toFixed(2);
 
+      const primaryAgencyContact =
+        conversation.assigned_employees?.find((employee) => employee.isPrimaryContact) ||
+        conversation.assigned_employees?.[0] ||
+        conversation.assigned_employee;
+
+      const agencyRecipientText = primaryAgencyContact?.name
+        ? `${primaryAgencyContact.name} (assigned team leader)`
+        : "the assigned team leader";
+
       const workerText = conversation.is_team_job
         ? "the workers"
         : conversation.is_agency_job
-          ? "the agency"
+          ? agencyRecipientText
           : "the worker";
 
       Alert.alert(

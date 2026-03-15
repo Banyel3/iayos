@@ -1003,7 +1003,17 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             )
         
         # Determine payment model
-        payment_model = (data.payment_model or "PROJECT").upper()
+        requested_payment_model = (data.payment_model or "PROJECT").upper()
+        if data.agency_id and requested_payment_model == "DAILY":
+            return Response(
+                {
+                    "error": "Agency jobs only support PROJECT (fixed budget) payment model"
+                },
+                status=400,
+            )
+
+        # Force project payment model for agency direct hires.
+        payment_model = "PROJECT" if data.agency_id else requested_payment_model
         
         # Calculate payment based on payment model
         if payment_model == "DAILY":
