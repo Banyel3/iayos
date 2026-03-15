@@ -2880,9 +2880,8 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
         active_regular_job = JobPosting.objects.filter(
             assignedWorkerID=worker_profile,
             status=JobPosting.JobStatus.IN_PROGRESS,
-            cancelledAt__isnull=True,
         ).filter(
-            Q(cancelledByRole__isnull=True) | Q(cancelledByRole="")
+            Q(cancellationReason__isnull=True) | Q(cancellationReason="")
         ).exclude(jobID=job.jobID).first()
 
         if active_regular_job:
@@ -2917,8 +2916,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             )
             .filter(
                 Q(jobID__status=JobPosting.JobStatus.CANCELLED)
-                | Q(jobID__cancelledAt__isnull=False)
-                | (Q(jobID__cancelledByRole__isnull=False) & ~Q(jobID__cancelledByRole=""))
+                | (Q(jobID__cancellationReason__isnull=False) & ~Q(jobID__cancellationReason=""))
             )
             .values_list('assignmentID', flat=True)
         )
@@ -2946,9 +2944,8 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             workerID=worker_profile,
             assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
             jobID__status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
-            jobID__cancelledAt__isnull=True,
         ).filter(
-            Q(jobID__cancelledByRole__isnull=True) | Q(jobID__cancelledByRole="")
+            Q(jobID__cancellationReason__isnull=True) | Q(jobID__cancellationReason="")
         ).select_related('jobID').first()
 
         if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
