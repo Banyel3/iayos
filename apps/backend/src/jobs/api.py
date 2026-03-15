@@ -4,7 +4,7 @@ from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
 from accounts.authentication import cookie_auth, jwt_auth, dual_auth, require_kyc
-from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, JobEmployeeAssignment, BackjobScheduleConfirmation, workerSpecialization
+from accounts.models import ClientProfile, Specializations, Profile, WorkerProfile, JobApplication, JobPhoto, Wallet, Transaction, Job, JobLog, Agency, Accounts, JobDispute, DisputeEvidence, Notification, JobSkillSlot, JobMaterial, JobWorkerAssignment, JobEmployeeAssignment, BackjobScheduleConfirmation, workerSpecialization
 from accounts.payment_provider import get_payment_provider
 from .models import JobPosting
 # Use Job directly for type checking (JobPosting is just an alias)
@@ -5003,18 +5003,21 @@ def client_approve_job_completion(
                         relatedJobID=job.jobID,
                     )
 
-                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
-                for admin in admin_accounts:
-                    Notification.objects.create(
-                        accountFK=admin,
-                        notificationType="FINAL_PAYMENT_COMPLETED",
-                        title="Final Payment Completed",
-                        message=(
-                            f"Client completed final WALLET payment for job '{job.title}' "
-                            f"(₱{remaining_amount})."
-                        ),
-                        relatedJobID=job.jobID,
-                    )
+                try:
+                    admin_accounts = Accounts.objects.filter(is_superuser=True, is_staff=True)
+                    for admin in admin_accounts:
+                        Notification.objects.create(
+                            accountFK=admin,
+                            notificationType="FINAL_PAYMENT_COMPLETED",
+                            title="Final Payment Completed",
+                            message=(
+                                f"Client completed final WALLET payment for job '{job.title}' "
+                                f"(₱{remaining_amount})."
+                            ),
+                            relatedJobID=job.jobID,
+                        )
+                except Exception as admin_notify_error:
+                    print(f"⚠️ Admin notification failed (WALLET) for job {job.jobID}: {admin_notify_error}")
 
                 return {
                     "success": True,
@@ -5125,18 +5128,21 @@ def client_approve_job_completion(
                         relatedJobID=job.jobID,
                     )
 
-                admin_accounts = Agency.objects.filter(is_superuser=True, is_staff=True)
-                for admin in admin_accounts:
-                    Notification.objects.create(
-                        accountFK=admin,
-                        notificationType="FINAL_PAYMENT_COMPLETED",
-                        title="Final Payment Completed",
-                        message=(
-                            f"Client uploaded final CASH payment proof for job '{job.title}' "
-                            f"(₱{remaining_amount})."
-                        ),
-                        relatedJobID=job.jobID,
-                    )
+                try:
+                    admin_accounts = Accounts.objects.filter(is_superuser=True, is_staff=True)
+                    for admin in admin_accounts:
+                        Notification.objects.create(
+                            accountFK=admin,
+                            notificationType="FINAL_PAYMENT_COMPLETED",
+                            title="Final Payment Completed",
+                            message=(
+                                f"Client uploaded final CASH payment proof for job '{job.title}' "
+                                f"(₱{remaining_amount})."
+                            ),
+                            relatedJobID=job.jobID,
+                        )
+                except Exception as admin_notify_error:
+                    print(f"⚠️ Admin notification failed (CASH) for job {job.jobID}: {admin_notify_error}")
                 
                 return {
                     "success": True,
@@ -5169,6 +5175,25 @@ def client_approve_job_completion(
             print(f"⚠️ Error processing payment for job {job_id}: {type(payment_error).__name__}: {str(payment_error)}")
             import traceback
             traceback.print_exc()
+
+            # If payment/completion state already committed, return success to avoid false client error.
+            try:
+                job.refresh_from_db()
+                if job.clientMarkedComplete and job.remainingPaymentPaid:
+                    return {
+                        "success": True,
+                        "message": "Job completion approved and payment already processed.",
+                        "job_id": job_id,
+                        "worker_marked_complete": job.workerMarkedComplete,
+                        "client_marked_complete": job.clientMarkedComplete,
+                        "status": job.status,
+                        "payment_method": payment_method_upper,
+                        "requires_payment": False,
+                        "payment_completed": True,
+                        "prompt_review": True,
+                    }
+            except Exception:
+                pass
 
             return Response(
                 {"error": "Final payment failed. Job was not completed. Please try again or contact support."},
