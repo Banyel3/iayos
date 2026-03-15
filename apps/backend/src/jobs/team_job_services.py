@@ -1455,5 +1455,6 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         'payment_method': payment_method_upper,
         'amount_paid': float(remaining_amount),
         'workers_completed': job.total_workers_assigned,
-        'message': 'Team job completed successfully'
+        'message': 'Team job completed successfully',
+        'new_wallet_balance': float(wallet.balance) if payment_method_upper == 'WALLET' else None,
     }
