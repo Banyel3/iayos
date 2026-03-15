@@ -546,6 +546,59 @@ export default function ChatScreen() {
   const isPaymentReleased =
     conversation?.job?.paymentBuffer?.is_payment_released === true;
 
+  const cancellationActorLabel = (() => {
+    const role = (conversation?.job?.cancelled_by_role || "").toUpperCase();
+    if (role === "CLIENT") return "client";
+    if (role === "WORKER" || role === "EMPLOYEE" || role === "TEAM_WORKER") {
+      return "worker";
+    }
+    if (role === "AGENCY") return "agency";
+    if (role === "ADMIN") return "admin";
+    if (role === "SYSTEM") return "system";
+
+    const reason = (conversation?.job?.cancellation_reason || "").trim();
+    const reasonRoleMatch = reason.match(/^\s*(client|worker|agency|admin)\b/i);
+    if (reasonRoleMatch?.[1]) {
+      return reasonRoleMatch[1].toLowerCase();
+    }
+
+    if (conversation?.my_role === "CLIENT") return "worker";
+    if (conversation?.my_role === "WORKER") return "client";
+    if (conversation?.my_role === "AGENCY") return "client";
+    return "user";
+  })();
+
+  const cancellationReason =
+    conversation?.job?.cancellation_reason?.trim() || "no reason provided";
+
+  const hasCancellationSystemMessage = !!conversation?.messages?.some(
+    (msg) =>
+      msg.message_type === "SYSTEM" &&
+      typeof msg.message_text === "string" &&
+      /job\s+is\s+cancelled|job\s+cancelled/i.test(msg.message_text),
+  );
+
+  const chatMessages =
+    conversation && isJobCancelled && !hasCancellationSystemMessage
+      ? [
+          ...conversation.messages,
+          {
+            sender_name: "System",
+            sender_avatar: "",
+            message_text: `Job is cancelled by ${cancellationActorLabel} due to: ${cancellationReason}`,
+            message_type: "SYSTEM",
+            is_read: true,
+            created_at:
+              conversation.job.cancelled_at ||
+              conversation.messages[conversation.messages.length - 1]?.created_at ||
+              new Date().toISOString(),
+            is_mine: false,
+            sender_type: "system",
+            message_id: -1,
+          },
+        ]
+      : conversation?.messages || [];
+
   // User can submit a review once completion/payment requirements are met.
   // Do not depend on conversation closed flags here because those can be stale.
   const canSubmitReview = !!(
@@ -2442,7 +2495,7 @@ export default function ChatScreen() {
   const renderMessage = ({ item, index }: { item: any; index: number }) => {
     const currentDate = new Date(item.created_at);
     const previousDate =
-      index > 0 ? new Date(conversation!.messages[index - 1].created_at) : null;
+      index > 0 ? new Date(chatMessages[index - 1].created_at) : null;
 
     const showDateSeparator =
       !previousDate || !isSameDay(currentDate, previousDate);
@@ -2452,7 +2505,7 @@ export default function ChatScreen() {
       index === 0 ||
       Math.abs(
         new Date(item.created_at).getTime() -
-          new Date(conversation!.messages[index - 1].created_at).getTime(),
+          new Date(chatMessages[index - 1].created_at).getTime(),
       ) > 60000;
 
     // Extract image URL from attachments if present
@@ -2992,9 +3045,19 @@ export default function ChatScreen() {
             !hasApprovedBackjob &&
             !hasActiveNegotiation && (
               <View style={styles.completedStatusBannerRow}>
-                <View style={styles.completedStatusBanner}>
-                  <Text style={styles.completedStatusBannerText}>
-                    Job Completed Successfully
+                <View
+                  style={[
+                    styles.completedStatusBanner,
+                    isJobCancelled && styles.cancelledStatusBanner,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.completedStatusBannerText,
+                      isJobCancelled && styles.cancelledStatusBannerText,
+                    ]}
+                  >
+                    {isJobCancelled ? "Job cancelled" : "Job Completed Successfully"}
                   </Text>
                 </View>
               </View>
@@ -7636,7 +7699,7 @@ export default function ChatScreen() {
         {/* Messages List */}
         <FlatList
           ref={flatListRef}
-          data={conversation.messages}
+          data={chatMessages}
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
@@ -8204,6 +8267,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 11,
     textAlign: "center",
+  },
+  cancelledStatusBanner: {
+    backgroundColor: "#FDECEC",
+  },
+  cancelledStatusBannerText: {
+    color: Colors.error,
   },
   jobTitle: {
     ...Typography.body.medium,

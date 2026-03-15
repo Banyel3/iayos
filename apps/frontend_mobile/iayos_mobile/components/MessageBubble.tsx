@@ -31,10 +31,18 @@ export default function MessageBubble({
 
   // System messages have a special centered layout
   if (isSystem) {
+    const systemMessageText = (message.message_text || "")
+      .replace(
+        /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD83C-\uDBFF][\uDC00-\uDFFF]|\uFE0F)/g,
+        "",
+      )
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
     return (
       <View style={styles.systemContainer}>
         <View style={styles.systemBubble}>
-          <Text style={styles.systemText}>{message.message_text}</Text>
+          <Text style={styles.systemText}>{systemMessageText}</Text>
           <Text style={styles.systemTime}>{timeString}</Text>
         </View>
       </View>
@@ -172,7 +180,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   systemBubble: {
-    backgroundColor: Colors.info + "20", // 20% opacity
+    backgroundColor: "#EDEEF1",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
@@ -182,9 +190,9 @@ const styles = StyleSheet.create({
   systemText: {
     ...Typography.body,
     fontSize: 13,
-    color: Colors.info,
+    color: "#5F6774",
     textAlign: "center",
-    fontWeight: "500",
+    fontWeight: "400",
   },
   systemTime: {
     ...Typography.body.small,
