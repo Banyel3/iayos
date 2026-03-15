@@ -316,6 +316,30 @@ def release_pending_payment(job: Job, force: bool = False) -> dict:
         recipient_type = "agency"
 
     if not recipient_account:
+        # Backward-compat for legacy/archived jobs:
+        # some historical jobs may not have assignedWorkerID/assignedAgencyFK anymore,
+        # but already contain completed earning ledger entries tied to this job.
+        legacy_earning_txns = Transaction.objects.filter(
+            relatedJobPosting=job,
+            transactionType="EARNING",
+            status="COMPLETED"
+        )
+
+        if legacy_earning_txns.exists():
+            if not job.paymentReleasedToWorker:
+                job.paymentReleasedToWorker = True
+                if not job.paymentReleasedAt:
+                    job.paymentReleasedAt = timezone.now()
+                job.paymentHeldReason = 'RELEASED'
+                job.save(update_fields=['paymentReleasedToWorker', 'paymentReleasedAt', 'paymentHeldReason', 'updatedAt'])
+
+            return {
+                'success': True,
+                'amount': Decimal('0.00'),
+                'recipient_type': 'legacy_archived',
+                'message': 'Legacy archived job normalized: payment was already released in historical ledger records.'
+            }
+
         return {'success': False, 'error': 'No recipient found for this job'}
 
     try:
