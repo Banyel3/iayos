@@ -1466,9 +1466,21 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         }
 
     required_project_days = _get_required_project_days(job)
+    payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+
+    # Backward-compat detector for PROJECT multi-day flows:
+    # some legacy jobs may not have reliable duration metadata, but they still
+    # run attendance/day-tracking paths (total_days_worked / qa_day_offset).
+    total_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
+    qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    has_project_day_tracking_signals = total_days_worked > 0 or qa_day_offset > 0
+
     is_project_multiday = (
-        str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() == 'PROJECT'
-        and required_project_days > 1
+        payment_model == 'PROJECT'
+        and (
+            required_project_days > 1
+            or has_project_day_tracking_signals
+        )
     )
 
     project_gate_error = _project_multi_day_gate_error(job)
