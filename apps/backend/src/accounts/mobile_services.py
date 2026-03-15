@@ -655,6 +655,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             'expected_duration': job.expectedDuration,
             'urgency_level': job.urgency,
             'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+            'scheduled_end_date': job.scheduled_end_date.isoformat() if getattr(job, 'scheduled_end_date', None) else None,
             'materials_needed': materials_needed,
             'photos': photos,
             'status': job.status,
