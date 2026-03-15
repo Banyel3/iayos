@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -30,8 +31,26 @@ import {
   useCreateWorkerProfile,
   useSwitchProfile,
 } from "@/lib/hooks/useDualProfile";
-import { getAbsoluteMediaUrl } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 import CalendarFAB from "@/components/CalendarFAB";
+import { useQuery } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+type WorkerOnboardingProfile = {
+  bio?: string | null;
+  hourlyRate?: number | null;
+  skills?: Array<unknown>;
+  categories?: Array<unknown>;
+  hasAvatar?: boolean;
+  hasPortfolio?: boolean;
+  hasCertifications?: boolean;
+  stats?: {
+    jobsCompleted?: number;
+    reviewCount?: number;
+  };
+};
+
+const FIRST_TIME_WORKER_POPUP_KEY_PREFIX = "@iayos:first_time_worker_popup_dismissed:";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -76,6 +95,105 @@ export default function ProfileScreen() {
   };
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+  const [showFirstTimeWorkerModal, setShowFirstTimeWorkerModal] =
+    React.useState(false);
+  const firstTimeWorkerStorageKey =
+    user?.accountID != null
+      ? `${FIRST_TIME_WORKER_POPUP_KEY_PREFIX}${user.accountID}`
+      : null;
+
+  const { data: workerOnboardingProfile, isLoading: isWorkerProfileLoading } =
+    useQuery<WorkerOnboardingProfile>({
+      queryKey: ["worker-profile-onboarding", user?.accountID],
+      queryFn: async () => {
+        const response = await apiRequest(ENDPOINTS.WORKER_PROFILE);
+        if (!response.ok) {
+          throw new Error("Failed to fetch worker profile");
+        }
+        const data = await response.json();
+        return (data.profile_data || data) as WorkerOnboardingProfile;
+      },
+      enabled: Boolean(isWorker),
+      staleTime: 60 * 1000,
+    });
+
+  const isFirstTimeWorkerAccount = React.useMemo(() => {
+    if (!isWorker || !workerOnboardingProfile) return false;
+
+    const bio = workerOnboardingProfile.bio?.trim() || "";
+    const hasBio = bio.length >= 10;
+    const hasHourlyRate = (workerOnboardingProfile.hourlyRate || 0) > 0;
+    const hasSkills = (workerOnboardingProfile.skills?.length || 0) > 0;
+    const hasCategories = (workerOnboardingProfile.categories?.length || 0) > 0;
+    const jobsCompleted = workerOnboardingProfile.stats?.jobsCompleted || 0;
+    const reviewCount = workerOnboardingProfile.stats?.reviewCount || 0;
+    const hasAnyProfileContent =
+      hasBio ||
+      hasHourlyRate ||
+      hasSkills ||
+      hasCategories ||
+      Boolean(workerOnboardingProfile.hasAvatar) ||
+      Boolean(workerOnboardingProfile.hasPortfolio) ||
+      Boolean(workerOnboardingProfile.hasCertifications) ||
+      jobsCompleted > 0 ||
+      reviewCount > 0;
+
+    return !hasAnyProfileContent;
+  }, [isWorker, workerOnboardingProfile]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    if (
+      !isWorker ||
+      !firstTimeWorkerStorageKey ||
+      isWorkerProfileLoading ||
+      !isFirstTimeWorkerAccount
+    ) {
+      setShowFirstTimeWorkerModal(false);
+      return;
+    }
+
+    AsyncStorage.getItem(firstTimeWorkerStorageKey)
+      .then((value) => {
+        if (!isMounted) return;
+        setShowFirstTimeWorkerModal(value !== "true");
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setShowFirstTimeWorkerModal(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    isWorker,
+    isWorkerProfileLoading,
+    isFirstTimeWorkerAccount,
+    firstTimeWorkerStorageKey,
+  ]);
+
+  const dismissFirstTimeWorkerModal = React.useCallback(() => {
+    setShowFirstTimeWorkerModal(false);
+    if (firstTimeWorkerStorageKey) {
+      AsyncStorage.setItem(firstTimeWorkerStorageKey, "true").catch(() => {
+        // Silent fail: fallback is showing the modal again later.
+      });
+    }
+  }, [firstTimeWorkerStorageKey]);
+
+  const handleBuildMyProfile = React.useCallback(() => {
+    dismissFirstTimeWorkerModal();
+    requestAnimationFrame(() => {
+      router.push("/profile/edit" as any);
+    });
+  }, [dismissFirstTimeWorkerModal, router]);
+
+  const handleMaybeLater = React.useCallback(() => {
+    dismissFirstTimeWorkerModal();
+  }, [dismissFirstTimeWorkerModal]);
+
   const fullName =
     `${user?.profile_data?.firstName || ""} ${
       user?.profile_data?.lastName || ""
@@ -707,6 +825,51 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showFirstTimeWorkerModal}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={handleMaybeLater}
+      >
+        <View style={styles.firstTimeWorkerModalBackdrop}>
+          <View style={styles.firstTimeWorkerModalCard}>
+            <Text style={styles.firstTimeWorkerTitle}>Welcome to iAyos!</Text>
+
+            <View style={styles.firstTimeWorkerIconWrap}>
+              <Ionicons name="sparkles-outline" size={52} color="#54B7EC" />
+            </View>
+
+            <Text style={styles.firstTimeWorkerMessage}>
+              Let&apos;s build your worker profile so clients can easily find
+              and hire you. Add your skills, experience, and details to get
+              started.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.firstTimeWorkerPrimaryButton}
+              activeOpacity={0.85}
+              onPress={handleBuildMyProfile}
+            >
+              <Text style={styles.firstTimeWorkerPrimaryButtonText}>
+                Build My Profile
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.firstTimeWorkerSecondaryButton}
+              activeOpacity={0.7}
+              onPress={handleMaybeLater}
+            >
+              <Text style={styles.firstTimeWorkerSecondaryButtonText}>
+                Maybe Later
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <CalendarFAB />
     </SafeAreaView>
   );
@@ -1359,5 +1522,69 @@ const styles = StyleSheet.create({
   footerSubtext: {
     fontSize: Typography.fontSize.xs,
     color: Colors.textHint,
+  },
+  firstTimeWorkerModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.42)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+  },
+  firstTimeWorkerModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: "#54B7EC",
+    backgroundColor: "#F1F3F5",
+    paddingHorizontal: Spacing["2xl"],
+    paddingTop: Spacing["4xl"],
+    paddingBottom: Spacing["3xl"],
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  firstTimeWorkerTitle: {
+    fontSize: Typography.fontSize["3xl"],
+    lineHeight: 40,
+    fontFamily: "Inter_700Bold",
+    color: Colors.textPrimary,
+    textAlign: "center",
+  },
+  firstTimeWorkerIconWrap: {
+    marginTop: Spacing["2xl"],
+    marginBottom: Spacing.xl,
+  },
+  firstTimeWorkerMessage: {
+    fontSize: Typography.fontSize.lg,
+    lineHeight: 30,
+    color: Colors.textPrimary,
+    textAlign: "center",
+    marginBottom: Spacing["3xl"],
+  },
+  firstTimeWorkerPrimaryButton: {
+    width: "100%",
+    borderRadius: BorderRadius.pill,
+    borderWidth: 2,
+    borderColor: "#54B7EC",
+    paddingVertical: Spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xl,
+  },
+  firstTimeWorkerPrimaryButtonText: {
+    fontSize: Typography.fontSize.xl,
+    lineHeight: 30,
+    fontFamily: "Inter_700Bold",
+    color: "#54B7EC",
+  },
+  firstTimeWorkerSecondaryButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+  },
+  firstTimeWorkerSecondaryButtonText: {
+    fontSize: Typography.fontSize.xl,
+    lineHeight: 30,
+    fontStyle: "italic",
+    color: "#9AA0A6",
   },
 });
