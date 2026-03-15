@@ -4320,7 +4320,8 @@ def get_daily_attendance(request, job_id: int, date: str = None):
                     'error': 'Invalid date format. Use YYYY-MM-DD'
                 }, status=400)
         else:
-            query_date = timezone.now().date()
+            # Keep default date aligned with QA skip/day-offset simulation logic.
+            query_date = _get_effective_work_date(job)
         
         # Get attendance records for this date
         attendances = DailyAttendance.objects.filter(
@@ -4513,7 +4514,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             # missing DailyAttendance markers used by attendance-driven UIs.
             if is_project_multiday:
                 dispatched_time = assignment.dispatchedAt or timezone.now()
-                work_date = dispatched_time.date()
+                work_date = _get_effective_work_date(job)
                 arrival_confirmed = bool(getattr(assignment, 'clientConfirmedArrival', False))
                 arrival_time = getattr(assignment, 'clientConfirmedArrivalAt', None)
 
@@ -4586,7 +4587,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         # Sync PROJECT multi-day dispatch into DailyAttendance so attendance-driven
         # flows (mobile/web) reflect on-the-way state consistently.
         if is_project_multiday:
-            work_date = dispatch_now.date()
+            work_date = _get_effective_work_date(job)
             DailyAttendance.objects.update_or_create(
                 jobID=job,
                 employeeID=employee,
