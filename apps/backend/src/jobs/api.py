@@ -358,7 +358,14 @@ def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
 
 
 def _get_required_project_days(job: JobPosting) -> int:
-    """Resolve required project days from structured field or expectedDuration fallback."""
+    """Resolve required project days with backward-compatible fallbacks.
+
+    Priority:
+    1) duration_days field
+    2) preferredStartDate -> scheduled_end_date span (inclusive)
+    3) expectedDuration text
+    4) historical progression hints (qa_day_offset / total_days_worked)
+    """
     structured_days = getattr(job, "duration_days", None)
     try:
         if structured_days is not None:
@@ -368,7 +375,37 @@ def _get_required_project_days(job: JobPosting) -> int:
     except (TypeError, ValueError):
         pass
 
-    return _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+    preferred_start = getattr(job, "preferredStartDate", None)
+    scheduled_end = getattr(job, "scheduled_end_date", None)
+    if preferred_start and scheduled_end:
+        try:
+            if scheduled_end >= preferred_start:
+                span_days = (scheduled_end - preferred_start).days + 1
+                if span_days > 0:
+                    return span_days
+        except Exception:
+            pass
+
+    parsed_expected = _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+    if parsed_expected > 1:
+        return parsed_expected
+
+    # Legacy jobs may have empty duration fields but already progressed across days.
+    try:
+        qa_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+        if qa_offset > 0:
+            return qa_offset + 1
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        worked_days = int(getattr(job, "total_days_worked", 0) or 0)
+        if worked_days > 1:
+            return worked_days
+    except (TypeError, ValueError):
+        pass
+
+    return 1
 
 
 def _resolve_project_duration_days_from_payload(data) -> int:
