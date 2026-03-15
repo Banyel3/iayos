@@ -1,8 +1,8 @@
 // API Configuration
 // Production (Vercel): NEXT_PUBLIC_API_URL unset → falls back to https://api.iayos.online
 // Docker full-stack:   NEXT_PUBLIC_API_URL=http://backend:8000 (service name)
-// Native dev:          NEXT_PUBLIC_API_URL=http://localhost:8000 (host)
-// Live-backend proxy:  NEXT_PUBLIC_API_URL unset + BACKEND_PROXY_URL set → uses relative /api/* (no CORS)
+// Local backend dev:   NEXT_PUBLIC_API_URL=http://localhost:8000 (host)
+// Default (no env):    uses relative /api/* paths proxied to live backend via next.config.ts
 
 // Helper to ensure URL has protocol
 function ensureProtocol(
@@ -30,6 +30,6 @@ export const API_BASE = apiUrl; // Base URL without /api
 export const API_BASE_URL = `${apiUrl}/api`; // Base URL with /api
 
 
-// WebSocket URL - production uses wss, dev uses ws
-const wsUrl = process.env.NEXT_PUBLIC_WS_URL || (isProduction ? "wss://api.iayos.online" : "ws://localhost:8000");
+// WebSocket URL - always use the live backend unless explicitly overridden
+const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://api.iayos.online";
 export const WS_BASE_URL = wsUrl.replace(/^wss?:\/\//, ""); // Strip protocol for WebSocket

@@ -21,10 +21,11 @@ const nextConfig: NextConfig = {
     ];
   },
   // In local dev: proxy /api/* and /ws/* through Next.js to avoid CORS.
-  // Set BACKEND_PROXY_URL=https://api.iayos.online (server-only, not NEXT_PUBLIC_)
-  // and leave NEXT_PUBLIC_API_URL unset so client uses relative /api/* paths.
+  // Defaults to the live backend so `npm run dev` works without a local server.
+  // Override with BACKEND_PROXY_URL=http://localhost:8000 to use a local backend.
+  // Leave NEXT_PUBLIC_API_URL unset so client uses relative /api/* paths.
   async rewrites() {
-    const proxyTarget = process.env.BACKEND_PROXY_URL || "";
+    const proxyTarget = process.env.BACKEND_PROXY_URL || "https://api.iayos.online";
     const proxyRewrites = proxyTarget
       ? [
         { source: "/api/:path*", destination: `${proxyTarget}/api/:path*` },

@@ -56,10 +56,9 @@ const getDevIP = (): string => {
 const DEV_IP = getDevIP();
 
 // Allow environment variable override for CI/CD (e.g., staging backend in Detox tests)
-// In production builds (__DEV__ = false), ALWAYS use production URL
+// Always use the live production URL by default (override with EXPO_PUBLIC_API_URL for local dev)
 const API_URL = normalizeApiUrl(
-  process.env.EXPO_PUBLIC_API_URL ||
-    (__DEV__ ? `http://${DEV_IP}:8000` : PRODUCTION_API_URL),
+  process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL,
 );
 
 const DEBUG_NETWORK = process.env.EXPO_PUBLIC_DEBUG_NETWORK === "true";
