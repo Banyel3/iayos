@@ -173,7 +173,7 @@ export default function AgencyJobsPage() {
   const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<number | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [, setSuccessMessage] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedJobForReject, setSelectedJobForReject] = useState<Job | null>(
     null,
@@ -999,16 +999,6 @@ export default function AgencyJobsPage() {
         </div>
       </div>
 
-      {/* Success Message */}
-      {successMessage && (
-        <Alert className="mb-6 bg-green-50 border-green-200">
-          <AlertCircle className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">
-            {successMessage}
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Error Message */}
       {error && (
         <Alert className="mb-6 bg-red-50 border-red-200">
@@ -1121,13 +1111,6 @@ export default function AgencyJobsPage() {
                               >
                                 {job.urgency}
                               </span>
-                            )}
-                            {job.is_team_job && (
-                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                                <Users size={12} className="mr-1" />
-                                Team Job ({job.total_workers_assigned || 0}/
-                                {job.total_workers_needed || 0})
-                              </Badge>
                             )}
                           </div>
                           <p className="text-gray-600 leading-relaxed line-clamp-2">

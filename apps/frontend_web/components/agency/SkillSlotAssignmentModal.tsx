@@ -279,7 +279,7 @@ export default function SkillSlotAssignmentModal({
     if (!availability) return null;
     const badges: Record<string, { color: string; text: string }> = {
       AVAILABLE: { color: "bg-green-100 text-green-800", text: "Available" },
-      WORKING: { color: "bg-blue-100 text-blue-800", text: "Working" },
+      WORKING: { color: "bg-[#00BAF1]/15 text-[#008fb8]", text: "Working" },
       BUSY: { color: "bg-orange-100 text-orange-800", text: "Busy" },
       INACTIVE: { color: "bg-gray-100 text-gray-800", text: "Inactive" },
     };
@@ -295,15 +295,16 @@ export default function SkillSlotAssignmentModal({
   };
 
   const getSkillLevelBadge = (level: SkillLevel) => {
+    if (level === "ENTRY") return null;
+
     const config = {
-      ENTRY: { color: "bg-green-100 text-green-800", emoji: "🌱" },
-      INTERMEDIATE: { color: "bg-blue-100 text-blue-800", emoji: "⭐" },
-      EXPERT: { color: "bg-purple-100 text-purple-800", emoji: "👑" },
+      INTERMEDIATE: { color: "bg-[#00BAF1]/15 text-[#008fb8]" },
+      EXPERT: { color: "bg-[#00BAF1]/25 text-[#007da3]" },
     };
-    const { color, emoji } = config[level];
+    const { color } = config[level as "INTERMEDIATE" | "EXPERT"];
     return (
       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
-        {emoji} {level}
+        {level}
       </span>
     );
   };
@@ -337,11 +338,11 @@ export default function SkillSlotAssignmentModal({
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-[#00BAF1]/12 to-[#00BAF1]/5">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Users className="text-blue-600" size={24} />
+                <Users className="text-[#00BAF1]" size={24} />
                 {isPendingInvite ? "Accept Invite & Assign Team" : "Assign Team to Skill Slots"}
               </h2>
               <p className="text-sm text-gray-600 mt-1">
@@ -371,7 +372,7 @@ export default function SkillSlotAssignmentModal({
                 <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
-                      validation.isValid ? "bg-green-500" : "bg-blue-500"
+                      validation.isValid ? "bg-[#00BAF1]" : "bg-[#00BAF1]"
                     }`}
                     style={{
                       width: `${Math.min(100, (validation.totalAssigned / validation.totalNeeded) * 100)}%`,
@@ -413,9 +414,9 @@ export default function SkillSlotAssignmentModal({
                     key={slot.skill_slot_id}
                     className={`border-2 rounded-xl overflow-hidden transition-all ${
                       selectedCount === slot.workers_needed
-                        ? "border-green-300 bg-green-50/30"
+                        ? "border-[#00BAF1]/40 bg-[#00BAF1]/10"
                         : selectedCount > 0
-                          ? "border-blue-300 bg-blue-50/30"
+                          ? "border-[#00BAF1]/40 bg-[#00BAF1]/10"
                           : "border-gray-200"
                     }`}
                   >
@@ -425,8 +426,8 @@ export default function SkillSlotAssignmentModal({
                       className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg">
-                          <Wrench className="text-indigo-600" size={20} />
+                        <div className="p-2 bg-[#00BAF1]/15 rounded-lg">
+                          <Wrench className="text-[#00BAF1]" size={20} />
                         </div>
                         <div className="text-left">
                           <h3 className="font-semibold text-gray-900">
@@ -494,17 +495,17 @@ export default function SkillSlotAssignmentModal({
                                     isAssignedElsewhere
                                       ? "border-gray-200 bg-gray-100 opacity-50 cursor-not-allowed"
                                       : isSelected
-                                        ? "border-blue-500 bg-blue-50"
+                                            ? "border-[#00BAF1] bg-[#00BAF1]/10"
                                         : "border-gray-200 hover:border-gray-300 bg-white"
                                   }`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <div className="relative">
-                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold">
+                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00c8ff] to-[#0095bf] flex items-center justify-center text-white font-bold">
                                         {employee.name.charAt(0)}
                                       </div>
                                       {isSelected && (
-                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#00BAF1] rounded-full flex items-center justify-center">
                                           <CheckCircle
                                             className="text-white"
                                             size={12}
@@ -525,7 +526,7 @@ export default function SkillSlotAssignmentModal({
                                         )}
                                       </div>
                                       <div className="flex items-center gap-2 text-xs text-gray-500">
-                                        <span>⭐ {employee.rating?.toFixed(1) || "N/A"}</span>
+                                        <span>{employee.rating?.toFixed(1) || "N/A"}</span>
                                         <span>•</span>
                                         <span>{employee.totalJobsCompleted} jobs</span>
                                         {workload && (
@@ -605,7 +606,7 @@ export default function SkillSlotAssignmentModal({
             <button
               onClick={handleAssign}
               disabled={!validation.isValid || isSubmitting}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2 bg-[#00BAF1] text-white rounded-lg hover:bg-[#00a8d8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSubmitting ? (
                 <>
