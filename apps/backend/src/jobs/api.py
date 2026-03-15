@@ -7977,16 +7977,47 @@ def get_job_receipt(request, job_id: int):
         
         # Calculate payment breakdown
         budget = Decimal(str(job.budget))
-        escrow_amount = budget * Decimal('0.5')  # 50% downpayment
-        
+        payment_model = (getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+
+        if payment_model == 'DAILY':
+            # Daily jobs are prepaid via escrow total; no project-style 50/50 final payment split.
+            escrow_amount = Decimal(str(job.escrowAmount or Decimal('0.00')))
+            final_payment_amount = Decimal('0.00')
+        else:
+            escrow_amount = budget * Decimal('0.5')  # 50% downpayment
+            final_payment_amount = escrow_amount
+
         # Platform fee: 10% for all jobs
-        platform_fee = budget * settings.PLATFORM_FEE_RATE
+        platform_fee = (escrow_amount if payment_model == 'DAILY' else budget) * settings.PLATFORM_FEE_RATE
         platform_fee_rate = settings.PLATFORM_FEE_RATE
         
-        # Worker receives full budget + materials reimbursement (client pays budget + fee + materials)
+        # Worker receives full budget + materials reimbursement (for PROJECT jobs).
+        # DAILY jobs are attendance-driven and computed below.
         materials_cost = Decimal(str(job.materialsCost)) if job.materialsCost else Decimal('0.00')
         expected_worker_earnings = budget + materials_cost
         expected_client_paid = budget + platform_fee + materials_cost
+
+        daily_earned_total = Decimal('0.00')
+        if payment_model == 'DAILY':
+            from accounts.models import DailyAttendance
+            from django.db.models import Sum
+
+            paid_daily = DailyAttendance.objects.filter(
+                jobID=job,
+                payment_processed=True,
+            ).aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+
+            confirmed_unprocessed_daily = DailyAttendance.objects.filter(
+                jobID=job,
+                payment_processed=False,
+                worker_confirmed=True,
+                client_confirmed=True,
+                status__in=['PRESENT', 'HALF_DAY'],
+            ).aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+
+            daily_earned_total = Decimal(str(paid_daily)) + Decimal(str(confirmed_unprocessed_daily))
+            expected_worker_earnings = daily_earned_total + materials_cost
+            expected_client_paid = escrow_amount + platform_fee + materials_cost
 
         # Backward compatibility: some environments may not have cancellation
         # accounting fields yet; fall back safely instead of crashing receipts.
@@ -8044,11 +8075,15 @@ def get_job_receipt(request, job_id: int):
         # Backward-compatible: preserve legacy keys while adding clearer expected vs actual values.
         if job.status == Job.JobStatus.CANCELLED:
             actual_worker_earnings = worker_compensation_amount
+            if payment_model == 'DAILY' and actual_worker_earnings == Decimal('0.00'):
+                actual_worker_earnings = daily_earned_total
+
             if job.escrowPaid:
                 # What client effectively lost after refund + retained fee.
                 actual_client_paid = (
                     max(Decimal('0.00'), escrow_amount - client_refund_amount)
                     + platform_fee
+                    + materials_cost
                 )
             else:
                 actual_client_paid = Decimal('0.00')
@@ -8178,6 +8213,13 @@ def get_job_receipt(request, job_id: int):
                 actual_worker_earnings = earning_amount_from_transactions
             elif pending_earning_amount_from_transactions > Decimal('0.00'):
                 actual_worker_earnings = pending_earning_amount_from_transactions
+
+        platform_fee_retained = Decimal('0.00')
+        if job.status == Job.JobStatus.CANCELLED and job.escrowPaid:
+            platform_fee_retained = max(
+                Decimal('0.00'),
+                actual_client_paid - actual_worker_earnings - materials_cost,
+            )
         
         # Build worker/agency info
         worker_info = None
@@ -8259,10 +8301,11 @@ def get_job_receipt(request, job_id: int):
                 
                 # Payment breakdown (all in PHP)
                 'payment': {
+                    'payment_model': payment_model,
                     'currency': 'PHP',
                     'budget': float(budget),
                     'escrow_amount': float(escrow_amount),
-                    'final_payment': float(escrow_amount),  # Same as escrow (50/50 split)
+                    'final_payment': float(final_payment_amount),
                     'materials_cost': float(materials_cost),
                     'platform_fee': float(platform_fee),
                     'platform_fee_rate': f"{int(platform_fee_rate * 100)}%",
@@ -8329,6 +8372,7 @@ def get_job_receipt(request, job_id: int):
                     ) if job.status == Job.JobStatus.CANCELLED else None,
                     'client_refund_amount': float(client_refund_amount),
                     'worker_compensation_amount': float(worker_compensation_amount),
+                    'platform_fee_retained': float(platform_fee_retained),
                 },
             }
         }

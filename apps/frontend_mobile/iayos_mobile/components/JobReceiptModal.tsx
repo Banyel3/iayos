@@ -63,6 +63,7 @@ export default function JobReceiptModal({
   const { data, isLoading, error } = useJobReceipt(jobId, visible);
   const receipt = data?.receipt as JobReceipt | undefined;
   const isCancelledReceipt = (receipt?.status || "").toUpperCase() === "CANCELLED";
+  const isDailyPaymentModel = (receipt?.payment?.payment_model || "PROJECT").toUpperCase() === "DAILY";
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -281,6 +282,15 @@ ${RECEIPT_DISCLAIMER_TEXT}
                   </Text>
                 </View>
 
+                {(receipt.cancellation.platform_fee_retained ?? 0) > 0 && (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="pricetag-outline" size={16} color={Colors.warning} />
+                    <Text style={styles.infoText}>
+                      Platform fee retained: {formatCurrency(receipt.cancellation.platform_fee_retained ?? 0)}
+                    </Text>
+                  </View>
+                )}
+
                 {!!receipt.cancellation.reason && (
                   <View style={{ marginTop: Spacing.sm }}>
                     <Text style={[styles.infoText, { color: Colors.textSecondary }]}>Reason</Text>
@@ -415,19 +425,21 @@ ${RECEIPT_DISCLAIMER_TEXT}
 
               <View style={styles.paymentRow}>
                 <Text style={styles.paymentLabel}>
-                  50% Escrow (Downpayment)
+                  {isDailyPaymentModel ? "Daily Escrow (Prepaid)" : "50% Escrow (Downpayment)"}
                 </Text>
                 <Text style={styles.paymentValue}>
                   {formatCurrency(receipt.payment.escrow_amount)}
                 </Text>
               </View>
 
-              <View style={styles.paymentRow}>
-                <Text style={styles.paymentLabel}>50% Final Payment</Text>
-                <Text style={styles.paymentValue}>
-                  {formatCurrency(receipt.payment.final_payment)}
-                </Text>
-              </View>
+              {!isDailyPaymentModel && (
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>50% Final Payment</Text>
+                  <Text style={styles.paymentValue}>
+                    {formatCurrency(receipt.payment.final_payment)}
+                  </Text>
+                </View>
+              )}
 
               {receipt.payment.materials_cost > 0 && (
                 <View style={styles.paymentRow}>

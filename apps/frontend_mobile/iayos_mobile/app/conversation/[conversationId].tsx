@@ -5493,6 +5493,7 @@ export default function ChatScreen() {
           {/* Request Backjob Banner - CLIENT ONLY - requires completed reviews */}
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
+            !isJobCancelled &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed &&
             viewerHasReviewed &&
@@ -5564,6 +5565,7 @@ export default function ChatScreen() {
           {/* Review Reminder Banner - CLIENT ONLY - show when reviews are required before backjob */}
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
+            !isJobCancelled &&
             !conversation.backjob?.has_backjob &&
             isConversationClosed &&
             (!viewerHasReviewed || !counterpartyHasReviewed) && (

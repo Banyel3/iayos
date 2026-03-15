@@ -19,6 +19,7 @@ from accounts.models import (
     Job, 
     WorkerProfile, 
     JobWorkerAssignment, 
+    JobLog,
     DailyAttendance,
     DailyJobExtension,
     DailyRateChange,
@@ -904,6 +905,19 @@ class DailyPaymentService:
         
         if job.status not in ['ACTIVE', 'IN_PROGRESS']:
             return {'success': False, 'error': f'Cannot cancel job in {job.status} status'}
+
+        # First settle any fully-confirmed attendance rows that were not processed yet.
+        # This prevents underpaying workers when cancellation happens after a completed day.
+        confirmed_unprocessed_rows = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=False,
+            worker_confirmed=True,
+            client_confirmed=True,
+            status__in=['PRESENT', 'HALF_DAY'],
+        ).order_by('date', 'attendanceID')
+
+        for attendance in confirmed_unprocessed_rows:
+            DailyPaymentService.process_day_payment(attendance)
         
         # Calculate paid-out principal based on processed attendance.
         paid_attendance_qs = DailyAttendance.objects.filter(
@@ -966,11 +980,72 @@ class DailyPaymentService:
             )
         else:
             client_wallet.save()
+
+        # Keep platform-fee visibility in transaction history for cancelled daily jobs.
+        existing_fee_txn = Transaction.objects.filter(
+            relatedJobPosting=job,
+            transactionType=Transaction.TransactionType.FEE,
+        ).order_by('-createdAt').first()
+
+        if escrow_collected > Decimal('0.00'):
+            if existing_fee_txn:
+                if existing_fee_txn.status != Transaction.TransactionStatus.COMPLETED:
+                    existing_fee_txn.status = Transaction.TransactionStatus.COMPLETED
+                    existing_fee_txn.completedAt = timezone.now()
+                    existing_fee_txn.amount = platform_fee_retained
+                    existing_fee_txn.description = (
+                        existing_fee_txn.description
+                        or f'Platform fee retained for cancelled daily job - Job #{job.jobID}'
+                    )
+                    existing_fee_txn.save(update_fields=['status', 'completedAt', 'amount', 'description', 'updatedAt'])
+            else:
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    transactionType=Transaction.TransactionType.FEE,
+                    amount=platform_fee_retained,
+                    balanceAfter=client_wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f'Platform fee retained for cancelled daily job - Job #{job.jobID}',
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
+                    completedAt=timezone.now(),
+                    referenceNumber=f'DAILY-FEE-RET-{job.jobID}-{timezone.now().strftime("%Y%m%d%H%M%S")}',
+                )
         
         # Update job status
+        old_status = job.status
         job.status = 'CANCELLED'
         job.cancellationReason = reason
         job.save()
+
+        # Persist structured cancellation metadata in JobLog so receipt fallback parsing
+        # can reconstruct settlement details even if optional model fields are absent.
+        JobLog.objects.create(
+            jobID=job,
+            notes=(
+                f"[{timezone.now().strftime('%Y-%m-%d %I:%M:%S %p')}] Daily job cancelled by {cancelled_by}. "
+                f"Stage={cancellation_stage}; client_refund=₱{refundable_escrow}; "
+                f"worker_compensation=₱{total_paid}; reason={reason}"
+            ),
+            changedBy=user,
+            oldStatus=old_status,
+            newStatus=job.status,
+        )
+
+        # Close related conversation immediately when cancellation is finalized.
+        # This keeps chat state consistent with project cancellation behavior.
+        try:
+            from profiles.models import Conversation
+            from profiles.conversation_service import archive_conversation
+
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=['status', 'updatedAt'])
+                archive_conversation(conversation)
+        except Exception:
+            # Cancellation should not fail if conversation closure/archive fails.
+            pass
 
         # Notify client
         client_cancel_message = (
@@ -1032,6 +1107,7 @@ class DailyPaymentService:
             'days_with_unprocessed_attendance': int(pending_attendance_count),
             'days_completed': job.total_days_worked,
             'total_paid_out': float(total_paid),
+            'worker_compensation_amount': float(total_paid),
             'escrow_collected': float(escrow_collected),
             'refund_amount': float(refundable_escrow),
             'platform_fee_retained': float(platform_fee_retained),
