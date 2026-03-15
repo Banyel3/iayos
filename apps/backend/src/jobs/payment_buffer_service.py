@@ -265,7 +265,7 @@ def release_pending_payment(job: Job, force: bool = False) -> dict:
             pending_txn.balanceAfter = recipient_wallet.balance
             pending_txn.description = (pending_txn.description or "").replace("Pending payment", "Payment released")
             pending_txn.completedAt = timezone.now()
-            pending_txn.save(update_fields=['status', 'balanceAfter', 'description', 'completedAt', 'updatedAt'])
+            pending_txn.save(update_fields=['status', 'balanceAfter', 'description', 'completedAt'])
 
             Transaction.objects.create(
                 walletID=recipient_wallet,
