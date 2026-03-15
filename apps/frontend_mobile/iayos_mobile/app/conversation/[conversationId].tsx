@@ -3835,18 +3835,21 @@ export default function ChatScreen() {
                           style={styles.dailyFinishButton}
                           onPress={() => {
                             if (conversation.is_team_job) {
-                              const allTeamComplete =
-                                conversation.team_worker_assignments?.every(
-                                  (a) => a.worker_marked_complete,
-                                ) ?? false;
-                              if (!allTeamComplete) {
-                                Alert.alert(
-                                  "Cannot Finish Yet",
-                                  "All team workers must mark their assignments complete before finishing this job.",
-                                );
-                                return;
-                              }
-                              handleApproveTeamJobCompletion();
+                              Alert.alert(
+                                "Finish Team Project Job",
+                                "Mark this PROJECT multi-day team job as finished now? This will move it into review/backjob flow.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Finish Job",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      projectFinishJobMutation.mutate({
+                                        jobId: conversation.job.id,
+                                      }),
+                                  },
+                                ],
+                              );
                               return;
                             }
 
@@ -3872,8 +3875,7 @@ export default function ChatScreen() {
                             projectExtendOneDayMutation.isPending
                           }
                         >
-                          {approveTeamJobCompletionMutation.isPending ||
-                          projectFinishJobMutation.isPending ? (
+                          {projectFinishJobMutation.isPending ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
