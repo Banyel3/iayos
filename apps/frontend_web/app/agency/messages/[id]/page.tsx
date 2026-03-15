@@ -764,9 +764,9 @@ export default function AgencyChatScreen() {
   const canMarkBackjobCompleteNow =
     isAgencyBackjob &&
     isBackjobExecutionPhase &&
+    !!conversation.backjob?.backjob_started &&
     !conversation.backjob?.worker_marked_complete &&
-    (!shouldShowProjectWorkflow ||
-      (allEmployeesDispatched && allEmployeesArrived));
+    (!shouldShowProjectWorkflow || allEmployeesDispatched);
 
   // Keep lock-state logic for input disable/placeholder behavior.
   // Only the visual lock banner has been removed.
@@ -906,9 +906,9 @@ export default function AgencyChatScreen() {
                         ) : isBackjobExecutionPhase &&
                           !conversation.backjob.worker_marked_complete &&
                           shouldShowProjectWorkflow &&
-                          !allEmployeesArrived ? (
+                          !conversation.backjob.backjob_started ? (
                           <div className="text-xs text-gray-500 italic">
-                            Waiting for client to confirm worker arrivals.
+                            Waiting for client to confirm backjob work has started.
                           </div>
                         ) : canMarkBackjobCompleteNow ? (
                           <Button
@@ -932,7 +932,8 @@ export default function AgencyChatScreen() {
             {shouldShowProjectWorkflow &&
               (() => {
                 const allDispatched = allEmployeesDispatched;
-                const allArrived = allEmployeesArrived;
+                const isBackjobProjectFlow = hasActiveBackjobCycle;
+                const allArrived = isBackjobProjectFlow ? true : allEmployeesArrived;
                 const allComplete = assigned_employees.every(
                   (e: AssignedEmployee) =>
                     isStatusInActiveBackjobCycle(
@@ -1023,7 +1024,14 @@ export default function AgencyChatScreen() {
                     </Card>
                   );
                 }
-                if (!allArrived) {
+                if (isBackjobProjectFlow && !conversation.backjob?.backjob_started) {
+                  return (
+                    <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
+                      Waiting for client to confirm backjob work has started.
+                    </div>
+                  );
+                }
+                if (!isBackjobProjectFlow && !allArrived) {
                   return (
                     <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
                       Waiting for client to confirm arrivals ({arrivedCount}/
