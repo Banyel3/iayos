@@ -354,6 +354,99 @@ export default function AgencyChatScreen() {
     }
   };
 
+  const parseExpectedDurationDays = (
+    expectedDuration?: string | null,
+  ): number => {
+    if (!expectedDuration) return 1;
+
+    const text = String(expectedDuration).trim().toLowerCase();
+    if (!text) return 1;
+
+    const unitMatch = text.match(/(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b/);
+    if (unitMatch) {
+      const value = Number(unitMatch[1] || 1);
+      const unit = unitMatch[2] || "day";
+      return unit.startsWith("week") || unit.startsWith("wk")
+        ? Math.max(1, value * 7)
+        : Math.max(1, value);
+    }
+
+    const plainNumber = Number(text);
+    if (Number.isFinite(plainNumber) && plainNumber > 0) {
+      return Math.max(1, Math.floor(plainNumber));
+    }
+
+    return 1;
+  };
+
+  const handleExtendProjectOneDay = async () => {
+    if (!conversation?.job?.id) return;
+
+    const confirmed = window.confirm(
+      "Extend project duration by 1 day? This keeps the job active for one more work day.",
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${conversation.job.id}/project/extend-one-day`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to extend project by one day"),
+        );
+      }
+
+      toast.success(data?.message || "Project extended by 1 day");
+      refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to extend project by one day",
+      );
+    }
+  };
+
+  const handleFinishProjectNow = async () => {
+    if (!conversation?.job?.id) return;
+
+    const confirmed = window.confirm(
+      "Finish this project now? This action starts project completion and settlement.",
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${conversation.job.id}/project/finish`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to finish project"));
+      }
+
+      toast.success(data?.message || "Project marked as finished");
+      refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to finish project",
+      );
+    }
+  };
+
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation?.job.id) return;
@@ -721,6 +814,16 @@ export default function AgencyChatScreen() {
     (!hasActiveBackjobCycle ||
       conversation.backjob?.worker_schedule_confirmed === true);
 
+  const configuredDurationDays = Number(job.duration_days || 0);
+  const fallbackDurationDays = parseExpectedDurationDays(job.expectedDuration);
+  const effectiveDurationDays =
+    configuredDurationDays > 0 ? configuredDurationDays : fallbackDurationDays;
+  const totalDaysWorked = Math.max(0, Number(job.total_days_worked || 0));
+  const isProjectMultiDayFlow =
+    job.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const reachedConfiguredDuration =
+    isProjectMultiDayFlow && totalDaysWorked >= effectiveDurationDays;
+
   const backjobCycleStartMs =
     hasActiveBackjobCycle && conversation.backjob?.worker_schedule_confirmed_at
       ? new Date(conversation.backjob.worker_schedule_confirmed_at).getTime()
@@ -1050,6 +1153,42 @@ export default function AgencyChatScreen() {
                   );
                 }
                 if (!allComplete) {
+                  if (reachedConfiguredDuration && !hasActiveBackjobCycle) {
+                    return (
+                      <Card className="border-blue-200 bg-blue-50/60 rounded-xl overflow-hidden shadow-sm">
+                        <CardContent className="p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                              Project Duration Reached
+                            </span>
+                            <Badge className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px]">
+                              Worked {totalDaysWorked}/{effectiveDurationDays}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-blue-800 font-medium">
+                            Extend by 1 day to continue work, or finish the job now.
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              className="h-7 px-3 text-[10px] bg-[#00BAF1] hover:bg-[#00a8d8]"
+                              onClick={handleExtendProjectOneDay}
+                            >
+                              Extend +1 Day
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-7 px-3 text-[10px] bg-red-600 hover:bg-red-700"
+                              onClick={handleFinishProjectNow}
+                            >
+                              Job Finished
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
                   return (
                     <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
                       <span className="text-xs font-bold text-blue-900">
