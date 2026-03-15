@@ -91,6 +91,36 @@ def _self_heal_team_assignment_completion_flags(job: Job) -> int:
     """
     healed_count = 0
     now = timezone.now()
+    payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+    required_days = _get_required_project_days(job)
+
+    # For PROJECT multi-day jobs, infer completion from confirmed attendance
+    # rows so legacy records without explicit assignment completion flags can
+    # still pass final approval safely.
+    confirmed_days_by_assignment = {}
+    if payment_model == 'PROJECT' and required_days > 1:
+        from accounts.models import DailyAttendance
+
+        confirmed_qs = (
+            DailyAttendance.objects.filter(
+                jobID=job,
+                assignmentID__isnull=False,
+                worker_confirmed=True,
+                client_confirmed=True,
+                status__in=[
+                    DailyAttendance.AttendanceStatus.PRESENT,
+                    DailyAttendance.AttendanceStatus.HALF_DAY,
+                    DailyAttendance.AttendanceStatus.PENDING,
+                ],
+            )
+            .values('assignmentID_id')
+            .annotate(days=Count('date', distinct=True))
+        )
+
+        confirmed_days_by_assignment = {
+            row['assignmentID_id']: int(row['days'] or 0)
+            for row in confirmed_qs
+        }
 
     assignments = JobWorkerAssignment.objects.filter(jobID=job)
     for assignment in assignments:
@@ -105,6 +135,10 @@ def _self_heal_team_assignment_completion_flags(job: Job) -> int:
             # Historical compatibility: job-level completion was already set and
             # this assignment had already passed client arrival confirmation.
             should_heal = True
+        elif payment_model == 'PROJECT' and required_days > 1:
+            confirmed_days = confirmed_days_by_assignment.get(assignment.assignmentID, 0)
+            if confirmed_days >= required_days:
+                should_heal = True
 
         if should_heal and not assignment.worker_marked_complete:
             assignment.worker_marked_complete = True
@@ -1224,6 +1258,12 @@ def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str 
     if job.status != 'IN_PROGRESS':
         return {'success': False, 'error': 'Job is not in progress'}
 
+    if str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() == 'DAILY':
+        return {
+            'success': False,
+            'error': 'Team DAILY jobs use attendance check-in/check-out flow. Assignment completion is not used.'
+        }
+
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
         return project_gate_error
@@ -1362,6 +1402,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     if job.status != 'IN_PROGRESS':
         return {'success': False, 'error': f'Cannot complete job with status {job.status}'}
 
+    if str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() == 'DAILY':
+        return {
+            'success': False,
+            'error': 'Team DAILY jobs must be finished via /jobs/{job_id}/daily/finish after attendance settlement.'
+        }
+
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
         return project_gate_error
@@ -1378,9 +1424,20 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     
     if incomplete_workers.exists():
         incomplete_count = incomplete_workers.count()
+        incomplete_sample = [
+            {
+                'assignment_id': a.assignmentID,
+                'worker_id': a.workerID.id,
+                'worker_name': f"{a.workerID.profileID.firstName} {a.workerID.profileID.lastName}".strip(),
+                'client_confirmed_arrival': bool(a.client_confirmed_arrival),
+            }
+            for a in incomplete_workers.select_related('workerID__profileID')[:5]
+        ]
         return {
             'success': False, 
-            'error': f'{incomplete_count} worker(s) have not yet marked their work as complete'
+            'error': f'{incomplete_count} worker(s) have not yet marked their work as complete',
+            'healed_assignments': healed_assignments,
+            'incomplete_assignments': incomplete_sample,
         }
     
     payment_method_upper = (payment_method or 'WALLET').upper()
