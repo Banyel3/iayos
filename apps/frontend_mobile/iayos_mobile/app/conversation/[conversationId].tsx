@@ -6482,28 +6482,6 @@ export default function ChatScreen() {
               </TouchableOpacity>
             )}
 
-          {conversation.my_role === "CLIENT" &&
-            isJobCompleted &&
-            conversation.job.remainingPaymentPaid &&
-            !conversation.job.paymentBuffer?.is_payment_released &&
-            !conversation.backjob?.has_backjob &&
-            (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 && (
-              <TouchableOpacity
-                style={styles.releasePaymentNowButtonInline}
-                onPress={handleReleasePaymentNow}
-                disabled={releasePaymentNowMutation.isPending}
-              >
-                {releasePaymentNowMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#6B7280" />
-                ) : (
-                  <Ionicons name="flash-outline" size={16} color="#6B7280" />
-                )}
-                <Text style={styles.releasePaymentNowButtonInlineText}>
-                  Release Payment Now
-                </Text>
-              </TouchableOpacity>
-            )}
-
           {/* Edit Feedback Banner - BOTH CLIENT & WORKER - Only after a successful backjob */}
           {conversation.backjob?.status === "COMPLETED" && (
             <TouchableOpacity
@@ -8357,6 +8335,27 @@ export default function ChatScreen() {
             )}
           </View>
         )}
+
+        {conversation.my_role === "CLIENT" &&
+          isJobCompleted &&
+          conversation.job.remainingPaymentPaid &&
+          !conversation.job.paymentBuffer?.is_payment_released &&
+          !conversation.backjob?.has_backjob && (
+            <TouchableOpacity
+              style={styles.releasePaymentNowButtonInline}
+              onPress={handleReleasePaymentNow}
+              disabled={releasePaymentNowMutation.isPending}
+            >
+              {releasePaymentNowMutation.isPending ? (
+                <ActivityIndicator size="small" color="#6B7280" />
+              ) : (
+                <Ionicons name="flash-outline" size={16} color="#6B7280" />
+              )}
+              <Text style={styles.releasePaymentNowButtonInlineText}>
+                Release Payment Now
+              </Text>
+            </TouchableOpacity>
+          )}
 
         {/* Messages List */}
         <FlatList

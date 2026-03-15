@@ -1675,32 +1675,32 @@ export default function JobDetailScreen() {
             </View>
           </View>
           <View style={styles.jobMetaRow}>
-            <Ionicons
-              name="pricetag-outline"
-              size={16}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.jobCategory}>
-              {typeof job.category === "object"
-                ? job.category.name
-                : job.category}
-            </Text>
-          </View>
-          <View style={styles.jobMetaRow}>
-            <Ionicons
-              name="calendar-outline"
-              size={16}
-              color={Colors.primary}
-            />
-            <Text style={styles.jobStartDate}>
-              {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
-                  (dailyEndDate
-                    ? ` | End: ${dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                    : "") +
-                  (dayProgress ? ` | Day ${dayProgress}/${dailyDuration}` : "")
-                : `Posted ${job.postedAt}`}
-            </Text>
+            {job.preferred_start_date ? (
+              <View style={styles.jobDateBubblesRow}>
+                <View style={styles.jobDateBubble}>
+                  <Text style={styles.jobDateBubbleText}>
+                    <Text style={styles.jobDateBubbleLabel}>Start</Text>
+                    {` ${new Date(job.preferred_start_date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}`}
+                  </Text>
+                </View>
+                {dailyEndDate && (
+                  <View style={styles.jobDateBubble}>
+                    <Text style={styles.jobDateBubbleText}>
+                      <Text style={styles.jobDateBubbleLabel}>End</Text>
+                      {` ${dailyEndDate.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.jobStartDate}>{`Posted ${job.postedAt}`}</Text>
+            )}
           </View>
 
           {/* Team Job Header Badge - Prominent indicator at top */}
@@ -1774,9 +1774,21 @@ export default function JobDetailScreen() {
         )}
 
         {/* Description */}
-        <View style={styles.section}>
+        <View style={[styles.section, styles.descriptionSection]}>
           <Text style={styles.sectionTitle}>Job Description</Text>
           <Text style={styles.description}>{job.description}</Text>
+          <View style={[styles.jobMetaRow, { marginTop: Spacing.md }]}>
+            <Ionicons
+              name="pricetag-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.jobCategory}>
+              {typeof job.category === "object"
+                ? job.category.name
+                : job.category}
+            </Text>
+          </View>
         </View>
 
         {/* Budget & Location */}
@@ -3986,7 +3998,9 @@ const styles = StyleSheet.create({
   },
   jobHeader: {
     backgroundColor: Colors.white,
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -4042,7 +4056,9 @@ const styles = StyleSheet.create({
   },
   detailsSection: {
     flexDirection: "row",
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
   detailCard: {
@@ -4079,7 +4095,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   section: {
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
+  },
+  descriptionSection: {
+    paddingTop: Spacing.lg,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
@@ -4208,6 +4229,30 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   // Job Details
+  jobDateBubblesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    alignItems: "center",
+    flex: 1,
+  },
+  jobDateBubble: {
+    borderWidth: 1,
+    borderColor: "#00BAF1",
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    backgroundColor: Colors.white,
+  },
+  jobDateBubbleText: {
+    fontSize: Typography.fontSize.sm,
+    color: "#00BAF1",
+    fontWeight: "500",
+  },
+  jobDateBubbleLabel: {
+    color: "#00BAF1",
+    fontWeight: "700",
+  },
   jobStartDate: {
     fontSize: Typography.fontSize.base,
     color: Colors.primary,
@@ -4932,31 +4977,31 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   conversationLockText: {
-    startAnywayButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginTop: Spacing.sm,
-      marginBottom: Spacing.sm,
-      padding: Spacing.md,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      borderColor: Colors.primary,
-      backgroundColor: Colors.primary + "10",
-    },
-    startAnywayButtonTitle: {
-      ...Typography.body.medium,
-      fontWeight: "700",
-      color: Colors.primary,
-    },
-    startAnywayButtonSubtitle: {
-      ...Typography.body.small,
-      color: Colors.textSecondary,
-      marginTop: 2,
-    },
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     lineHeight: 18,
+  },
+  startAnywayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "10",
+  },
+  startAnywayButtonTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  startAnywayButtonSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   conversationReadyTitle: {
     fontSize: Typography.fontSize.sm,
