@@ -10454,6 +10454,69 @@ def finish_daily_job(request, job_id: int):
     if not job.clientID or job.clientID.profileID.accountFK != request.auth:
         return Response({"error": "Only the job client can finish this daily job"}, status=403)
 
+    from decimal import Decimal
+    from django.db.models import Sum
+    from accounts.models import DailyAttendance, Wallet, Transaction, Notification
+    from jobs.daily_payment_service import DailyPaymentService
+
+    # Settle any fully confirmed and still-unprocessed attendance first.
+    confirmed_unprocessed_rows = DailyAttendance.objects.filter(
+        jobID=job,
+        payment_processed=False,
+        worker_confirmed=True,
+        client_confirmed=True,
+        status__in=['PRESENT', 'HALF_DAY'],
+    ).order_by('date', 'attendanceID')
+
+    for attendance in confirmed_unprocessed_rows:
+        DailyPaymentService.process_day_payment(attendance)
+
+    # Compute unused daily escrow principal for refund to client.
+    total_paid = DailyAttendance.objects.filter(
+        jobID=job,
+        payment_processed=True,
+    ).aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+
+    escrow_collected = Decimal(str(getattr(job, 'daily_escrow_total', Decimal('0.00')) or Decimal('0.00')))
+    if escrow_collected < Decimal('0.00'):
+        escrow_collected = Decimal('0.00')
+
+    refundable_escrow = escrow_collected - total_paid
+    if refundable_escrow < Decimal('0.00'):
+        refundable_escrow = Decimal('0.00')
+
+    if refundable_escrow > Decimal('0.00'):
+        client_account = job.clientID.profileID.accountFK
+        client_wallet, _ = Wallet.objects.select_for_update().get_or_create(accountFK=client_account)
+        client_wallet.balance += refundable_escrow
+
+        if client_wallet.reservedBalance > Decimal('0.00'):
+            reserved_release = min(client_wallet.reservedBalance, refundable_escrow)
+            client_wallet.reservedBalance -= reserved_release
+
+        client_wallet.save()
+
+        Transaction.objects.create(
+            walletID=client_wallet,
+            transactionType=Transaction.TransactionType.REFUND,
+            amount=refundable_escrow,
+            balanceAfter=client_wallet.balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f'Unused daily escrow refund at job finish - Job #{job.jobID}',
+            relatedJobPosting=job,
+            paymentMethod='WALLET',
+        )
+
+        Notification.objects.create(
+            accountFK=client_account,
+            notificationType='PAYMENT_REFUNDED',
+            title='Unused Escrow Refunded',
+            message=(
+                f"Daily job '{job.title}' finished. Refunded ₱{refundable_escrow} unused daily escrow to your wallet."
+            ),
+            relatedJobID=job.jobID,
+        )
+
     # Finish the job and unlock review flow for both parties.
     now = timezone.now()
     job.status = 'COMPLETED'
@@ -10482,6 +10545,9 @@ def finish_daily_job(request, job_id: int):
             'event': 'daily_job_finished',
             'duration_days': int(getattr(job, 'duration_days', 0) or 0),
             'total_days_worked': int(getattr(job, 'total_days_worked', 0) or 0),
+            'escrow_collected': float(escrow_collected),
+            'worker_compensation_paid': float(total_paid),
+            'client_refund_amount': float(refundable_escrow),
         },
     )
 
@@ -10508,11 +10574,19 @@ def finish_daily_job(request, job_id: int):
 
     return {
         'success': True,
-        'message': 'Daily job marked as finished. Reviews can now be submitted.',
+        'message': (
+            f"Daily job marked as finished. Reviews can now be submitted. "
+            f"Unused escrow refunded: ₱{refundable_escrow}."
+            if refundable_escrow > Decimal('0.00')
+            else 'Daily job marked as finished. Reviews can now be submitted.'
+        ),
         'job_id': job.jobID,
         'status': job.status,
         'client_marked_complete': job.clientMarkedComplete,
         'worker_marked_complete': job.workerMarkedComplete,
+        'escrow_collected': float(escrow_collected),
+        'worker_compensation_paid': float(total_paid),
+        'refund_amount': float(refundable_escrow),
     }
 
 

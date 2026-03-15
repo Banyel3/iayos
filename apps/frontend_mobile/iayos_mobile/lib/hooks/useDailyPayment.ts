@@ -1493,6 +1493,9 @@ export interface DailyFinishJobResponse {
   status: string;
   client_marked_complete: boolean;
   worker_marked_complete: boolean;
+  escrow_collected?: number;
+  worker_compensation_paid?: number;
+  refund_amount?: number;
 }
 
 export const useRequestDailySkipDay = () => {
@@ -1713,11 +1716,18 @@ export const useDailyFinishJob = () => {
       queryClient.invalidateQueries({ queryKey: ["messages"] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+
+      const refundAmount = Number(data?.refund_amount || 0);
 
       Toast.show({
         type: "success",
         text1: "Job Finished ✅",
-        text2: data.message || "Reviews can now be submitted",
+        text2:
+          data.message ||
+          (refundAmount > 0
+            ? `Reviews unlocked. Refunded ₱${refundAmount.toFixed(2)} unused escrow.`
+            : "Reviews can now be submitted"),
         position: "top",
       });
     },
