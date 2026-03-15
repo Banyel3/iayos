@@ -245,7 +245,7 @@ const WORKER_PAYMENT_INFO_ITEMS = [
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, switchProfile, checkAuth } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -600,6 +600,26 @@ export default function JobDetailScreen() {
   });
 
   const handleViewChat = async () => {
+    const fetchConversationByJob = async () => {
+      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
+      const data = (await response.json().catch(() => null)) as any;
+      return { response, data };
+    };
+
+    const resolvePreferredProfile = (): "CLIENT" | "WORKER" | null => {
+      if (!job || !user) return null;
+
+      if (job.postedBy?.id === user.accountID) {
+        return "CLIENT";
+      }
+
+      if (job.assignedWorker?.id === user.accountID) {
+        return "WORKER";
+      }
+
+      return null;
+    };
+
     try {
       console.log("[VIEW CHAT] Button pressed for job:", jobId);
       console.log(
@@ -607,8 +627,7 @@ export default function JobDetailScreen() {
         ENDPOINTS.CONVERSATION_BY_JOB(jobId),
       );
 
-      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
-      const data = await response.json();
+      let { response, data } = await fetchConversationByJob();
 
       console.log(
         "[VIEW CHAT] Backend response:",
@@ -617,15 +636,59 @@ export default function JobDetailScreen() {
       console.log("[VIEW CHAT] Success:", data.success);
       console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
 
-      if (data.success && data.conversation_id) {
+      if (response.ok && data?.success && data?.conversation_id) {
         const route = `/conversation/${data.conversation_id}`;
         console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
-      } else {
+        return;
+      }
+
+      if (response.status === 401) {
+        const currentProfile = user?.profile_data?.profileType;
+        const preferredProfile = resolvePreferredProfile();
+
+        if (preferredProfile && currentProfile !== preferredProfile) {
+          console.log(
+            "[VIEW CHAT] 401 received. Switching profile from",
+            currentProfile,
+            "to",
+            preferredProfile,
+            "and retrying...",
+          );
+
+          await switchProfile(preferredProfile);
+          ({ response, data } = await fetchConversationByJob());
+
+          if (response.ok && data?.success && data?.conversation_id) {
+            const route = `/conversation/${data.conversation_id}`;
+            console.log("[VIEW CHAT] Navigating to after retry:", route);
+            router.push(route as any);
+            return;
+          }
+        } else {
+          // Refresh auth state in case cached session/token drifted.
+          await checkAuth();
+        }
+
+        Alert.alert(
+          "Session Required",
+          "Please make sure you are signed in with the correct profile, then try opening chat again.",
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        const message =
+          data?.detail || data?.error || `Request failed (HTTP ${response.status})`;
+        Alert.alert("Chat Unavailable", String(message));
+        return;
+      }
+
+      {
         console.log("[VIEW CHAT] No conversation found - showing alert");
         Alert.alert(
           "No Conversation",
-          `Could not find conversation for this job.\n\nResponse: ${JSON.stringify(data)}`,
+          "Could not find a chat for this job yet. Please try again in a moment.",
         );
       }
     } catch (error) {
