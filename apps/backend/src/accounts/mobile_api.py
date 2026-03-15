@@ -2820,6 +2820,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     Only workers can apply for jobs
     Supports both Bearer token (mobile) and cookie (web) authentication
     """
+    from django.db.models import Q
     from .models import Profile, WorkerProfile, Agency, Notification, JobWorkerAssignment, workerSpecialization
     from jobs.models import JobPosting
     from accounts.models import JobApplication
@@ -2879,6 +2880,9 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
         active_regular_job = JobPosting.objects.filter(
             assignedWorkerID=worker_profile,
             status=JobPosting.JobStatus.IN_PROGRESS,
+            cancelledAt__isnull=True,
+        ).filter(
+            Q(cancelledByRole__isnull=True) | Q(cancelledByRole="")
         ).exclude(jobID=job.jobID).first()
 
         if active_regular_job:
@@ -2904,9 +2908,47 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 status=400,
             )
 
+        # Backward-compatible self-heal for legacy ACTIVE assignments linked to
+        # cancelled/completed jobs, so they no longer block fresh applications.
+        stale_cancelled_ids = list(
+            JobWorkerAssignment.objects.filter(
+                workerID=worker_profile,
+                assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+            )
+            .filter(
+                Q(jobID__status=JobPosting.JobStatus.CANCELLED)
+                | Q(jobID__cancelledAt__isnull=False)
+                | (Q(jobID__cancelledByRole__isnull=False) & ~Q(jobID__cancelledByRole=""))
+            )
+            .values_list('assignmentID', flat=True)
+        )
+        if stale_cancelled_ids:
+            JobWorkerAssignment.objects.filter(assignmentID__in=stale_cancelled_ids).update(
+                assignment_status=JobWorkerAssignment.AssignmentStatus.REMOVED
+            )
+
+        stale_completed_qs = JobWorkerAssignment.objects.filter(
+            workerID=worker_profile,
+            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+        ).filter(
+            Q(jobID__status=JobPosting.JobStatus.COMPLETED)
+            | Q(jobID__clientMarkedComplete=True)
+        )
+        if stale_cancelled_ids:
+            stale_completed_qs = stale_completed_qs.exclude(assignmentID__in=stale_cancelled_ids)
+        stale_completed_ids = list(stale_completed_qs.values_list('assignmentID', flat=True))
+        if stale_completed_ids:
+            JobWorkerAssignment.objects.filter(assignmentID__in=stale_completed_ids).update(
+                assignment_status=JobWorkerAssignment.AssignmentStatus.COMPLETED
+            )
+
         active_team_assignment = JobWorkerAssignment.objects.filter(
             workerID=worker_profile,
-            assignment_status='ACTIVE',
+            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+            jobID__status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
+            jobID__cancelledAt__isnull=True,
+        ).filter(
+            Q(jobID__cancelledByRole__isnull=True) | Q(jobID__cancelledByRole="")
         ).select_related('jobID').first()
 
         if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
