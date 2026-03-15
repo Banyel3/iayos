@@ -1326,6 +1326,13 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
 
         if payment_method_upper == 'WALLET':
             client_wallet = Wallet.objects.select_for_update().get(accountFK=client_user)
+            # Re-validate balance after acquiring the row lock to prevent races
+            if client_wallet.balance < remaining_amount:
+                raise ValueError(
+                    f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
+                    f'but only have ₱{client_wallet.balance:,.2f}. '
+                    'Please deposit more funds or choose CASH payment.'
+                )
             client_wallet.balance -= remaining_amount
             client_wallet.save(update_fields=['balance'])
 
