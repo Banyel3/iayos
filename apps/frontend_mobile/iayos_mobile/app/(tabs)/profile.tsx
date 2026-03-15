@@ -115,8 +115,14 @@ export default function ProfileScreen() {
           raw && typeof raw === "object"
             ? (raw as Record<string, unknown>)
             : {};
-        return ((data.profile_data as WorkerOnboardingProfile) ||
-          (data as WorkerOnboardingProfile)) as WorkerOnboardingProfile;
+        const profileData = (data.profile_data ||
+          data) as Record<string, unknown>;
+        return {
+          ...profileData,
+          hasAvatar: Boolean(
+            profileData.hasAvatar ?? profileData.profileImg,
+          ),
+        } as WorkerOnboardingProfile;
       },
       enabled: Boolean(isWorker),
       staleTime: 60 * 1000,
@@ -847,7 +853,7 @@ export default function ProfileScreen() {
             </View>
 
             <Text style={styles.firstTimeWorkerMessage}>
-              Let&apos;s build your worker profile so clients can easily find
+            Let's build your worker profile so clients can easily find
               and hire you. Add your skills, experience, and details to get
               started.
             </Text>

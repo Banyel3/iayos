@@ -40,6 +40,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS } from "@/lib/api/config";
 import { useSubmitReport } from "@/lib/hooks/useReports";
+import { getVerificationLevelTag } from "@/lib/utils/verification-utils";
 
 interface AgencyWorker {
   id: number;
@@ -70,19 +71,6 @@ interface AgencyDetail {
   establishedDate: string;
   workers: AgencyWorker[];
 }
-
-const getVerificationLevelTag = (
-  verificationLevel?: number,
-  verified?: boolean,
-) => {
-  if (typeof verificationLevel === "number" && !Number.isNaN(verificationLevel)) {
-    return `Verification Level ${verificationLevel}`;
-  }
-  if (verified) {
-    return "Verification Level 1";
-  }
-  return null;
-};
 
 export default function AgencyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -233,7 +221,11 @@ export default function AgencyDetailScreen() {
   const renderWorkerCard = ({ item }: { item: AgencyWorker }) => {
     const fullName = `${item.firstName} ${item.lastName}`;
     return (
-      <View style={styles.workerCard}>
+      <TouchableOpacity
+        style={styles.workerCard}
+        activeOpacity={0.7}
+        onPress={() => router.push(`/workers/${item.id}`)}
+      >
         {item.profilePicture ? (
           <Image
             source={{ uri: item.profilePicture }}
@@ -275,7 +267,7 @@ export default function AgencyDetailScreen() {
             </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
