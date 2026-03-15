@@ -400,6 +400,13 @@ export default function ChatScreen() {
   const hasActiveNegotiation =
     conversation?.backjob?.has_backjob === true &&
     conversation?.backjob?.status === "IN_NEGOTIATION";
+  const isBackjobCompleted =
+    (conversation?.backjob?.has_backjob === true &&
+      (conversation?.backjob?.status === "COMPLETED" ||
+        conversation?.backjob?.status === "RESOLVED")) ||
+    // Server clears has_backjob after completion — use total count as fallback
+    (!conversation?.backjob?.has_backjob &&
+      (conversation?.backjob?.total_backjobs_for_job ?? 0) > 0);
 
   const hasAgencyEmployeeReviewsCompleted = !!(
     conversation?.is_agency_job &&
@@ -6312,6 +6319,7 @@ export default function ChatScreen() {
             !isJobCancelled &&
             !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
+            (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 &&
             isConversationClosed &&
             viewerHasReviewed &&
             counterpartyHasReviewed && (
@@ -6385,6 +6393,7 @@ export default function ChatScreen() {
             !isJobCancelled &&
             !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
+            (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 &&
             isConversationClosed &&
             (!viewerHasReviewed || !counterpartyHasReviewed) && (
               <TouchableOpacity
@@ -6462,7 +6471,8 @@ export default function ChatScreen() {
             isJobCompleted &&
             conversation.job.remainingPaymentPaid &&
             !conversation.job.paymentBuffer?.is_payment_released &&
-            !conversation.backjob?.has_backjob && (
+            !conversation.backjob?.has_backjob &&
+            (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 && (
               <TouchableOpacity
                 style={styles.releasePaymentNowButtonInline}
                 onPress={handleReleasePaymentNow}
@@ -7843,12 +7853,19 @@ export default function ChatScreen() {
         {/* Upload Progress */}
         {renderUploadProgress()}
 
-        {/* Backjob Banner - shows when there's an active backjob */}
-        {conversation.backjob?.has_backjob && (
+        {/* Backjob Banner - shows when there's an active backjob OR a completed past backjob */}
+        {(conversation.backjob?.has_backjob ||
+          (conversation.backjob?.total_backjobs_for_job ?? 0) > 0) && (
           <View style={styles.backjobSectionCompact}>
             {/* Compact Backjob Banner */}
             <TouchableOpacity
-              style={styles.backjobBannerCompact}
+              style={[
+                styles.backjobBannerCompact,
+                isBackjobCompleted && {
+                  borderColor: Colors.success,
+                  backgroundColor: "#E8F5E9",
+                },
+              ]}
               onPress={() =>
                 router.push(
                   `/jobs/backjob-detail?jobId=${conversation.job.id}&disputeId=${conversation.backjob?.dispute_id}`,
@@ -7856,28 +7873,44 @@ export default function ChatScreen() {
               }
               activeOpacity={0.8}
             >
-              <Ionicons name="construct" size={18} color={Colors.warning} />
-              <Text style={styles.backjobBannerTitleCompact} numberOfLines={1}>
-                Backjob: {conversation.backjob.reason || "Rework required"}
-              </Text>
-              <View style={styles.backjobStatusBadgeCompact}>
-                <Text style={styles.backjobStatusTextCompact}>
-                  {conversation.backjob.status === "UNDER_REVIEW"
-                    ? "Action"
-                    : conversation.backjob.status === "IN_NEGOTIATION"
-                      ? "Negotiating"
-                      : "Pending"}
-                </Text>
-              </View>
+              <Ionicons
+                name={isBackjobCompleted ? "checkmark-circle" : "construct"}
+                size={18}
+                color={isBackjobCompleted ? Colors.success : Colors.warning}
+              />
               <Text
-                style={[styles.backjobStatusTextCompact, { marginLeft: 6 }]}
+                style={[
+                  styles.backjobBannerTitleCompact,
+                  isBackjobCompleted && { color: "#1B5E20" },
+                ]}
+                numberOfLines={1}
               >
-                #{conversation.backjob.total_backjobs_for_job ?? 1}
+                {isBackjobCompleted
+                  ? "Backjob Completed"
+                  : `Backjob: ${conversation.backjob?.reason || "Rework required"}`}
               </Text>
+              {!isBackjobCompleted && (
+                <View style={styles.backjobStatusBadgeCompact}>
+                  <Text style={styles.backjobStatusTextCompact}>
+                    {conversation.backjob?.status === "UNDER_REVIEW"
+                      ? "Action"
+                      : conversation.backjob?.status === "IN_NEGOTIATION"
+                        ? "Negotiating"
+                        : "Pending"}
+                  </Text>
+                </View>
+              )}
+              {!isBackjobCompleted && (
+                <Text
+                  style={[styles.backjobStatusTextCompact, { marginLeft: 6 }]}
+                >
+                  #{conversation.backjob?.total_backjobs_for_job ?? 1}
+                </Text>
+              )}
               <Ionicons
                 name="chevron-forward"
                 size={16}
-                color={Colors.warning}
+                color={isBackjobCompleted ? Colors.success : Colors.warning}
               />
             </TouchableOpacity>
 
