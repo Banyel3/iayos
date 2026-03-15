@@ -698,6 +698,24 @@ export default function ChatScreen() {
     return parsed;
   };
 
+  const normalizeDateOnly = (value: Date): Date => {
+    const normalized = new Date(
+      value.getFullYear(),
+      value.getMonth(),
+      value.getDate(),
+    );
+    normalized.setHours(0, 0, 0, 0);
+    return normalized;
+  };
+
+  const formatDateOnly = (value: Date): string => {
+    const normalized = normalizeDateOnly(value);
+    const year = normalized.getFullYear();
+    const month = `${normalized.getMonth() + 1}`.padStart(2, "0");
+    const day = `${normalized.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const scheduledBackjobDate = parseScheduledDate(
     conversation?.backjob?.scheduled_date,
   );
@@ -1537,7 +1555,13 @@ export default function ChatScreen() {
   const handleOpenBackjobScheduleModal = () => {
     if (!conversation) return;
     const initialDate = conversation.backjob?.scheduled_date || "";
-    setBackjobScheduleInput(initialDate);
+    const parsedInitialDate = parseScheduledDate(initialDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    setBackjobScheduleDate(parsedInitialDate || today);
+    setBackjobScheduleInput(parsedInitialDate ? formatDateOnly(parsedInitialDate) : "");
+    setShowAndroidDatePicker(false);
     setShowBackjobScheduleModal(true);
   };
 
@@ -1547,7 +1571,7 @@ export default function ChatScreen() {
     // Use current date state if input is empty (for picker)
     let scheduleValue = backjobScheduleInput.trim();
     if (!scheduleValue) {
-      scheduleValue = format(backjobScheduleDate, "yyyy-MM-dd");
+      scheduleValue = formatDateOnly(backjobScheduleDate);
     }
 
     if (!scheduleValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -1628,6 +1652,10 @@ export default function ChatScreen() {
           reviewId: reviewToEditId,
           rating: overallRating,
           comment: reviewComment,
+          rating_quality: ratingQuality,
+          rating_communication: ratingCommunication,
+          rating_punctuality: ratingPunctuality,
+          rating_professionalism: ratingProfessionalism,
         },
         {
           onSuccess: () => {
@@ -7726,16 +7754,19 @@ export default function ChatScreen() {
             </Text>
 
             {Platform.OS === "ios" ? (
-              <View style={{ marginVertical: Spacing.m, alignItems: "center" }}>
+              <View style={{ marginVertical: Spacing.md, alignItems: "center" }}>
                 <DateTimePicker
                   value={backjobScheduleDate}
                   mode="date"
                   display="inline"
                   onChange={(event, date) => {
-                    if (date) {
-                      setBackjobScheduleDate(date);
-                      setBackjobScheduleInput(format(date, "yyyy-MM-dd"));
+                    if (event.type === "dismissed" || !date) {
+                      return;
                     }
+
+                    const normalized = normalizeDateOnly(date);
+                    setBackjobScheduleDate(normalized);
+                    setBackjobScheduleInput(formatDateOnly(normalized));
                   }}
                   minimumDate={new Date()}
                   themeVariant="light"
@@ -7765,10 +7796,13 @@ export default function ChatScreen() {
                     display="default"
                     onChange={(event, date) => {
                       setShowAndroidDatePicker(false);
-                      if (date) {
-                        setBackjobScheduleDate(date);
-                        setBackjobScheduleInput(format(date, "yyyy-MM-dd"));
+                      if (event.type !== "set" || !date) {
+                        return;
                       }
+
+                      const normalized = normalizeDateOnly(date);
+                      setBackjobScheduleDate(normalized);
+                      setBackjobScheduleInput(formatDateOnly(normalized));
                     }}
                     minimumDate={new Date()}
                   />

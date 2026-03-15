@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Backjob Schedule Date Picker Stability + Change Review Submit Fix**
+  - Fixed backjob schedule modal date handling to normalize date-only values and avoid picker reversion while selecting dates.
+  - Improved Android date picker event handling so only confirmed selections are applied (dismiss events no longer overwrite state).
+  - Updated mobile review edit flow to submit full multi-criteria ratings and decimal overall rating for backjob review changes.
+  - Updated mobile backend review edit endpoint/service typing to accept decimal ratings consistently.
+  - Improved mobile API error parsing for Django Ninja `detail` validation arrays to prevent generic "unexpected error" messaging.
+  - **Impact**: Clients can reliably set backjob schedule dates without snap-back behavior, and post-backjob "Yes, Change Review" submits successfully with clear error messaging when validation fails.
+
 - **Team DAILY Completion Parity with Single DAILY Flow**
   - Updated active team job actions to block PROJECT-only team completion paths when the job is `DAILY`.
   - Routed client team DAILY end action to the daily finish flow so settlement follows the same attendance-driven model as single DAILY jobs.
