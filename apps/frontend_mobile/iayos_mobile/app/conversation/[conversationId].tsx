@@ -2739,6 +2739,11 @@ export default function ChatScreen() {
     conversation.job?.status === "IN_PROGRESS" &&
     isProjectMultiDayFlow &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
+  const showProjectWorkerWaitingInfo =
+    conversation.my_role === "WORKER" &&
+    conversation.job?.status === "IN_PROGRESS" &&
+    isProjectMultiDayFlow &&
+    (reachedConfiguredDuration || reachedQaOffsetLimit);
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
 
@@ -4007,6 +4012,25 @@ export default function ChatScreen() {
                           )}
                         </TouchableOpacity>
                       </View>
+                    </View>
+                  )}
+
+                  {showProjectWorkerWaitingInfo && (
+                    <View style={styles.projectWorkerWaitingCard}>
+                      <View style={styles.projectWorkerWaitingHeader}>
+                        <Ionicons
+                          name="hourglass-outline"
+                          size={16}
+                          color={Colors.warning}
+                        />
+                        <Text style={styles.projectWorkerWaitingTitle}>
+                          Waiting for Client Approval & Payment
+                        </Text>
+                      </View>
+                      <Text style={styles.projectWorkerWaitingText}>
+                        Project duration has been reached. Please wait for the
+                        client to approve completion and pay the final amount.
+                      </Text>
                     </View>
                   )}
 
@@ -8691,6 +8715,30 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.white,
     fontWeight: "700",
+  },
+  projectWorkerWaitingCard: {
+    backgroundColor: "#FFF8E1",
+    borderRadius: BorderRadius.small,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: "#FFE082",
+  },
+  projectWorkerWaitingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  projectWorkerWaitingTitle: {
+    ...Typography.body.medium,
+    color: "#E65100",
+    fontWeight: "700",
+    flex: 1,
+  },
+  projectWorkerWaitingText: {
+    ...Typography.body.small,
+    color: "#F57C00",
+    marginTop: Spacing.xs,
   },
   // Legacy team styles - keeping for reference
   teamWorkerCard: {
