@@ -895,8 +895,7 @@ export default function ChatScreen() {
 
   const canClientConfirmBackjobStartedForAgency =
     agencyAssignedEmployees.length > 0 &&
-    dispatchedAgencyEmployees.length > 0 &&
-    pendingAgencyArrivalEmployees.length === 0;
+    dispatchedAgencyEmployees.length === agencyAssignedEmployees.length;
 
   const canClientConfirmBackjobStartedForTeam =
     teamAssignedWorkers.length > 0 && pendingTeamArrivalWorkers.length === 0;
@@ -917,12 +916,9 @@ export default function ChatScreen() {
         ? "Waiting for worker dispatch and arrival status."
         : conversation?.is_agency_job && agencyAssignedEmployees.length === 0
           ? "Waiting for worker dispatch status."
-          : conversation?.is_agency_job &&
-              dispatchedAgencyEmployees.length === 0
-            ? "Waiting for agency to dispatch workers."
             : conversation?.is_agency_job &&
-                pendingAgencyArrivalEmployees.length > 0
-              ? `Confirm arrivals first (${pendingAgencyArrivalEmployees.length} pending).`
+                dispatchedAgencyEmployees.length < agencyAssignedEmployees.length
+              ? `Waiting for agency to dispatch workers (${dispatchedAgencyEmployees.length} of ${agencyAssignedEmployees.length}).`
               : conversation?.is_team_job && pendingTeamArrivalWorkers.length > 0
                 ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
                 : null;
@@ -1597,7 +1593,7 @@ export default function ChatScreen() {
         Alert.alert(
           "Cannot Confirm Started",
           clientBackjobStartBlockReason ||
-            "Confirm all dispatched worker arrivals first.",
+            "Wait for agency to dispatch all assigned workers first.",
           [{ text: "OK" }],
         );
         return;
