@@ -302,7 +302,7 @@ def add_review_response(review_id: int, worker: Accounts, payload: AddReviewResp
         raise ValueError("Review not found")
 
     # Check if user is the reviewee (person being reviewed)
-    if review.revieweeID.accountID != worker.accountID:
+    if not review.revieweeID or review.revieweeID.accountID != worker.accountID:
         raise ValueError("You can only respond to reviews about you")
 
     # Check if already responded
@@ -366,13 +366,21 @@ def _format_review_response(review: JobReview, current_user: Accounts = None) ->
         time_since_creation = timezone.now() - review.createdAt
         can_edit = time_since_creation <= timedelta(hours=24)
 
+    reviewee_id = 0
+    if review.revieweeID:
+        reviewee_id = review.revieweeID.accountID
+    elif review.revieweeEmployeeID:
+        reviewee_id = review.revieweeEmployeeID.employeeID
+    elif review.revieweeAgencyID:
+        reviewee_id = review.revieweeAgencyID.agencyId
+
     return ReviewResponse(
         review_id=review.reviewID,
         job_id=review.jobID.jobID,
         reviewer_id=review.reviewerID.accountID,
         reviewer_name=reviewer_name,
         reviewer_profile_img=reviewer_profile_img,
-        reviewee_id=review.revieweeID.accountID,
+        reviewee_id=reviewee_id,
         reviewer_type=review.reviewerType,
         rating=review.rating,
         comment=review.comment,
