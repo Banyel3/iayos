@@ -893,6 +893,9 @@ export default function ChatScreen() {
   const hasTrackedWorkerStateForBackjob =
     agencyAssignedEmployees.length > 0 || teamAssignedWorkers.length > 0;
 
+  const usesArrivalDispatchBackjobGate =
+    conversation?.is_agency_job || conversation?.is_team_job;
+
   const canClientConfirmBackjobStartedForAgency =
     agencyAssignedEmployees.length > 0 &&
     dispatchedAgencyEmployees.length === agencyAssignedEmployees.length;
@@ -903,16 +906,20 @@ export default function ChatScreen() {
   const canClientConfirmBackjobStartedByArrival =
     !isClientBackjobStartFlow
       ? true
-      : conversation?.is_agency_job
-        ? canClientConfirmBackjobStartedForAgency
-        : conversation?.is_team_job
-          ? canClientConfirmBackjobStartedForTeam
-          : false;
+      : !usesArrivalDispatchBackjobGate
+        ? true
+        : conversation?.is_agency_job
+          ? canClientConfirmBackjobStartedForAgency
+          : conversation?.is_team_job
+            ? canClientConfirmBackjobStartedForTeam
+            : true;
 
   const clientBackjobStartBlockReason =
     !isClientBackjobStartFlow
       ? null
-      : !hasTrackedWorkerStateForBackjob
+      : !usesArrivalDispatchBackjobGate
+        ? null
+        : !hasTrackedWorkerStateForBackjob
         ? "Waiting for worker dispatch and arrival status."
         : conversation?.is_agency_job && agencyAssignedEmployees.length === 0
           ? "Waiting for worker dispatch status."
@@ -1593,7 +1600,7 @@ export default function ChatScreen() {
         Alert.alert(
           "Cannot Confirm Started",
           clientBackjobStartBlockReason ||
-            "Wait for agency to dispatch all assigned workers first.",
+            "Wait for required worker status updates before confirming started.",
           [{ text: "OK" }],
         );
         return;
