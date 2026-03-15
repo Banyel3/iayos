@@ -1560,7 +1560,9 @@ export default function ChatScreen() {
     today.setHours(0, 0, 0, 0);
 
     setBackjobScheduleDate(parsedInitialDate || today);
-    setBackjobScheduleInput(parsedInitialDate ? formatDateOnly(parsedInitialDate) : "");
+    setBackjobScheduleInput(
+      parsedInitialDate ? formatDateOnly(parsedInitialDate) : "",
+    );
     setShowAndroidDatePicker(false);
     setShowBackjobScheduleModal(true);
   };
@@ -1658,15 +1660,18 @@ export default function ChatScreen() {
           rating_professionalism: ratingProfessionalism,
         },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            await refetch();
+
             const hasMoreEditableTargets =
               reviewModalMode === "edit" &&
-              currentEditableReviewIndex < editableReviewTargets.length - 1;
+              currentEditableReviewIndex <
+                editableReviewTargetsRef.current.length - 1;
 
             if (hasMoreEditableTargets) {
               const nextIndex = currentEditableReviewIndex + 1;
               setCurrentEditableReviewIndex(nextIndex);
-              const nextTarget = editableReviewTargets[nextIndex];
+              const nextTarget = editableReviewTargetsRef.current[nextIndex];
               if (nextTarget) {
                 hydrateReviewInputs(nextTarget);
                 Alert.alert(
@@ -1679,7 +1684,6 @@ export default function ChatScreen() {
 
             setShowReviewModal(false);
             setReviewModalMode("view");
-            refetch();
             Alert.alert("Success", "Review updated successfully");
           },
           onError: (error: unknown) => {
@@ -3372,8 +3376,8 @@ export default function ChatScreen() {
                                   </TouchableOpacity>
                                 )}
                                 <Text style={styles.awaitingConfirmText}>
-                                  You marked "On The Way". Waiting for client
-                                  to verify your arrival.
+                                  You marked "On The Way". Waiting for client to
+                                  verify your arrival.
                                 </Text>
                               </View>
                             );
@@ -3466,8 +3470,8 @@ export default function ChatScreen() {
                                 </TouchableOpacity>
                               )}
                               <Text style={styles.awaitingConfirmText}>
-                                You are checked in. Once your task is done,
-                                wait for the client to mark your check-out.
+                                You are checked in. Once your task is done, wait
+                                for the client to mark your check-out.
                               </Text>
                             </View>
                           );
@@ -3498,17 +3502,13 @@ export default function ChatScreen() {
                               {todayAttendance.client_confirmed ? (
                                 isProjectMultiDayJob ? (
                                   <>
-                                    <View
-                                      style={styles.paymentProcessedBadge}
-                                    >
+                                    <View style={styles.paymentProcessedBadge}>
                                       <Ionicons
                                         name="checkmark-circle"
                                         size={14}
                                         color={Colors.success}
                                       />
-                                      <Text
-                                        style={styles.paymentProcessedText}
-                                      >
+                                      <Text style={styles.paymentProcessedText}>
                                         Day confirmed
                                       </Text>
                                     </View>
@@ -3521,17 +3521,13 @@ export default function ChatScreen() {
                                   </>
                                 ) : (
                                   <>
-                                    <View
-                                      style={styles.paymentProcessedBadge}
-                                    >
+                                    <View style={styles.paymentProcessedBadge}>
                                       <Ionicons
                                         name="wallet"
                                         size={14}
                                         color={Colors.success}
                                       />
-                                      <Text
-                                        style={styles.paymentProcessedText}
-                                      >
+                                      <Text style={styles.paymentProcessedText}>
                                         ₱
                                         {Number(
                                           todayAttendance.amount_earned,
@@ -4413,6 +4409,169 @@ export default function ChatScreen() {
                   )}
                 </View>
               )}
+
+              {/* TEAM PROJECT PHASE 1: Client sees full team arrival status */}
+              {/* Gap fix: DAILY flow already shows per-worker attendance cards; this mirrors that visibility for PROJECT team jobs. */}
+              {conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.my_role === "CLIENT" &&
+                conversation.job?.payment_model !== "DAILY" &&
+                !isProjectMultiDayJob &&
+                !hasTeamProjectAttendanceSignals &&
+                conversation.team_worker_assignments &&
+                conversation.team_worker_assignments.length > 0 &&
+                !conversation.job.clientMarkedComplete &&
+                (() => {
+                  const assignments = [...conversation.team_worker_assignments];
+                  const arrivedCount = assignments.filter(
+                    (a) => a.client_confirmed_arrival,
+                  ).length;
+                  const completedCount = assignments.filter(
+                    (a) => a.worker_marked_complete,
+                  ).length;
+
+                  assignments.sort((a, b) => {
+                    const aPending = !a.client_confirmed_arrival;
+                    const bPending = !b.client_confirmed_arrival;
+                    if (aPending !== bPending) {
+                      return aPending ? -1 : 1;
+                    }
+                    return (a.name || "").localeCompare(b.name || "");
+                  });
+
+                  return (
+                    <View style={styles.teamProjectArrivalSection}>
+                      <View style={styles.teamArrivalHeader}>
+                        <Text style={styles.teamArrivalTitle}>
+                          Team Arrival Status
+                        </Text>
+                        <Text style={styles.teamArrivalProgress}>
+                          {arrivedCount}/{assignments.length} arrived
+                        </Text>
+                      </View>
+
+                      <Text style={styles.teamProjectArrivalSubtext}>
+                        Confirm each worker arrival to unlock completion flow.
+                        {completedCount > 0
+                          ? ` ${completedCount}/${assignments.length} marked complete.`
+                          : ""}
+                      </Text>
+
+                      <View style={styles.teamProjectArrivalList}>
+                        {assignments.map((assignment) => {
+                          const firstName =
+                            assignment.name?.split(" ")[0] || "Worker";
+                          const isArrived = assignment.client_confirmed_arrival;
+                          const isComplete = assignment.worker_marked_complete;
+                          const statusLabel = isComplete
+                            ? "Completed"
+                            : isArrived
+                              ? "Arrived"
+                              : "Not arrived";
+
+                          return (
+                            <View
+                              key={`team-arrival-${assignment.assignment_id}`}
+                              style={styles.teamProjectArrivalRow}
+                            >
+                              <View style={styles.teamProjectArrivalWorkerInfo}>
+                                {assignment.avatar ? (
+                                  <Image
+                                    source={{ uri: assignment.avatar }}
+                                    style={styles.teamWorkerAvatarCompact}
+                                  />
+                                ) : (
+                                  <View
+                                    style={[
+                                      styles.teamWorkerAvatarCompact,
+                                      styles.teamWorkerAvatarPlaceholder,
+                                    ]}
+                                  >
+                                    <Ionicons
+                                      name="person"
+                                      size={16}
+                                      color={Colors.textSecondary}
+                                    />
+                                  </View>
+                                )}
+
+                                <View style={styles.teamProjectArrivalWorkerTextBlock}>
+                                  <Text style={styles.teamProjectArrivalWorkerName}>
+                                    {firstName}
+                                  </Text>
+                                  <Text style={styles.teamProjectArrivalWorkerSkill}>
+                                    {assignment.skill || "Team Worker"}
+                                  </Text>
+                                </View>
+                              </View>
+
+                              {isArrived ? (
+                                <View
+                                  style={[
+                                    styles.teamProjectStatusBadge,
+                                    isComplete
+                                      ? styles.teamProjectStatusBadgeComplete
+                                      : styles.teamProjectStatusBadgeArrived,
+                                  ]}
+                                >
+                                  <Ionicons
+                                    name={
+                                      isComplete
+                                        ? "checkmark-done-circle"
+                                        : "checkmark-circle"
+                                    }
+                                    size={14}
+                                    color={
+                                      isComplete
+                                        ? Colors.success
+                                        : Colors.primary
+                                    }
+                                  />
+                                  <Text
+                                    style={[
+                                      styles.teamProjectStatusText,
+                                      isComplete
+                                        ? styles.teamProjectStatusTextComplete
+                                        : styles.teamProjectStatusTextArrived,
+                                    ]}
+                                  >
+                                    {statusLabel}
+                                  </Text>
+                                </View>
+                              ) : (
+                                <TouchableOpacity
+                                  style={styles.teamProjectConfirmArrivalButton}
+                                  onPress={() =>
+                                    handleConfirmTeamWorkerArrival(
+                                      assignment.assignment_id,
+                                      assignment.name,
+                                    )
+                                  }
+                                  disabled={
+                                    confirmTeamWorkerArrivalMutation.isPending
+                                  }
+                                >
+                                  {confirmTeamWorkerArrivalMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
+                                  ) : (
+                                    <Text
+                                      style={styles.teamProjectConfirmArrivalText}
+                                    >
+                                      Confirm
+                                    </Text>
+                                  )}
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  );
+                })()}
 
               {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
               {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
@@ -7791,7 +7950,9 @@ export default function ChatScreen() {
             </Text>
 
             {Platform.OS === "ios" ? (
-              <View style={{ marginVertical: Spacing.md, alignItems: "center" }}>
+              <View
+                style={{ marginVertical: Spacing.md, alignItems: "center" }}
+              >
                 <DateTimePicker
                   value={backjobScheduleDate}
                   mode="date"
@@ -8407,6 +8568,93 @@ const styles = StyleSheet.create({
   teamWorkerCardConfirmed: {
     backgroundColor: "#E8F5E9",
     borderColor: Colors.success,
+  },
+  teamProjectArrivalSection: {
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    gap: Spacing.xs,
+  },
+  teamProjectArrivalSubtext: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  teamProjectArrivalList: {
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  teamProjectArrivalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  teamProjectArrivalWorkerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    flex: 1,
+  },
+  teamProjectArrivalWorkerTextBlock: {
+    flex: 1,
+  },
+  teamProjectArrivalWorkerName: {
+    ...Typography.body.small,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  teamProjectArrivalWorkerSkill: {
+    ...Typography.body.small,
+    fontSize: 10,
+    color: Colors.textSecondary,
+  },
+  teamProjectStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 4,
+  },
+  teamProjectStatusBadgeArrived: {
+    backgroundColor: "#E3F2FD",
+  },
+  teamProjectStatusBadgeComplete: {
+    backgroundColor: "#E8F5E9",
+  },
+  teamProjectStatusText: {
+    ...Typography.body.small,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  teamProjectStatusTextArrived: {
+    color: Colors.primary,
+  },
+  teamProjectStatusTextComplete: {
+    color: Colors.success,
+  },
+  teamProjectConfirmArrivalButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    minWidth: 78,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  teamProjectConfirmArrivalText: {
+    ...Typography.body.small,
+    color: Colors.white,
+    fontWeight: "700",
+    fontSize: 11,
   },
   teamWorkerInfoCompact: {
     alignItems: "center",
