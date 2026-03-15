@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from .services import generateCookie
 from decimal import Decimal
+import re
 from adminpanel.audit_service import log_action
 
 
@@ -55,6 +56,40 @@ def get_reviewer_info(account: Accounts, profile_type: Optional[str] = None) -> 
     return (reviewer_name, reviewer_img)
 
 
+def get_reviewee_info(review: JobReview) -> Tuple[int, str, Optional[str], str]:
+    """
+    Resolve review target details across all review flows.
+
+    Returns:
+        (reviewee_id, reviewee_name, reviewee_profile_img, review_target)
+        review_target is one of: USER, EMPLOYEE, AGENCY
+    """
+    try:
+        if review.revieweeID:
+            profile = review.revieweeProfileID or Profile.objects.filter(accountFK=review.revieweeID).first()
+            if profile:
+                full_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "User"
+                return (review.revieweeID.accountID, full_name, profile.profileImg, "USER")
+            return (review.revieweeID.accountID, "User", None, "USER")
+
+        if review.revieweeEmployeeID:
+            employee = review.revieweeEmployeeID
+            name = (
+                employee.name
+                or f"{employee.firstName or ''} {employee.lastName or ''}".strip()
+                or "Employee"
+            )
+            return (employee.employeeID, name, employee.avatar, "EMPLOYEE")
+
+        if review.revieweeAgencyID:
+            agency = review.revieweeAgencyID
+            return (agency.agencyId, agency.businessName or "Agency", None, "AGENCY")
+    except Exception:
+        pass
+
+    return (0, "User", None, "USER")
+
+
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Calculate distance between two coordinates in kilometers using Haversine formula.
 
@@ -78,6 +113,30 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c
+
+
+def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
+    """Best-effort parser for expected duration text (e.g. 2 days, 1 week)."""
+    if not expected_duration:
+        return 1
+
+    text = str(expected_duration).strip().lower()
+    if not text:
+        return 1
+
+    unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", text)
+    if unit_match:
+        value = int(unit_match.group(1))
+        unit = unit_match.group(2)
+        if unit.startswith('week') or unit.startswith('wk'):
+            return max(1, value * 7)
+        return max(1, value)
+
+    numeric_match = re.fullmatch(r"\d+", text)
+    if numeric_match:
+        return max(1, int(text))
+
+    return 1
 
 
 def _derive_cancellation_reason(job: JobPosting) -> Optional[str]:
@@ -1162,10 +1221,20 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             }
 
         # PROJECT multi-day support parity:
-        # derive duration days from the inclusive date window when possible.
-        project_duration_days = 1
-        if preferred_start_date_obj and scheduled_end_date_obj:
+        # prefer explicit duration_days, then inclusive date window,
+        # then expected_duration parser fallback.
+        explicit_duration = job_data.get('duration_days')
+        project_duration_days = 0
+        try:
+            project_duration_days = int(explicit_duration or 0)
+        except (TypeError, ValueError):
+            project_duration_days = 0
+
+        if project_duration_days <= 0 and preferred_start_date_obj and scheduled_end_date_obj:
             project_duration_days = max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
+
+        if project_duration_days <= 0:
+            project_duration_days = _parse_expected_duration_days(job_data.get('expected_duration'))
         
         # Get client wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -2882,11 +2951,14 @@ def get_agency_detail_mobile(user, agency_id):
 
         print(f"   ✅ Found agency: {agency.businessName}")
 
-        # Get agency employees (AgencyEmployee links to account, not Agency model)
+        # Get active agency employees for display (AgencyEmployee links to account, not Agency model)
         agency_employees_qs = AgencyEmployee.objects.filter(
             agency=account,
             isActive=True
         )
+
+        # Include all agency employees for historical review aggregation
+        all_agency_employees_qs = AgencyEmployee.objects.filter(agency=account)
 
         # For now, use simplified data from AgencyEmployee model
         # AgencyEmployee doesn't link to WorkerProfile, so we'll use the employee data directly
@@ -2924,15 +2996,34 @@ def get_agency_detail_mobile(user, agency_id):
                 'specializations': emp.get_specializations_list()
             })
         
-        # Calculate overall rating from employees
+        # Calculate overall rating from employees (fallback when no review records exist yet)
         employee_ratings = [float(emp.rating) for emp in agency_employees_qs if emp.rating]
-        if employee_ratings:
-            avg_rating = sum(employee_ratings) / len(employee_ratings)
+        employee_avg_rating = (
+            sum(employee_ratings) / len(employee_ratings)
+            if employee_ratings
+            else 0.0
+        )
+
+        # Primary review stats source for public profile:
+        # include both direct agency reviews and agency employee reviews.
+        review_stats = JobReview.objects.filter(
+            Q(revieweeAgencyID=agency)
+            | Q(revieweeEmployeeID__in=all_agency_employees_qs)
+            | Q(
+                reviewerType="CLIENT",
+                jobID__assignedAgencyFK=agency,
+            )
+        ).aggregate(
+            avg_rating=Avg('rating'),
+            review_count=Count('reviewID')
+        )
+        review_count = int(review_stats.get('review_count') or 0)
+        reviews_avg_rating = float(review_stats.get('avg_rating') or 0.0)
+        display_rating = reviews_avg_rating if review_count > 0 else employee_avg_rating
         
         # Calculate total jobs from employees
         total_jobs_completed = sum(emp.totalJobsCompleted for emp in agency_employees_qs)
         active_workers = agency_employees_qs.count()
-        review_count = 0 # TODO: Implement when review model for agencies is ready
 
         # Build agency detail data matching mobile interface
         agency_data = {
@@ -2942,7 +3033,7 @@ def get_agency_detail_mobile(user, agency_id):
             'phoneNumber': agency.contactNumber or None,
             'logo': None,  # Agency model doesn't have logo field
             'description': agency.businessDesc or None,
-            'rating': round(float(avg_rating), 1),
+            'rating': round(float(display_rating), 1),
             'reviewCount': review_count,
             'totalJobsCompleted': total_jobs_completed,
             'activeWorkers': active_workers,
@@ -3495,7 +3586,7 @@ def submit_review_mobile(
                 'reviewer_id': user.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': reviewee.accountID if reviewee else None,
+                'reviewee_id': get_reviewee_info(review)[0],
                 'reviewer_type': reviewer_type,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3584,6 +3675,7 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
         for review in reviews:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             # Check if can edit (within 24 hours or within backjob edit deadline)
             now = timezone.now()
@@ -3599,7 +3691,7 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3663,6 +3755,7 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
         for review in reviews_qs:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
@@ -3672,7 +3765,7 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3720,13 +3813,8 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
         # Format given reviews
         given_list = []
         for review in given_reviews_qs[:50]:
-            # Show reviewee info
-            reviewee_profile = Profile.objects.filter(accountFK=review.revieweeID).first()
-            profile_name = "Anonymous"
-            profile_img = None
-            if reviewee_profile:
-                profile_name = f"{reviewee_profile.firstName} {reviewee_profile.lastName}".strip()
-                profile_img = reviewee_profile.profileImg
+            # Show reviewee info across user/employee/agency targets
+            reviewee_id, profile_name, profile_img, review_target = get_reviewee_info(review)
 
             can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
@@ -3736,9 +3824,10 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': "You", # Or user.email
                 'reviewer_profile_img': None, # User's own image
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewee_name': profile_name,
                 'reviewee_profile_img': profile_img,
+                'review_target': review_target,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3770,6 +3859,7 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
             if reviewer_profile:
                 profile_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
                 profile_img = reviewer_profile.profileImg
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             received_list.append({
                 'review_id': review.reviewID,
@@ -3777,7 +3867,7 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': profile_name,
                 'reviewer_profile_img': profile_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3894,6 +3984,7 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
         for review in recent_reviews:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             recent_list.append({
                 'review_id': review.reviewID,
@@ -3901,7 +3992,7 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -4018,7 +4109,7 @@ def edit_review_mobile(
                 'reviewer_id': user.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': get_reviewee_info(review)[0],
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'rating_quality': float(review.rating_quality) if review.rating_quality else None,

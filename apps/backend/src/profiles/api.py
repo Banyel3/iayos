@@ -1693,20 +1693,37 @@ def get_conversation_messages(request, conversation_id: int):
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
             from accounts.models import JobEmployeeAssignment
+
+            agency_account_id = None
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                agency_account_id = job.assignedAgencyFK.accountFK_id
+            elif job.assignedEmployeeID and job.assignedEmployeeID.agency_id:
+                agency_account_id = job.assignedEmployeeID.agency_id
             
             # Get all assigned employees (multi-employee support)
             assigned_employees = JobEmployeeAssignment.objects.filter(
                 job=job,
                 status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
             ).select_related('employee')
-            
-            # Get all employee IDs that have been reviewed
-            reviewed_employee_ids = set(JobReview.objects.filter(
+
+            client_reviews_qs = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account,
                 reviewerType="CLIENT",
+                status='ACTIVE'
+            )
+            
+            # Get all employee IDs that have been reviewed
+            reviewed_employee_ids = set(client_reviews_qs.filter(
                 revieweeEmployeeID__isnull=False
             ).values_list('revieweeEmployeeID', flat=True))
+
+            # Legacy compatibility: older records may have CLIENT review entries
+            # without revieweeEmployeeID/revieweeAgencyID populated.
+            legacy_target_reviews = client_reviews_qs.filter(
+                revieweeEmployeeID__isnull=True,
+                revieweeAgencyID__isnull=True,
+            )
             
             # Check if ALL employees have been reviewed
             all_assigned_ids = set(a.employee_id for a in assigned_employees)
@@ -1714,6 +1731,15 @@ def get_conversation_messages(request, conversation_id: int):
             # Backward compatibility: if no M2M assignments, check legacy field
             if not all_assigned_ids and job.assignedEmployeeID:
                 all_assigned_ids = {job.assignedEmployeeID.employeeID}
+
+            # Backward compatibility for legacy single-employee records where
+            # employee reviews were stored without revieweeEmployeeID.
+            if len(all_assigned_ids) == 1 and not all_assigned_ids.issubset(reviewed_employee_ids):
+                legacy_employee_review_exists = legacy_target_reviews.exclude(
+                    revieweeID_id=agency_account_id
+                ).exists() if agency_account_id else legacy_target_reviews.exists()
+                if legacy_employee_review_exists:
+                    reviewed_employee_ids.add(next(iter(all_assigned_ids)))
             
             # If no employees are assigned, client is only required to review the agency.
             employee_review_exists = all_assigned_ids.issubset(reviewed_employee_ids) if all_assigned_ids else True
@@ -1728,12 +1754,16 @@ def get_conversation_messages(request, conversation_id: int):
                     for emp in pending_emps
                 ]
             
-            agency_review_exists = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=client_account,
-                reviewerType="CLIENT",
+            agency_review_exists = client_reviews_qs.filter(
                 revieweeAgencyID__isnull=False
             ).exists()
+
+            # Backward compatibility: legacy agency reviews were sometimes stored
+            # as regular account-to-account CLIENT reviews to the agency account.
+            if not agency_review_exists and agency_account_id:
+                agency_review_exists = legacy_target_reviews.filter(
+                    revieweeID_id=agency_account_id
+                ).exists()
             
             client_reviewed = employee_review_exists and agency_review_exists
             

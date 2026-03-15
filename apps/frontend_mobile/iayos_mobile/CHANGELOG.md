@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Archived Agency Job Review Gate Recovery + Legacy Compatibility**
+  - Fixed conversation review modal recovery when employee review submit returns duplicate (`already reviewed/rated`) so users are no longer trapped in a required-review dialog.
+  - Added fallback state handling to close/sync the modal when no remaining employee reviews are pending after a duplicate response.
+  - Added compatibility fallback in review gating to treat agency-client review flow as complete when backend reports no next review action but legacy review records already exist.
+  - **Impact**: Archived agency jobs no longer re-block clients on already-reviewed employees, and duplicate-submit flows recover cleanly.
+
+- **Insufficient Wallet Flow Parity for Agency + Team Job Creation**
+  - Investigated single-job creation flow and matched its submit-time insufficient-balance prompt behavior.
+  - Team job creation now shows the same `Insufficient Wallet Balance` alert on submit with direct `Deposit Funds` route to `/payments/deposit` and prefilled shortage amount.
+  - Team submit button is no longer blocked solely by low balance so clients can trigger the deposit prompt flow consistently.
+  - Agency job request wallet warning/deposit CTA visibility now uses computed required downpayment instead of raw budget text checks.
+  - **Impact**: Agency and team create flows now mirror single-job deposit guidance and let clients top up directly from creation screens.
+
+- **Job Request End-Date One-Day Checkbox Date Handling**
+  - Fixed mobile job request date handling to use calendar-day comparisons (date-only), not raw timestamp math.
+  - Fixed end-date behavior so selecting a next-day end date does not leave the `This job is one day or less` state enabled.
+  - Updated payload date formatting to local `YYYY-MM-DD` output instead of UTC-based conversion to prevent date shifting.
+  - **Impact**: Multi-day job requests now stay correctly recognized as multi-day when end date is the following day.
+
+- **Backjob Legacy In-Progress Compatibility (Dispatch/Start Flow)**
+  - Added compatibility fallback in mobile backjob status gating so legacy in-progress records with missing timestamp fields still count dispatched/arrived when boolean status is already true.
+  - Prevents old active backjob threads from being blocked by strict cycle timestamp checks after workflow updates.
+  - **Impact**: Existing in-progress backjobs can proceed through testing without creating a new job request.
+
 - **Global Mandatory Review Gate (All Pending Jobs List)**
   - Upgraded mobile pending-review blocker to render all pending review jobs instead of only the first item.
   - Added per-job `Review Now` actions so users can jump directly into each required conversation.

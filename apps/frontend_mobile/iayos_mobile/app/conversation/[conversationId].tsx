@@ -517,6 +517,8 @@ export default function ChatScreen() {
     // Use API aggregate first; fallback to split flags for safety.
     (conversation?.job?.clientReviewed ||
       localAgencyClientReviewSubmitted ||
+      (conversation?.job?.next_review_action === null &&
+        (conversation?.my_editable_reviews?.length ?? 0) > 0) ||
       (hasAgencyEmployeeReviewsCompleted &&
         agencyNextReviewAction === null &&
         !!conversation?.job?.agencyReviewed))
@@ -891,12 +893,22 @@ export default function ChatScreen() {
       return true;
     }
 
-    if (!backjobCycleStartMs || !statusAt) {
-      return false;
+    if (!backjobCycleStartMs) {
+      return true;
+    }
+
+    // Backward compatibility: older in-progress jobs may have boolean dispatch/
+    // arrival state but missing timestamp fields.
+    if (!statusAt) {
+      return true;
     }
 
     const statusMs = new Date(statusAt).getTime();
-    return Number.isFinite(statusMs) && statusMs >= backjobCycleStartMs;
+    if (!Number.isFinite(statusMs)) {
+      return true;
+    }
+
+    return statusMs >= backjobCycleStartMs;
   };
 
   const isTeamArrivalInCurrentBackjobCycle = (
@@ -2148,9 +2160,12 @@ export default function ChatScreen() {
                     return;
                   }
 
+                  setLocalAgencyClientReviewSubmitted(true);
+                  setReviewStatusSyncing(true);
+                  setShowReviewModal(false);
                   Alert.alert(
                     "Already Rated",
-                    "You've already rated this employee. Refreshing...",
+                    "You have already rated this employee. Refreshing conversation status.",
                   );
                 });
               } else {

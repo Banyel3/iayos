@@ -440,6 +440,15 @@ def _get_elapsed_project_days(job: JobPosting) -> int:
 
     if job.clientConfirmedWorkStartedAt:
         start_date = timezone.localtime(job.clientConfirmedWorkStartedAt).date()
+    else:
+        # Backward compatibility: legacy agency/team records may not have
+        # clientConfirmedWorkStartedAt populated. Fall back to structural dates.
+        start_date = (
+            getattr(job, 'actual_start_date', None)
+            or getattr(job, 'preferredStartDate', None)
+        )
+
+    if start_date:
         today = timezone.localdate()
         elapsed = (today - start_date).days + 1
     else:
@@ -468,6 +477,13 @@ def _project_multi_day_gate_error(job: JobPosting):
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
     if payment_model != "PROJECT":
         return None
+
+    # Backward compatibility self-heal for legacy records that are already
+    # in-progress but missing start/end/duration metadata.
+    try:
+        _derive_and_self_heal_job_date_window(job)
+    except Exception as heal_err:
+        print(f"⚠️ Project gate self-heal skipped for job #{job.jobID}: {heal_err}")
 
     required_days = _get_required_project_days(job)
     if required_days <= 1:
@@ -5515,8 +5531,31 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     jobID=job,
                     reviewerID=request.auth,
                     reviewerType="CLIENT",
+                    status="ACTIVE",
                     revieweeEmployeeID__isnull=False
                 ).values_list('revieweeEmployeeID', flat=True))
+
+                legacy_client_reviews = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    status="ACTIVE",
+                    revieweeEmployeeID__isnull=True,
+                    revieweeAgencyID__isnull=True,
+                )
+
+                agency_account_id = None
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                    agency_account_id = job.assignedAgencyFK.accountFK_id
+                elif job.assignedEmployeeID and job.assignedEmployeeID.agency_id:
+                    agency_account_id = job.assignedEmployeeID.agency_id
+
+                if len(all_assigned_employee_ids) == 1 and all_assigned_employee_ids[0] not in reviewed_employee_ids:
+                    legacy_employee_review_exists = legacy_client_reviews.exclude(
+                        revieweeID_id=agency_account_id
+                    ).exists() if agency_account_id else legacy_client_reviews.exists()
+                    if legacy_employee_review_exists:
+                        reviewed_employee_ids.append(all_assigned_employee_ids[0])
                 
                 employees_needing_review = [
                     eid for eid in all_assigned_employee_ids 
@@ -5528,8 +5567,14 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     jobID=job,
                     reviewerID=request.auth,
                     reviewerType="CLIENT",
+                    status="ACTIVE",
                     revieweeAgencyID__isnull=False
                 ).exists()
+
+                if not agency_review_exists and agency_account_id:
+                    agency_review_exists = legacy_client_reviews.filter(
+                        revieweeID_id=agency_account_id
+                    ).exists()
                 
                 # Build pending employees info
                 pending_employees = []
@@ -5637,14 +5682,40 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     jobID=job,
                     reviewerID=request.auth,
                     reviewerType="CLIENT",
+                    status="ACTIVE",
                     revieweeEmployeeID__isnull=False
                 ).values_list('revieweeEmployeeID', flat=True)
+
+                reviewed_employee_ids_set = set(reviewed_employees)
+
+                legacy_client_reviews = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    status="ACTIVE",
+                    revieweeEmployeeID__isnull=True,
+                    revieweeAgencyID__isnull=True,
+                )
+
+                agency_account_id = None
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                    agency_account_id = job.assignedAgencyFK.accountFK_id
+                elif job.assignedEmployeeID and job.assignedEmployeeID.agency_id:
+                    agency_account_id = job.assignedEmployeeID.agency_id
+
+                assigned_employee_ids = list(assigned_employees)
+                if len(assigned_employee_ids) == 1 and assigned_employee_ids[0] not in reviewed_employee_ids_set:
+                    legacy_employee_review_exists = legacy_client_reviews.exclude(
+                        revieweeID_id=agency_account_id
+                    ).exists() if agency_account_id else legacy_client_reviews.exists()
+                    if legacy_employee_review_exists:
+                        reviewed_employee_ids_set.add(assigned_employee_ids[0])
                 
-                all_employees_reviewed = set(assigned_employees).issubset(set(reviewed_employees))
+                all_employees_reviewed = set(assigned_employee_ids).issubset(reviewed_employee_ids_set)
                 
                 # For backward compatibility, also check legacy single employee
                 if not assigned_employees and job.assignedEmployeeID:
-                    all_employees_reviewed = job.assignedEmployeeID.employeeID in reviewed_employees
+                    all_employees_reviewed = job.assignedEmployeeID.employeeID in reviewed_employee_ids_set
                 
                 job_completed = False
                 agency_side_review_exists = JobReview.objects.filter(
@@ -7752,6 +7823,10 @@ def confirm_backjob_started(request, job_id: int):
                 for assignment in assignments:
                     is_dispatched = bool(getattr(assignment, 'dispatched', False))
                     dispatched_at = getattr(assignment, 'dispatchedAt', None)
+                    has_legacy_progress_signal = (
+                        assignment.status == 'IN_PROGRESS'
+                        or bool(getattr(assignment, 'clientConfirmedArrival', False))
+                    )
 
                     if not is_dispatched:
                         undispatched_names.append(assignment.employee.fullName)
@@ -7759,6 +7834,11 @@ def confirm_backjob_started(request, job_id: int):
 
                     # If cycle start is known, dispatch must be from this cycle.
                     if backjob_cycle_start and (not dispatched_at or dispatched_at < backjob_cycle_start):
+                        # Backward compatibility: older in-progress assignments may
+                        # not have cycle-aligned dispatch timestamps. If work already
+                        # progressed, treat dispatch as valid for this cycle.
+                        if has_legacy_progress_signal:
+                            continue
                         undispatched_names.append(assignment.employee.fullName)
 
                 if undispatched_names:
@@ -11237,6 +11317,38 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
         assignment.clientConfirmedArrival = True
         assignment.clientConfirmedArrivalAt = timezone.now()
         assignment.save()
+
+        # Backward compatibility + parity: initialize project start markers on
+        # first confirmed arrival so elapsed-day gating works for invite jobs.
+        job_changed_fields = []
+        effective_day = get_effective_work_date(job)
+
+        if not job.clientConfirmedWorkStarted:
+            job.clientConfirmedWorkStarted = True
+            job_changed_fields.append('clientConfirmedWorkStarted')
+
+        if not job.clientConfirmedWorkStartedAt:
+            job.clientConfirmedWorkStartedAt = timezone.now()
+            job_changed_fields.append('clientConfirmedWorkStartedAt')
+
+        if not getattr(job, 'actual_start_date', None):
+            job.actual_start_date = effective_day
+            job_changed_fields.append('actual_start_date')
+
+        if int(getattr(job, 'total_days_worked', 0) or 0) <= 0:
+            job.total_days_worked = 1
+            job_changed_fields.append('total_days_worked')
+
+        if int(getattr(job, 'duration_days', 0) or 0) <= 0:
+            job.duration_days = _get_required_project_days(job)
+            job_changed_fields.append('duration_days')
+
+        if int(getattr(job, 'qa_day_offset', 0) or 0) < 0:
+            job.qa_day_offset = 0
+            job_changed_fields.append('qa_day_offset')
+
+        if job_changed_fields:
+            job.save(update_fields=list(dict.fromkeys(job_changed_fields)))
         
         # Check how many employees have arrived vs total
         all_assignments = JobEmployeeAssignment.objects.filter(
@@ -11269,6 +11381,7 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             "all_arrived": all_arrived,
             "arrived_count": arrived_count,
             "total_count": total_count,
+            "effective_work_date": effective_day.isoformat(),
             "next_step": "All employees arrived" if all_arrived else f"{total_count - arrived_count} employee(s) still pending arrival"
         }
         

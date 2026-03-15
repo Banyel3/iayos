@@ -49,6 +49,21 @@ interface Category {
   minimum_rate: number;
 }
 
+const normalizeCategories = (payload: unknown): Category[] => {
+  if (Array.isArray(payload)) return payload as Category[];
+  if (!payload || typeof payload !== "object") return [];
+
+  const obj = payload as {
+    categories?: unknown;
+    data?: { categories?: unknown };
+  };
+
+  if (Array.isArray(obj.categories)) return obj.categories as Category[];
+  if (Array.isArray(obj.data?.categories)) return obj.data.categories as Category[];
+
+  return [];
+};
+
 interface JobDetail {
   id: number;
   title: string;
@@ -81,7 +96,6 @@ interface UpdateJobRequest {
   job_scope?: "MINOR_REPAIR" | "MODERATE_PROJECT" | "MAJOR_RENOVATION";
   skill_level_required?: "ENTRY" | "INTERMEDIATE" | "EXPERT";
   work_environment?: "INDOOR" | "OUTDOOR" | "BOTH";
-  edit_reason?: string;
 }
 
 export default function EditJobScreen() {
@@ -107,7 +121,6 @@ export default function EditJobScreen() {
   const [showBarangayModal, setShowBarangayModal] = useState(false);
   const [materialInput, setMaterialInput] = useState("");
   const [materials, setMaterials] = useState<string[]>([]);
-  const [editReason, setEditReason] = useState("");
 
   // Universal job fields
   const [skillLevel, setSkillLevel] = useState<
@@ -212,14 +225,12 @@ export default function EditJobScreen() {
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const response = await fetchJson<{ categories: Category[] }>(
-        ENDPOINTS.GET_CATEGORIES,
-      );
-      return response.categories || [];
+      const response = await fetchJson<unknown>(ENDPOINTS.GET_CATEGORIES);
+      return normalizeCategories(response);
     },
   });
 
-  const categories = categoriesData || [];
+  const categories = Array.isArray(categoriesData) ? categoriesData : [];
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
   // Fetch barangays for Zamboanga City (cityID = 1)
@@ -403,10 +414,6 @@ export default function EditJobScreen() {
       updateData.work_environment = workEnvironment;
     }
 
-    if (editReason.trim()) {
-      updateData.edit_reason = editReason.trim();
-    }
-
     // Check if anything changed
     if (Object.keys(updateData).length === 0) {
       Alert.alert("No Changes", "No changes were made to the job.");
@@ -531,7 +538,14 @@ export default function EditJobScreen() {
 
             {/* Job Details Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 Job Details</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons
+                  name="document-text"
+                  size={20}
+                  color={Colors.primary}
+                />
+                <Text style={styles.sectionTitleText}>Job Details</Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Job Title *</Text>
@@ -601,7 +615,10 @@ export default function EditJobScreen() {
 
             {/* Budget Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💰 Budget</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="wallet" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Budget</Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Budget Amount (₱) *</Text>
@@ -704,7 +721,7 @@ export default function EditJobScreen() {
                   )}
                   {hasInsufficientBalance && (
                     <Text style={styles.insufficientWarning}>
-                      ⚠️ Insufficient balance. Deposit funds to continue.
+                      Insufficient balance. Deposit funds to continue.
                     </Text>
                   )}
                 </View>
@@ -713,7 +730,10 @@ export default function EditJobScreen() {
 
             {/* Location Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📍 Location</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="location" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Location</Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Street Address *</Text>
@@ -755,7 +775,10 @@ export default function EditJobScreen() {
 
             {/* Timeline Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>⏱️ Timeline</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="time" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Timeline</Text>
+              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Expected Duration</Text>
@@ -831,10 +854,10 @@ export default function EditJobScreen() {
                         ]}
                       >
                         {level === "LOW"
-                          ? "🟢 Low"
+                          ? "Low"
                           : level === "MEDIUM"
-                            ? "🟡 Medium"
-                            : "🔴 High"}
+                            ? "Medium"
+                            : "High"}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -844,7 +867,10 @@ export default function EditJobScreen() {
 
             {/* Skill Level Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📊 Skill Level Required</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="bar-chart" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Skill Level Required</Text>
+              </View>
               <View style={styles.urgencyRow}>
                 {(["ENTRY", "INTERMEDIATE", "EXPERT"] as const).map((level) => (
                   <TouchableOpacity
@@ -865,10 +891,10 @@ export default function EditJobScreen() {
                       ]}
                     >
                       {level === "ENTRY"
-                        ? "🌱 Entry"
+                        ? "Entry"
                         : level === "INTERMEDIATE"
-                          ? "⭐ Intermediate"
-                          : "👑 Expert"}
+                          ? "Intermediate"
+                          : "Expert"}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -877,7 +903,10 @@ export default function EditJobScreen() {
 
             {/* Job Scope Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🔧 Job Scope</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="construct" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Job Scope</Text>
+              </View>
               <View style={styles.urgencyRow}>
                 {(
                   [
@@ -904,10 +933,10 @@ export default function EditJobScreen() {
                       ]}
                     >
                       {scope === "MINOR_REPAIR"
-                        ? "🔧 Minor"
+                        ? "Minor"
                         : scope === "MODERATE_PROJECT"
-                          ? "🛠️ Moderate"
-                          : "🏗️ Major"}
+                          ? "Moderate"
+                          : "Major"}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -916,7 +945,10 @@ export default function EditJobScreen() {
 
             {/* Work Environment Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🏠 Work Environment</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="home" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Work Environment</Text>
+              </View>
               <View style={styles.urgencyRow}>
                 {(["INDOOR", "OUTDOOR", "BOTH"] as const).map((env) => (
                   <TouchableOpacity
@@ -937,10 +969,10 @@ export default function EditJobScreen() {
                       ]}
                     >
                       {env === "INDOOR"
-                        ? "🏠 Indoor"
+                        ? "Indoor"
                         : env === "OUTDOOR"
-                          ? "🌳 Outdoor"
-                          : "🔄 Both"}
+                          ? "Outdoor"
+                          : "Both"}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -949,7 +981,10 @@ export default function EditJobScreen() {
 
             {/* Materials Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🧰 Materials Needed</Text>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="hammer" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>Materials Needed</Text>
+              </View>
               <View style={styles.materialInputRow}>
                 <TextInput
                   style={[styles.input, styles.materialInput]}
@@ -986,50 +1021,30 @@ export default function EditJobScreen() {
               )}
             </View>
 
-            {/* Edit Reason Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📝 Edit Reason (Optional)</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Why are you editing this job? (e.g., added more details, changed scope)"
-                value={editReason}
-                onChangeText={setEditReason}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                placeholderTextColor={Colors.textHint}
-                maxLength={200}
-              />
-              <Text style={styles.charCount}>{editReason.length}/200</Text>
-            </View>
-
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                (updateJobMutation.isPending || hasInsufficientBalance) &&
-                styles.submitButtonDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={updateJobMutation.isPending || hasInsufficientBalance}
-            >
-              {updateJobMutation.isPending ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <>
-                  <Ionicons
-                    name="save-outline"
-                    size={20}
-                    color={Colors.white}
-                  />
-                  <Text style={styles.submitButtonText}>Save Changes</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <View style={{ height: 40 }} />
+            <View style={{ height: 20 }} />
           </View>
         </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (updateJobMutation.isPending || hasInsufficientBalance) &&
+                styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmit}
+            disabled={updateJobMutation.isPending || hasInsufficientBalance}
+          >
+            {updateJobMutation.isPending ? (
+              <ActivityIndicator color={Colors.white} />
+            ) : (
+              <>
+                <Text style={styles.submitButtonText}>Save Changes</Text>
+                <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
 
       {/* Category Modal */}
@@ -1150,27 +1165,32 @@ export default function EditJobScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.white,
   },
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
+    ...Shadows.sm,
   },
   backButton: {
-    padding: Spacing.xs,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.semiBold as any,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.bold as any,
     color: Colors.textPrimary,
   },
   scrollView: {
@@ -1178,6 +1198,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.md,
+    paddingBottom: 96,
+    gap: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
@@ -1236,13 +1258,21 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   section: {
-    marginBottom: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    ...Shadows.sm,
   },
   sectionTitle: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: Typography.fontWeight.semiBold as any,
-    color: Colors.textPrimary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
     marginBottom: Spacing.sm,
+  },
+  sectionTitleText: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.textPrimary,
   },
   inputGroup: {
     marginBottom: Spacing.md,
@@ -1440,8 +1470,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
-    marginTop: Spacing.lg,
     ...Shadows.medium,
+  },
+  footer: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   submitButtonDisabled: {
     backgroundColor: Colors.textHint,
