@@ -1494,20 +1494,7 @@ export default function CreateTeamJobScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.termsText}>
-            By proceeding you agree to our{" "}
-            <Text
-              style={styles.termsLink}
-              onPress={() => router.push("/legal/terms")}
-            >
-              terms
-            </Text>{" "}
-            and{" "}
-            <Text
-              style={styles.termsLink}
-              onPress={() => router.push("/legal/privacy")}
-            >
-              policy
-            </Text>
+            By proceeding you agree to our terms and policy
           </Text>
           <TouchableOpacity
             style={[
