@@ -298,13 +298,6 @@ export default function JobDetailScreen() {
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
-  // Bug 1 fix: detect if the current worker is already assigned to this job
-  // Used to hide the Apply button for assigned workers (e.g. coming from Calendar)
-  const isCurrentWorkerAssigned =
-    String(job?.assignedWorker?.id ?? "") ===
-      String(user?.profile_data?.id ?? "") &&
-    String(job?.assignedWorker?.id ?? "") !== "";
-
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
   const isValidJobId =
@@ -503,37 +496,61 @@ export default function JobDetailScreen() {
   // Check if already applied and track which skill slots
   const { data: applicationStatus } = useQuery<{
     hasApplied: boolean;
+    hasAcceptedApplication: boolean;
     appliedSlotIds: number[];
   }>({
     queryKey: ["jobs", id, "applied"],
     queryFn: async (): Promise<{
       hasApplied: boolean;
+      hasAcceptedApplication: boolean;
       appliedSlotIds: number[];
     }> => {
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
         method: "GET",
       });
 
-      if (!response.ok) return { hasApplied: false, appliedSlotIds: [] };
+      if (!response.ok) {
+        return {
+          hasApplied: false,
+          hasAcceptedApplication: false,
+          appliedSlotIds: [],
+        };
+      }
 
       const data = (await response.json()) as any;
-      if (data.success && data.applications) {
-        const jobApplications = data.applications.filter(
-          (app: any) => app.job_id.toString() === id,
-        );
+      const rawApplications =
+        data?.applications || data?.data?.applications || [];
+
+      if (Array.isArray(rawApplications)) {
+        const jobApplications = rawApplications.filter((app: any) => {
+          const appJobId =
+            app?.job_id ?? app?.jobId ?? app?.job?.id ?? app?.job?.job_id;
+          return String(appJobId) === String(id);
+        });
         const hasApplied = jobApplications.length > 0;
+        const hasAcceptedApplication = jobApplications.some(
+          (app: any) =>
+            String(app?.status || app?.application_status || "").toUpperCase() ===
+            "ACCEPTED",
+        );
         const appliedSlotIds = jobApplications
           .filter((app: any) => app.applied_skill_slot_id !== null)
           .map((app: any) => app.applied_skill_slot_id);
-        return { hasApplied, appliedSlotIds };
+        return { hasApplied, hasAcceptedApplication, appliedSlotIds };
       }
-      return { hasApplied: false, appliedSlotIds: [] };
+      return {
+        hasApplied: false,
+        hasAcceptedApplication: false,
+        appliedSlotIds: [],
+      };
     },
     enabled: isWorker,
   });
 
   // Destructure for easier access
   const hasApplied = applicationStatus?.hasApplied ?? false;
+  const hasAcceptedApplication =
+    applicationStatus?.hasAcceptedApplication ?? false;
   const appliedSlotIds = applicationStatus?.appliedSlotIds ?? [];
 
   // Submit application mutation
@@ -1048,6 +1065,24 @@ export default function JobDetailScreen() {
   const currentWorkerAssignment = job?.worker_assignments?.find(
     (assignment) => assignment.worker_id === user?.profile_data?.id,
   );
+
+  // Detect worker assignment across possible ID shapes returned by APIs
+  const currentUserIdCandidates = new Set(
+    [
+      user?.accountID,
+      user?.profile_data?.id,
+      user?.profile_data?.workerProfileId,
+      (user?.profile_data as any)?.profileID,
+      (user?.profile_data as any)?.workerID,
+    ]
+      .filter((value) => value !== null && value !== undefined && value !== "")
+      .map((value) => String(value)),
+  );
+
+  const assignedWorkerId = String(job?.assignedWorker?.id ?? "");
+  const isCurrentWorkerAssigned =
+    (assignedWorkerId !== "" && currentUserIdCandidates.has(assignedWorkerId)) ||
+    !!currentWorkerAssignment;
 
   const canAccessTeamGroupChat =
     isTeamJob && isTeamFilled && (isClient || !!currentWorkerAssignment);
@@ -2977,6 +3012,32 @@ export default function JobDetailScreen() {
               )}
             </View>
 
+            {/* View Chat - Worker POV (non-sticky, above profile section) */}
+            {isWorker &&
+              !job?.is_team_job &&
+              (!!job?.assignedWorker ||
+                isCurrentWorkerAssigned ||
+                hasAcceptedApplication ||
+                job?.status === "IN_PROGRESS" ||
+                (hasApplied && job?.status === "ACTIVE")) &&
+              job?.status !== "COMPLETED" &&
+              job?.status !== "CANCELLED" && (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={[styles.viewChatButton, { marginTop: 0 }]}
+                    onPress={handleViewChat}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={18}
+                      color={Colors.white}
+                    />
+                    <Text style={styles.viewChatButtonText}>View Chat</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
             {/* Agency Section - Show if assigned */}
             {job.assignedAgency && (
               <View style={styles.section}>
@@ -3292,7 +3353,36 @@ export default function JobDetailScreen() {
           </View>
         )}
 
-        <View style={{ height: 100 }} />
+        {/* Cancel Button - Below Posted By/Assigned Worker, non-sticky */}
+        {user?.accountID === job.postedBy?.id &&
+          job.status !== "COMPLETED" &&
+          job.status !== "CANCELLED" && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                onPress={handleCancelJob}
+                style={styles.bottomCancelButton}
+                disabled={cancelJobMutation.isPending}
+                activeOpacity={0.85}
+              >
+                {cancelJobMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.error} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={Colors.error}
+                    />
+                    <Text style={styles.bottomCancelButtonText}>
+                      {job.is_team_job ? "Cancel Team Job" : "Cancel Job"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Apply Button (Fixed at bottom) - Only for non-team LISTING jobs */}
@@ -3314,20 +3404,6 @@ export default function JobDetailScreen() {
                     You have already applied to this job
                   </Text>
                 </View>
-                {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
-                  <TouchableOpacity
-                    style={styles.viewChatButton}
-                    onPress={handleViewChat}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="chatbubble-outline"
-                      size={18}
-                      color={Colors.white}
-                    />
-                    <Text style={styles.viewChatButtonText}>View Chat</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             ) : (
               <TouchableOpacity
@@ -3355,35 +3431,6 @@ export default function JobDetailScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-          </View>
-        )}
-
-      {/* Cancel Button (Fixed at bottom) - Only for job owner on non-terminal jobs */}
-      {user?.accountID === job.postedBy?.id &&
-        job.status !== "COMPLETED" &&
-        job.status !== "CANCELLED" && (
-          <View style={styles.bottomActionContainer} pointerEvents="box-none">
-            <TouchableOpacity
-              onPress={handleCancelJob}
-              style={styles.bottomCancelButton}
-              disabled={cancelJobMutation.isPending}
-              activeOpacity={0.85}
-            >
-              {cancelJobMutation.isPending ? (
-                <ActivityIndicator size="small" color={Colors.error} />
-              ) : (
-                <>
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color={Colors.error}
-                  />
-                  <Text style={styles.bottomCancelButtonText}>
-                    {job.is_team_job ? "Cancel Team Job" : "Cancel Job"}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
         )}
 
@@ -4142,17 +4189,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   applyButtonContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    ...Shadows.medium,
-  },
-  bottomActionContainer: {
     position: "absolute",
     bottom: 0,
     left: 0,
