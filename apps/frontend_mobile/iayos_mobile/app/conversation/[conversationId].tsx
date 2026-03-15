@@ -5421,6 +5421,27 @@ export default function ChatScreen() {
                   </View>
                 )}
 
+              {/* CLIENT: Waiting for worker to mark on the way (Regular Jobs Only) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isLegacySingleProjectFlow &&
+                conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedOnTheWay &&
+                !conversation.job.workerMarkedJobStarted && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      Waiting for worker to mark on the way...
+                    </Text>
+                  </View>
+                )}
+
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
@@ -7403,8 +7424,7 @@ export default function ChatScreen() {
                                 Communication
                               </Text>
                               <Text style={styles.criteriaDescription}>
-                                How well did the client communicate job
-                                requirements and respond to messages?
+                                Clear instructions and responsive messaging.
                               </Text>
                             </View>
                           </View>
@@ -7442,8 +7462,8 @@ export default function ChatScreen() {
                                 Clarity of Job Details
                               </Text>
                               <Text style={styles.criteriaDescription}>
-                                Were the job requirements, expectations, and
-                                scope clearly defined?
+                                Well-defined requirements, expectations, and
+                                scope.
                               </Text>
                             </View>
                           </View>
@@ -7481,8 +7501,7 @@ export default function ChatScreen() {
                                 Payment Reliability
                               </Text>
                               <Text style={styles.criteriaDescription}>
-                                Did the client pay on time and honor the agreed
-                                payment terms?
+                                Paid on time and followed agreed payment terms.
                               </Text>
                             </View>
                           </View>
@@ -7520,8 +7539,8 @@ export default function ChatScreen() {
                                 Respect & Professionalism
                               </Text>
                               <Text style={styles.criteriaDescription}>
-                                Was the client respectful, professional, and
-                                fair throughout the job?
+                                Respectful, fair, and professional throughout
+                                the job.
                               </Text>
                             </View>
                           </View>
@@ -9555,7 +9574,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   jobStartedButton: {
-    backgroundColor: Colors.warning,
+    backgroundColor: "#00BAF1",
   },
   waitingButton: {
     backgroundColor: Colors.backgroundSecondary,
