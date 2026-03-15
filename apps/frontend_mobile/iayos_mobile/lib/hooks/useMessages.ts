@@ -83,6 +83,7 @@ export type ConversationDetail = {
     id: number;
     title: string;
     status: string;
+    expectedDuration?: string | null;
     is_cancelled?: boolean;
     effective_status?: string;
     cancelled_at?: string | null;
@@ -94,6 +95,8 @@ export type ConversationDetail = {
     preferred_start_date?: string;
     clientConfirmedWorkStarted: boolean;
     workerMarkedComplete: boolean;
+    workerMarkedOnTheWay?: boolean;
+    workerMarkedJobStarted?: boolean;
     clientMarkedComplete: boolean;
     remainingPaymentPaid?: boolean;
     workerReviewed: boolean;
@@ -239,7 +242,9 @@ export type ConversationDetail = {
     time_out?: string;
     status: string;
     amount_earned: number;
+    is_dispatched?: boolean;
     worker_confirmed: boolean;
+    worker_confirmed_at?: string | null;
     client_confirmed: boolean;
     payment_processed: boolean;
   }>;
