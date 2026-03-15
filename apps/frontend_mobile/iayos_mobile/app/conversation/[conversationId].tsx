@@ -3372,43 +3372,51 @@ export default function ChatScreen() {
                                   </TouchableOpacity>
                                 )}
                                 <Text style={styles.awaitingConfirmText}>
-                                  Waiting for client to verify your arrival.
+                                  You marked "On The Way". Waiting for client
+                                  to verify your arrival.
                                 </Text>
                               </View>
                             );
                           }
 
                           return (
-                            <TouchableOpacity
-                              style={[
-                                styles.actionButton,
-                                styles.checkInButton,
-                              ]}
-                              onPress={() =>
-                                workerCheckInMutation.mutate(
-                                  conversation.job.id,
-                                )
-                              }
-                              disabled={workerCheckInMutation.isPending}
-                            >
-                              {workerCheckInMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="car-outline"
-                                    size={20}
+                            <View style={styles.dailyStatusContainer}>
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionButton,
+                                  styles.checkInButton,
+                                ]}
+                                onPress={() =>
+                                  workerCheckInMutation.mutate(
+                                    conversation.job.id,
+                                  )
+                                }
+                                disabled={workerCheckInMutation.isPending}
+                              >
+                                {workerCheckInMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
                                     color={Colors.white}
                                   />
-                                  <Text style={styles.actionButtonText}>
-                                    On The Way
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="car-outline"
+                                      size={20}
+                                      color={Colors.white}
+                                    />
+                                    <Text style={styles.actionButtonText}>
+                                      On The Way
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                              <Text style={styles.awaitingConfirmText}>
+                                Tap when you are heading to the site. After you
+                                arrive, wait for the client to verify your
+                                arrival before check-out can be logged.
+                              </Text>
+                            </View>
                           );
                         }
 
@@ -3458,8 +3466,8 @@ export default function ChatScreen() {
                                 </TouchableOpacity>
                               )}
                               <Text style={styles.awaitingConfirmText}>
-                                Ask the client to mark check-out when work is
-                                done.
+                                You are checked in. Once your task is done,
+                                wait for the client to mark your check-out.
                               </Text>
                             </View>
                           );
@@ -3489,35 +3497,64 @@ export default function ChatScreen() {
                               </View>
                               {todayAttendance.client_confirmed ? (
                                 isProjectMultiDayJob ? (
-                                  <View style={styles.paymentProcessedBadge}>
-                                    <Ionicons
-                                      name="checkmark-circle"
-                                      size={14}
-                                      color={Colors.success}
-                                    />
-                                    <Text style={styles.paymentProcessedText}>
-                                      Day confirmed
+                                  <>
+                                    <View
+                                      style={styles.paymentProcessedBadge}
+                                    >
+                                      <Ionicons
+                                        name="checkmark-circle"
+                                        size={14}
+                                        color={Colors.success}
+                                      />
+                                      <Text
+                                        style={styles.paymentProcessedText}
+                                      >
+                                        Day confirmed
+                                      </Text>
+                                    </View>
+                                    <Text style={styles.awaitingConfirmText}>
+                                      {reachedConfiguredDuration ||
+                                      reachedQaOffsetLimit
+                                        ? "Job duration has been reached. Waiting for client to either extend the project or finish the job and pay."
+                                        : "Workday confirmed. Wait for the next workday schedule from your client."}
                                     </Text>
-                                  </View>
+                                  </>
                                 ) : (
-                                  <View style={styles.paymentProcessedBadge}>
-                                    <Ionicons
-                                      name="wallet"
-                                      size={14}
-                                      color={Colors.success}
-                                    />
-                                    <Text style={styles.paymentProcessedText}>
-                                      ₱
-                                      {Number(
-                                        todayAttendance.amount_earned,
-                                      ).toLocaleString()}{" "}
-                                      paid
+                                  <>
+                                    <View
+                                      style={styles.paymentProcessedBadge}
+                                    >
+                                      <Ionicons
+                                        name="wallet"
+                                        size={14}
+                                        color={Colors.success}
+                                      />
+                                      <Text
+                                        style={styles.paymentProcessedText}
+                                      >
+                                        ₱
+                                        {Number(
+                                          todayAttendance.amount_earned,
+                                        ).toLocaleString()}{" "}
+                                        paid
+                                      </Text>
+                                    </View>
+                                    <Text style={styles.awaitingConfirmText}>
+                                      Check-out confirmed and paid for today.
+                                      You can wait for your next assignment in
+                                      this conversation.
                                     </Text>
-                                  </View>
+                                  </>
                                 )
                               ) : (
                                 <Text style={styles.awaitingConfirmText}>
-                                  Awaiting client confirmation...
+                                  {isProjectMultiDayJob &&
+                                  (reachedConfiguredDuration ||
+                                    reachedQaOffsetLimit)
+                                    ? "Today is logged. Job duration has been reached - waiting for client to either extend the project or finish and pay."
+                                    : isProjectMultiDayJob
+                                      ? "Today is logged. Waiting for client to confirm this workday."
+                                      : "Checked out. Waiting for client confirmation/payment."}
                                 </Text>
                               )}
                             </View>
