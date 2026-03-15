@@ -58,7 +58,21 @@ interface ClientDetail {
   province?: string;
   joinedDate?: string;
   verified: boolean;
+  verificationLevel?: number;
 }
+
+const getVerificationLevelTag = (
+  verificationLevel?: number,
+  verified?: boolean,
+) => {
+  if (typeof verificationLevel === "number" && !Number.isNaN(verificationLevel)) {
+    return `Verification Level ${verificationLevel}`;
+  }
+  if (verified) {
+    return "Verification Level 1";
+  }
+  return null;
+};
 
 // Skeleton component for loading state
 const ClientDetailSkeleton = () => {
@@ -146,12 +160,18 @@ export default function ClientDetailScreen() {
       if (!response.ok) {
         throw new Error("Failed to fetch client details");
       }
-      const data = (await response.json()) as { client: ClientDetail };
+      const data = (await response.json()) as { client: any };
       // Transform profile picture URL for local storage compatibility
       return {
         ...data.client,
         profilePicture:
           getAbsoluteMediaUrl(data.client.profilePicture) || undefined,
+        verificationLevel:
+          typeof data.client.verificationLevel === "number"
+            ? data.client.verificationLevel
+            : typeof data.client.verification_level === "number"
+              ? data.client.verification_level
+              : undefined,
       };
     },
     enabled: !!id,
@@ -200,6 +220,10 @@ export default function ClientDetailScreen() {
 
   const client = clientData;
   const fullName = `${client.firstName} ${client.lastName}`.trim();
+  const verificationLevelTag = getVerificationLevelTag(
+    client.verificationLevel,
+    client.verified,
+  );
   const location =
     client.city && client.province
       ? `${client.city}, ${client.province}`
@@ -300,6 +324,13 @@ export default function ClientDetailScreen() {
       >
         {/* Hero Section */}
         <View style={styles.heroSection}>
+          {verificationLevelTag && (
+            <View style={styles.verificationLevelTag}>
+              <Text style={styles.verificationLevelTagText}>
+                {verificationLevelTag}
+              </Text>
+            </View>
+          )}
           <Image
             source={{
               uri: client.profilePicture || "https://via.placeholder.com/120",
@@ -627,6 +658,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  verificationLevelTag: {
+    borderWidth: 1,
+    borderColor: "#00BAF1",
+    backgroundColor: "#EAF9FF",
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    marginBottom: Spacing.sm,
+  },
+  verificationLevelTagText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "700",
+    color: "#00BAF1",
   },
   avatar: {
     width: 120,

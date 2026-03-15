@@ -118,6 +118,19 @@ interface WorkerDetail {
   materials?: WorkerMaterial[];
 }
 
+const getVerificationLevelTag = (
+  verificationLevel?: number,
+  verified?: boolean,
+) => {
+  if (typeof verificationLevel === "number" && !Number.isNaN(verificationLevel)) {
+    return `Verification Level ${verificationLevel}`;
+  }
+  if (verified) {
+    return "Verification Level 1";
+  }
+  return null;
+};
+
 // Skeleton component for loading state
 const WorkerDetailSkeleton = () => {
   const router = useRouter();
@@ -360,6 +373,10 @@ export default function WorkerDetailScreen() {
   }
 
   const fullName = `${data.firstName} ${data.lastName}`;
+  const verificationLevelTag = getVerificationLevelTag(
+    data.verificationLevel,
+    data.verified,
+  );
 
   // Check if the current user is viewing their own profile
   // Compare using accountId OR workerProfileId (the route param is workerProfileId)
@@ -482,6 +499,13 @@ export default function WorkerDetailScreen() {
 
           {/* Hero Section */}
           <View style={styles.heroSection}>
+            {verificationLevelTag && (
+              <View style={styles.verificationLevelTag}>
+                <Text style={styles.verificationLevelTagText}>
+                  {verificationLevelTag}
+                </Text>
+              </View>
+            )}
             <View style={styles.avatarContainer}>
               {data.profilePicture ? (
                 <Image
@@ -1465,6 +1489,20 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: "relative",
     marginBottom: 16,
+  },
+  verificationLevelTag: {
+    borderWidth: 1,
+    borderColor: "#00BAF1",
+    backgroundColor: "#EAF9FF",
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 10,
+  },
+  verificationLevelTagText: {
+    color: "#00BAF1",
+    fontSize: 12,
+    fontWeight: "700",
   },
   avatar: {
     width: 100,

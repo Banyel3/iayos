@@ -66,9 +66,23 @@ interface AgencyDetail {
   city?: string;
   province?: string;
   verified: boolean;
+  verificationLevel?: number;
   establishedDate: string;
   workers: AgencyWorker[];
 }
+
+const getVerificationLevelTag = (
+  verificationLevel?: number,
+  verified?: boolean,
+) => {
+  if (typeof verificationLevel === "number" && !Number.isNaN(verificationLevel)) {
+    return `Verification Level ${verificationLevel}`;
+  }
+  if (verified) {
+    return "Verification Level 1";
+  }
+  return null;
+};
 
 export default function AgencyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -95,6 +109,12 @@ export default function AgencyDetailScreen() {
           rawAgency.totalJobsCompleted ?? rawAgency.total_jobs_completed ?? 0,
         ),
         activeWorkers: Number(rawAgency.activeWorkers ?? rawAgency.active_workers ?? 0),
+        verificationLevel:
+          typeof rawAgency.verificationLevel === "number"
+            ? rawAgency.verificationLevel
+            : typeof rawAgency.verification_level === "number"
+              ? rawAgency.verification_level
+              : undefined,
       } as AgencyDetail;
     },
     enabled: !!id,
@@ -148,6 +168,10 @@ export default function AgencyDetailScreen() {
   }
 
   const isClient = user?.profile_data?.profileType === "CLIENT";
+  const verificationLevelTag = getVerificationLevelTag(
+    data.verificationLevel,
+    data.verified,
+  );
 
   const submitAgencyReport = (reason: "spam" | "harassment" | "fraud" | "inappropriate" | "fake_profile" | "other") => {
     submitReportMutation.mutate(
@@ -295,6 +319,13 @@ export default function AgencyDetailScreen() {
         >
           {/* Hero Section */}
           <View style={styles.heroSection}>
+            {verificationLevelTag && (
+              <View style={styles.verificationLevelTag}>
+                <Text style={styles.verificationLevelTagText}>
+                  {verificationLevelTag}
+                </Text>
+              </View>
+            )}
             <View style={styles.logoContainer}>
               {data.logo ? (
                 <Image source={{ uri: data.logo }} style={styles.logo} />
@@ -561,6 +592,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: "center",
     marginBottom: 16,
+  },
+  verificationLevelTag: {
+    borderWidth: 1,
+    borderColor: "#00BAF1",
+    backgroundColor: "#EAF9FF",
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 10,
+  },
+  verificationLevelTagText: {
+    color: "#00BAF1",
+    fontSize: 12,
+    fontWeight: "700",
   },
   logoContainer: {
     position: "relative",
