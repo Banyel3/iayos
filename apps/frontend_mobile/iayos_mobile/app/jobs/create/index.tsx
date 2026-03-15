@@ -2444,60 +2444,84 @@ export default function CreateJobScreen() {
               {/* Payment Model Selector */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Payment Model</Text>
-                <View style={styles.buttonGroup}>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionButton,
-                      paymentModel === "PROJECT" && styles.optionButtonActive,
-                    ]}
-                    onPress={() => setPaymentModel("PROJECT")}
-                  >
-                    <Text
-                      style={[
-                        styles.optionButtonText,
-                        paymentModel === "PROJECT" &&
-                          styles.optionButtonTextActive,
-                      ]}
-                    >
-                      Fixed Budget
-                    </Text>
-                  </TouchableOpacity>
-                  {!isAgencyHire && (
-                    <TouchableOpacity
+                {isAgencyHire ? (
+                  <>
+                    <View
                       style={[
                         styles.optionButton,
-                        paymentModel === "DAILY" && styles.optionButtonActive,
-                        isOneDayJob && styles.optionButtonDisabled,
+                        styles.optionButtonActive,
+                        { width: "100%" },
                       ]}
-                      onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
-                      disabled={isOneDayJob}
                     >
                       <Text
                         style={[
                           styles.optionButtonText,
-                          paymentModel === "DAILY" &&
-                            styles.optionButtonTextActive,
-                          isOneDayJob && styles.optionButtonTextDisabled,
+                          styles.optionButtonTextActive,
                         ]}
                       >
-                        Daily Rate
+                        Fixed Budget (Project)
                       </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <Text style={styles.hint}>
-                  {isAgencyHire
-                    ? "Agency hires use fixed budget only (50% downpayment, 50% on completion)"
-                    : isOneDayJob
-                    ? "Daily rate is unavailable for one-day jobs (Fixed Budget only)"
-                    : paymentModel === "PROJECT"
-                      ? "Pay for the entire project (50% downpayment, 50% on completion)"
-                      : "Pay per day of work (100% escrow upfront)"}
-                </Text>
+                    </View>
+                    <Text style={styles.hint}>
+                      Agency hires use fixed budget only. Payment is settled at
+                      project completion.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.buttonGroup}>
+                      <TouchableOpacity
+                        style={[
+                          styles.optionButton,
+                          paymentModel === "PROJECT" &&
+                            styles.optionButtonActive,
+                        ]}
+                        onPress={() => setPaymentModel("PROJECT")}
+                      >
+                        <Text
+                          style={[
+                            styles.optionButtonText,
+                            paymentModel === "PROJECT" &&
+                              styles.optionButtonTextActive,
+                          ]}
+                        >
+                          Fixed Budget
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.optionButton,
+                          paymentModel === "DAILY" && styles.optionButtonActive,
+                          isOneDayJob && styles.optionButtonDisabled,
+                        ]}
+                        onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
+                        disabled={isOneDayJob}
+                      >
+                        <Text
+                          style={[
+                            styles.optionButtonText,
+                            paymentModel === "DAILY" &&
+                              styles.optionButtonTextActive,
+                            isOneDayJob && styles.optionButtonTextDisabled,
+                          ]}
+                        >
+                          Daily Rate
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.hint}>
+                      {isOneDayJob
+                        ? "Daily rate is unavailable for one-day jobs (Fixed Budget only)"
+                        : effectivePaymentModel === "PROJECT"
+                          ? "Pay for the entire project (50% downpayment, 50% on completion)"
+                          : "Pay per day of work (100% escrow upfront)"}
+                    </Text>
+                  </>
+                )}
               </View>
 
               {/* Fixed Budget Fields */}
-              {paymentModel === "PROJECT" && (
+              {effectivePaymentModel === "PROJECT" && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Total Budget (₱)</Text>
                   <View
@@ -2532,7 +2556,7 @@ export default function CreateJobScreen() {
               )}
 
               {/* Daily Rate Fields */}
-              {paymentModel === "DAILY" && (
+              {effectivePaymentModel === "DAILY" && (
                 <>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Daily Rate per Worker (₱)</Text>
@@ -2592,7 +2616,7 @@ export default function CreateJobScreen() {
               )}
 
               {/* AI Price Suggestion Card - Only for PROJECT model */}
-              {paymentModel === "PROJECT" && effectiveCategoryId && (
+              {effectivePaymentModel === "PROJECT" && effectiveCategoryId && (
                 <PriceSuggestionCard
                   minPrice={pricePrediction?.min_price}
                   suggestedPrice={pricePrediction?.suggested_price}
@@ -2606,7 +2630,7 @@ export default function CreateJobScreen() {
               )}
 
               {/* Payment Summary - PROJECT Model */}
-              {paymentModel === "PROJECT" &&
+              {effectivePaymentModel === "PROJECT" &&
                 budget &&
                 parseFloat(budget) > 0 && (
                   <View style={styles.paymentSummary}>
@@ -2667,7 +2691,7 @@ export default function CreateJobScreen() {
                 )}
 
               {/* Payment Summary - DAILY Model */}
-              {paymentModel === "DAILY" &&
+              {effectivePaymentModel === "DAILY" &&
                 dailyRate &&
                 durationDays &&
                 parseFloat(dailyRate) > 0 &&
