@@ -119,8 +119,32 @@ function extractErrorMessage(
   }
 
   // Priority 3: detail field (Django Ninja validation errors)
-  if (typeof data.detail === "string" && data.detail) {
-    return data.detail;
+  if (data.detail) {
+    if (typeof data.detail === "string" && data.detail) {
+      return data.detail;
+    }
+
+    if (Array.isArray(data.detail)) {
+      const details = data.detail
+        .map((entry) => {
+          if (typeof entry === "string") return entry;
+          if (typeof entry === "object" && entry !== null) {
+            const typedEntry = entry as Record<string, unknown>;
+            if (typeof typedEntry.msg === "string" && typedEntry.msg) {
+              return typedEntry.msg;
+            }
+            if (typeof typedEntry.message === "string" && typedEntry.message) {
+              return typedEntry.message;
+            }
+          }
+          return null;
+        })
+        .filter((value): value is string => Boolean(value));
+
+      if (details.length > 0) {
+        return details.join("; ");
+      }
+    }
   }
 
   // Priority 4: details field

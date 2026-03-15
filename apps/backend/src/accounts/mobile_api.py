@@ -5500,12 +5500,12 @@ def mobile_get_review_stats(request, worker_id: int):
 def mobile_edit_review(
     request,
     review_id: int,
-    rating: int,
+    rating: float,
     comment: str,
-    rating_quality: Optional[int] = None,
-    rating_communication: Optional[int] = None,
-    rating_punctuality: Optional[int] = None,
-    rating_professionalism: Optional[int] = None,
+    rating_quality: Optional[float] = None,
+    rating_communication: Optional[float] = None,
+    rating_punctuality: Optional[float] = None,
+    rating_professionalism: Optional[float] = None,
 ):
     """
     Edit an existing review.

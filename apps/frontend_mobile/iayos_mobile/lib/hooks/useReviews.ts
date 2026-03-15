@@ -224,8 +224,26 @@ export function useEditReview() {
 
   return useMutation({
     mutationFn: async (data: EditReviewRequest & { reviewId: number }): Promise<Review> => {
+      const params = new URLSearchParams({
+        comment: data.comment,
+        rating: String(data.rating),
+      });
+
+      if (data.rating_quality !== undefined) {
+        params.append("rating_quality", String(data.rating_quality));
+      }
+      if (data.rating_communication !== undefined) {
+        params.append("rating_communication", String(data.rating_communication));
+      }
+      if (data.rating_punctuality !== undefined) {
+        params.append("rating_punctuality", String(data.rating_punctuality));
+      }
+      if (data.rating_professionalism !== undefined) {
+        params.append("rating_professionalism", String(data.rating_professionalism));
+      }
+
       const response = await apiRequest(
-        `${ENDPOINTS.EDIT_REVIEW(data.reviewId)}?comment=${encodeURIComponent(data.comment)}&rating=${data.rating}`,
+        `${ENDPOINTS.EDIT_REVIEW(data.reviewId)}?${params.toString()}`,
         {
           method: "PUT",
         }
