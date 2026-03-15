@@ -357,7 +357,7 @@ export function useMarkTeamAssignmentComplete() {
       assignmentId: number;
       notes?: string;
     }) => {
-      const url = `${API_BASE_URL}/jobs/team/assignments/${assignmentId}/complete`;
+      const url = ENDPOINTS.TEAM_WORKER_COMPLETE(jobId, assignmentId);
       const response = await apiRequest(url, {
         method: "POST",
         body: JSON.stringify({ notes: notes || "" }),
