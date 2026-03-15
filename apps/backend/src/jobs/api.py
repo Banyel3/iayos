@@ -6987,11 +6987,39 @@ def release_payment_now_by_client(request, job_id: int):
         if job.status != 'COMPLETED':
             return Response({"error": "Payment can only be released for completed jobs"}, status=400)
 
+        # Legacy/archived jobs may have stale `remainingPaymentPaid=False`
+        # while payout ledgers already exist. Treat ledger evidence as paid.
         if not job.remainingPaymentPaid:
-            return Response({"error": "Final payment must be completed before releasing worker earnings"}, status=400)
+            has_legacy_payout_ledger = Transaction.objects.filter(
+                relatedJobPosting=job,
+                transactionType__in=['PENDING_EARNING', 'EARNING'],
+                status__in=['PENDING', 'COMPLETED']
+            ).exists()
 
+            has_resolvable_recipient = bool(
+                (job.assignedWorkerID and job.assignedWorkerID.profileID) or job.assignedAgencyFK
+            )
+
+            if not has_legacy_payout_ledger and not has_resolvable_recipient:
+                return Response({"error": "Final payment must be completed before releasing worker earnings"}, status=400)
+
+            job.remainingPaymentPaid = True
+            if not job.remainingPaymentPaidAt:
+                job.remainingPaymentPaidAt = timezone.now()
+            job.save(update_fields=['remainingPaymentPaid', 'remainingPaymentPaidAt', 'updatedAt'])
+
+        # Idempotent success for already-released jobs to avoid repeated 400s
+        # from archived/detail pages that can retry the same action.
         if job.paymentReleasedToWorker:
-            return Response({"error": "Payment already released for this job"}, status=400)
+            return {
+                "success": True,
+                "message": "Payment was already released for this job.",
+                "job_id": job.jobID,
+                "amount": 0.0,
+                "payment_released": True,
+                "already_released": True,
+                "backjob_window_closed_by_client": True,
+            }
 
         active_dispute = JobDispute.objects.filter(
             jobID=job,
