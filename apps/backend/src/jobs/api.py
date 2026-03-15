@@ -10566,6 +10566,18 @@ def finish_project_multiday_job(request, job_id: int):
         'updatedAt',
     ])
 
+    if job.is_team_job:
+        from accounts.models import JobWorkerAssignment
+
+        JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status='ACTIVE',
+        ).update(
+            worker_marked_complete=True,
+            worker_marked_complete_at=now,
+            assignment_status='COMPLETED',
+        )
+
     JobLog.objects.create(
         jobID=job,
         actionType=JobLog.ActionType.JOB_EDITED,
@@ -10575,6 +10587,7 @@ def finish_project_multiday_job(request, job_id: int):
         notes='[PROJECT] Client marked multi-day project job as finished',
         metadata={
             'event': 'project_multiday_job_finished',
+            'is_team_job': bool(job.is_team_job),
             'required_days': required_days,
             'elapsed_days': _get_elapsed_project_days(job),
             'duration_days': int(getattr(job, 'duration_days', 0) or 0),
