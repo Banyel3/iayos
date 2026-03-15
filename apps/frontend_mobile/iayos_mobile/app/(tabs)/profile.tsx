@@ -110,8 +110,13 @@ export default function ProfileScreen() {
         if (!response.ok) {
           throw new Error("Failed to fetch worker profile");
         }
-        const data = await response.json();
-        return (data.profile_data || data) as WorkerOnboardingProfile;
+        const raw = await response.json();
+        const data =
+          raw && typeof raw === "object"
+            ? (raw as Record<string, unknown>)
+            : {};
+        return ((data.profile_data as WorkerOnboardingProfile) ||
+          (data as WorkerOnboardingProfile)) as WorkerOnboardingProfile;
       },
       enabled: Boolean(isWorker),
       staleTime: 60 * 1000,
@@ -144,12 +149,12 @@ export default function ProfileScreen() {
   React.useEffect(() => {
     let isMounted = true;
 
-    if (
-      !isWorker ||
-      !firstTimeWorkerStorageKey ||
-      isWorkerProfileLoading ||
-      !isFirstTimeWorkerAccount
-    ) {
+    if (!isWorker || isWorkerProfileLoading) {
+      setShowFirstTimeWorkerModal(false);
+      return;
+    }
+
+    if (!firstTimeWorkerStorageKey || !isFirstTimeWorkerAccount) {
       setShowFirstTimeWorkerModal(false);
       return;
     }
@@ -838,7 +843,7 @@ export default function ProfileScreen() {
             <Text style={styles.firstTimeWorkerTitle}>Welcome to iAyos!</Text>
 
             <View style={styles.firstTimeWorkerIconWrap}>
-              <Ionicons name="sparkles-outline" size={52} color="#54B7EC" />
+              <Ionicons name="sparkles-outline" size={44} color="#54B7EC" />
             </View>
 
             <Text style={styles.firstTimeWorkerMessage}>
@@ -1528,62 +1533,64 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(17, 24, 39, 0.42)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
   firstTimeWorkerModalCard: {
     width: "100%",
-    maxWidth: 360,
-    borderRadius: 28,
+    maxWidth: 340,
+    borderRadius: 24,
     borderWidth: 2,
     borderColor: "#54B7EC",
     backgroundColor: "#F1F3F5",
-    paddingHorizontal: Spacing["2xl"],
-    paddingTop: Spacing["4xl"],
-    paddingBottom: Spacing["3xl"],
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing["2xl"],
+    paddingBottom: Spacing["2xl"],
     alignItems: "center",
     ...Shadows.md,
   },
   firstTimeWorkerTitle: {
-    fontSize: Typography.fontSize["3xl"],
-    lineHeight: 40,
+    fontSize: Typography.fontSize["2xl"],
+    lineHeight: 34,
     fontFamily: "Inter_700Bold",
+    fontWeight: "700",
     color: Colors.textPrimary,
     textAlign: "center",
   },
   firstTimeWorkerIconWrap: {
-    marginTop: Spacing["2xl"],
-    marginBottom: Spacing.xl,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   firstTimeWorkerMessage: {
-    fontSize: Typography.fontSize.lg,
-    lineHeight: 30,
+    fontSize: Typography.fontSize.base,
+    lineHeight: 24,
     color: Colors.textPrimary,
     textAlign: "center",
-    marginBottom: Spacing["3xl"],
+    marginBottom: Spacing["2xl"],
   },
   firstTimeWorkerPrimaryButton: {
     width: "100%",
     borderRadius: BorderRadius.pill,
     borderWidth: 2,
     borderColor: "#54B7EC",
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.md,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
   },
   firstTimeWorkerPrimaryButtonText: {
-    fontSize: Typography.fontSize.xl,
-    lineHeight: 30,
+    fontSize: Typography.fontSize.lg,
+    lineHeight: 24,
     fontFamily: "Inter_700Bold",
+    fontWeight: "700",
     color: "#54B7EC",
   },
   firstTimeWorkerSecondaryButton: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
   },
   firstTimeWorkerSecondaryButtonText: {
-    fontSize: Typography.fontSize.xl,
-    lineHeight: 30,
+    fontSize: Typography.fontSize.lg,
+    lineHeight: 24,
     fontStyle: "italic",
     color: "#9AA0A6",
   },
