@@ -9117,6 +9117,23 @@ def get_job_receipt(request, job_id: int):
             'contact': client_profile.contactNum,
         }
         
+        # Resolve category name with team-job fallback.
+        category_name = job.categoryID.specializationName if job.categoryID else None
+        if not category_name and job.is_team_job:
+            from accounts.models import JobSkillSlot
+
+            team_slot_names = list(
+                JobSkillSlot.objects.filter(jobID=job)
+                .select_related('specializationID')
+                .values_list('specializationID__specializationName', flat=True)
+            )
+            unique_names = [name for name in dict.fromkeys(team_slot_names) if name]
+            if unique_names:
+                if len(unique_names) == 1:
+                    category_name = unique_names[0]
+                else:
+                    category_name = f"{unique_names[0]} +{len(unique_names) - 1} more"
+
         # Build the receipt response
         receipt_data = {
             'success': True,
@@ -9126,7 +9143,7 @@ def get_job_receipt(request, job_id: int):
                 'receipt_id': f"JOB-{job.jobID}",
                 'title': job.title,
                 'description': job.description,
-                'category': job.categoryID.specializationName if job.categoryID else None,
+                'category': category_name,
                 'location': job.location,
                 'is_team_job': job.is_team_job,
                 'job_type': job.jobType,
