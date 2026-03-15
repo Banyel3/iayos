@@ -17,6 +17,7 @@ from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
+import re
 from zoneinfo import ZoneInfo
 from .content_filter import censor_contact_info
 
@@ -56,6 +57,42 @@ def _get_clamped_qa_day_offset(job) -> int:
         max_offset = max(duration_days - 1, 0)
         day_offset = min(day_offset, max_offset)
     return day_offset
+
+
+def _derive_duration_days(job) -> int:
+    """Infer duration for legacy jobs missing duration_days.
+
+    Priority:
+    1) Explicit duration_days
+    2) expectedDuration text (e.g., "3 days", "2 weeks")
+    3) preferredStartDate -> scheduled_end_date date span
+    """
+    configured = int(getattr(job, "duration_days", 0) or 0)
+    if configured > 0:
+        return configured
+
+    expected_duration = str(getattr(job, "expectedDuration", "") or "").strip().lower()
+    if expected_duration:
+        unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration)
+        if unit_match:
+            value = int(unit_match.group(1) or 1)
+            unit = unit_match.group(2) or "day"
+            if unit.startswith("week") or unit.startswith("wk"):
+                return max(1, value * 7)
+            return max(1, value)
+
+        plain_number = re.search(r"^\d+$", expected_duration)
+        if plain_number:
+            return max(1, int(expected_duration))
+
+    preferred_start = getattr(job, "preferredStartDate", None)
+    scheduled_end = getattr(job, "scheduled_end_date", None)
+    if preferred_start and scheduled_end:
+        span_days = (scheduled_end - preferred_start).days + 1
+        if span_days > 0:
+            return span_days
+
+    return 1
 
 
 def _get_effective_work_date(job):
@@ -2562,8 +2599,11 @@ def get_conversation_messages(request, conversation_id: int):
                 "cancellation_reason": cancellation_snapshot["cancellation_reason"],
                 "payment_model": getattr(job, 'payment_model', 'PROJECT'),  # PROJECT or DAILY
                 "daily_rate": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
-                "duration_days": job.duration_days if hasattr(job, 'duration_days') else None,
+                "duration_days": _derive_duration_days(job),
                 "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                "expectedDuration": job.expectedDuration,
+                "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
+                "scheduled_end_date": job.scheduled_end_date.isoformat() if job.scheduled_end_date else None,
                 "budget": float(job.budget),
                 "location": job.location,
                 "workerMarkedOnTheWay": worker_marked_on_the_way,
