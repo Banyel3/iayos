@@ -185,9 +185,9 @@ export default function PendingInviteCard({
               </p>
             </div>
 
-            {/* Info Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
+            {/* Info Cards */}
+            <div className="grid grid-cols-2 gap-4 md:flex md:flex-wrap">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
                 <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                   <Banknote className="h-4 w-4 text-[#00BAF1]" />
                 </div>
@@ -199,19 +199,19 @@ export default function PendingInviteCard({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:min-w-0 md:w-fit md:max-w-[26rem]">
                 <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                   <MapPin className="h-4 w-4 text-[#00BAF1]" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-slate-500 font-medium">Location</p>
-                  <p className="font-semibold text-slate-900 truncate">
+                  <p className="font-semibold text-slate-900 md:whitespace-nowrap truncate">
                     {job.location}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
                 <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                   <Calendar className="h-4 w-4 text-[#00BAF1]" />
                 </div>
@@ -224,7 +224,7 @@ export default function PendingInviteCard({
               </div>
 
               {expectedDurationLabel && (
-                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
                   <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                     <Clock className="h-4 w-4 text-[#00BAF1]" />
                   </div>
@@ -238,7 +238,7 @@ export default function PendingInviteCard({
               )}
 
               {endDateRaw && (
-                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
                   <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                     <Calendar className="h-4 w-4 text-[#00BAF1]" />
                   </div>

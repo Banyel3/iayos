@@ -254,6 +254,10 @@ export default function AgencyJobsPage() {
         } else {
           setPendingInvites(apiJobs);
         }
+      } else if (response.status === 401 || response.status === 403) {
+        // Auth/session can briefly lag during navigation. Don't raise noisy runtime errors.
+        setPendingInvites([]);
+        return;
       } else {
         throw new Error(
           `Failed to fetch pending invites: ${response.statusText}`,

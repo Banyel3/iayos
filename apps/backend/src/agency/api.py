@@ -4291,7 +4291,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
     WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
     """
     try:
-        from accounts.models import Job, JobEmployeeAssignment
+        from accounts.models import Job, JobEmployeeAssignment, JobDispute
         from agency.models import AgencyEmployee
         from django.utils import timezone
         
@@ -4320,11 +4320,27 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 'error': 'This job is not assigned to your agency'
             }, status=403)
         
-        # Verify job is in valid status
-        if job.status not in ['ASSIGNED', 'ACTIVE', 'IN_PROGRESS']:
+        # Allow dispatch for jobs that are ASSIGNED, ACTIVE, IN_PROGRESS, or
+        # COMPLETED (backjob redispatch).  COMPLETED jobs always have an
+        # associated dispute so we simply check for any dispute record.
+        has_dispute = JobDispute.objects.filter(jobID=job).exists()
+        dispute_for_dispatch = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
+
+        logger.info(
+            f"[dispatch-project v2] job={job_id} status={job.status} "
+            f"has_dispute={has_dispute} employee={employee_id}"
+        )
+
+        if job.status not in ['ASSIGNED', 'ACTIVE', 'IN_PROGRESS', 'COMPLETED']:
             return Response({
                 'success': False,
                 'error': f'Cannot dispatch employee for job in {job.status} status'
+            }, status=400)
+
+        if job.status == 'COMPLETED' and not has_dispute:
+            return Response({
+                'success': False,
+                'error': 'Cannot dispatch for a completed job without a dispute/backjob'
             }, status=400)
         
         # Get employee
@@ -4345,21 +4361,50 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             assignment = JobEmployeeAssignment.objects.get(
                 job=job,
                 employee=employee,
-                status__in=['ASSIGNED', 'IN_PROGRESS']
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
             )
         except JobEmployeeAssignment.DoesNotExist:
             return Response({
                 'success': False,
                 'error': f'{employee.fullName} is not assigned to this job'
             }, status=404)
+
+        # Backjob redispatch support:
+        # If a dispute exists, allow re-dispatch even when assignment.dispatched
+        # was already true from the original job cycle.
+        backjob_cycle_start = None
+        if dispute_for_dispatch:
+            backjob_cycle_start = (
+                getattr(dispute_for_dispatch, 'workerScheduleConfirmedAt', None)
+                or getattr(dispute_for_dispatch, 'scheduled_date', None)
+                or getattr(dispute_for_dispatch, 'in_negotiation_at', None)
+                or dispute_for_dispatch.openedDate
+            )
+
+        can_redispatch_for_backjob = False
+        if assignment.dispatched and backjob_cycle_start:
+            if not assignment.dispatchedAt:
+                can_redispatch_for_backjob = True
+            else:
+                can_redispatch_for_backjob = assignment.dispatchedAt < backjob_cycle_start
         
-        # Check if already dispatched
-        if assignment.dispatched:
+        # Check if already dispatched (unless this is a new backjob cycle)
+        if assignment.dispatched and not can_redispatch_for_backjob:
             return Response({
                 'success': False,
                 'error': f'{employee.fullName} has already been dispatched',
                 'dispatched_at': assignment.dispatchedAt.isoformat() if assignment.dispatchedAt else None
             }, status=400)
+
+        if can_redispatch_for_backjob:
+            assignment.clientConfirmedArrival = False
+            assignment.clientConfirmedArrivalAt = None
+            assignment.agencyMarkedComplete = False
+            assignment.agencyMarkedCompleteAt = None
+            if hasattr(assignment, 'employeeMarkedComplete'):
+                assignment.employeeMarkedComplete = False
+            if hasattr(assignment, 'employeeMarkedCompleteAt'):
+                assignment.employeeMarkedCompleteAt = None
         
         # Mark as dispatched
         assignment.dispatched = True

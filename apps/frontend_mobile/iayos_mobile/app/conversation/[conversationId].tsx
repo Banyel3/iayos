@@ -208,6 +208,9 @@ export default function ChatScreen() {
   const [employeeReviewSubmitted, setEmployeeReviewSubmitted] = useState(false);
   // Prevent stale review flags from trapping the modal while backend state is syncing.
   const [reviewStatusSyncing, setReviewStatusSyncing] = useState(false);
+  // Optimistic guard for agency-client review completion while server flags sync.
+  const [localAgencyClientReviewSubmitted, setLocalAgencyClientReviewSubmitted] =
+    useState(false);
   // For multi-employee agency jobs: track current employee index
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
   const [currentEditableReviewIndex, setCurrentEditableReviewIndex] =
@@ -240,6 +243,10 @@ export default function ChatScreen() {
     error,
     refetch,
   } = useMessages(conversationId, messageViewerKey);
+
+  useEffect(() => {
+    setLocalAgencyClientReviewSubmitted(false);
+  }, [conversationId]);
 
   const formatPossessive = (name: string) => {
     if (!name) {
@@ -444,6 +451,7 @@ export default function ChatScreen() {
     conversation?.is_agency_job &&
     // Use API aggregate first; fallback to split flags for safety.
     (conversation?.job?.clientReviewed ||
+      localAgencyClientReviewSubmitted ||
       (hasAgencyEmployeeReviewsCompleted &&
         agencyNextReviewAction === null &&
         !!conversation?.job?.agencyReviewed))
@@ -773,6 +781,117 @@ export default function ChatScreen() {
     conversation?.backjob?.team_schedule_confirmed_count ?? 0;
   const myBackjobScheduleConfirmed =
     conversation?.backjob?.my_schedule_confirmed === true;
+
+  const agencyAssignedEmployees = conversation?.is_agency_job
+    ? conversation?.assigned_employees || []
+    : [];
+  const teamAssignedWorkers = conversation?.is_team_job
+    ? conversation?.team_worker_assignments || []
+    : [];
+
+  const isClientBackjobStartFlow =
+    conversation?.my_role === "CLIENT" &&
+    !!conversation?.backjob?.has_backjob &&
+    !conversation?.backjob?.backjob_started;
+
+  const backjobCycleStartMs = conversation?.backjob?.worker_schedule_confirmed_at
+    ? new Date(conversation.backjob.worker_schedule_confirmed_at).getTime()
+    : null;
+
+  const isAgencyStatusInCurrentBackjobCycle = (
+    statusFlag?: boolean,
+    statusAt?: string | null,
+  ) => {
+    if (!statusFlag) return false;
+
+    if (!isClientBackjobStartFlow) {
+      return true;
+    }
+
+    if (!backjobCycleStartMs || !statusAt) {
+      return false;
+    }
+
+    const statusMs = new Date(statusAt).getTime();
+    return Number.isFinite(statusMs) && statusMs >= backjobCycleStartMs;
+  };
+
+  const isTeamArrivalInCurrentBackjobCycle = (
+    arrivedFlag?: boolean,
+    arrivedAt?: string | null,
+  ) => {
+    if (!arrivedFlag) return false;
+
+    if (!isClientBackjobStartFlow) {
+      return true;
+    }
+
+    if (!backjobCycleStartMs || !arrivedAt) {
+      return false;
+    }
+
+    const arrivedMs = new Date(arrivedAt).getTime();
+    return Number.isFinite(arrivedMs) && arrivedMs >= backjobCycleStartMs;
+  };
+
+  const dispatchedAgencyEmployees = agencyAssignedEmployees.filter(
+    (employee) =>
+      isAgencyStatusInCurrentBackjobCycle(
+        employee.dispatched,
+        employee.dispatchedAt,
+      ),
+  );
+  const pendingAgencyArrivalEmployees = dispatchedAgencyEmployees.filter(
+    (employee) =>
+      !isAgencyStatusInCurrentBackjobCycle(
+        employee.clientConfirmedArrival,
+        employee.clientConfirmedArrivalAt,
+      ),
+  );
+  const pendingTeamArrivalWorkers = teamAssignedWorkers.filter(
+    (worker) =>
+      !isTeamArrivalInCurrentBackjobCycle(
+        worker.client_confirmed_arrival,
+        worker.client_confirmed_arrival_at,
+      ),
+  );
+
+  const hasTrackedWorkerStateForBackjob =
+    agencyAssignedEmployees.length > 0 || teamAssignedWorkers.length > 0;
+
+  const canClientConfirmBackjobStartedForAgency =
+    agencyAssignedEmployees.length > 0 &&
+    dispatchedAgencyEmployees.length > 0 &&
+    pendingAgencyArrivalEmployees.length === 0;
+
+  const canClientConfirmBackjobStartedForTeam =
+    teamAssignedWorkers.length > 0 && pendingTeamArrivalWorkers.length === 0;
+
+  const canClientConfirmBackjobStartedByArrival =
+    !isClientBackjobStartFlow
+      ? true
+      : conversation?.is_agency_job
+        ? canClientConfirmBackjobStartedForAgency
+        : conversation?.is_team_job
+          ? canClientConfirmBackjobStartedForTeam
+          : false;
+
+  const clientBackjobStartBlockReason =
+    !isClientBackjobStartFlow
+      ? null
+      : !hasTrackedWorkerStateForBackjob
+        ? "Waiting for worker dispatch and arrival status."
+        : conversation?.is_agency_job && agencyAssignedEmployees.length === 0
+          ? "Waiting for worker dispatch status."
+          : conversation?.is_agency_job &&
+              dispatchedAgencyEmployees.length === 0
+            ? "Waiting for agency to dispatch workers."
+            : conversation?.is_agency_job &&
+                pendingAgencyArrivalEmployees.length > 0
+              ? `Confirm arrivals first (${pendingAgencyArrivalEmployees.length} pending).`
+              : conversation?.is_team_job && pendingTeamArrivalWorkers.length > 0
+                ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
+                : null;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -1355,15 +1474,15 @@ export default function ChatScreen() {
           },
         ],
       );
-    } else if (conversation.is_team_job) {
-      // Team job approval
-      approveTeamJobCompletionMutation.mutate({
-        jobId: conversation.job.id,
-        paymentMethod: method,
-      });
     } else if (conversation.is_agency_job) {
       // Agency PROJECT job approval
       approveAgencyProjectJobMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: method,
+      });
+    } else if (conversation.is_team_job) {
+      // Team job approval
+      approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: method,
       });
@@ -1395,16 +1514,16 @@ export default function ChatScreen() {
   const handleCashProofSubmit = () => {
     if (!conversation || !selectedImage) return;
 
-    if (conversation.is_team_job) {
-      // Team job cash proof
-      approveTeamJobCompletionMutation.mutate({
+    if (conversation.is_agency_job) {
+      // Agency PROJECT job cash proof (bulk - legacy)
+      approveAgencyProjectJobMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "CASH",
         cashProofImage: selectedImage,
       });
-    } else if (conversation.is_agency_job) {
-      // Agency PROJECT job cash proof (bulk - legacy)
-      approveAgencyProjectJobMutation.mutate({
+    } else if (conversation.is_team_job) {
+      // Team job cash proof
+      approveTeamJobCompletionMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "CASH",
         cashProofImage: selectedImage,
@@ -1429,6 +1548,18 @@ export default function ChatScreen() {
   // Handle confirm backjob started (CLIENT only)
   const handleConfirmBackjobStarted = () => {
     if (!conversation) return;
+
+    if (conversation.my_role === "CLIENT") {
+      if (!canClientConfirmBackjobStartedByArrival) {
+        Alert.alert(
+          "Cannot Confirm Started",
+          clientBackjobStartBlockReason ||
+            "Confirm all dispatched worker arrivals first.",
+          [{ text: "OK" }],
+        );
+        return;
+      }
+    }
 
     const workerName =
       conversation.assigned_employee?.name ||
@@ -1829,7 +1960,7 @@ export default function ChatScreen() {
             employee_id: currentEmployeeId, // For multi-employee support
           },
           {
-            onSuccess: (data: any) => {
+            onSuccess: async () => {
               setRatingQuality(0);
               setRatingCommunication(0);
               setRatingPunctuality(0);
@@ -1850,21 +1981,18 @@ export default function ChatScreen() {
                   `You gave ${currentEmployeeName} a ${overallRating.toFixed(1)}-star rating. Now please rate ${nextEmployee?.name || "the next employee"}.`,
                 );
                 // Refetch to get updated pending list
-                refetch();
-              } else if (data.needs_agency_review) {
-                // All employees reviewed, move to agency review
+                await refetch();
+              } else {
+                // Employee review stage is complete, move to agency review.
+                // Some backend responses do not include `needs_agency_review`,
+                // so we transition based on remaining employee queue.
                 setEmployeeReviewSubmitted(true);
                 setReviewStep("AGENCY");
                 Alert.alert(
                   "Employees Rated!",
                   `Great! Now please rate the agency (${conversation.other_participant?.name}).`,
                 );
-                refetch();
-              } else {
-                // All reviews done
-                setShowReviewModal(false);
-                refetch();
-                Alert.alert("Thank You!", "Your reviews have been submitted.");
+                await refetch();
               }
             },
             onError: (error: unknown) => {
@@ -1884,6 +2012,12 @@ export default function ChatScreen() {
                 setReviewComment("");
                 refetch().then((result: any) => {
                   const nextAction = result?.data?.job?.next_review_action;
+                  const refreshedPendingEmployees =
+                    result?.data?.pending_employee_reviews || [];
+                  const refreshedEmployees =
+                    result?.data?.assigned_employees ||
+                    conversation.assigned_employees || [];
+
                   if (nextAction === "AGENCY") {
                     setReviewStep("AGENCY");
                     setEmployeeReviewSubmitted(true);
@@ -1893,6 +2027,18 @@ export default function ChatScreen() {
                     );
                     return;
                   }
+
+                  if (refreshedPendingEmployees.length > 0) {
+                    const nextEmployee = refreshedEmployees.find(
+                      (e: any) => e.id === refreshedPendingEmployees[0],
+                    );
+                    Alert.alert(
+                      "Employee Already Rated",
+                      `Moving to next employee: ${nextEmployee?.name || "Employee"}.`,
+                    );
+                    return;
+                  }
+
                   Alert.alert(
                     "Already Rated",
                     "You've already rated this employee. Refreshing...",
@@ -1935,6 +2081,7 @@ export default function ChatScreen() {
               setRatingPunctuality(0);
               setRatingProfessionalism(0);
               setReviewComment("");
+              setLocalAgencyClientReviewSubmitted(true);
               setReviewStatusSyncing(true);
               setShowReviewModal(false);
               await refetch();
@@ -1957,6 +2104,7 @@ export default function ChatScreen() {
                 setRatingPunctuality(0);
                 setRatingProfessionalism(0);
                 setReviewComment("");
+                setLocalAgencyClientReviewSubmitted(true);
                 setReviewStatusSyncing(true);
                 setShowReviewModal(false);
                 await refetch();
@@ -3118,8 +3266,7 @@ export default function ChatScreen() {
             {/* Buttons Column - stacked vertically, right-aligned */}
             <View style={{ marginLeft: 12, alignItems: "stretch", gap: 6 }}>
               {/* Rate/View Reviews Button */}
-              {!reviewStatusSyncing &&
-                (canSubmitReview || viewerHasReviewed) && (
+              {(canSubmitReview || viewerHasReviewed) && (
                   <TouchableOpacity
                     style={{
                       backgroundColor: "#FFFFFF",
@@ -3212,46 +3359,6 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               )}
 
-              {conversation.my_role === "CLIENT" &&
-                isJobCompleted &&
-                conversation.job.remainingPaymentPaid &&
-                !conversation.job.paymentBuffer?.is_payment_released &&
-                !conversation.backjob?.has_backjob && (
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: "#FFF5F5",
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 8,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                      borderWidth: 1,
-                      borderColor: Colors.error,
-                    }}
-                    onPress={handleReleasePaymentNow}
-                    disabled={releasePaymentNowMutation.isPending}
-                  >
-                    {releasePaymentNowMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.error} />
-                    ) : (
-                      <Ionicons
-                        name="flash-outline"
-                        size={16}
-                        color={Colors.error}
-                      />
-                    )}
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: Colors.error,
-                      }}
-                    >
-                      Release Payment Now
-                    </Text>
-                  </TouchableOpacity>
-                )}
             </View>
           </View>
 
@@ -5843,6 +5950,19 @@ export default function ChatScreen() {
               <TouchableOpacity
                 style={styles.requestBackjobBanner}
                 onPress={() => {
+                  const hasClientReviewEvidence =
+                    clientHasReviewed ||
+                    !!conversation.client_review ||
+                    (conversation.my_editable_reviews?.length ?? 0) > 0 ||
+                    localAgencyClientReviewSubmitted;
+
+                  if (hasClientReviewEvidence) {
+                    router.push(
+                      `/jobs/request-backjob?jobId=${conversation.job.id}`,
+                    );
+                    return;
+                  }
+
                   if (!viewerHasReviewed) {
                     openReviewModalSafely("submit");
                     return;
@@ -5890,21 +6010,32 @@ export default function ChatScreen() {
                         { color: "#6D4C41" },
                       ]}
                     >
-                      To request a backjob, complete reviews first.
+                      Request for a backjob
                     </Text>
-                    {!viewerHasReviewed && (
-                      <Text
-                        style={[
-                          styles.requestBackjobSubtitle,
-                          { color: "#5D4037", marginTop: 2, fontWeight: "600" },
-                        ]}
-                      >
-                        Tap here to leave your review now.
-                      </Text>
-                    )}
                   </View>
                   <Ionicons name="chevron-forward" size={20} color="#6D4C41" />
                 </View>
+              </TouchableOpacity>
+            )}
+
+          {conversation.my_role === "CLIENT" &&
+            isJobCompleted &&
+            conversation.job.remainingPaymentPaid &&
+            !conversation.job.paymentBuffer?.is_payment_released &&
+            !conversation.backjob?.has_backjob && (
+              <TouchableOpacity
+                style={styles.releasePaymentNowButtonInline}
+                onPress={handleReleasePaymentNow}
+                disabled={releasePaymentNowMutation.isPending}
+              >
+                {releasePaymentNowMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#6B7280" />
+                ) : (
+                  <Ionicons name="flash-outline" size={16} color="#6B7280" />
+                )}
+                <Text style={styles.releasePaymentNowButtonInlineText}>
+                  Release Payment Now
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -6692,10 +6823,11 @@ export default function ChatScreen() {
                           const totalEmployees = allEmployees.length || 1;
                           const reviewedCount =
                             totalEmployees - pendingEmployees.length;
+                          const agencyModalStep = effectiveAgencyReviewStep;
 
                           // Get current employee being reviewed
                           let currentEmployeeName = "Worker";
-                          if (reviewStep === "EMPLOYEE") {
+                          if (agencyModalStep === "EMPLOYEE") {
                             if (
                               pendingEmployees.length > 0 &&
                               allEmployees.length > 0
@@ -6714,19 +6846,19 @@ export default function ChatScreen() {
                           return (
                             <>
                               <Text style={styles.reviewTitle}>
-                                {reviewStep === "EMPLOYEE"
+                                {agencyModalStep === "EMPLOYEE"
                                   ? `Rate ${currentEmployeeName}`
                                   : "Rate the Agency"}
                               </Text>
                               <Text style={styles.reviewSubtitle}>
-                                {reviewStep === "EMPLOYEE"
+                                {agencyModalStep === "EMPLOYEE"
                                   ? `How did ${currentEmployeeName} perform on this job?`
                                   : `How was your experience with ${conversation.other_participant?.name || "the agency"}?`}
                               </Text>
 
                               {/* Progress indicator */}
                               {hasMultipleEmployees &&
-                                reviewStep === "EMPLOYEE" &&
+                                agencyModalStep === "EMPLOYEE" &&
                                 pendingEmployees.length > 0 && (
                                   <View style={styles.stepIndicator}>
                                     <Ionicons
@@ -6742,7 +6874,7 @@ export default function ChatScreen() {
                                 )}
 
                               {employeeReviewSubmitted &&
-                                reviewStep === "AGENCY" && (
+                                agencyModalStep === "AGENCY" && (
                                   <View style={styles.stepIndicator}>
                                     <Ionicons
                                       name="checkmark-circle"
@@ -7577,32 +7709,50 @@ export default function ChatScreen() {
                     {/* CLIENT: Confirm Backjob Started Button */}
                     {conversation.my_role === "CLIENT" &&
                       !conversation.backjob?.backjob_started && (
-                        <TouchableOpacity
-                          style={[
-                            styles.backjobActionButtonCompact,
-                            { backgroundColor: Colors.warning },
-                          ]}
-                          onPress={handleConfirmBackjobStarted}
-                          disabled={confirmBackjobStartedMutation.isPending}
-                        >
-                          {confirmBackjobStartedMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.white}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={16}
-                                color={Colors.white}
-                              />
-                              <Text style={styles.backjobActionButtonText}>
-                                Confirm Started
-                              </Text>
-                            </>
+                        <>
+                          {canClientConfirmBackjobStartedByArrival && (
+                            <TouchableOpacity
+                              style={[
+                                styles.backjobActionButtonCompact,
+                                { backgroundColor: Colors.warning },
+                              ]}
+                              onPress={handleConfirmBackjobStarted}
+                              disabled={confirmBackjobStartedMutation.isPending}
+                            >
+                              {confirmBackjobStartedMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.white}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="checkmark-circle"
+                                    size={16}
+                                    color={Colors.white}
+                                  />
+                                  <Text style={styles.backjobActionButtonText}>
+                                    Confirm Started
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
                           )}
-                        </TouchableOpacity>
+
+                          {!canClientConfirmBackjobStartedByArrival &&
+                            clientBackjobStartBlockReason && (
+                              <View style={styles.backjobWaitingBadge}>
+                                <Ionicons
+                                  name="time-outline"
+                                  size={14}
+                                  color={Colors.textSecondary}
+                                />
+                                <Text style={styles.backjobWaitingText}>
+                                  {clientBackjobStartBlockReason}
+                                </Text>
+                              </View>
+                            )}
+                        </>
                       )}
 
                     {/* CLIENT: Waiting for Worker to Complete Backjob */}
@@ -8323,8 +8473,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   jobHeaderContainer: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomWidth: 0,
   },
   completedStatusBannerRow: {
     paddingHorizontal: Spacing.md,
@@ -9643,6 +9792,25 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  releasePaymentNowButtonInline: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.medium,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  releasePaymentNowButtonInlineText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6B7280",
   },
   // Backjob Section & Action Buttons
   backjobSection: {

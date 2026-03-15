@@ -112,6 +112,7 @@ export default function AgencyChatScreen() {
   const [showBackjobCompleteModal, setShowBackjobCompleteModal] =
     useState(false);
   const [showBackjobApproveModal, setShowBackjobApproveModal] = useState(false);
+  const [showBackjobDetailsModal, setShowBackjobDetailsModal] = useState(false);
   const [backjobNotes, setBackjobNotes] = useState("");
 
   // Daily attendance state
@@ -170,6 +171,11 @@ export default function AgencyChatScreen() {
     hydrateIncomingCall,
   } = useAgencyVoiceCall();
   const [isMuted, setIsMuted] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // WebSocket: Listen for new messages
   useMessageListener(conversationId);
@@ -633,6 +639,24 @@ export default function AgencyChatScreen() {
     return withoutEmoji;
   };
 
+  const formatBackjobDate = (dateValue?: string | null, withTime = true) => {
+    if (!dateValue) return "N/A";
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) return "N/A";
+    return withTime
+      ? format(parsed, "EEE, MMM d, yyyy 'at' h:mm a")
+      : format(parsed, "EEE, MMM d, yyyy");
+  };
+
+  // Avoid hydration mismatches for conditionally rendered early states.
+  if (!hasMounted) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
   // Loading state
   if (isLoading) {
     return (
@@ -688,6 +712,65 @@ export default function AgencyChatScreen() {
       job.clientReviewed &&
       !hasActiveBackjobCycle);
 
+  const shouldShowProjectWorkflow =
+    (job.status === "IN_PROGRESS" ||
+      job.status === "COMPLETED" ||
+      job.clientMarkedComplete ||
+      job.workerMarkedComplete) &&
+    job.payment_model === "PROJECT" &&
+    assigned_employees?.length > 0 &&
+    (!hasActiveBackjobCycle ||
+      conversation.backjob?.worker_schedule_confirmed === true);
+
+  const backjobCycleStartMs =
+    hasActiveBackjobCycle && conversation.backjob?.worker_schedule_confirmed_at
+      ? new Date(conversation.backjob.worker_schedule_confirmed_at).getTime()
+      : null;
+
+  const isStatusInActiveBackjobCycle = (
+    statusFlag?: boolean,
+    statusAt?: string | null,
+  ) => {
+    if (!statusFlag) {
+      return false;
+    }
+
+    if (!hasActiveBackjobCycle || !conversation.backjob?.worker_schedule_confirmed) {
+      return true;
+    }
+
+    if (!backjobCycleStartMs || !statusAt) {
+      return false;
+    }
+
+    const statusMs = new Date(statusAt).getTime();
+    return Number.isFinite(statusMs) && statusMs >= backjobCycleStartMs;
+  };
+
+  const allEmployeesDispatched = shouldShowProjectWorkflow
+    ? assigned_employees.every((e: AssignedEmployee) =>
+        isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
+      )
+    : false;
+
+  const allEmployeesArrived = shouldShowProjectWorkflow
+    ? assigned_employees.every((e: AssignedEmployee) =>
+        isStatusInActiveBackjobCycle(
+          e.clientConfirmedArrival,
+          e.clientConfirmedArrivalAt,
+        ),
+      )
+    : false;
+
+  const canMarkBackjobCompleteNow =
+    isAgencyBackjob &&
+    isBackjobExecutionPhase &&
+    !conversation.backjob?.worker_marked_complete &&
+    (!shouldShowProjectWorkflow ||
+      (allEmployeesDispatched && allEmployeesArrived));
+
+  // Keep lock-state logic for input disable/placeholder behavior.
+  // Only the visual lock banner has been removed.
   const backjobStatus = conversation.backjob?.status;
   const isBackjobReviewLocked =
     conversation.backjob?.has_backjob === true && backjobStatus === "OPEN";
@@ -759,111 +842,123 @@ export default function AgencyChatScreen() {
           <div className="max-w-4xl mx-auto space-y-4 pt-2">
             {/* Status Banners */}
             {conversation.backjob?.has_backjob && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 shadow-sm">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span className="text-sm font-bold text-amber-800">
-                    Active Backjob Request
-                  </span>
-                </div>
-                <p className="text-xs text-amber-700 mb-2">
-                  {conversation.backjob.reason || "Backjob work required"}
-                </p>
-                {conversation.backjob.status === "IN_NEGOTIATION" &&
-                  conversation.my_role === "AGENCY" && (
+              <div className="sticky top-0 z-20">
+                <div
+                  className="p-3 bg-amber-50 rounded-xl border border-amber-200 shadow-sm cursor-pointer"
+                  onClick={() => setShowBackjobDetailsModal(true)}
+                  role="button"
+                  aria-label="Open backjob details"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-bold text-amber-800">
+                      Active Backjob Request
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-700 font-medium mb-2">
+                    Proposed date: {conversation.backjob.scheduled_date
+                      ? formatBackjobDate(conversation.backjob.scheduled_date, false)
+                      : "Waiting for client to set schedule"}
+                  </p>
+                  {conversation.backjob.status === "IN_NEGOTIATION" &&
+                    conversation.my_role === "AGENCY" && (
+                      <div className="mt-2">
+                        {conversation.backjob.scheduled_date &&
+                        !conversation.backjob.worker_schedule_confirmed ? (
+                          <Button
+                            size="sm"
+                            className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleConfirmBackjobScheduledDate();
+                            }}
+                            disabled={
+                              confirmBackjobScheduledDateMutation.isPending
+                            }
+                          >
+                            {confirmBackjobScheduledDateMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                            )}
+                            Confirm Scheduled Date
+                          </Button>
+                        ) : (
+                          <div className="text-xs text-gray-500 italic">
+                            Waiting for client to set schedule...
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  {isAgencyBackjob && (
                     <div className="mt-2">
-                      {conversation.backjob.scheduled_date &&
-                      !conversation.backjob.worker_schedule_confirmed ? (
-                        <Button
-                          size="sm"
-                          className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90"
-                          onClick={handleConfirmBackjobScheduledDate}
-                          disabled={
-                            confirmBackjobScheduledDateMutation.isPending
-                          }
-                        >
-                          {confirmBackjobScheduledDateMutation.isPending ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          ) : (
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                          )}
-                          Confirm Scheduled Date
-                        </Button>
-                      ) : (
-                        <div className="text-xs text-gray-500 italic">
-                          Waiting for client to set schedule...
-                        </div>
-                      )}
+                        {!isBackjobExecutionPhase &&
+                        conversation.backjob.worker_schedule_confirmed ? (
+                          <div className="text-xs text-gray-500 italic">
+                            Waiting for client to confirm...
+                          </div>
+                        ) : isBackjobExecutionPhase &&
+                          !conversation.backjob.worker_marked_complete &&
+                          shouldShowProjectWorkflow &&
+                          !allEmployeesDispatched ? (
+                          <div className="text-xs text-gray-500 italic">
+                            Dispatch workers first before confirming completion.
+                          </div>
+                        ) : isBackjobExecutionPhase &&
+                          !conversation.backjob.worker_marked_complete &&
+                          shouldShowProjectWorkflow &&
+                          !allEmployeesArrived ? (
+                          <div className="text-xs text-gray-500 italic">
+                            Waiting for client to confirm worker arrivals.
+                          </div>
+                        ) : canMarkBackjobCompleteNow ? (
+                          <Button
+                            size="sm"
+                            className="w-full bg-green-600 hover:bg-green-700"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setShowBackjobCompleteModal(true);
+                            }}
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" /> Mark
+                            Complete
+                          </Button>
+                        ) : null}
                     </div>
                   )}
-                {isAgencyBackjob && (
-                  <div className="mt-2">
-                      {!isBackjobExecutionPhase &&
-                      conversation.backjob.worker_schedule_confirmed ? (
-                        <div className="text-xs text-gray-500 italic">
-                          Waiting for client to confirm...
-                        </div>
-                      ) : isBackjobExecutionPhase &&
-                        !conversation.backjob.worker_marked_complete ? (
-                        <Button
-                          size="sm"
-                          className="w-full bg-green-600 hover:bg-green-700"
-                          onClick={() => setShowBackjobCompleteModal(true)}
-                        >
-                          <CheckCircle className="h-3 w-3 mr-1" /> Mark
-                          Complete
-                        </Button>
-                      ) : null}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isBackjobReviewLocked && (
-              <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                  <span className="text-sm font-semibold text-orange-800">
-                    Chat Locked During Admin Review
-                  </span>
                 </div>
-                <p className="text-xs text-orange-700">{chatDisabledReason}</p>
               </div>
             )}
 
-            {(job.status === "IN_PROGRESS" ||
-              job.status === "COMPLETED" ||
-              job.clientMarkedComplete ||
-              job.workerMarkedComplete) &&
-              job.payment_model === "PROJECT" &&
-              assigned_employees?.length > 0 &&
+            {shouldShowProjectWorkflow &&
               (() => {
-                const allDispatched = assigned_employees.every(
-                  (e: AssignedEmployee) => e.dispatched,
-                );
-                const allArrived = assigned_employees.every(
-                  (e: AssignedEmployee) => e.clientConfirmedArrival,
-                );
+                const allDispatched = allEmployeesDispatched;
+                const allArrived = allEmployeesArrived;
                 const allComplete = assigned_employees.every(
-                  (e: AssignedEmployee) => e.agencyMarkedComplete,
+                  (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(
+                      e.agencyMarkedComplete,
+                      e.agencyMarkedCompleteAt,
+                    ),
                 );
                 const agencyMarkedComplete =
-                  allComplete || job.workerMarkedComplete;
+                  allComplete ||
+                  (job.workerMarkedComplete && !hasActiveBackjobCycle);
                 const dispatchedCount = assigned_employees.filter(
-                  (e: AssignedEmployee) => e.dispatched,
+                  (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
                 ).length;
                 const arrivedCount = assigned_employees.filter(
-                  (e: AssignedEmployee) => e.clientConfirmedArrival,
+                  (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(
+                      e.clientConfirmedArrival,
+                      e.clientConfirmedArrivalAt,
+                    ),
                 ).length;
                 const totalCount = assigned_employees.length;
 
-                if (job.clientMarkedComplete) {
-                  return (
-                    <div className="p-2 bg-green-50 rounded-xl border border-green-200 text-xs text-green-700 font-semibold flex items-center gap-2">
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      Job completed successfully
-                    </div>
-                  );
+                if (job.clientMarkedComplete && !hasActiveBackjobCycle) {
+                  return null;
                 }
 
                 if (agencyMarkedComplete) {
@@ -886,7 +981,10 @@ export default function AgencyChatScreen() {
                         <div className="space-y-1.5 text-xs">
                           {assigned_employees.map(
                             (e: AssignedEmployee) =>
-                              !e.dispatched && (
+                              !isStatusInActiveBackjobCycle(
+                                e.dispatched,
+                                e.dispatchedAt,
+                              ) && (
                                 <div
                                   key={e.employeeId}
                                   className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
@@ -895,13 +993,26 @@ export default function AgencyChatScreen() {
                                   <Button
                                     size="sm"
                                     className="h-6 px-3 bg-[#00BAF1] text-[10px]"
-                                    onClick={() =>
-                                      dispatchProjectMutation.mutate({
-                                        jobId: job.id,
-                                        employeeId: e.employeeId,
-                                        conversationId,
-                                      })
-                                    }
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      dispatchProjectMutation.mutate(
+                                        {
+                                          jobId: job.id,
+                                          employeeId: e.employeeId,
+                                          conversationId,
+                                        },
+                                        {
+                                          onError: (error) => {
+                                            const message =
+                                              error instanceof Error
+                                                ? error.message
+                                                : "Failed to dispatch employee";
+                                            window.alert(message);
+                                          },
+                                        },
+                                      );
+                                    }}
+                                    disabled={dispatchProjectMutation.isPending}
                                   >
                                     Dispatch
                                   </Button>
@@ -1063,6 +1174,13 @@ export default function AgencyChatScreen() {
       {/* Right Sidebar - Job Details */}
       <div className="w-[380px] p-4 bg-transparent hidden lg:flex flex-col h-full">
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-y-auto p-6 space-y-8">
+          {job.clientMarkedComplete && (
+            <div className="p-2 bg-green-50 rounded-xl border border-green-200 text-xs text-green-700 font-semibold flex items-center gap-2">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Job completed successfully
+            </div>
+          )}
+
           {job.clientMarkedComplete && (
             <div className="space-y-2">
               <Button
@@ -1507,6 +1625,182 @@ export default function AgencyChatScreen() {
                 variant="outline"
                 className="w-full rounded-2xl h-12"
                 onClick={() => setShowReceiptModal(false)}
+              >
+                Close
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showBackjobDetailsModal && conversation.backjob?.has_backjob && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-none">
+            <CardHeader className="pb-3 pt-7 text-left">
+              <h3 className="text-xl font-bold text-gray-900">Backjob Details</h3>
+              <p className="text-sm text-gray-500 font-medium mt-1">
+                Reason, status, and timeline of this backjob request
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-5 px-8 pb-8">
+              <div className="border border-gray-200 rounded-2xl p-4 space-y-3">
+                <p className="text-sm font-bold text-gray-900">Details</p>
+                <div>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Reason</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {conversation.backjob.reason || "No reason provided"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Description</p>
+                  <p className="text-sm text-gray-800 mt-1">
+                    {conversation.backjob.description || "No description provided"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-2xl p-4 space-y-3">
+                <p className="text-sm font-bold text-gray-900">Status</p>
+
+                {conversation.backjob.status === "OPEN" ? (
+                  <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <span className="text-base font-bold text-amber-700">
+                        Admin Review Pending
+                      </span>
+                    </div>
+                    <p className="text-sm text-amber-700">
+                      Waiting for admin to approve backjob request. You will be notified once work is approved.
+                    </p>
+                  </div>
+                ) : conversation.backjob.status === "IN_NEGOTIATION" ? (
+                  <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50 text-sm text-blue-800">
+                    Schedule negotiation in progress.
+                  </div>
+                ) : conversation.backjob.status === "UNDER_REVIEW" ? (
+                  <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50 text-sm text-blue-800">
+                    Backjob is currently in execution.
+                  </div>
+                ) : conversation.backjob.status === "RESOLVED" ? (
+                  <div className="p-4 rounded-2xl border border-green-200 bg-green-50 text-sm text-green-800">
+                    Backjob has been resolved.
+                  </div>
+                ) : null}
+
+                <div className="pt-2">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-3">Timeline</p>
+
+                  <div className="space-y-4">
+                    {(conversation.backjob.status === "RESOLVED" ||
+                      conversation.backjob.client_confirmed) && (
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="h-3.5 w-3.5 rounded-full bg-green-500" />
+                          <div className="w-px flex-1 bg-gray-200 min-h-[22px]" />
+                        </div>
+                        <div className="pb-1">
+                          <p className="text-sm font-semibold text-gray-900">Completed</p>
+                          <p className="text-xs text-gray-500">
+                            {formatBackjobDate(conversation.backjob.client_confirmed_at)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {conversation.backjob.worker_marked_complete && (
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="h-3.5 w-3.5 rounded-full bg-green-500" />
+                          <div className="w-px flex-1 bg-gray-200 min-h-[22px]" />
+                        </div>
+                        <div className="pb-1">
+                          <p className="text-sm font-semibold text-gray-900">Worker Marked Complete</p>
+                          <p className="text-xs text-gray-500">Waiting for client confirmation</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {conversation.backjob.backjob_started && (
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="h-3.5 w-3.5 rounded-full bg-blue-500" />
+                          <div className="w-px flex-1 bg-gray-200 min-h-[22px]" />
+                        </div>
+                        <div className="pb-1">
+                          <p className="text-sm font-semibold text-gray-900">Backjob Work Started</p>
+                          <p className="text-xs text-gray-500">
+                            {formatBackjobDate(conversation.backjob.backjob_started_at)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {conversation.backjob.scheduled_date && (
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div
+                            className={`h-3.5 w-3.5 rounded-full ${conversation.backjob.worker_schedule_confirmed ? "bg-green-500" : "bg-amber-500"}`}
+                          />
+                          <div className="w-px flex-1 bg-gray-200 min-h-[22px]" />
+                        </div>
+                        <div className="pb-1">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {conversation.backjob.worker_schedule_confirmed
+                              ? "Worker Confirmed Schedule"
+                              : "Pending Negotiation"}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatBackjobDate(conversation.backjob.scheduled_date, false)}
+                          </p>
+                          {conversation.backjob.worker_schedule_confirmed &&
+                            conversation.backjob.worker_schedule_confirmed_at && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Confirmed on {formatBackjobDate(conversation.backjob.worker_schedule_confirmed_at)}
+                              </p>
+                            )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="h-3.5 w-3.5 rounded-full bg-gray-500" />
+                        <div className="w-px flex-1 bg-gray-200 min-h-[22px]" />
+                      </div>
+                      <div className="pb-1">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {conversation.backjob.status === "OPEN"
+                            ? "Admin Review Pending"
+                            : "Admin Reviewed"}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {conversation.backjob.status === "OPEN"
+                            ? "Waiting for admin approval"
+                            : "Backjob request approved"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="h-3.5 w-3.5 rounded-full bg-gray-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Requested</p>
+                        <p className="text-xs text-gray-500">
+                          {formatBackjobDate(conversation.backjob.opened_date)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full rounded-2xl h-12"
+                onClick={() => setShowBackjobDetailsModal(false)}
               >
                 Close
               </Button>
