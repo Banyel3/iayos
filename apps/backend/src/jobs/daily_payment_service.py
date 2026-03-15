@@ -495,7 +495,7 @@ class DailyPaymentService:
                     notificationType='EXTENSION_REQUEST',
                     title='Extension Request',
                     message=f'Client has requested a {additional_days}-day extension. Your approval is needed.',
-                    relatedJobID=job
+                    relatedJobID=job.jobID
                 )
         else:
             # Notify client
@@ -504,7 +504,7 @@ class DailyPaymentService:
                 notificationType='EXTENSION_REQUEST',
                 title='Extension Request',
                 message=f'{"Agency" if requested_by == "AGENCY" else "Worker"} has requested a {additional_days}-day extension. Your approval is needed.',
-                relatedJobID=job
+                relatedJobID=job.jobID
             )
         
         return {
@@ -595,7 +595,7 @@ class DailyPaymentService:
                 notificationType='EXTENSION_APPROVED',
                 title='Extension Approved',
                 message=f'Job extension approved. {extension.additional_days} days added.',
-                relatedJobID=job
+                relatedJobID=job.jobID
             )
             
             return {
@@ -680,7 +680,7 @@ class DailyPaymentService:
                     notificationType='RATE_CHANGE_REQUEST',
                     title='Rate Change Request',
                     message=f'Client has requested a rate {direction} to ₱{new_rate}/day. Your approval is needed.',
-                    relatedJobID=job
+                    relatedJobID=job.jobID
                 )
         else:
             Notification.objects.create(
@@ -688,7 +688,7 @@ class DailyPaymentService:
                 notificationType='RATE_CHANGE_REQUEST',
                 title='Rate Change Request',
                 message=f'{"Agency" if requested_by == "AGENCY" else "Worker"} has requested a rate {direction} to ₱{new_rate}/day. Your approval is needed.',
-                relatedJobID=job
+                relatedJobID=job.jobID
             )
         
         return {
@@ -795,7 +795,7 @@ class DailyPaymentService:
                 notificationType='RATE_CHANGE_APPROVED',
                 title='Rate Change Approved',
                 message=f'Daily rate changed to ₱{rate_change.new_rate}/day effective {rate_change.effective_date}.',
-                relatedJobID=job
+                relatedJobID=job.jobID
             )
             
             return {
@@ -944,7 +944,7 @@ class DailyPaymentService:
             notificationType='JOB_CANCELLED',
             title='Job Cancelled',
             message=f'Daily job cancelled. ₱{unused_escrow} refunded to your wallet.',
-            relatedJobID=job
+            relatedJobID=job.jobID
         )
         
         return {
