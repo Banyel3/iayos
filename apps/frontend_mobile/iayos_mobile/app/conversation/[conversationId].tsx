@@ -2878,6 +2878,18 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
+          {isConversationClosed &&
+            !hasApprovedBackjob &&
+            !hasActiveNegotiation && (
+              <View style={styles.completedStatusBannerRow}>
+                <View style={styles.completedStatusBanner}>
+                  <Text style={styles.completedStatusBannerText}>
+                    Job Completed Successfully
+                  </Text>
+                </View>
+              </View>
+            )}
+
           <View
             style={[
               styles.jobHeader,
@@ -2895,21 +2907,6 @@ export default function ChatScreen() {
             >
               <View style={styles.jobInfo}>
                 <View style={{ flex: 1 }}>
-                  {/* Job Completed Status - Compact green text */}
-                  {isConversationClosed &&
-                    !hasApprovedBackjob &&
-                    !hasActiveNegotiation && (
-                      <Text
-                        style={{
-                          color: Colors.success,
-                          fontWeight: "700",
-                          fontSize: 11,
-                          marginBottom: 2,
-                        }}
-                      >
-                        Job Completed Successfully
-                      </Text>
-                    )}
                   <Text style={styles.jobTitle} numberOfLines={1}>
                     {conversation.job.title}
                   </Text>
@@ -2945,7 +2942,7 @@ export default function ChatScreen() {
                 (canSubmitReview || viewerHasReviewed) && (
                   <TouchableOpacity
                     style={{
-                      backgroundColor: "#FFFDE7",
+                      backgroundColor: "#FFFFFF",
                       paddingHorizontal: 12,
                       paddingVertical: 6,
                       borderRadius: 8,
@@ -3010,10 +3007,7 @@ export default function ChatScreen() {
                     alignItems: "center",
                     gap: 6,
                     borderWidth: 1,
-                    borderColor: conversation.job.paymentBuffer
-                      ?.is_payment_released
-                      ? Colors.success
-                      : Colors.primary,
+                    borderColor: "#4CCFF8",
                   }}
                   onPress={() => setShowReceiptModal(true)}
                 >
@@ -3024,19 +3018,13 @@ export default function ChatScreen() {
                         : "receipt-outline"
                     }
                     size={16}
-                    color={
-                      conversation.job.paymentBuffer?.is_payment_released
-                        ? Colors.success
-                        : Colors.primary
-                    }
+                    color="#4CCFF8"
                   />
                   <Text
                     style={{
                       fontSize: 12,
                       fontWeight: "700",
-                      color: conversation.job.paymentBuffer?.is_payment_released
-                        ? Colors.success
-                        : Colors.primary,
+                      color: "#4CCFF8",
                     }}
                   >
                     View Receipt
@@ -8075,6 +8063,22 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 4,
   },
+  completedStatusBanner: {
+    width: "100%",
+    backgroundColor: "#E8F7ED",
+    borderRadius: BorderRadius.small,
+    paddingVertical: 3,
+    marginBottom: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  completedStatusBannerText: {
+    ...Typography.body.small,
+    color: Colors.success,
+    fontWeight: "700",
+    fontSize: 11,
+    textAlign: "center",
+  },
   jobTitle: {
     ...Typography.body.medium,
     fontSize: 16,
@@ -8100,6 +8104,11 @@ const styles = StyleSheet.create({
   jobHeaderContainer: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  completedStatusBannerRow: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    backgroundColor: Colors.white,
   },
   actionButtonsContainer: {
     paddingHorizontal: Spacing.md,
