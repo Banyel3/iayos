@@ -509,8 +509,7 @@ export default function CreateTeamJobScreen() {
   const validateForm = () => {
     if (!title.trim()) return "Please enter a job title";
     if (!description.trim()) return "Please enter a job description";
-    if (skillSlots.length < 1)
-      return "Please add at least 1 skill requirement";
+    if (skillSlots.length < 1) return "Please add at least 1 skill requirement";
     if (totalWorkersNeeded < 2)
       return "Team jobs require at least 2 workers total";
     if (paymentModel === "PROJECT") {
@@ -686,7 +685,8 @@ export default function CreateTeamJobScreen() {
               />
 
               <Text style={styles.hint}>
-                Title, description, and price suggestions are based on the first selected skill requirement.
+                Title, description, and price suggestions are based on the first
+                selected skill requirement.
               </Text>
               <Text style={styles.hint}>
                 Team jobs require at least 2 workers total.
@@ -950,25 +950,26 @@ export default function CreateTeamJobScreen() {
                       keyboardType="numeric"
                     />
                     <Text style={styles.hint}>
-                      Total budget is auto-calculated: daily rate x days x workers
+                      Total budget is auto-calculated: daily rate x days x
+                      workers
                     </Text>
                   </View>
                 </>
               ) : (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Total Budget (₱)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={totalBudget}
-                  onChangeText={setTotalBudget}
-                  placeholder="1000"
-                  keyboardType="numeric"
-                />
-                <Text style={styles.hint}>
-                  This is the total amount workers will receive for the entire
-                  job.
-                </Text>
-              </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Total Budget (₱)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={totalBudget}
+                    onChangeText={setTotalBudget}
+                    placeholder="1000"
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.hint}>
+                    This is the total amount workers will receive for the entire
+                    job.
+                  </Text>
+                </View>
               )}
 
               {/* AI Price Suggestion Card */}
@@ -1111,7 +1112,9 @@ export default function CreateTeamJobScreen() {
                           router.push({
                             pathname: "/payments/deposit",
                             params: {
-                              amount: Math.ceil(totalDue - walletBalance).toString(),
+                              amount: Math.ceil(
+                                totalDue - walletBalance,
+                              ).toString(),
                             },
                           } as any)
                         }
@@ -1121,7 +1124,9 @@ export default function CreateTeamJobScreen() {
                           size={18}
                           color={Colors.white}
                         />
-                        <Text style={styles.depositButtonText}>Deposit Funds</Text>
+                        <Text style={styles.depositButtonText}>
+                          Deposit Funds
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}

@@ -122,7 +122,7 @@ class CreateTeamJobSchema(Schema):
     budget_allocation_type: Optional[str] = "EQUAL_PER_WORKER"  # EQUAL_PER_SKILL, EQUAL_PER_WORKER, MANUAL_ALLOCATION, SKILL_WEIGHTED
     team_start_threshold: Optional[float] = 100.0  # Percentage of team needed to start (0-100)
     skill_slots: list[SkillSlotSchema]  # At least one skill slot required
-    payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
+    payment_method: Optional[str] = "WALLET"  # WALLET only
     payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
     daily_rate: Optional[float] = None  # Required for DAILY model
     duration_days: Optional[int] = None  # Required for DAILY model
