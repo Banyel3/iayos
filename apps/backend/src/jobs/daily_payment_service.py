@@ -11,7 +11,7 @@ Handles daily-rate job payment logic including:
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 from django.db.models import Sum
 
@@ -564,10 +564,14 @@ class DailyPaymentService:
             
             total_needed = extension.additional_escrow * (1 + DailyPaymentService.PLATFORM_FEE_PERCENT)
             
-            if client_wallet.balance < total_needed:
+            if client_wallet.availableBalance < total_needed:
                 return {
                     'success': False,
-                    'error': f'Insufficient client balance. Need ₱{total_needed}, have ₱{client_wallet.balance}',
+                    'error': (
+                        f'Insufficient client balance. Need ₱{total_needed}, '
+                        f'have ₱{client_wallet.availableBalance} available '
+                        f'(₱{client_wallet.balance} balance, ₱{client_wallet.reservedBalance} reserved).'
+                    ),
                     'needs_top_up': True,
                     'amount_needed': float(total_needed)
                 }
@@ -575,7 +579,15 @@ class DailyPaymentService:
             # Collect additional escrow
             client_wallet.balance -= total_needed
             client_wallet.reservedBalance += extension.additional_escrow
-            client_wallet.save()
+            try:
+                client_wallet.save()
+            except IntegrityError:
+                return {
+                    'success': False,
+                    'error': 'Extension approval failed due to reserved wallet constraints',
+                    'needs_top_up': True,
+                    'amount_needed': float(total_needed),
+                }
             
             # Update job
             job.duration_days += extension.additional_days
@@ -756,10 +768,13 @@ class DailyPaymentService:
                     
                     adjustment_with_fee = adjustment * (1 + DailyPaymentService.PLATFORM_FEE_PERCENT)
                     
-                    if client_wallet.balance < adjustment_with_fee:
+                    if client_wallet.availableBalance < adjustment_with_fee:
                         return {
                             'success': False,
-                            'error': f'Insufficient balance for rate increase. Need ₱{adjustment_with_fee}',
+                            'error': (
+                                f'Insufficient balance for rate increase. Need ₱{adjustment_with_fee}, '
+                                f'have ₱{client_wallet.availableBalance} available.'
+                            ),
                             'needs_top_up': True,
                             'amount_needed': float(adjustment_with_fee)
                         }
@@ -767,7 +782,15 @@ class DailyPaymentService:
                     # Collect additional funds
                     client_wallet.balance -= adjustment_with_fee
                     client_wallet.reservedBalance += adjustment
-                    client_wallet.save()
+                    try:
+                        client_wallet.save()
+                    except IntegrityError:
+                        return {
+                            'success': False,
+                            'error': 'Rate change approval failed due to reserved wallet constraints',
+                            'needs_top_up': True,
+                            'amount_needed': float(adjustment_with_fee),
+                        }
                 
                 elif adjustment < 0:
                     # Refund client

@@ -2616,21 +2616,32 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                             status=400
                         )
                 
-                # Final non-negative guard before deduction
-                if wallet.balance < total_to_charge:
+                # Final reserved-aware guard before deduction
+                if wallet.availableBalance < total_to_charge:
                     wallet.reservedBalance += original_reserved
                     return Response(
                         {
                             "error": "Insufficient balance while processing payment",
                             "required": float(total_to_charge),
-                            "available": float(wallet.balance),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
                         },
                         status=400
                     )
 
                 # Deduct the actual amount from balance
                 wallet.balance -= total_to_charge
-                wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+                try:
+                    wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+                except Exception:
+                    wallet.reservedBalance += original_reserved
+                    return Response(
+                        {
+                            "error": "Payment failed due to reserved wallet constraints",
+                            "message": "Please retry, deposit more funds, or use another payment method."
+                        },
+                        status=400
+                    )
                 
                 print(f"💸 [MOBILE] Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}")
                 
@@ -4810,16 +4821,29 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             # Lock wallet row and re-check balance to prevent concurrent overdraft
             wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
 
-            if wallet.balance < amount_decimal:
+            if wallet.availableBalance < amount_decimal:
                 return Response(
-                    {"error": f"Insufficient balance. Available: ₱{wallet.balance}"},
+                    {
+                        "error": (
+                            f"Insufficient balance. Available: ₱{wallet.availableBalance} "
+                            f"(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved)"
+                        )
+                    },
                     status=400
                 )
 
             # Deduct balance immediately
             old_balance = wallet.balance
             wallet.balance -= amount_decimal
-            wallet.save(update_fields=['balance', 'updatedAt'])
+            try:
+                wallet.save(update_fields=['balance', 'updatedAt'])
+            except Exception:
+                return Response(
+                    {
+                        "error": "Withdrawal failed due to reserved wallet constraints. Please retry."
+                    },
+                    status=400
+                )
             
             # Create pending withdrawal transaction
             method_display = {
@@ -6650,18 +6674,25 @@ def mobile_create_escrow_payment(request):
             # Calculate escrow amount (50% of budget)
             escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
             
-            # Check wallet balance
-            if wallet.balance < escrow_amount:
+            # Check available wallet balance (balance - reserved)
+            if wallet.availableBalance < escrow_amount:
                 return Response({
                     "error": "Insufficient wallet balance",
                     "required": float(escrow_amount),
-                    "available": float(wallet.balance)
+                    "available": float(wallet.availableBalance),
+                    "reserved": float(wallet.reservedBalance),
                 }, status=400)
             
             # Deduct from wallet and add to reserved
             wallet.balance -= escrow_amount
             wallet.reservedBalance += escrow_amount
-            wallet.save()
+            try:
+                wallet.save()
+            except Exception:
+                return Response({
+                    "error": "Escrow payment failed due to reserved wallet constraints",
+                    "message": "Please retry or add more available wallet funds."
+                }, status=400)
             
             # Update job escrow status
             job.escrowAmount = escrow_amount
@@ -7051,16 +7082,23 @@ def mobile_create_final_payment(request):
                     defaults={'balance': Decimal('0.00')}
                 )
                 
-                if wallet.balance < final_amount:
+                if wallet.availableBalance < final_amount:
                     return Response({
                         "error": "Insufficient wallet balance",
                         "required": float(final_amount),
-                        "available": float(wallet.balance)
+                        "available": float(wallet.availableBalance),
+                        "reserved": float(wallet.reservedBalance),
                     }, status=400)
                 
                 # Deduct from wallet
                 wallet.balance -= final_amount
-                wallet.save()
+                try:
+                    wallet.save()
+                except Exception:
+                    return Response({
+                        "error": "Final payment failed due to reserved wallet constraints",
+                        "message": "Please retry or choose another payment method."
+                    }, status=400)
                 
                 # Create transaction
                 Transaction.objects.create(

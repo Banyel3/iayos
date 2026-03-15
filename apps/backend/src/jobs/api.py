@@ -18,7 +18,7 @@ from .cancellation_service import cancel_job_with_scenarios
 from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
-from django.db import transaction as db_transaction
+from django.db import transaction as db_transaction, IntegrityError
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -642,7 +642,16 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 if job_type == JobPosting.JobType.LISTING:
                     # Reserve funds instead of deducting
                     wallet.reservedBalance += total_to_charge
-                    wallet.save()
+                    try:
+                        wallet.save()
+                    except IntegrityError:
+                        return Response(
+                            {
+                                "error": "Unable to reserve wallet funds due to reserved-balance constraints",
+                                "message": "Please retry or add more available wallet funds."
+                            },
+                            status=400
+                        )
                     escrow_paid = False
                     escrow_paid_at = None
                     transaction_status = Transaction.TransactionStatus.PENDING
@@ -650,7 +659,16 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 else:
                     # Direct hire - deduct immediately
                     wallet.balance -= total_to_charge
-                    wallet.save()
+                    try:
+                        wallet.save()
+                    except IntegrityError:
+                        return Response(
+                            {
+                                "error": "Payment failed due to reserved wallet constraints",
+                                "message": "Please retry, deposit more funds, or use another payment method."
+                            },
+                            status=400
+                        )
                     escrow_paid = True
                     escrow_paid_at = timezone.now()
                     transaction_status = Transaction.TransactionStatus.COMPLETED
@@ -1079,7 +1097,16 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 if job_type == JobPosting.JobType.LISTING:
                     # Reserve funds instead of deducting
                     wallet.reservedBalance += total_to_charge
-                    wallet.save()
+                    try:
+                        wallet.save()
+                    except IntegrityError:
+                        return Response(
+                            {
+                                "error": "Unable to reserve wallet funds due to reserved-balance constraints",
+                                "message": "Please retry or add more available wallet funds."
+                            },
+                            status=400
+                        )
                     escrow_paid = False
                     escrow_paid_at = None
                     transaction_status = Transaction.TransactionStatus.PENDING
@@ -1087,7 +1114,16 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 else:
                     # Direct hire - deduct immediately
                     wallet.balance -= total_to_charge
-                    wallet.save()
+                    try:
+                        wallet.save()
+                    except IntegrityError:
+                        return Response(
+                            {
+                                "error": "Payment failed due to reserved wallet constraints",
+                                "message": "Please retry, deposit more funds, or use another payment method."
+                            },
+                            status=400
+                        )
                     escrow_paid = True
                     escrow_paid_at = timezone.now()
                     transaction_status = Transaction.TransactionStatus.COMPLETED
@@ -2964,9 +3000,32 @@ def accept_application(request, job_id: int, application_id: int):
                             status=400
                         )
                 
+                # Final reserved-aware guard before deduction
+                if wallet.availableBalance < total_to_charge:
+                    wallet.reservedBalance += original_reserved
+                    return Response(
+                        {
+                            "error": "Insufficient balance while processing payment",
+                            "required": float(total_to_charge),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                        },
+                        status=400
+                    )
+
                 # Deduct the actual amount from balance
                 wallet.balance -= total_to_charge
-                wallet.save()
+                try:
+                    wallet.save()
+                except IntegrityError:
+                    wallet.reservedBalance += original_reserved
+                    return Response(
+                        {
+                            "error": "Payment failed due to reserved wallet constraints",
+                            "message": "Please retry, deposit more funds, or use another payment method."
+                        },
+                        status=400
+                    )
                 
                 print(f"💸 Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}")
                 
@@ -4630,16 +4689,17 @@ def client_approve_job_completion(
                     remaining_amount = job_check.remainingPayment
                     
                     # Skip wallet re-validation if remaining payment was already paid earlier.
-                    if not job_check.remainingPaymentPaid and wallet_check.balance < remaining_amount:
-                        print(f"❌ Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
+                    if not job_check.remainingPaymentPaid and wallet_check.availableBalance < remaining_amount:
+                        print(f"❌ Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet_check.availableBalance} available")
                         return Response({
                             "error": "Insufficient wallet balance",
                             "required": float(remaining_amount),
-                            "available": float(wallet_check.balance),
-                            "message": f"You need ₱{remaining_amount:,.2f} but only have ₱{wallet_check.balance:,.2f}. Please deposit more funds or choose CASH payment."
+                            "available": float(wallet_check.availableBalance),
+                            "reserved": float(wallet_check.reservedBalance),
+                            "message": f"You need ₱{remaining_amount:,.2f} but only have ₱{wallet_check.availableBalance:,.2f} available (₱{wallet_check.balance:,.2f} balance, ₱{wallet_check.reservedBalance:,.2f} reserved). Please deposit more funds or choose CASH payment."
                         }, status=400)
                     
-                    print(f"✅ Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet_check.balance}")
+                    print(f"✅ Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet_check.availableBalance} available")
                 except JobPosting.DoesNotExist:
                     pass  # Will be caught later in the flow
         
@@ -4850,17 +4910,24 @@ def client_approve_job_completion(
                     )
 
                     # Check if client has sufficient balance (after lock)
-                    if wallet.balance < remaining_amount:
+                    if wallet.availableBalance < remaining_amount:
                         return Response({
                             "error": "Insufficient wallet balance",
                             "required": float(remaining_amount),
-                            "available": float(wallet.balance),
-                            "message": f"You need ₱{remaining_amount} but only have ₱{wallet.balance}. Please deposit more funds or use a different payment method."
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                            "message": f"You need ₱{remaining_amount} but only have ₱{wallet.availableBalance} available (₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved). Please deposit more funds or use a different payment method."
                         }, status=400)
 
                     # Deduct remaining payment from wallet
                     wallet.balance -= remaining_amount
-                    wallet.save(update_fields=['balance', 'updatedAt'])
+                    try:
+                        wallet.save(update_fields=['balance', 'updatedAt'])
+                    except IntegrityError:
+                        return Response({
+                            "error": "Payment failed due to reserved wallet constraints",
+                            "message": "Please retry, deposit more funds, or use CASH payment."
+                        }, status=400)
                 
                 print(f"💸 Deducted ₱{remaining_amount} from client wallet. New balance: ₱{wallet.balance}")
                 
@@ -6206,19 +6273,29 @@ def create_invite_job(
                 wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
 
                 # Check wallet balance after lock
-                if wallet.balance < downpayment:
+                if wallet.availableBalance < downpayment:
                     return Response(
                         {
                             "error": "Insufficient wallet balance",
                             "required": float(downpayment),
-                            "available": float(wallet.balance)
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
                         },
                         status=400
                     )
 
                 # Deduct escrow from wallet
                 wallet.balance -= downpayment
-                wallet.save(update_fields=['balance', 'updatedAt'])
+                try:
+                    wallet.save(update_fields=['balance', 'updatedAt'])
+                except IntegrityError:
+                    return Response(
+                        {
+                            "error": "Payment failed due to reserved wallet constraints",
+                            "message": "Please retry, deposit more funds, or use another payment method."
+                        },
+                        status=400
+                    )
                 
                 # Create INVITE job with PENDING invite status
                 job = Job.objects.create(
@@ -10445,18 +10522,25 @@ def extend_daily_job_one_day(request, job_id: int):
             defaults={'balance': Decimal('0.00')}
         )
 
-        if client_wallet.balance < total_required:
+        if client_wallet.availableBalance < total_required:
             return Response({
                 "error": "Insufficient wallet balance for one-day extension",
                 "required": float(total_required),
-                "available": float(client_wallet.balance),
+                "available": float(client_wallet.availableBalance),
+                "reserved": float(client_wallet.reservedBalance),
                 "daily_rate": float(daily_rate),
                 "num_workers": num_workers,
             }, status=400)
 
         client_wallet.balance -= total_required
         client_wallet.reservedBalance += additional_escrow
-        client_wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+        try:
+            client_wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+        except IntegrityError:
+            return Response({
+                "error": "Extension payment failed due to reserved wallet constraints",
+                "message": "Please retry or add more available wallet funds."
+            }, status=400)
 
         job.duration_days = int(getattr(job, 'duration_days', 0) or 0) + 1
         job.daily_escrow_total = Decimal(str(getattr(job, 'daily_escrow_total', Decimal('0.00')) or Decimal('0.00'))) + additional_escrow
@@ -11188,15 +11272,22 @@ def approve_agency_project_employee(
             if payment_method == 'WALLET':
                 client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
-                if client_wallet.balance < payment_amount:
+                if client_wallet.availableBalance < payment_amount:
                     return Response({
                         "error": "Insufficient wallet balance",
                         "required": float(payment_amount),
-                        "available": float(client_wallet.balance)
+                        "available": float(client_wallet.availableBalance),
+                        "reserved": float(client_wallet.reservedBalance),
                     }, status=400)
                 
                 client_wallet.balance -= payment_amount
-                client_wallet.save()
+                try:
+                    client_wallet.save()
+                except IntegrityError:
+                    return Response({
+                        "error": "Payment failed due to reserved wallet constraints",
+                        "message": "Please retry or use another payment method."
+                    }, status=400)
                 
                 Transaction.objects.create(
                     walletID=client_wallet,
@@ -11449,16 +11540,23 @@ def approve_agency_project_job(
                 client_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 # Check sufficient balance
-                if client_wallet.balance < remaining_balance:
+                if client_wallet.availableBalance < remaining_balance:
                     return Response({
                         "error": "Insufficient wallet balance",
                         "required": float(remaining_balance),
-                        "available": float(client_wallet.balance)
+                        "available": float(client_wallet.availableBalance),
+                        "reserved": float(client_wallet.reservedBalance),
                     }, status=400)
                 
                 # Deduct from client wallet
                 client_wallet.balance -= remaining_balance
-                client_wallet.save()
+                try:
+                    client_wallet.save()
+                except IntegrityError:
+                    return Response({
+                        "error": "Payment failed due to reserved wallet constraints",
+                        "message": "Please retry or use another payment method."
+                    }, status=400)
                 
                 # Create payment transaction
                 Transaction.objects.create(

@@ -437,10 +437,15 @@ def create_team_job(
     if payment_method_upper == 'WALLET':
         try:
             wallet = Wallet.objects.select_for_update().get(accountFK=client_profile_obj.accountFK)
-            if wallet.balance < total_needed:
+            available_balance = wallet.availableBalance
+            if available_balance < total_needed:
                 return {
                     'success': False,
-                    'error': f'Insufficient wallet balance. Need ₱{total_needed}, have ₱{wallet.balance}',
+                    'error': (
+                        f'Insufficient wallet balance. Need ₱{total_needed}, '
+                        f'have ₱{available_balance} available '
+                        f'(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved).'
+                    ),
                     'requires_deposit': True,
                     'amount_needed': float(total_needed)
                 }
@@ -511,17 +516,31 @@ def create_team_job(
         if wallet is None:
             return {'success': False, 'error': 'Wallet not found'}
 
-        if wallet.balance < total_needed:
+        available_balance = wallet.availableBalance
+        if available_balance < total_needed:
             return {
                 'success': False,
-                'error': f'Insufficient wallet balance. Need ₱{total_needed}, have ₱{wallet.balance}',
+                'error': (
+                    f'Insufficient wallet balance. Need ₱{total_needed}, '
+                    f'have ₱{available_balance} available '
+                    f'(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved).'
+                ),
                 'requires_deposit': True,
                 'amount_needed': float(total_needed)
             }
 
         wallet.balance -= total_needed
         wallet.reservedBalance += escrow_amount  # Hold escrow
-        wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+        try:
+            wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+        except IntegrityError:
+            return {
+                'success': False,
+                'error': (
+                    'Unable to reserve/deduct wallet funds due to reserved-balance constraint. '
+                    'Please retry, deposit more funds, or choose a different payment flow.'
+                )
+            }
         
         # Create transaction record
         Transaction.objects.create(
