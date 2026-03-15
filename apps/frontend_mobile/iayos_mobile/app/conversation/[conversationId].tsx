@@ -47,6 +47,7 @@ import {
   useMarkTeamAssignmentComplete,
   useApproveTeamJobCompletion,
   useProjectExtendOneDay,
+  useProjectFinishJob,
   useDispatchProjectEmployee,
   useConfirmProjectArrival,
   useAgencyMarkProjectComplete,
@@ -641,6 +642,7 @@ export default function ChatScreen() {
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
   const projectExtendOneDayMutation = useProjectExtendOneDay();
+  const projectFinishJobMutation = useProjectFinishJob();
 
   // Agency PROJECT job mutations
   const dispatchProjectEmployeeMutation = useDispatchProjectEmployee();
@@ -3848,24 +3850,30 @@ export default function ChatScreen() {
                               return;
                             }
 
-                            if (!conversation.job.workerMarkedComplete) {
-                              Alert.alert(
-                                "Cannot Finish Yet",
-                                "Worker must mark the job complete before client can finish and pay.",
-                              );
-                              return;
-                            }
-
-                            handleApproveCompletion();
+                            Alert.alert(
+                              "Finish Project Job",
+                              "Mark this PROJECT multi-day job as finished now? This will move it into review/backjob flow.",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Finish Job",
+                                  style: "destructive",
+                                  onPress: () =>
+                                    projectFinishJobMutation.mutate({
+                                      jobId: conversation.job.id,
+                                    }),
+                                },
+                              ],
+                            );
                           }}
                           disabled={
                             approveTeamJobCompletionMutation.isPending ||
-                            approveCompletionMutation.isPending ||
+                            projectFinishJobMutation.isPending ||
                             projectExtendOneDayMutation.isPending
                           }
                         >
                           {approveTeamJobCompletionMutation.isPending ||
-                          approveCompletionMutation.isPending ? (
+                          projectFinishJobMutation.isPending ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}

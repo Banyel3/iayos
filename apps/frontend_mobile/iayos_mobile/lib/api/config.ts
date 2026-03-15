@@ -548,6 +548,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/finish`,
   PROJECT_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/project/extend-one-day`,
+  PROJECT_FINISH_JOB: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/project/finish`,
 
   // Phase 4: Final Payment System (8 endpoints)
   CREATE_FINAL_PAYMENT: `${API_URL}/api/mobile/payments/final`,

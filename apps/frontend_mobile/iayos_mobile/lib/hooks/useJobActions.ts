@@ -524,6 +524,50 @@ export function useProjectExtendOneDay() {
 }
 
 /**
+ * Client finishes a PROJECT multi-day job (attendance-based flow).
+ */
+export function useProjectFinishJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId }: { jobId: number }) => {
+      const response = await apiRequest(ENDPOINTS.PROJECT_FINISH_JOB(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to finish project job"));
+      }
+
+      return response.json() as Promise<{
+        success: boolean;
+        message?: string;
+      }>;
+    },
+    onSuccess: (data, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Project Finished",
+        text2: data?.message || "Project closed and ready for reviews",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Finish Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
  * Worker marks job as complete
  */
 export function useMarkComplete() {
