@@ -55,6 +55,40 @@ def get_reviewer_info(account: Accounts, profile_type: Optional[str] = None) -> 
     return (reviewer_name, reviewer_img)
 
 
+def get_reviewee_info(review: JobReview) -> Tuple[int, str, Optional[str], str]:
+    """
+    Resolve review target details across all review flows.
+
+    Returns:
+        (reviewee_id, reviewee_name, reviewee_profile_img, review_target)
+        review_target is one of: USER, EMPLOYEE, AGENCY
+    """
+    try:
+        if review.revieweeID:
+            profile = review.revieweeProfileID or Profile.objects.filter(accountFK=review.revieweeID).first()
+            if profile:
+                full_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "User"
+                return (review.revieweeID.accountID, full_name, profile.profileImg, "USER")
+            return (review.revieweeID.accountID, "User", None, "USER")
+
+        if review.revieweeEmployeeID:
+            employee = review.revieweeEmployeeID
+            name = (
+                employee.name
+                or f"{employee.firstName or ''} {employee.lastName or ''}".strip()
+                or "Employee"
+            )
+            return (employee.employeeID, name, employee.avatar, "EMPLOYEE")
+
+        if review.revieweeAgencyID:
+            agency = review.revieweeAgencyID
+            return (agency.agencyId, agency.businessName or "Agency", None, "AGENCY")
+    except Exception:
+        pass
+
+    return (0, "User", None, "USER")
+
+
 def calculate_distance(lat1, lon1, lat2, lon2):
     """Calculate distance between two coordinates in kilometers using Haversine formula.
 
@@ -3517,7 +3551,7 @@ def submit_review_mobile(
                 'reviewer_id': user.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': reviewee.accountID if reviewee else None,
+                'reviewee_id': get_reviewee_info(review)[0],
                 'reviewer_type': reviewer_type,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3606,6 +3640,7 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
         for review in reviews:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             # Check if can edit (within 24 hours or within backjob edit deadline)
             now = timezone.now()
@@ -3621,7 +3656,7 @@ def get_worker_reviews_mobile(worker_id: int, page: int = 1, limit: int = 20) ->
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3685,6 +3720,7 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
         for review in reviews_qs:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
@@ -3694,7 +3730,7 @@ def get_job_reviews_mobile(job_id: int) -> Dict[str, Any]:
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3742,13 +3778,8 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
         # Format given reviews
         given_list = []
         for review in given_reviews_qs[:50]:
-            # Show reviewee info
-            reviewee_profile = Profile.objects.filter(accountFK=review.revieweeID).first()
-            profile_name = "Anonymous"
-            profile_img = None
-            if reviewee_profile:
-                profile_name = f"{reviewee_profile.firstName} {reviewee_profile.lastName}".strip()
-                profile_img = reviewee_profile.profileImg
+            # Show reviewee info across user/employee/agency targets
+            reviewee_id, profile_name, profile_img, review_target = get_reviewee_info(review)
 
             can_edit = (timezone.now() - review.createdAt) <= timedelta(hours=24)
 
@@ -3758,9 +3789,10 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': "You", # Or user.email
                 'reviewer_profile_img': None, # User's own image
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewee_name': profile_name,
                 'reviewee_profile_img': profile_img,
+                'review_target': review_target,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3792,6 +3824,7 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
             if reviewer_profile:
                 profile_name = f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
                 profile_img = reviewer_profile.profileImg
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             received_list.append({
                 'review_id': review.reviewID,
@@ -3799,7 +3832,7 @@ def get_my_reviews_mobile(user: Accounts, review_type: str = 'given', page: int 
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': profile_name,
                 'reviewer_profile_img': profile_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -3916,6 +3949,7 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
         for review in recent_reviews:
             # Get reviewer info (handles both profiles and agencies)
             reviewer_name, reviewer_img = get_reviewer_info(review.reviewerID)
+            reviewee_id, _, _, _ = get_reviewee_info(review)
 
             recent_list.append({
                 'review_id': review.reviewID,
@@ -3923,7 +3957,7 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
                 'reviewer_id': review.reviewerID.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': reviewee_id,
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'comment': review.comment,
@@ -4040,7 +4074,7 @@ def edit_review_mobile(
                 'reviewer_id': user.accountID,
                 'reviewer_name': reviewer_name,
                 'reviewer_profile_img': reviewer_img,
-                'reviewee_id': review.revieweeID.accountID,
+                'reviewee_id': get_reviewee_info(review)[0],
                 'reviewer_type': review.reviewerType,
                 'rating': float(review.rating),
                 'rating_quality': float(review.rating_quality) if review.rating_quality else None,
