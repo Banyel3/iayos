@@ -88,7 +88,7 @@ interface Job {
   budget: number;
   payment_model?: "PROJECT" | "DAILY";
   daily_rate_agreed?: number;
-  duration_days?: number;
+  duration_days?: number | null;
   actual_start_date?: string;
   total_days_worked?: number;
   daily_escrow_total?: number;
@@ -122,6 +122,25 @@ interface Job {
   conversation_id?: number | null;
   applications_count?: number;
 }
+
+const isProjectMultiDayJob = (job?: Job | null): boolean => {
+  if (!job) return false;
+  if (job.payment_model !== "PROJECT") return false;
+
+  const explicitDays = Number(job.duration_days || 0);
+  if (explicitDays > 1) return true;
+
+  const durationText = (job.expectedDuration || "").toLowerCase();
+  const matchedDays = durationText.match(/(\d+)\s*day/);
+  if (matchedDays && Number(matchedDays[1]) > 1) return true;
+
+  return false;
+};
+
+const usesTeamProjectWorkflow = (job?: Job | null): boolean => {
+  if (!job) return false;
+  return Boolean(job.is_team_job) || isProjectMultiDayJob(job);
+};
 
 type TabType =
   | "invites"
@@ -596,40 +615,6 @@ export default function AgencyJobsPage() {
     }
   };
 
-  // Helper to accept invite then assign employees (for pending invite flow)
-  const acceptInviteAndAssign = async (jobId: number) => {
-    const response = await fetch(
-      `${API_BASE}/api/agency/jobs/${jobId}/accept`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      const errorMessage = getErrorMessage(
-        errorData,
-        "Failed to accept invitation",
-      );
-
-      // Provide user-friendly message for payment-related errors
-      if (errorMessage.includes("escrow payment")) {
-        throw new Error(
-          "This job invitation cannot be accepted yet. The client has not completed the payment. " +
-          "Please wait for the client to complete their GCash/payment transaction.",
-        );
-      }
-
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  };
-
   const handleRejectInviteClick = (job: Job) => {
     setSelectedJobForReject(job);
     setRejectModalOpen(true);
@@ -692,8 +677,11 @@ export default function AgencyJobsPage() {
       throw new Error("No employees selected");
     }
 
-    // Enforce single employee for non-team jobs
-    if (!selectedJobForAssignment.is_team_job && employeeIds.length > 1) {
+    // Enforce single employee for legacy non-team flow only.
+    if (
+      !usesTeamProjectWorkflow(selectedJobForAssignment) &&
+      employeeIds.length > 1
+    ) {
       throw new Error("Non-team jobs can only have 1 employee assigned");
     }
 
@@ -770,8 +758,8 @@ export default function AgencyJobsPage() {
     setSelectedJobForAssignment(job);
     setIsPendingInviteFlow(false); // This is for accepted jobs, not pending invites
 
-    // Check if this is a team job with skill slots
-    if (job.is_team_job) {
+    // Unified workflow: team jobs + PROJECT multi-day jobs use slot-based assignment.
+    if (usesTeamProjectWorkflow(job)) {
       setLoadingSkillSlots(true);
       try {
         const slots = await fetchSkillSlots(job.jobID);
@@ -779,13 +767,46 @@ export default function AgencyJobsPage() {
           setSelectedJobSkillSlots(slots);
           setSkillSlotModalOpen(true);
         } else {
-          // No skill slots defined, fallback to regular modal
-          setAssignModalOpen(true);
+          // Backward compatibility: legacy project jobs may not have slot rows yet.
+          // Synthesize a single slot so UI stays in team workflow instead of legacy modal.
+          const fallbackWorkersNeeded =
+            Math.max(1, Number(job.total_workers_needed || 0)) || 1;
+          const fallbackSlot: JobSkillSlot = {
+            skill_slot_id: -1,
+            specialization_id: job.category?.id || -1,
+            specialization_name: job.category?.name || "General Worker",
+            workers_needed: fallbackWorkersNeeded,
+            skill_level_required: "INTERMEDIATE",
+            budget_allocated: Number(job.budget || 0),
+            skill_level: "INTERMEDIATE",
+            notes: null,
+            status: "OPEN",
+            assigned_count: 0,
+            assigned_employees: [],
+          };
+          setSelectedJobSkillSlots([fallbackSlot]);
+          setSkillSlotModalOpen(true);
         }
       } catch (error) {
         console.error("Error loading skill slots:", error);
-        // Fallback to regular modal
-        setAssignModalOpen(true);
+        // Keep user on unified flow even during API hiccups.
+        const fallbackWorkersNeeded =
+          Math.max(1, Number(job.total_workers_needed || 0)) || 1;
+        const fallbackSlot: JobSkillSlot = {
+          skill_slot_id: -1,
+          specialization_id: job.category?.id || -1,
+          specialization_name: job.category?.name || "General Worker",
+          workers_needed: fallbackWorkersNeeded,
+          skill_level_required: "INTERMEDIATE",
+          budget_allocated: Number(job.budget || 0),
+          skill_level: "INTERMEDIATE",
+          notes: null,
+          status: "OPEN",
+          assigned_count: 0,
+          assigned_employees: [],
+        };
+        setSelectedJobSkillSlots([fallbackSlot]);
+        setSkillSlotModalOpen(true);
       } finally {
         setLoadingSkillSlots(false);
       }
@@ -805,6 +826,58 @@ export default function AgencyJobsPage() {
     try {
       setError(null);
       setSuccessMessage(null);
+
+      const hasSyntheticLegacySlot = assignments.some(
+        (item) => item.skill_slot_id <= 0,
+      );
+
+      // Backward compatibility: if UI had to synthesize a slot for legacy jobs,
+      // submit via legacy assignment endpoint while keeping unified slot UI.
+      if (hasSyntheticLegacySlot) {
+        const uniqueEmployeeIds = Array.from(
+          new Set(assignments.map((item) => item.employee_id)),
+        );
+
+        const legacyAssignResponse = await fetch(
+          `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              employee_ids: uniqueEmployeeIds,
+              primary_contact_id:
+                primaryContactId || uniqueEmployeeIds[0] || null,
+              assignment_notes: "",
+            }),
+          },
+        );
+
+        const legacyData = await legacyAssignResponse.json().catch(() => null);
+        if (!legacyAssignResponse.ok) {
+          const errorMessage =
+            legacyData?.error ||
+            legacyData?.message ||
+            `Failed to assign employees (HTTP ${legacyAssignResponse.status})`;
+          throw new Error(errorMessage);
+        }
+
+        const count = uniqueEmployeeIds.length;
+        setSuccessMessage(
+          `${count} worker${count > 1 ? "s" : ""} successfully assigned for "${selectedJobForAssignment.title}" using project multi-day workflow! Job is now In Progress.`,
+        );
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+
+        await fetchAcceptedJobs();
+        await fetchInProgressJobs();
+
+        setSkillSlotModalOpen(false);
+        setSelectedJobForAssignment(null);
+        setSelectedJobSkillSlots([]);
+        setIsPendingInviteFlow(false);
+        return;
+      }
 
       const response = await fetch(
         `${API_BASE}/api/agency/jobs/${selectedJobForAssignment.jobID}/assign-employees-to-slots`,
@@ -1135,7 +1208,7 @@ export default function AgencyJobsPage() {
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
                                   dailyRate={job.daily_rate_agreed}
-                                  durationDays={job.duration_days}
+                                  durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
                             </div>
@@ -1193,7 +1266,8 @@ export default function AgencyJobsPage() {
                         </div>
 
                         {/* Assignment Progress for Team Jobs */}
-                        {job.is_team_job && (job.total_workers_assigned || 0) > 0 && (
+                        {usesTeamProjectWorkflow(job) &&
+                          (job.total_workers_assigned || 0) > 0 && (
                           <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
                             <div className="flex items-center justify-between gap-4">
                               <div className="flex items-center gap-2">
@@ -1212,7 +1286,7 @@ export default function AgencyJobsPage() {
                               </div>
                             </div>
                           </div>
-                        )}
+                          )}
                       </div>
 
                       {/* Action Buttons */}
@@ -1319,7 +1393,7 @@ export default function AgencyJobsPage() {
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
                                   dailyRate={job.daily_rate_agreed}
-                                  durationDays={job.duration_days}
+                                  durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
                             </div>
@@ -1472,7 +1546,7 @@ export default function AgencyJobsPage() {
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
                                   dailyRate={job.daily_rate_agreed}
-                                  durationDays={job.duration_days}
+                                  durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
                             </div>
@@ -1626,7 +1700,7 @@ export default function AgencyJobsPage() {
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
                                   dailyRate={job.daily_rate_agreed}
-                                  durationDays={job.duration_days}
+                                  durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
                             </div>
@@ -1732,7 +1806,9 @@ export default function AgencyJobsPage() {
           job={selectedJobForAssignment}
           employees={employees}
           onAssign={handleAssignEmployees}
-          maxEmployees={selectedJobForAssignment.is_team_job ? undefined : 1}
+          maxEmployees={
+            usesTeamProjectWorkflow(selectedJobForAssignment) ? undefined : 1
+          }
           isPendingInvite={isPendingInviteFlow}
         />
       )}

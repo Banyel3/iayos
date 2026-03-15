@@ -78,6 +78,20 @@ interface PendingInviteJob {
   skill_slots?: SkillSlot[];
 }
 
+const isProjectMultiDayJob = (job: PendingInviteJob): boolean => {
+  const explicitDays = Number(job.duration_days || 0);
+  if (explicitDays > 1) return true;
+
+  const durationText =
+    (job.expectedDuration || job.expected_duration || "").toLowerCase();
+  const matchedDays = durationText.match(/(\d+)\s*day/);
+  return Boolean(matchedDays && Number(matchedDays[1]) > 1);
+};
+
+const usesTeamProjectWorkflow = (job: PendingInviteJob): boolean => {
+  return Boolean(job.is_team_job) || isProjectMultiDayJob(job);
+};
+
 interface WorkerSuggestion {
   id: string;
   name: string;
@@ -134,7 +148,7 @@ export default function PendingInviteCard({
   };
 
   const simplifiedSkillSlots =
-    job.is_team_job && job.skill_slots && job.skill_slots.length > 0
+    usesTeamProjectWorkflow(job) && job.skill_slots && job.skill_slots.length > 0
       ? job.skill_slots
           .map((slot) => {
             const count = slot.workers_needed ?? 0;
@@ -252,14 +266,28 @@ export default function PendingInviteCard({
               )}
             </div>
 
-            {job.is_team_job && simplifiedSkillSlots && (
+            {usesTeamProjectWorkflow(job) && (
               <div className="p-3 bg-transparent rounded-lg border border-gray-200">
                 <h4 className="font-semibold text-slate-900 mb-1 text-sm">
                   Required Workers
                 </h4>
-                <p className="text-sm text-slate-700 leading-relaxed">
-                  {simplifiedSkillSlots}
-                </p>
+                {simplifiedSkillSlots ? (
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {simplifiedSkillSlots}
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    Project multi-day workflow: assign workers through the
+                    slot-based team assignment flow.
+                    {typeof job.total_workers_needed === "number" &&
+                    job.total_workers_needed > 0
+                      ? ` Workers needed: ${job.total_workers_needed}.`
+                      : ""}
+                    {job.category?.name
+                      ? ` Category focus: ${job.category.name}.`
+                      : ""}
+                  </p>
+                )}
               </div>
             )}
 
