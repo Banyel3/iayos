@@ -123,6 +123,9 @@ class CreateTeamJobSchema(Schema):
     team_start_threshold: Optional[float] = 100.0  # Percentage of team needed to start (0-100)
     skill_slots: list[SkillSlotSchema]  # At least one skill slot required
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
+    payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
+    daily_rate: Optional[float] = None  # Required for DAILY model
+    duration_days: Optional[int] = None  # Required for DAILY model
 
     # ML enhancement fields
     job_scope: Optional[str] = "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION

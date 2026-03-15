@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Job Posting Payment Model Selector (Project vs Daily)**
+  - Added payment model selection in team job create screen: `Project Rate` or `Daily Rate`.
+  - Added DAILY inputs for `daily rate per worker` and `duration (days)`.
+  - Added automatic total-budget computation for DAILY team jobs: `daily rate x days x total workers`.
+  - Updated payment summary and escrow label dynamically:
+    - PROJECT: `50% Escrow (Downpayment)`
+    - DAILY: `100% Escrow (Daily Job)`
+  - Sent new payload fields from mobile to backend team-create API: `payment_model`, `daily_rate`, `duration_days`.
+  - **Impact**: Clients can now explicitly choose team job payment mode during posting, aligning team create flow with DAILY/PROJECT backend behavior.
+
 - **PROJECT Final Payment Prompt + Completion Sync Hardening**
   - Restored explicit `Wallet` / `Cash` selection when clients approve completion from Active Job details (solo + team), replacing the old hardcoded approval path.
   - Added cash-proof upload support to the team approval endpoint and hook so CASH team approvals follow the same proof flow as regular/agency PROJECT jobs.

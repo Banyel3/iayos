@@ -221,7 +221,10 @@ function patchConversationAttendanceRows(
             client_confirmed_at: current?.client_confirmed_at || nowIso,
             amount_earned: updated.amount_earned,
             payment_processed: updated.payment_processed,
-            absent_penalty_amount: updated.absent_penalty_amount ?? current?.absent_penalty_amount ?? 0,
+            absent_penalty_amount:
+              updated.absent_penalty_amount ??
+              current?.absent_penalty_amount ??
+              0,
           });
         } else {
           byId.set(key, {
