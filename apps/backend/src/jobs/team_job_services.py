@@ -2,7 +2,7 @@
 # TEAM JOB SERVICES - Multi-Skill Multi-Worker Business Logic
 # ===========================================================================
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from django.conf import settings
 from django.db import transaction, IntegrityError
@@ -14,6 +14,88 @@ from accounts.models import (
     Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet, workerSpecialization
 )
 from profiles.models import Conversation, ConversationParticipant
+
+
+def _calculate_team_pending_payouts(job: Job, total_pending_pool: Decimal) -> dict:
+    """
+    Split pending payout pool across assigned team workers.
+
+    PROJECT jobs use slot budget-per-worker as weight.
+    DAILY jobs use assignment earnings/rate as weight.
+    """
+    assignments = list(
+        JobWorkerAssignment.objects.select_related(
+            'workerID__profileID__accountFK',
+            'skillSlotID'
+        ).filter(
+            jobID=job,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        )
+    )
+
+    if not assignments:
+        return {}
+
+    pool = Decimal(total_pending_pool or Decimal('0.00'))
+    if pool <= 0:
+        return {}
+
+    payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+    weighted_accounts = []
+
+    for assignment in assignments:
+        worker_account = assignment.workerID.profileID.accountFK
+        base_amount = Decimal('0.00')
+
+        if payment_model == 'DAILY':
+            if assignment.total_earned and assignment.total_earned > 0:
+                base_amount = assignment.total_earned
+            else:
+                daily_rate = assignment.daily_rate_at_assignment or job.daily_rate_agreed or Decimal('0.00')
+                days_worked = assignment.days_worked or int(getattr(job, 'total_days_worked', 0) or 0) or 1
+                base_amount = Decimal(daily_rate) * Decimal(days_worked)
+        else:
+            if assignment.skillSlotID is not None:
+                base_amount = Decimal(assignment.skillSlotID.budget_per_worker or Decimal('0.00'))
+
+        if base_amount < 0:
+            base_amount = Decimal('0.00')
+
+        weighted_accounts.append((worker_account, base_amount))
+
+    if not weighted_accounts:
+        return {}
+
+    total_base = sum(base for _, base in weighted_accounts)
+    payouts = {}
+
+    if total_base <= 0:
+        split_count = len(weighted_accounts)
+        equal_share = (pool / Decimal(split_count)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        distributed = Decimal('0.00')
+
+        for index, (account, _) in enumerate(weighted_accounts):
+            if index == split_count - 1:
+                amount = pool - distributed
+            else:
+                amount = equal_share
+                distributed += amount
+            payouts[account] = payouts.get(account, Decimal('0.00')) + amount
+        return payouts
+
+    distributed = Decimal('0.00')
+    last_index = len(weighted_accounts) - 1
+    for index, (account, base) in enumerate(weighted_accounts):
+        if index == last_index:
+            amount = pool - distributed
+        else:
+            ratio = (base / total_base) if total_base > 0 else Decimal('0.00')
+            amount = (pool * ratio).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            distributed += amount
+
+        payouts[account] = payouts.get(account, Decimal('0.00')) + amount
+
+    return payouts
 
 
 def _get_required_project_days(job: Job) -> int:
@@ -1553,6 +1635,25 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     if remaining_amount <= 0:
         return {'success': False, 'error': 'No remaining payment is due for this team job'}
 
+    # Team jobs must create pending earnings per assigned worker so both
+    # auto-release and "Release Payment Now" work for multi-recipient payouts.
+    from jobs.payment_buffer_service import add_pending_earnings, get_payment_buffer_days
+
+    if payment_method_upper == 'WALLET':
+        pending_pool = (job.budget or Decimal('0.00')) + (job.materialsCost or Decimal('0.00'))
+    else:
+        # For cash completion, only escrow/downpayment portion is buffered.
+        pending_pool = (job.budget or Decimal('0.00')) * Decimal('0.50')
+
+    pending_payouts = _calculate_team_pending_payouts(job, pending_pool)
+    if not pending_payouts:
+        return {
+            'success': False,
+            'error': 'No assigned workers found to receive team payout'
+        }
+
+    buffer_days = get_payment_buffer_days()
+
     # Pre-validate wallet balance BEFORE updating job flags.
     # Use available balance (balance - reserved) to avoid violating
     # wallet_balance_gte_reserved DB constraint on deduction.
@@ -1576,6 +1677,7 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     old_status = job.status
     now = timezone.now()
 
+    first_pending_result = None
     with transaction.atomic():
         client_wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user,
@@ -1630,6 +1732,18 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             relatedJobPosting=job,
             paymentMethod=payment_method_upper,
         )
+
+        for worker_account, worker_amount in pending_payouts.items():
+            if worker_amount <= 0:
+                continue
+            pending_result = add_pending_earnings(
+                job=job,
+                recipient_account=worker_account,
+                amount=worker_amount,
+                recipient_type='worker'
+            )
+            if first_pending_result is None:
+                first_pending_result = pending_result
 
         job.status = 'COMPLETED'
         job.clientMarkedComplete = True
@@ -1692,6 +1806,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         'job_id': job_id,
         'payment_method': payment_method_upper,
         'amount_paid': float(remaining_amount),
+        'pending_payout_total': float(pending_pool),
+        'pending_recipients_count': len(pending_payouts),
+        'payment_buffer_days': buffer_days,
+        'worker_payment_pending': True,
+        'worker_payment_release_date': first_pending_result['release_date'].isoformat() if first_pending_result else None,
+        'worker_payment_release_date_formatted': first_pending_result['release_date_str'] if first_pending_result else None,
         'workers_completed': job.total_workers_assigned,
         'healed_assignments': healed_assignments,
         'auto_completed_assignments': unresolved_incomplete_count,
