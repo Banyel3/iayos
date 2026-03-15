@@ -329,18 +329,28 @@ export function useClientApproveTeamJob() {
   return useMutation({
     mutationFn: async ({
       jobId,
-      ratings,
+      paymentMethod,
+      cashProofImage,
     }: {
       jobId: number;
-      ratings?: Record<number, number>; // assignment_id -> rating (1-5)
+      paymentMethod?: "WALLET" | "CASH";
+      cashProofImage?: string;
     }) => {
-      const response = await apiRequest(
-        ENDPOINTS.TEAM_APPROVE_COMPLETION(jobId),
-        {
-          method: "POST",
-          body: JSON.stringify({ ratings }),
-        },
-      );
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod || "WALLET");
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: `team_cash_proof_${jobId}_${Date.now()}.jpg`,
+        } as any);
+      }
+
+      const response = await apiRequest(ENDPOINTS.TEAM_APPROVE_COMPLETION(jobId), {
+        method: "POST",
+        body: formData as any,
+      });
 
       const data = (await response.json()) as {
         success?: boolean;

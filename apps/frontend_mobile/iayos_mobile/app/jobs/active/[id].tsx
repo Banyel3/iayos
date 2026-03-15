@@ -337,12 +337,29 @@ export default function ActiveJobDetailScreen() {
 
   // Approve completion (client)
   const approveCompletionMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({
+      paymentMethod,
+      cashProofImage,
+    }: {
+      paymentMethod: "WALLET" | "CASH";
+      cashProofImage?: string;
+    }) => {
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod);
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: `cash_proof_${id}_${Date.now()}.jpg`,
+        } as any);
+      }
+
       const response = await apiRequest(
         ENDPOINTS.APPROVE_COMPLETION(parseInt(id)),
         {
           method: "POST",
-          body: JSON.stringify({ payment_method: "GCASH" }),
+          body: formData as any,
         }
       );
 
@@ -356,7 +373,7 @@ export default function ActiveJobDetailScreen() {
     onSuccess: () => {
       Alert.alert(
         "Success",
-        "Job completion approved! Payment will be processed shortly.",
+        "Job completion approved and payment processed.",
         [
           {
             text: "OK",
@@ -406,6 +423,45 @@ export default function ActiveJobDetailScreen() {
     setUploadedPhotos(uploadedPhotos.filter((_, i) => i !== index));
   };
 
+  const pickCashProofThenApprove = async (target: "SOLO" | "TEAM") => {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      Alert.alert(
+        "Permission Required",
+        "Please allow access to your photo library",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    const uri = result.assets[0].uri;
+
+    if (target === "TEAM") {
+      clientApproveMutation.mutate({
+        jobId: Number(id),
+        paymentMethod: "CASH",
+        cashProofImage: uri,
+      });
+      return;
+    }
+
+    approveCompletionMutation.mutate({
+      paymentMethod: "CASH",
+      cashProofImage: uri,
+    });
+  };
+
   const handleMarkComplete = () => {
     if (!completionNotes.trim()) {
       Alert.alert(
@@ -432,15 +488,20 @@ export default function ActiveJobDetailScreen() {
 
   const handleApproveCompletion = () => {
     Alert.alert(
-      "Approve Completion",
-      "Are you satisfied with the work? Approving will release the payment to the worker.",
+      "Select Payment Method",
+      "Choose how you want to pay the final amount.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Approve",
-          onPress: () => approveCompletionMutation.mutate(),
+          text: "Wallet",
+          onPress: () =>
+            approveCompletionMutation.mutate({ paymentMethod: "WALLET" }),
         },
-      ]
+        {
+          text: "Cash",
+          onPress: () => pickCashProofThenApprove("SOLO"),
+        },
+      ],
     );
   };
 
@@ -518,20 +579,20 @@ export default function ActiveJobDetailScreen() {
     }
 
     Alert.alert(
-      "Approve Team Job",
-      "Are you satisfied with all workers' work? Approving will release payment to all team members.",
+      "Select Payment Method",
+      "All workers are complete. Choose how you want to pay the final amount.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Approve All",
+          text: "Wallet",
           onPress: () => {
             clientApproveMutation.mutate(
-              { jobId: Number(id) },
+              { jobId: Number(id), paymentMethod: "WALLET" },
               {
                 onSuccess: () => {
                   Alert.alert(
                     "Success",
-                    "Team job completed! Payments will be processed.",
+                    "Team job completed! Payment processed.",
                     [{ text: "OK", onPress: () => safeGoBack(router, "/(tabs)/jobs") }]
                   );
                 },
@@ -545,7 +606,11 @@ export default function ActiveJobDetailScreen() {
             );
           },
         },
-      ]
+        {
+          text: "Cash",
+          onPress: () => pickCashProofThenApprove("TEAM"),
+        },
+      ],
     );
   };
 

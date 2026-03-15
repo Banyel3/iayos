@@ -4566,10 +4566,10 @@ def client_approve_job_completion(
 ):
     """
     Client approves job completion and selects payment method
-    Payment methods: WALLET, GCASH, or CASH (with proof upload)
+    Payment methods: WALLET or CASH (with proof upload)
     
     Form data:
-    - payment_method: "WALLET" | "GCASH" | "CASH" (required)
+    - payment_method: "WALLET" | "CASH" (required)
     - cash_proof_image: file upload (required if payment_method is CASH)
     """
     try:
@@ -4577,9 +4577,9 @@ def client_approve_job_completion(
         
         # Get payment method from form data (default to WALLET)
         payment_method_upper = payment_method.upper() if payment_method else 'WALLET'
-        if payment_method_upper not in ['WALLET', 'GCASH', 'CASH']:
+        if payment_method_upper not in ['WALLET', 'CASH']:
             return Response(
-                {"error": "Invalid payment method. Choose WALLET, GCASH, or CASH"},
+                {"error": "Invalid payment method. Choose WALLET or CASH"},
                 status=400
             )
         
@@ -5089,19 +5089,28 @@ def client_approve_job_completion(
             print(f"⚠️ Error processing payment: {str(payment_error)}")
             import traceback
             traceback.print_exc()
-            # Allow proceeding with review even if payment fails
-            return {
-                "success": True,
-                "message": "Job completion approved! Payment processing error, please contact support.",
-                "job_id": job_id,
-                "worker_marked_complete": job.workerMarkedComplete,
-                "client_marked_complete": job.clientMarkedComplete,
-                "status": job.status,
-                "requires_payment": False,
-                "payment_error": True,
-                "prompt_review": True,
-                "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
-            }
+
+            # Roll back completion flags so clients still see payment selection prompt.
+            try:
+                job.clientMarkedComplete = False
+                job.clientMarkedCompleteAt = None
+                job.status = old_status
+                job.finalPaymentMethod = None
+                job.paymentMethodSelectedAt = None
+                if payment_method_upper == 'CASH':
+                    job.cashPaymentProofUrl = None
+                    job.cashProofUploadedAt = None
+                job.save()
+            except Exception as rollback_error:
+                print(f"⚠️ Failed to rollback job {job_id} after payment error: {rollback_error}")
+
+            return Response(
+                {
+                    "error": "Final payment failed. Job was not completed.",
+                    "details": str(payment_error),
+                },
+                status=500,
+            )
         
     except Exception as e:
         print(f"❌ Error approving job completion: {str(e)}")
@@ -8307,7 +8316,12 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
 @require_kyc
-def approve_team_job_completion(request, job_id: int, payment_method: str = Form('WALLET')):
+def approve_team_job_completion(
+    request,
+    job_id: int,
+    payment_method: str = Form('WALLET'),
+    cash_proof_image: UploadedFile = File(None),
+):
     """
     Client approves team job completion after all workers have marked complete.
     This closes the job and team conversation.
@@ -8323,10 +8337,43 @@ def approve_team_job_completion(request, job_id: int, payment_method: str = Form
     if project_gate_error:
         return Response(project_gate_error, status=400)
     
+    cash_proof_url = None
+    payment_method_upper = (payment_method or 'WALLET').upper()
+
+    if payment_method_upper == 'CASH':
+        if not cash_proof_image:
+            return Response({"error": "Cash proof image is required for CASH payment"}, status=400)
+
+        try:
+            from datetime import datetime
+            import uuid
+
+            file_content = cash_proof_image.read()
+            file_extension = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_id = str(uuid.uuid4())[:8]
+            file_path = f"users/{request.auth.accountID}/jobs/{job_id}/proof/team_cash_proof_{timestamp}_{unique_id}.{file_extension}"
+
+            if not settings.STORAGE:
+                raise Exception("Storage not configured")
+
+            settings.STORAGE.storage().from_('user-uploads').upload(
+                file_path,
+                file_content,
+                {
+                    'content-type': cash_proof_image.content_type or 'image/jpeg',
+                    'upsert': 'true'
+                }
+            )
+            cash_proof_url = settings.STORAGE.storage().from_('user-uploads').get_public_url(file_path)
+        except Exception as upload_error:
+            return Response({"error": f"Failed to upload cash proof image: {upload_error}"}, status=500)
+
     result = client_approve_team_job(
         job_id=job_id,
         client_user=request.auth,
-        payment_method=payment_method
+        payment_method=payment_method_upper,
+        cash_proof_url=cash_proof_url,
     )
     
     if not result.get('success'):
