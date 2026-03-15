@@ -127,6 +127,30 @@ type EditableReviewTarget = {
   comment: string;
 };
 
+function parseExpectedDurationDays(expectedDuration?: string | null): number {
+  if (!expectedDuration) return 1;
+
+  const text = String(expectedDuration).trim().toLowerCase();
+  if (!text) return 1;
+
+  const unitMatch = text.match(/(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b/);
+  if (unitMatch) {
+    const value = Number(unitMatch[1] || 1);
+    const unit = unitMatch[2] || "day";
+    return unit.startsWith("week") || unit.startsWith("wk")
+      ? Math.max(1, value * 7)
+      : Math.max(1, value);
+  }
+
+  // Handle simple numeric input like "2".
+  const plainNumber = Number(text);
+  if (Number.isFinite(plainNumber) && plainNumber > 0) {
+    return Math.max(1, Math.floor(plainNumber));
+  }
+
+  return 1;
+}
+
 export default function ChatScreen() {
   const params = useLocalSearchParams();
   const conversationId = parseInt(params.conversationId as string);
@@ -1118,8 +1142,17 @@ export default function ChatScreen() {
   const handleMarkComplete = () => {
     if (!conversation) return;
 
+    const configuredDuration = Number(conversation.job?.duration_days || 0);
+    const fallbackDuration = parseExpectedDurationDays(
+      conversation.job?.expectedDuration,
+    );
+    const effectiveDurationDays =
+      configuredDuration > 0 ? configuredDuration : fallbackDuration;
+    const isProjectMultiDayFlow =
+      conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+
     // Check if work started was confirmed
-    if (!conversation.job.clientConfirmedWorkStarted) {
+    if (!isProjectMultiDayFlow && !conversation.job.clientConfirmedWorkStarted) {
       Alert.alert(
         "Cannot Mark Complete",
         "Client must confirm that work has started before you can mark it as complete.",
@@ -2641,21 +2674,26 @@ export default function ChatScreen() {
       !myWorkerAttendanceToday.time_in,
   );
   const configuredDurationDays = Number(conversation.job?.duration_days || 0);
+  const fallbackDurationDays = parseExpectedDurationDays(
+    conversation.job?.expectedDuration,
+  );
+  const effectiveDurationDays =
+    configuredDurationDays > 0 ? configuredDurationDays : fallbackDurationDays;
   const totalDaysWorked = Number(conversation.job?.total_days_worked || 0);
   const qaOffset = Number(conversation.qa_day_offset || 0);
   const qaMaxOffset =
-    configuredDurationDays > 0 ? Math.max(configuredDurationDays - 1, 0) : 0;
+    effectiveDurationDays > 0 ? Math.max(effectiveDurationDays - 1, 0) : 0;
   const reachedConfiguredDuration =
-    configuredDurationDays > 0 && totalDaysWorked >= configuredDurationDays;
+    effectiveDurationDays > 0 && totalDaysWorked >= effectiveDurationDays;
   const reachedQaOffsetLimit =
     isTestingModeEnabled &&
-    configuredDurationDays > 0 &&
+    effectiveDurationDays > 0 &&
     qaOffset >= qaMaxOffset;
   const isTeamProjectAttendance =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "PROJECT";
   const isProjectMultiDayJob =
-    conversation.job?.payment_model === "PROJECT" && configuredDurationDays > 1;
+    conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
   const canShowQASkipNextDay =
     conversation.my_role === "CLIENT" &&
     isTestingModeEnabled &&
@@ -4858,8 +4896,9 @@ export default function ChatScreen() {
                 conversation.job?.payment_model !== "DAILY" &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
-                conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedJobStarted &&
+                ((isProjectMultiDayFlow && !isTeamProjectAttendance) ||
+                  (conversation.job.clientConfirmedWorkStarted &&
+                    conversation.job.workerMarkedJobStarted)) &&
                 !conversation.job.workerMarkedComplete && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.markCompleteButton]}

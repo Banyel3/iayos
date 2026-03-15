@@ -198,7 +198,8 @@ def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
         return 1
 
     # Prefer explicit day/week units to avoid false positives in free text.
-    unit_match = re.search(r"(\d+)\s*(day|days|week|weeks|wk|wks)\b", text)
+    # Also handle hyphenated forms like "2-day" / "3-weeks".
+    unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", text)
     if unit_match:
         value = int(unit_match.group(1))
         unit = unit_match.group(2)
@@ -210,6 +211,11 @@ def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
     hour_match = re.search(r"(\d+)\s*(hour|hours|hr|hrs)\b", text)
     if hour_match:
         return 1
+
+    # Numeric-only duration (e.g., "2") should be interpreted as days.
+    numeric_match = re.fullmatch(r"\d+", text)
+    if numeric_match:
+        return max(1, int(text))
 
     return 1
 
@@ -226,6 +232,32 @@ def _get_required_project_days(job: JobPosting) -> int:
         pass
 
     return _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+
+
+def _resolve_project_duration_days_from_payload(data) -> int:
+    """Resolve PROJECT duration days from explicit fields, schedule range, or expected duration text."""
+    # 1) Explicit numeric duration_days from client payload.
+    try:
+        explicit_days = int(getattr(data, "duration_days", 0) or 0)
+        if explicit_days > 0:
+            return explicit_days
+    except (TypeError, ValueError):
+        pass
+
+    # 2) Date-range based duration (inclusive) when both dates are supplied.
+    preferred_start = getattr(data, "preferred_start_date", None)
+    scheduled_end = getattr(data, "scheduled_end_date", None)
+    if preferred_start and scheduled_end:
+        try:
+            start_date = datetime.fromisoformat(str(preferred_start)).date()
+            end_date = datetime.fromisoformat(str(scheduled_end)).date()
+            if end_date >= start_date:
+                return max(1, (end_date - start_date).days + 1)
+        except (TypeError, ValueError):
+            pass
+
+    # 3) Fallback to expected duration text parser.
+    return _parse_expected_duration_days(getattr(data, "expected_duration", None))
 
 
 def _get_elapsed_project_days(job: JobPosting) -> int:
@@ -879,7 +911,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     is_team_job=is_team_job,
                     payment_model=payment_model,
                     daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
-                    duration_days=data.duration_days if payment_model == "DAILY" else None,
+                    duration_days=(
+                        data.duration_days
+                        if payment_model == "DAILY"
+                        else _resolve_project_duration_days_from_payload(data)
+                    ),
                     # ML Enhancement Fields
                     job_scope=data.job_scope if data.job_scope else "MODERATE_PROJECT",
                     skill_level_required=data.skill_level_required if data.skill_level_required else "INTERMEDIATE",
@@ -1101,7 +1137,11 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     status=JobPosting.JobStatus.ACTIVE,
                     payment_model=payment_model,
                     daily_rate_agreed=float(data.daily_rate) if payment_model == "DAILY" and data.daily_rate else None,
-                    duration_days=data.duration_days if payment_model == "DAILY" else None
+                    duration_days=(
+                        data.duration_days
+                        if payment_model == "DAILY"
+                        else _resolve_project_duration_days_from_payload(data)
+                    )
                 )
                 
                 print(f"📋 Job created as {job_type} (worker_id: {data.worker_id or 'None'})")
