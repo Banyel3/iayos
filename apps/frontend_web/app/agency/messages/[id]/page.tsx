@@ -85,19 +85,27 @@ export default function AgencyChatScreen() {
   const [isUploading, setIsUploading] = useState(false);
 
   // Job action state
-  const [showMarkCompleteModal, setShowMarkCompleteModal] = useState(false);
-  const [completionNotes, setCompletionNotes] = useState("");
-  const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
-  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewModalMode, setReviewModalMode] = useState<"submit" | "view">(
+    "submit",
+  );
   const [ratingQuality, setRatingQuality] = useState(0);
   const [ratingCommunication, setRatingCommunication] = useState(0);
   const [ratingPunctuality, setRatingPunctuality] = useState(0);
   const [ratingProfessionalism, setRatingProfessionalism] = useState(0);
   const [reviewText, setReviewText] = useState("");
+  const [reviewViewLoading, setReviewViewLoading] = useState(false);
+  const [reviewViewData, setReviewViewData] = useState<{
+    myReview: any | null;
+    clientReview: any | null;
+  }>({
+    myReview: null,
+    clientReview: null,
+  });
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
+  const [receiptData, setReceiptData] = useState<any | null>(null);
 
   // Backjob action state
   const [showBackjobConfirmModal, setShowBackjobConfirmModal] = useState(false);
@@ -131,7 +139,6 @@ export default function AgencyChatScreen() {
   // Job action mutations
   const markCompleteMutation = useAgencyMarkComplete();
   const submitReviewMutation = useAgencySubmitReview();
-  const uploadPhotoMutation = useUploadCompletionPhoto();
 
   // Backjob action mutations
   const confirmBackjobStartedMutation = useConfirmBackjobStarted();
@@ -316,87 +323,29 @@ export default function AgencyChatScreen() {
     router.back();
   };
 
-  // Handle photo file selection
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const remainingSlots = 10 - completionPhotos.length;
-    const newFiles = files.slice(0, remainingSlots);
-
-    // Validate file types and sizes
-    const validFiles = newFiles.filter((file) => {
-      const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      return validTypes.includes(file.type) && file.size <= maxSize;
-    });
-
-    if (validFiles.length > 0) {
-      setCompletionPhotos((prev) => [...prev, ...validFiles]);
-      // Create preview URLs
-      validFiles.forEach((file) => {
-        const url = URL.createObjectURL(file);
-        setPhotoPreviewUrls((prev) => [...prev, url]);
-      });
-    }
-
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  // Remove a photo from the list
-  const handleRemovePhoto = (index: number) => {
-    setCompletionPhotos((prev) => prev.filter((_, i) => i !== index));
-    setPhotoPreviewUrls((prev) => {
-      // Revoke the URL to free memory
-      URL.revokeObjectURL(prev[index]);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
-  // Handle mark job as complete with photo upload
+  // Handle mark job as complete with a direct confirmation prompt
   const handleMarkComplete = async () => {
     if (!conversation?.job.id) return;
 
-    const jobId = conversation.job.id;
+    const confirmed = window.confirm(
+      `Are you sure you want to mark \"${conversation.job.title}\" as completed?`,
+    );
+    if (!confirmed) return;
 
     try {
-      setIsUploadingPhotos(true);
-      setUploadProgress(0);
-
-      // First, upload all photos sequentially
-      if (completionPhotos.length > 0) {
-        for (let i = 0; i < completionPhotos.length; i++) {
-          await uploadPhotoMutation.mutateAsync({
-            jobId,
-            file: completionPhotos[i],
-          });
-          setUploadProgress(((i + 1) / completionPhotos.length) * 100);
-        }
-      }
-
-      // Then mark the job as complete
       await markCompleteMutation.mutateAsync({
-        jobId,
-        completionNotes,
+        jobId: conversation.job.id,
+        completionNotes: "",
       });
 
-      // Success - reset state
-      setShowMarkCompleteModal(false);
-      setCompletionNotes("");
-      setCompletionPhotos([]);
-      photoPreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-      setPhotoPreviewUrls([]);
-      setUploadProgress(0);
       refetch();
+      toast.success("Job marked as complete");
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "Failed to mark job as complete",
       );
-    } finally {
-      setIsUploadingPhotos(false);
     }
   };
 
@@ -410,6 +359,10 @@ export default function AgencyChatScreen() {
       ratingProfessionalism === 0
     )
       return;
+    if (!reviewText.trim()) {
+      toast.error("Please add a review message.");
+      return;
+    }
 
     submitReviewMutation.mutate(
       {
@@ -418,11 +371,22 @@ export default function AgencyChatScreen() {
         rating_communication: ratingCommunication,
         rating_punctuality: ratingPunctuality,
         rating_professionalism: ratingProfessionalism,
-        reviewText,
+        reviewText: reviewText.trim(),
       },
       {
         onSuccess: () => {
           setShowReviewModal(false);
+          setReviewModalMode("view");
+          setReviewViewData((prev) => ({
+            myReview: {
+              rating_quality: ratingQuality,
+              rating_communication: ratingCommunication,
+              rating_punctuality: ratingPunctuality,
+              rating_professionalism: ratingProfessionalism,
+              comment: reviewText.trim(),
+            },
+            clientReview: prev.clientReview,
+          }));
           setRatingQuality(0);
           setRatingCommunication(0);
           setRatingPunctuality(0);
@@ -435,6 +399,76 @@ export default function AgencyChatScreen() {
         },
       },
     );
+  };
+
+  const openReviewModal = () => {
+    if (!conversation) return;
+
+    const normalizeReview = (review: any) => {
+      if (!review) return null;
+      if (
+        review.rating_quality == null &&
+        review.rating_communication == null &&
+        review.rating_punctuality == null &&
+        review.rating_professionalism == null
+      ) {
+        return null;
+      }
+      return review;
+    };
+
+    const extractFromSource = (source: any) => {
+      if (!source) {
+        return { myReview: null, clientReview: null };
+      }
+
+      let myReview =
+        normalizeReview(source.worker_review) ||
+        normalizeReview(source.agency_review) ||
+        normalizeReview(source.my_review);
+      let clientReview =
+        normalizeReview(source.client_review) ||
+        normalizeReview(source.counterparty_review) ||
+        normalizeReview(source.counterparty_reviews?.[0]);
+
+      const reviewsList = Array.isArray(source.reviews) ? source.reviews : [];
+      if (!clientReview) {
+        clientReview =
+          normalizeReview(
+            reviewsList.find((r: any) =>
+              String(r?.reviewer_type || "").toUpperCase().includes("CLIENT"),
+            ),
+          ) || null;
+      }
+      if (!myReview) {
+        myReview =
+          normalizeReview(
+            reviewsList.find((r: any) => {
+              const reviewerType = String(r?.reviewer_type || "").toUpperCase();
+              return reviewerType.includes("AGENCY") || reviewerType.includes("WORKER");
+            }),
+          ) || null;
+      }
+
+      return { myReview, clientReview };
+    };
+
+    const hasSubmittedReview = !!conversation.job.workerReviewed;
+    const bothSidesReviewed =
+      !!conversation.job.workerReviewed && !!conversation.job.clientReviewed;
+
+    if (hasSubmittedReview || bothSidesReviewed) {
+      setReviewModalMode("view");
+      setShowReviewModal(true);
+
+      const conversationDerived = extractFromSource(conversation as any);
+      setReviewViewData(conversationDerived);
+      setReviewViewLoading(false);
+      return;
+    }
+
+    setReviewModalMode("submit");
+    setShowReviewModal(true);
   };
 
   // Handle confirm backjob started (CLIENT only - but agencies shouldn't see this)
@@ -536,6 +570,69 @@ export default function AgencyChatScreen() {
     return null;
   };
 
+  useEffect(() => {
+    const loadReceipt = async () => {
+      if (!showReceiptModal || !conversation?.job?.id) return;
+
+      setReceiptLoading(true);
+      setReceiptError(null);
+
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/jobs/${conversation.job.id}/receipt`,
+          {
+            method: "GET",
+            credentials: "include",
+          },
+        );
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.receipt) {
+          throw new Error(data?.error || "Failed to load receipt");
+        }
+
+        setReceiptData(data.receipt);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to load receipt";
+        setReceiptError(message);
+      } finally {
+        setReceiptLoading(false);
+      }
+    };
+
+    loadReceipt();
+  }, [showReceiptModal, conversation?.job?.id]);
+
+  const formatSystemUpdateText = (rawText: string) => {
+    const withoutEmoji = rawText
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!withoutEmoji) {
+      return "";
+    }
+
+    const lettersOnly = withoutEmoji.replace(/[^A-Za-z]/g, "");
+    if (!lettersOnly) {
+      return withoutEmoji;
+    }
+
+    const uppercaseCount = lettersOnly
+      .split("")
+      .filter((char) => char === char.toUpperCase()).length;
+    const uppercaseRatio = uppercaseCount / lettersOnly.length;
+
+    if (uppercaseRatio >= 0.7) {
+      const sentenceCase = withoutEmoji.toLowerCase();
+      return sentenceCase.charAt(0).toUpperCase() + sentenceCase.slice(1);
+    }
+
+    return withoutEmoji;
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -560,6 +657,9 @@ export default function AgencyChatScreen() {
   // Agency conversation uses client, assigned_employee(s), and job
   const { client, assigned_employee, assigned_employees, job, messages } =
     conversation;
+
+  const myReview = reviewViewData.myReview;
+  const clientReview = reviewViewData.clientReview;
 
   const isPaymentReleased = !!job.paymentReleasedToWorker;
 
@@ -731,7 +831,10 @@ export default function AgencyChatScreen() {
               </div>
             )}
 
-            {job.status === "IN_PROGRESS" &&
+            {(job.status === "IN_PROGRESS" ||
+              job.status === "COMPLETED" ||
+              job.clientMarkedComplete ||
+              job.workerMarkedComplete) &&
               job.payment_model === "PROJECT" &&
               assigned_employees?.length > 0 &&
               (() => {
@@ -744,6 +847,8 @@ export default function AgencyChatScreen() {
                 const allComplete = assigned_employees.every(
                   (e: AssignedEmployee) => e.agencyMarkedComplete,
                 );
+                const agencyMarkedComplete =
+                  allComplete || job.workerMarkedComplete;
                 const dispatchedCount = assigned_employees.filter(
                   (e: AssignedEmployee) => e.dispatched,
                 ).length;
@@ -751,6 +856,23 @@ export default function AgencyChatScreen() {
                   (e: AssignedEmployee) => e.clientConfirmedArrival,
                 ).length;
                 const totalCount = assigned_employees.length;
+
+                if (job.clientMarkedComplete) {
+                  return (
+                    <div className="p-2 bg-green-50 rounded-xl border border-green-200 text-xs text-green-700 font-semibold flex items-center gap-2">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Job completed successfully
+                    </div>
+                  );
+                }
+
+                if (agencyMarkedComplete) {
+                  return (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-medium">
+                      Waiting for client approval and payment
+                    </div>
+                  );
+                }
 
                 if (!allDispatched) {
                   return (
@@ -808,7 +930,7 @@ export default function AgencyChatScreen() {
                       <Button
                         size="sm"
                         className="bg-green-600 px-3 h-7 text-[10px]"
-                        onClick={() => setShowMarkCompleteModal(true)}
+                        onClick={handleMarkComplete}
                       >
                         Complete Job
                       </Button>
@@ -830,8 +952,9 @@ export default function AgencyChatScreen() {
                 <div key={`${message.message_id}-${index}`}>
                   {renderDateSeparator(currentDate, previousDate)}
                   {message.message_type === "SYSTEM" ? (
-                    <div className="flex justify-center my-4 text-[11px] text-gray-400 font-medium uppercase tracking-wider text-center">
-                      {message.message_text} — {format(currentDate, "h:mm a")}
+                    <div className="flex justify-center my-4 text-[11px] text-gray-500 font-medium text-center">
+                      {formatSystemUpdateText(message.message_text)} —{" "}
+                      {format(currentDate, "h:mm a")}
                     </div>
                   ) : (
                     <div
@@ -940,6 +1063,32 @@ export default function AgencyChatScreen() {
       {/* Right Sidebar - Job Details */}
       <div className="w-[380px] p-4 bg-transparent hidden lg:flex flex-col h-full">
         <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-y-auto p-6 space-y-8">
+          {job.clientMarkedComplete && (
+            <div className="space-y-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-9 px-3 text-[12px] font-bold border-yellow-500 text-yellow-600 hover:bg-yellow-50"
+                onClick={openReviewModal}
+                disabled={submitReviewMutation.isPending}
+              >
+                {job.workerReviewed && job.clientReviewed
+                  ? "View reviews"
+                  : job.workerReviewed
+                    ? "Review submitted"
+                    : "Leave review"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full h-9 px-3 text-[12px] font-bold border-[#00BAF1] text-[#00BAF1] hover:bg-[#00BAF1]/10"
+                onClick={() => setShowReceiptModal(true)}
+              >
+                View receipt
+              </Button>
+            </div>
+          )}
+
           <div>
             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 px-1">
               Job Information
@@ -1106,196 +1255,261 @@ export default function AgencyChatScreen() {
         </div>
       )}
 
-      {showMarkCompleteModal && (
+      {showReviewModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md shadow-2xl overflow-hidden rounded-3xl">
-            <CardHeader className="pb-2 pt-6">
-              <h3 className="text-lg font-bold">Complete Job</h3>
-              <p className="text-sm text-gray-500 font-medium">
-                Verify completion for "{job.title}"
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-5 pb-8">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
-                  Notes
-                </label>
-                <textarea
-                  className="w-full border-gray-100 border rounded-2xl p-4 text-sm focus:ring-2 focus:ring-[#00BAF1] outline-none bg-gray-50/30 transition-all"
-                  rows={3}
-                  placeholder="What was accomplished?"
-                  value={completionNotes}
-                  onChange={(e) => setCompletionNotes(e.target.value)}
-                />
-              </div>
+          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-none">
+            {reviewModalMode === "view" ? (
+              <>
+                <CardHeader className="pb-4 pt-8 text-left">
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Review details
+                  </h3>
+                  <p className="text-sm text-gray-500 font-medium mt-1">
+                    Feedback from both sides for this job.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4 px-8 pb-10">
+                  {reviewViewLoading && (
+                    <div className="py-1 text-xs text-gray-500 flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Refreshing review details...
+                    </div>
+                  )}
+                  <div className="border border-gray-200 rounded-2xl p-4 space-y-2">
+                    <p className="text-sm font-bold text-gray-900">
+                      Your feedback to client
+                    </p>
+                    {myReview ? (
+                      <>
+                        <p className="text-xs text-gray-600">
+                          Clarity: {myReview.rating_quality}/5 | Communication: {myReview.rating_communication}/5
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          Payment: {myReview.rating_punctuality}/5 | Professionalism: {myReview.rating_professionalism}/5
+                        </p>
+                        <p className="text-sm text-gray-800">{myReview.comment || "No comment"}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">No submitted feedback found.</p>
+                    )}
+                  </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
-                  Proof of Work (Max 10)
-                </label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                />
+                  <div className="border border-gray-200 rounded-2xl p-4 space-y-2">
+                    <p className="text-sm font-bold text-gray-900">
+                      Client feedback to your team
+                    </p>
+                    {clientReview ? (
+                      <>
+                        <p className="text-xs text-gray-600">
+                          Clarity: {clientReview.rating_quality}/5 | Communication: {clientReview.rating_communication}/5
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          Payment: {clientReview.rating_punctuality}/5 | Professionalism: {clientReview.rating_professionalism}/5
+                        </p>
+                        <p className="text-sm text-gray-800">{clientReview.comment || "No comment"}</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">Client feedback is not available yet.</p>
+                    )}
+                  </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                  {photoPreviewUrls.map((url, i) => (
-                    <div
-                      key={i}
-                      className="relative aspect-square rounded-xl overflow-hidden group border border-gray-100"
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-2xl h-12"
+                      onClick={() => setShowReviewModal(false)}
                     >
-                      <img
-                        src={url}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={() => handleRemovePhoto(i)}
-                        className="absolute top-1 right-1 bg-black/50 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                      Close
+                    </Button>
+                  </div>
+                </CardContent>
+              </>
+            ) : (
+              <>
+                <CardHeader className="pb-4 pt-8 text-left">
+                  <h3 className="text-xl font-bold text-gray-900">Rate Client</h3>
+                  <p className="text-sm text-gray-500 font-medium mt-1">
+                    Share your experience with {client.name}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-5 px-8 pb-10">
+                  {[
+                    {
+                      label: "Clarity of job details",
+                      description: "How clear were the instructions and scope?",
+                      value: ratingQuality,
+                      setter: setRatingQuality,
+                    },
+                    {
+                      label: "Communication",
+                      description: "How responsive and clear was the client?",
+                      value: ratingCommunication,
+                      setter: setRatingCommunication,
+                    },
+                    {
+                      label: "Payment reliability",
+                      description: "Was payment handled on time and fairly?",
+                      value: ratingPunctuality,
+                      setter: setRatingPunctuality,
+                    },
+                    {
+                      label: "Respect and professionalism",
+                      description: "Was the interaction respectful and professional?",
+                      value: ratingProfessionalism,
+                      setter: setRatingProfessionalism,
+                    },
+                  ].map((criteria) => (
+                    <div key={criteria.label} className="space-y-2">
+                      <label className="block text-left text-[11px] font-semibold text-black tracking-tight">
+                        {criteria.label}
+                      </label>
+                      <p className="text-xs text-gray-500 -mt-1">
+                        {criteria.description}
+                      </p>
+                      <div className="flex justify-start gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => criteria.setter(star)}
+                            className="focus:outline-none"
+                          >
+                            <Star
+                              className={`h-6 w-6 transition-all ${star <= criteria.value ? "fill-[#FBC02D] text-[#FBC02D]" : "text-gray-200 hover:text-[#FBC02D]/50"}`}
+                            />
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ))}
-                  {completionPhotos.length < 10 && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center hover:border-[#00BAF1] hover:bg-blue-50/50 transition-all text-gray-400 hover:text-[#00BAF1]"
-                    >
-                      <Camera className="h-5 w-5 mb-1" />
-                      <span className="text-[10px] font-bold">Add</span>
-                    </button>
-                  )}
-                </div>
-              </div>
 
-              {isUploadingPhotos && (
-                <div className="space-y-2">
-                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-[#00BAF1] h-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
+                  <div className="space-y-2">
+                    <label className="block text-left text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">
+                      Message
+                    </label>
+                    <p className="text-xs text-gray-500 -mt-1">
+                      Add a short message about your overall experience.
+                    </p>
+                    <textarea
+                      className="w-full border border-gray-200 rounded-2xl p-3 text-sm focus:ring-2 focus:ring-[#00BAF1] outline-none"
+                      rows={3}
+                      placeholder="Write your message"
+                      value={reviewText}
+                      onChange={(e) => setReviewText(e.target.value)}
                     />
                   </div>
-                  <p className="text-[10px] text-center font-bold text-[#00BAF1] uppercase tracking-tighter">
-                    Uploading {Math.round(uploadProgress)}%
-                  </p>
-                </div>
-              )}
 
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-2xl h-12 font-bold"
-                  onClick={() => {
-                    setShowMarkCompleteModal(false);
-                    setCompletionPhotos([]);
-                    setPhotoPreviewUrls([]);
-                  }}
-                  disabled={isUploadingPhotos}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12 font-bold"
-                  onClick={handleMarkComplete}
-                  disabled={markCompleteMutation.isPending || isUploadingPhotos}
-                >
-                  {isUploadingPhotos || markCompleteMutation.isPending ? (
-                    <Loader2 className="animate-spin h-5 w-5" />
-                  ) : (
-                    "Confirm Complete"
-                  )}
-                </Button>
-              </div>
-            </CardContent>
+                  <div className="pt-4 flex gap-3">
+                    <Button
+                      variant="outline"
+                      className="flex-1 rounded-2xl h-12"
+                      onClick={() => setShowReviewModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12"
+                      onClick={handleSubmitReview}
+                      disabled={
+                        !ratingQuality ||
+                        !ratingCommunication ||
+                        !ratingPunctuality ||
+                        !ratingProfessionalism ||
+                        !reviewText.trim() ||
+                        submitReviewMutation.isPending
+                      }
+                    >
+                      {submitReviewMutation.isPending ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Star className="h-4 w-4" /> Submit
+                        </div>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </>
+            )}
           </Card>
         </div>
       )}
 
-      {showReviewModal && (
+      {showReceiptModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-none">
-            <CardHeader className="pb-4 pt-8 text-center">
-              <h3 className="text-xl font-bold text-gray-900">Rate Client</h3>
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl border-none">
+            <CardHeader className="pb-3 pt-7 text-left">
+              <h3 className="text-xl font-bold text-gray-900">Job Receipt</h3>
               <p className="text-sm text-gray-500 font-medium mt-1">
-                Share your experience with {client.name}
+                Payment summary and timeline
               </p>
             </CardHeader>
-            <CardContent className="space-y-6 px-10 pb-10">
-              {[
-                {
-                  label: "📋 Clarity",
-                  value: ratingQuality,
-                  setter: setRatingQuality,
-                },
-                {
-                  label: "💬 Communication",
-                  value: ratingCommunication,
-                  setter: setRatingCommunication,
-                },
-                {
-                  label: "💳 Payment",
-                  value: ratingPunctuality,
-                  setter: setRatingPunctuality,
-                },
-                {
-                  label: "👔 Professionalism",
-                  value: ratingProfessionalism,
-                  setter: setRatingProfessionalism,
-                },
-              ].map((criteria) => (
-                <div key={criteria.label} className="space-y-2">
-                  <label className="block text-center text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">
-                    {criteria.label}
-                  </label>
-                  <div className="flex justify-center gap-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => criteria.setter(star)}
-                        className="focus:outline-none scale-110"
-                      >
-                        <Star
-                          className={`h-6 w-6 transition-all ${star <= criteria.value ? "fill-[#00BAF1] text-[#00BAF1]" : "text-gray-200 hover:text-[#00BAF1]/40"}`}
-                        />
-                      </button>
-                    ))}
-                  </div>
+            <CardContent className="space-y-4 px-8 pb-8">
+              {receiptLoading ? (
+                <div className="py-8 flex items-center justify-center gap-2 text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading receipt...
                 </div>
-              ))}
-              <div className="pt-4 flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-2xl h-12"
-                  onClick={() => setShowReviewModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-[#00BAF1] hover:bg-[#00BAF1]/90 rounded-2xl h-12"
-                  onClick={handleSubmitReview}
-                  disabled={
-                    !ratingQuality ||
-                    !ratingCommunication ||
-                    !ratingPunctuality ||
-                    !ratingProfessionalism ||
-                    submitReviewMutation.isPending
-                  }
-                >
-                  {submitReviewMutation.isPending ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4" /> Submit
+              ) : receiptError ? (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  {receiptError}
+                </div>
+              ) : receiptData ? (
+                <>
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                    <p className="text-sm font-semibold text-gray-900">{receiptData.title}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Receipt ID: {receiptData.receipt_id || `JOB-${receiptData.job_id}`}
+                    </p>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+                    <p className="text-sm font-bold text-gray-900">Payment Breakdown</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Budget</span>
+                      <span className="font-semibold">₱{Number(receiptData.payment?.budget || 0).toLocaleString()}</span>
                     </div>
-                  )}
-                </Button>
-              </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Escrow</span>
+                      <span className="font-semibold">₱{Number(receiptData.payment?.escrow_amount || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Final Payment</span>
+                      <span className="font-semibold">₱{Number(receiptData.payment?.final_payment || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Platform Fee</span>
+                      <span className="font-semibold">₱{Number(receiptData.payment?.platform_fee || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1 border-t border-gray-200">
+                      <span className="text-gray-900 font-bold">Total Client Paid</span>
+                      <span className="font-bold">₱{Number(receiptData.payment?.total_client_paid || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-900 font-bold">Your Earnings</span>
+                      <span className="font-bold text-[#00BAF1]">₱{Number(receiptData.payment?.worker_earnings || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl p-3 space-y-2">
+                    <p className="text-sm font-bold text-gray-900">Timeline</p>
+                    <p className="text-xs text-gray-600">Created: {receiptData.created_at ? format(new Date(receiptData.created_at), "MMM d, yyyy h:mm a") : "N/A"}</p>
+                    <p className="text-xs text-gray-600">Worker completed: {receiptData.worker_completed_at ? format(new Date(receiptData.worker_completed_at), "MMM d, yyyy h:mm a") : "N/A"}</p>
+                    <p className="text-xs text-gray-600">Client approved: {receiptData.client_approved_at ? format(new Date(receiptData.client_approved_at), "MMM d, yyyy h:mm a") : "N/A"}</p>
+                    <p className="text-xs text-gray-600">Completed: {receiptData.completed_at ? format(new Date(receiptData.completed_at), "MMM d, yyyy h:mm a") : "N/A"}</p>
+                  </div>
+                </>
+              ) : (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600">
+                  Receipt data is not available.
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                className="w-full rounded-2xl h-12"
+                onClick={() => setShowReceiptModal(false)}
+              >
+                Close
+              </Button>
             </CardContent>
           </Card>
         </div>

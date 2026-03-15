@@ -212,6 +212,8 @@ export default function ChatScreen() {
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
   const [currentEditableReviewIndex, setCurrentEditableReviewIndex] =
     useState(0);
+  const [isConfirmArrivalsExpanded, setIsConfirmArrivalsExpanded] =
+    useState(false);
 
   // Price input modal - cross-platform replacement for Alert.prompt (iOS-only)
   const [priceModal, setPriceModal] = useState<{
@@ -4942,34 +4944,6 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 )}
 
-              {/* CLIENT: Cancel Team Job Button */}
-              {conversation.is_team_job &&
-                conversation.job?.payment_model === "PROJECT" &&
-                conversation.my_role === "CLIENT" &&
-                canUseRegularProjectActions &&
-                !isRegularJobTerminal && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.cancelJobButton]}
-                    onPress={handleCancelTeamJob}
-                    disabled={cancelJobMutation.isPending}
-                  >
-                    {cancelJobMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="close-circle"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>
-                          Cancel Team Job
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
@@ -5550,55 +5524,83 @@ export default function ChatScreen() {
                       {/* Confirm arrivals section */}
                       {pendingArrival.length > 0 && (
                         <View style={styles.employeeActionsSection}>
-                          <Text style={styles.actionSectionTitle}>
-                            Confirm Arrivals ({pendingArrival.length} on the
-                            way)
-                          </Text>
-                          {pendingArrival.map((employee) => (
-                            <TouchableOpacity
-                              key={`arrival-${employee.id}`}
-                              style={[
-                                styles.actionButton,
-                                styles.confirmWorkStartedButton,
-                              ]}
-                              onPress={() =>
-                                Alert.alert(
-                                  "Confirm Arrival",
-                                  `Has ${employee.name} arrived at the job site?`,
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    {
-                                      text: "Confirm",
-                                      onPress: () =>
-                                        confirmProjectArrivalMutation.mutate({
-                                          jobId: conversation.job.id,
-                                          employeeId: employee.id,
-                                        }),
-                                    },
-                                  ],
-                                )
+                          <TouchableOpacity
+                            style={styles.confirmArrivalsCollapseHeader}
+                            onPress={() =>
+                              setIsConfirmArrivalsExpanded((prev) => !prev)
+                            }
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.actionSectionTitle}>
+                              Confirm Arrivals ({pendingArrival.length} on the
+                              way)
+                            </Text>
+                            <Ionicons
+                              name={
+                                isConfirmArrivalsExpanded
+                                  ? "chevron-up"
+                                  : "chevron-down"
                               }
-                              disabled={confirmProjectArrivalMutation.isPending}
-                            >
-                              {confirmProjectArrivalMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={20}
-                                    color={Colors.white}
-                                  />
-                                  <Text style={styles.actionButtonText}>
-                                    Confirm: {employee.name} Arrived
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          ))}
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                          </TouchableOpacity>
+
+                          {isConfirmArrivalsExpanded &&
+                            pendingArrival.map((employee) => (
+                              <View
+                                key={`arrival-${employee.id}`}
+                                style={styles.confirmArrivalWorkerRow}
+                              >
+                                <Text
+                                  style={styles.confirmArrivalWorkerName}
+                                  numberOfLines={1}
+                                >
+                                  {employee.name}
+                                </Text>
+                                <TouchableOpacity
+                                  style={styles.confirmArrivalInlineButton}
+                                  onPress={() =>
+                                    Alert.alert(
+                                      "Confirm Arrival",
+                                      `Has ${employee.name} arrived at the job site?`,
+                                      [
+                                        { text: "Cancel", style: "cancel" },
+                                        {
+                                          text: "Confirm",
+                                          onPress: () =>
+                                            confirmProjectArrivalMutation.mutate(
+                                              {
+                                                jobId: conversation.job.id,
+                                                employeeId: employee.id,
+                                              },
+                                            ),
+                                        },
+                                      ],
+                                    )
+                                  }
+                                  disabled={
+                                    confirmProjectArrivalMutation.isPending
+                                  }
+                                  activeOpacity={0.85}
+                                >
+                                  {confirmProjectArrivalMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
+                                  ) : (
+                                    <Text
+                                      style={
+                                        styles.confirmArrivalInlineButtonText
+                                      }
+                                    >
+                                      Confirm Arrival
+                                    </Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            ))}
                         </View>
                       )}
 
@@ -8368,6 +8370,46 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
+  },
+  confirmArrivalsCollapseHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  confirmArrivalWorkerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  confirmArrivalWorkerName: {
+    ...Typography.body.small,
+    fontSize: 12,
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  confirmArrivalInlineButton: {
+    backgroundColor: "#00BAF1",
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.small,
+    minWidth: 108,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmArrivalInlineButtonText: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: Colors.white,
+    fontWeight: "600",
   },
   actionButtonDisabled: {
     backgroundColor: Colors.textSecondary,

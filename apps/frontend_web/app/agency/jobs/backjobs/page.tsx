@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { useConfirmBackjobScheduledDate } from "@/lib/hooks/useAgencyBackjobActions";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,11 +16,11 @@ import {
   Clock,
   RefreshCw,
   ChevronRight,
+  MessageCircle,
   MapPin,
   Tag,
   User,
   Camera,
-  ArrowLeft,
 } from "lucide-react";
 
 // Keep empty by default; real API data is used in production.
@@ -58,6 +59,7 @@ export default function AgencyBackjobsPage() {
     "all" | "OPEN" | "IN_NEGOTIATION" | "UNDER_REVIEW" | "RESOLVED"
   >("all");
   const [error, setError] = useState<string | null>(null);
+  const [openingChatJobId, setOpeningChatJobId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchBackjobs();
@@ -184,6 +186,34 @@ export default function AgencyBackjobsPage() {
         toast.error(error.message || "Failed to confirm backjob schedule");
       },
     });
+  };
+
+  const handleViewChat = async (
+    event: React.MouseEvent<HTMLButtonElement>,
+    jobId: number,
+  ) => {
+    event.stopPropagation();
+    setOpeningChatJobId(jobId);
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/profiles/chat/conversation-by-job/${jobId}?reopen=true`,
+        { credentials: "include" },
+      );
+      const data = await res.json();
+
+      if (res.ok && data?.success && data?.conversation_id) {
+        router.push(`/agency/messages/${data.conversation_id}`);
+        return;
+      }
+
+      toast.error(getErrorMessage(data, "Failed to open chat conversation"));
+    } catch (err) {
+      console.error("Error opening conversation by job:", err);
+      toast.error("Failed to open chat conversation");
+    } finally {
+      setOpeningChatJobId(null);
+    }
   };
 
   return (
@@ -434,7 +464,21 @@ export default function AgencyBackjobsPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={(event) => handleViewChat(event, backjob.job_id)}
+                      disabled={openingChatJobId === backjob.job_id}
+                    >
+                      {openingChatJobId === backjob.job_id ? (
+                        <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <MessageCircle className="w-3 h-3 mr-1" />
+                      )}
+                      View Chat
+                    </Button>
                     {backjob.evidence_images &&
                       backjob.evidence_images.length > 0 && (
                         <div className="flex items-center gap-1 text-sm text-gray-500">

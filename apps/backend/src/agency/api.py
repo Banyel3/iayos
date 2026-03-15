@@ -2266,10 +2266,75 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "marked_complete": False,
             })
         
-        # Check review status
+        # Check review status and include review payloads for agency chat details.
         from accounts.models import JobReview
         worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
         client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+
+        def serialize_review(review):
+            if not review:
+                return None
+
+            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+            reviewer_name = (
+                f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                if reviewer_profile else review.reviewerID.email
+            )
+
+            return {
+                "review_id": review.reviewID,
+                "reviewer_type": review.reviewerType,
+                "reviewer_name": reviewer_name,
+                "rating": float(review.rating) if review.rating is not None else None,
+                "rating_quality": float(review.rating_quality) if review.rating_quality is not None else None,
+                "rating_communication": float(review.rating_communication) if review.rating_communication is not None else None,
+                "rating_punctuality": float(review.rating_punctuality) if review.rating_punctuality is not None else None,
+                "rating_professionalism": float(review.rating_professionalism) if review.rating_professionalism is not None else None,
+                "comment": review.comment or "",
+                "created_at": review.createdAt.isoformat() if review.createdAt else None,
+            }
+
+        job_reviews = JobReview.objects.filter(
+            jobID=job,
+            status='ACTIVE'
+        ).select_related(
+            'reviewerID',
+            'revieweeAgencyID',
+            'revieweeEmployeeID',
+        ).order_by('-createdAt')
+
+        agency_review_obj = job_reviews.filter(
+            reviewerID=account
+        ).first()
+
+        assigned_employee_ids = [emp["employeeId"] for emp in assigned_employees]
+
+        client_review_obj = None
+        if agency:
+            client_review_obj = job_reviews.filter(
+                reviewerType='CLIENT',
+                revieweeAgencyID=agency,
+            ).first()
+
+        if not client_review_obj and assigned_employee_ids:
+            client_review_obj = job_reviews.filter(
+                reviewerType='CLIENT',
+                revieweeEmployeeID__employeeID__in=assigned_employee_ids,
+            ).first()
+
+        if not client_review_obj:
+            client_review_obj = job_reviews.filter(
+                reviewerType='CLIENT'
+            ).first()
+
+        agency_review_data = serialize_review(agency_review_obj)
+        client_review_data = serialize_review(client_review_obj)
+
+        reviews_payload = []
+        if agency_review_data:
+            reviews_payload.append(agency_review_data)
+        if client_review_data:
+            reviews_payload.append(client_review_data)
 
         # Active backjob/dispute info for agency chat banners/actions.
         from accounts.models import JobDispute
@@ -2420,6 +2485,12 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "total_messages": len(messages_list),
             "status": conv.status,
             "my_role": "AGENCY",
+            "agency_review": agency_review_data,
+            "worker_review": agency_review_data,
+            "my_review": agency_review_data,
+            "client_review": client_review_data,
+            "counterparty_reviews": [client_review_data] if client_review_data else [],
+            "reviews": reviews_payload,
             "backjob": backjob_info,
             "can_send_message": can_send_message,
             "can_send_reason": can_send_reason,

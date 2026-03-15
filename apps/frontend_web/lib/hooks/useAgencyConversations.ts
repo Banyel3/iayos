@@ -135,6 +135,19 @@ export type AgencyMessage = {
   sent_by_agency: boolean;
 };
 
+export type AgencyReview = {
+  review_id: number;
+  reviewer_type: string;
+  reviewer_name?: string;
+  rating: number | null;
+  rating_quality: number | null;
+  rating_communication: number | null;
+  rating_punctuality: number | null;
+  rating_professionalism: number | null;
+  comment: string;
+  created_at: string | null;
+};
+
 export type AgencyConversationDetail = {
   conversation_id: number;
   job: AgencyConversationJob;
@@ -159,6 +172,12 @@ export type AgencyConversationDetail = {
   my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
   can_send_message?: boolean;
   can_send_reason?: string | null;
+  agency_review?: AgencyReview | null;
+  worker_review?: AgencyReview | null;
+  my_review?: AgencyReview | null;
+  client_review?: AgencyReview | null;
+  counterparty_reviews?: AgencyReview[];
+  reviews?: AgencyReview[];
 };
 
 /**

@@ -1541,6 +1541,19 @@ export default function AgencyJobsPage() {
                           <Eye className="h-4 w-4 mr-2" />
                           Details
                         </Button>
+                        {job.conversation_id && (
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-10 border-2 border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50 transition-all text-sm font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/agency/messages/${job.conversation_id}`);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            View Chat
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>
