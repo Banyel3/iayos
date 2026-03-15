@@ -218,6 +218,7 @@ export default function ChatScreen() {
     useState(0);
   const [isConfirmArrivalsExpanded, setIsConfirmArrivalsExpanded] =
     useState(false);
+  const [isAttendanceExpanded, setIsAttendanceExpanded] = useState(false);
 
   // Price input modal - cross-platform replacement for Alert.prompt (iOS-only)
   const [priceModal, setPriceModal] = useState<{
@@ -3233,6 +3234,12 @@ export default function ChatScreen() {
   const isTeamAttendanceFlow =
     conversation.is_team_job &&
     (conversation.job?.payment_model === "DAILY" || isTeamProjectAttendance);
+  const canShowNoWorkQuickAction =
+    conversation.my_role === "CLIENT" &&
+    !conversation.is_team_job &&
+    !isTeamProjectAttendance &&
+    !hasAnyCheckedInToday &&
+    !hasAnyClientConfirmedToday;
 
   const clientAttendanceRows =
     conversation.my_role === "CLIENT" &&
@@ -3657,52 +3664,50 @@ export default function ChatScreen() {
 
                   return (
                     <View style={styles.qaTestingCard}>
-                      <Text style={styles.qaTestingLabel}>QA TESTING ONLY</Text>
-                      <Text style={styles.qaTestingText}>
-                        Effective day: {effectiveDate} (offset +{qaDayOffset})
-                      </Text>
-                      {canAdvanceQaDay ? (
-                        <TouchableOpacity
-                          style={styles.qaSkipNextDayButton}
-                          onPress={() =>
-                            Alert.alert(
-                              "[QA] Skip To Next Day",
-                              "Advance this job by 1 effective day for testing? This action is TESTING-only.",
-                              [
-                                { text: "Cancel", style: "cancel" },
-                                {
-                                  text: "Advance +1 Day",
-                                  onPress: () =>
-                                    clientQASkipNextDayMutation.mutate({
-                                      jobId: conversation.job.id,
-                                      reason:
-                                        "QA client-triggered fast-forward",
-                                    }),
-                                },
-                              ],
-                            )
-                          }
-                          disabled={clientQASkipNextDayMutation.isPending}
-                        >
-                          {clientQASkipNextDayMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.white}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="play-forward"
-                                size={16}
-                                color={Colors.white}
+                      <View style={styles.qaTestingRow}>
+                        <View style={styles.qaTestingInfo}>
+                          <Text style={styles.qaTestingLabel}>For Testing</Text>
+                          <Text style={styles.qaTestingText}>
+                            Effective day: {effectiveDate} (offset +{qaDayOffset})
+                          </Text>
+                        </View>
+                        {canAdvanceQaDay && (
+                          <TouchableOpacity
+                            style={styles.qaSkipNextDayButton}
+                            onPress={() =>
+                              Alert.alert(
+                                "Skip a Day",
+                                "Advance this job by 1 effective day for testing? This action is TESTING-only.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Advance +1 Day",
+                                    onPress: () =>
+                                      clientQASkipNextDayMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        reason:
+                                          "QA client-triggered fast-forward",
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={clientQASkipNextDayMutation.isPending}
+                          >
+                            {clientQASkipNextDayMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color="#00BAF1"
                               />
+                            ) : (
                               <Text style={styles.qaSkipNextDayButtonText}>
-                                [QA] Skip To Next Day
+                                Skip a Day
                               </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      ) : (
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      {!canAdvanceQaDay && (
                         <Text style={styles.qaSkipLimitText}>
                           Reached configured duration. Extend by 1 day or finish
                           the job below.
@@ -3716,24 +3721,89 @@ export default function ChatScreen() {
               {(conversation.job?.payment_model === "DAILY" ||
                 isProjectMultiDayJob) && (
                 <View style={styles.dailyAttendanceSection}>
-                  <View style={styles.teamArrivalHeader}>
-                    <Text style={styles.teamArrivalTitle}>
-                      {isProjectMultiDayJob
-                        ? "Attendance"
-                        : "📅 Daily Attendance"}
-                    </Text>
-                    <Text style={styles.teamArrivalProgress}>
-                      {format(
-                        new Date(
-                          conversation.effective_work_date || new Date(),
-                        ),
-                        "MMM d, yyyy",
+                  <View style={styles.attendanceTopRow}>
+                    <View style={styles.attendanceHeaderTop}>
+                      <Text style={styles.attendanceHeaderTitle}>Attendance</Text>
+                      <Text style={styles.attendanceHeaderDate}>
+                        {format(
+                          new Date(
+                            conversation.effective_work_date || new Date(),
+                          ),
+                          "MMM d, yyyy",
+                        )}
+                      </Text>
+                    </View>
+
+                    <View style={styles.attendanceActionRight}>
+                      {canShowNoWorkQuickAction ? (
+                        <>
+                          <Text style={styles.noWorkQuickHelperText}>
+                            Worker no-show today?
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.noWorkQuickButton}
+                            onPress={() =>
+                              Alert.alert(
+                                "Mark No Work Today",
+                                "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Confirm",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      clientMarkNoWorkMutation.mutate({
+                                        jobId: conversation.job.id,
+                                        workerId:
+                                          conversation.attendance_today?.[0]
+                                            ?.worker_id,
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={clientMarkNoWorkMutation.isPending}
+                          >
+                            {clientMarkNoWorkMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <Text style={styles.noWorkQuickButtonText}>
+                                Worker Absent
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <Text style={styles.attendanceBannerHint}>
+                          {isAttendanceExpanded
+                            ? "Recorded attendance"
+                            : "Tap to view recorded attendance"}
+                        </Text>
                       )}
-                    </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.attendanceToggleRow}>
+                    <TouchableOpacity
+                      style={styles.attendanceToggleButton}
+                      onPress={() => setIsAttendanceExpanded((prev) => !prev)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={
+                          isAttendanceExpanded ? "chevron-up" : "chevron-down"
+                        }
+                        size={18}
+                        color={Colors.textSecondary}
+                      />
+                    </TouchableOpacity>
                   </View>
 
                   {/* Worker View: On-the-way / attendance status */}
-                  {conversation.my_role === "WORKER" && (
+                  {isAttendanceExpanded && conversation.my_role === "WORKER" && (
                     <View style={styles.dailyWorkerActions}>
                       {(() => {
                         const todayAttendance = myWorkerAttendanceToday;
@@ -4507,7 +4577,7 @@ export default function ChatScreen() {
                   )}
 
                   {/* Client View: Confirm attendance for each worker */}
-                  {conversation.my_role === "CLIENT" && (
+                  {isAttendanceExpanded && conversation.my_role === "CLIENT" && (
                     <>
                       {conversation.job?.payment_model === "DAILY" &&
                         clientAttendanceRows.length > 0 &&
@@ -4526,53 +4596,6 @@ export default function ChatScreen() {
                           </View>
                         )}
 
-                      {!conversation.is_team_job &&
-                        !isTeamProjectAttendance &&
-                        !hasAnyCheckedInToday &&
-                        !hasAnyClientConfirmedToday && (
-                          <TouchableOpacity
-                            style={styles.noWorkQuickButton}
-                            onPress={() =>
-                              Alert.alert(
-                                "Mark No Work Today",
-                                "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Confirm",
-                                    style: "destructive",
-                                    onPress: () =>
-                                      clientMarkNoWorkMutation.mutate({
-                                        jobId: conversation.job.id,
-                                        workerId:
-                                          conversation.attendance_today?.[0]
-                                            ?.worker_id,
-                                      }),
-                                  },
-                                ],
-                              )
-                            }
-                            disabled={clientMarkNoWorkMutation.isPending}
-                          >
-                            {clientMarkNoWorkMutation.isPending ? (
-                              <ActivityIndicator
-                                size="small"
-                                color={Colors.white}
-                              />
-                            ) : (
-                              <>
-                                <Ionicons
-                                  name="close-circle-outline"
-                                  size={16}
-                                  color={Colors.white}
-                                />
-                                <Text style={styles.noWorkQuickButtonText}>
-                                  Worker Didn't Work Today
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
-                        )}
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -4824,7 +4847,7 @@ export default function ChatScreen() {
                   )}
 
                   {/* Daily rate info (DAILY-only) */}
-                  {!isProjectMultiDayJob && (
+                  {isAttendanceExpanded && !isProjectMultiDayJob && (
                     <View style={styles.dailyRateInfo}>
                       <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
                       <Text style={styles.dailyRateAmount}>
@@ -8976,7 +8999,7 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: Colors.white,
     gap: Spacing.sm,
   },
   actionButton: {
@@ -9244,8 +9267,49 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+  },
+  attendanceTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  attendanceHeaderTop: {
+    flex: 1,
+  },
+  attendanceHeaderTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  attendanceHeaderDate: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  attendanceActionRight: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    marginLeft: Spacing.xs,
+  },
+  attendanceToggleRow: {
+    alignItems: "center",
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  attendanceBannerHint: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
+  attendanceToggleButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 4,
   },
   dailyWorkerActions: {
     marginVertical: Spacing.xs,
@@ -9333,16 +9397,22 @@ const styles = StyleSheet.create({
   noWorkQuickButton: {
     backgroundColor: Colors.error,
     borderRadius: BorderRadius.small,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
+    justifyContent: "flex-start",
+  },
+  noWorkQuickHelperText: {
+    ...Typography.body.small,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+    marginBottom: 4,
   },
   noWorkQuickButtonText: {
     ...Typography.body.small,
+    fontSize: 12,
     color: Colors.white,
     fontWeight: "700",
   },
@@ -9484,37 +9554,48 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.warning,
+    borderColor: "#D5D9DF",
+  },
+  qaTestingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  qaTestingInfo: {
+    flex: 1,
   },
   qaTestingLabel: {
     ...Typography.body.small,
     fontWeight: "800",
-    color: Colors.warning,
+    color: "#8E96A3",
+    fontSize: 12,
   },
   qaTestingText: {
     ...Typography.body.small,
     color: Colors.textSecondary,
     marginTop: 2,
-    marginBottom: Spacing.xs,
+    fontSize: 12,
   },
   qaSkipNextDayButton: {
-    backgroundColor: Colors.warning,
+    backgroundColor: "transparent",
     borderRadius: BorderRadius.small,
-    paddingVertical: Spacing.xs,
-    flexDirection: "row",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     justifyContent: "center",
     alignItems: "center",
-    gap: Spacing.xs,
+    alignSelf: "flex-start",
   },
   qaSkipNextDayButtonText: {
     ...Typography.body.small,
-    color: Colors.white,
+    color: "#00BAF1",
     fontWeight: "700",
   },
   qaSkipLimitText: {
     ...Typography.body.small,
-    color: Colors.warning,
+    color: "#8E96A3",
     fontWeight: "600",
+    marginTop: Spacing.xs,
   },
   dailyEndActionsCard: {
     backgroundColor: Colors.backgroundSecondary,
