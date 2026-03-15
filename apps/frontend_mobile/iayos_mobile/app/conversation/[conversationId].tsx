@@ -497,7 +497,10 @@ export default function ChatScreen() {
     isJobInProgress || isJobActive || isJobAssigned;
   const isServerMarkedClosed = normalizedConversationStatus === "COMPLETED";
   const isConversationArchived = !!conversation?.is_archived;
+  const isCancelledConversationTerminal =
+    isJobCancelled && !hasApprovedBackjob && !hasActiveNegotiation;
   const computedConversationClosed =
+    isCancelledConversationTerminal ||
     (conversation?.job?.clientMarkedComplete &&
       viewerHasReviewed &&
       counterpartyHasReviewed &&
@@ -3338,7 +3341,7 @@ export default function ChatScreen() {
 
                   {/* Worker View: Skip Day Request (DAILY-only) */}
                   {conversation.my_role === "WORKER" &&
-                    !isTeamProjectAttendance &&
+                    conversation.job?.payment_model === "DAILY" &&
                     !hasCheckedInToday && (
                       <View style={styles.skipDayContainer}>
                         {hasNoWorkMarkedToday ? (
@@ -3500,7 +3503,7 @@ export default function ChatScreen() {
 
                   {/* Client View: Skip Day Request Review (DAILY-only) */}
                   {conversation.my_role === "CLIENT" &&
-                    !isTeamProjectAttendance &&
+                    conversation.job?.payment_model === "DAILY" &&
                     (() => {
                       const todaySkipRequest =
                         conversation.daily_skip_requests_today?.[0];
@@ -4655,8 +4658,8 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model === "DAILY" &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job?.status !== "COMPLETED" &&
-                conversation.job?.status !== "CANCELLED" && (
+                !isJobCompleted &&
+                !isJobCancelled && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.cancelJobButton]}
                     onPress={handleCancelDailyJob}
