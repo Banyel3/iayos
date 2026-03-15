@@ -12,13 +12,12 @@
  * - Contact/hire button
  */
 
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
-  FlatList,
   Alert,
   TouchableOpacity,
   Platform,
@@ -76,16 +75,27 @@ export default function AgencyDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const submitReportMutation = useSubmitReport();
+  const [isBioExpanded, setIsBioExpanded] = useState(true);
+  const [isSpecializationsExpanded, setIsSpecializationsExpanded] = useState(true);
+  const [isWorkersExpanded, setIsWorkersExpanded] = useState(true);
 
   // Fetch agency details
   const { data, isLoading, error } = useQuery({
     queryKey: ["agency", id],
     queryFn: async () => {
-      const response = await fetchJson<{
-        success: boolean;
-        agency: AgencyDetail;
-      }>(ENDPOINTS.AGENCY_DETAIL(Number(id)));
-      return response.agency;
+      const response = await fetchJson<any>(ENDPOINTS.AGENCY_DETAIL(Number(id)));
+      const rawAgency = response.agency || response.data || response;
+
+      // Normalize snake_case/camelCase variants from backend responses.
+      return {
+        ...rawAgency,
+        rating: Number(rawAgency.rating ?? rawAgency.average_rating ?? 0),
+        reviewCount: Number(rawAgency.reviewCount ?? rawAgency.review_count ?? 0),
+        totalJobsCompleted: Number(
+          rawAgency.totalJobsCompleted ?? rawAgency.total_jobs_completed ?? 0,
+        ),
+        activeWorkers: Number(rawAgency.activeWorkers ?? rawAgency.active_workers ?? 0),
+      } as AgencyDetail;
     },
     enabled: !!id,
   });
@@ -199,10 +209,7 @@ export default function AgencyDetailScreen() {
   const renderWorkerCard = ({ item }: { item: AgencyWorker }) => {
     const fullName = `${item.firstName} ${item.lastName}`;
     return (
-      <TouchableOpacity
-        style={styles.workerCard}
-        onPress={() => router.push(`/workers/${item.id}` as any)}
-      >
+      <View style={styles.workerCard}>
         {item.profilePicture ? (
           <Image
             source={{ uri: item.profilePicture }}
@@ -244,12 +251,7 @@ export default function AgencyDetailScreen() {
             </View>
           </View>
         </View>
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={Colors.textSecondary}
-        />
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -371,47 +373,83 @@ export default function AgencyDetailScreen() {
             </View>
           </View>
 
-          {/* Specializations */}
-          {data.specializations && data.specializations.length > 0 && (
+          {/* Description (Bio first) */}
+          {data.description && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Specializations</Text>
-              <View style={styles.tagsContainer}>
-                {data.specializations.map((spec: string, index: number) => (
-                  <View key={index} style={styles.tag}>
-                    <Ionicons
-                      name="construct"
-                      size={14}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.tagText}>{spec}</Text>
-                  </View>
-                ))}
-              </View>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setIsBioExpanded((prev) => !prev)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sectionTitle}>About</Text>
+                <Ionicons
+                  name={isBioExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+              {isBioExpanded && (
+                <Text style={styles.descriptionText}>{data.description}</Text>
+              )}
             </View>
           )}
 
-          {/* Description */}
-          {data.description && (
+          {/* Specializations */}
+          {data.specializations && data.specializations.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About</Text>
-              <Text style={styles.descriptionText}>{data.description}</Text>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setIsSpecializationsExpanded((prev) => !prev)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sectionTitle}>Specializations</Text>
+                <Ionicons
+                  name={isSpecializationsExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+              {isSpecializationsExpanded && (
+                <View style={styles.tagsContainer}>
+                  {data.specializations.map((spec: string, index: number) => (
+                    <View key={index} style={styles.tag}>
+                      <Ionicons
+                        name="construct"
+                        size={14}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.tagText}>{spec}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
           {/* Featured Workers */}
           {data.workers && data.workers.length > 0 && (
             <View style={styles.section}>
-              <View style={styles.sectionHeader}>
+              <TouchableOpacity
+                style={styles.collapsibleHeader}
+                onPress={() => setIsWorkersExpanded((prev) => !prev)}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.sectionTitle}>Our Workers</Text>
-                <Text style={styles.viewAllText}>View All</Text>
-              </View>
-              <View style={styles.workersContainer}>
-                {data.workers.slice(0, 5).map((worker: AgencyWorker) => (
-                  <View key={worker.id}>
-                    {renderWorkerCard({ item: worker })}
-                  </View>
-                ))}
-              </View>
+                <Ionicons
+                  name={isWorkersExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+              {isWorkersExpanded && (
+                <View style={styles.workersContainer}>
+                  {data.workers.slice(0, 5).map((worker: AgencyWorker) => (
+                    <View key={worker.id}>
+                      {renderWorkerCard({ item: worker })}
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -635,6 +673,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: Colors.primary,
+  },
+  collapsibleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
   tagsContainer: {
     flexDirection: "row",

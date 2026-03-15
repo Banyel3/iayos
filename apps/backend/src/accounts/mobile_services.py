@@ -2868,11 +2868,14 @@ def get_agency_detail_mobile(user, agency_id):
 
         print(f"   ✅ Found agency: {agency.businessName}")
 
-        # Get agency employees (AgencyEmployee links to account, not Agency model)
+        # Get active agency employees for display (AgencyEmployee links to account, not Agency model)
         agency_employees_qs = AgencyEmployee.objects.filter(
             agency=account,
             isActive=True
         )
+
+        # Include all agency employees for historical review aggregation
+        all_agency_employees_qs = AgencyEmployee.objects.filter(agency=account)
 
         # For now, use simplified data from AgencyEmployee model
         # AgencyEmployee doesn't link to WorkerProfile, so we'll use the employee data directly
@@ -2910,15 +2913,39 @@ def get_agency_detail_mobile(user, agency_id):
                 'specializations': emp.get_specializations_list()
             })
         
-        # Calculate overall rating from employees
+        # Calculate overall rating from employees (fallback when no review records exist yet)
         employee_ratings = [float(emp.rating) for emp in agency_employees_qs if emp.rating]
-        if employee_ratings:
-            avg_rating = sum(employee_ratings) / len(employee_ratings)
+        employee_avg_rating = (
+            sum(employee_ratings) / len(employee_ratings)
+            if employee_ratings
+            else 0.0
+        )
+
+        # Primary review stats source for public profile:
+        # include both direct agency reviews and agency employee reviews.
+        review_stats = JobReview.objects.filter(
+            Q(revieweeAgencyID=agency)
+            | Q(revieweeEmployeeID__in=all_agency_employees_qs)
+            | Q(
+                reviewerType="CLIENT",
+                jobID__assignedAgencyFK=agency,
+            )
+            | Q(
+                revieweeAgencyID__isnull=True,
+                reviewerType="CLIENT",
+                jobID__assignedAgencyFK=agency,
+            )
+        ).aggregate(
+            avg_rating=Avg('rating'),
+            review_count=Count('reviewID')
+        )
+        review_count = int(review_stats.get('review_count') or 0)
+        reviews_avg_rating = float(review_stats.get('avg_rating') or 0.0)
+        display_rating = reviews_avg_rating if review_count > 0 else employee_avg_rating
         
         # Calculate total jobs from employees
         total_jobs_completed = sum(emp.totalJobsCompleted for emp in agency_employees_qs)
         active_workers = agency_employees_qs.count()
-        review_count = 0 # TODO: Implement when review model for agencies is ready
 
         # Build agency detail data matching mobile interface
         agency_data = {
@@ -2928,7 +2955,7 @@ def get_agency_detail_mobile(user, agency_id):
             'phoneNumber': agency.contactNumber or None,
             'logo': None,  # Agency model doesn't have logo field
             'description': agency.businessDesc or None,
-            'rating': round(float(avg_rating), 1),
+            'rating': round(float(display_rating), 1),
             'reviewCount': review_count,
             'totalJobsCompleted': total_jobs_completed,
             'activeWorkers': active_workers,
