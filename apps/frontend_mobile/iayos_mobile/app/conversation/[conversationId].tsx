@@ -29,6 +29,7 @@ import {
   useMessages,
   useSendMessageMutation,
   ApiResponseError,
+  type ConversationDetail,
 } from "../../lib/hooks/useMessages";
 import {
   useMessageListener,
@@ -237,12 +238,14 @@ export default function ChatScreen() {
 
   // Fetch conversation and messages
   const {
-    data: conversation,
+    data: rawConversation,
     isLoading,
     isError,
     error,
     refetch,
   } = useMessages(conversationId, messageViewerKey);
+
+  const conversation = rawConversation as ConversationDetail | undefined;
 
   useEffect(() => {
     setLocalAgencyClientReviewSubmitted(false);
