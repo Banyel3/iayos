@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Global Mandatory Review Gate (All Pending Jobs List)**
+  - Upgraded mobile pending-review blocker to render all pending review jobs instead of only the first item.
+  - Added per-job `Review Now` actions so users can jump directly into each required conversation.
+  - Triggered pending-review refetch on auth-ready and app foreground to enforce review requirements after app reopen.
+  - Expanded pending-review payload typing for team and agency review chains (`TEAM_WORKER`, `EMPLOYEE`, `AGENCY`).
+  - **Impact**: Users can no longer bypass review requirements by app close/reopen, and can see every outstanding review obligation in one blocking modal.
+
 - **Wallet Pending Filter Tab for Worker Payout Visibility**
   - Added a new `Pending` transaction filter tab in wallet/profile transactions.
   - Wired mobile filter mapping to request `PENDING_EARNING` transactions from backend.

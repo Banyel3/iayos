@@ -171,6 +171,29 @@ export type AgencyConversationDetail = {
   reviews?: AgencyReview[];
 };
 
+export type AgencyPendingReview = {
+  job_id: number;
+  job_title: string;
+  completed_at: string | null;
+  reviewee_id: number | null;
+  reviewee_name: string;
+  review_type:
+    | "WORKER_TO_CLIENT"
+    | "CLIENT_TO_WORKER"
+    | "AGENCY_TO_CLIENT"
+    | "CLIENT_TO_AGENCY"
+    | "CLIENT_TO_AGENCY_EMPLOYEE";
+  review_target?: "EMPLOYEE" | "AGENCY" | "TEAM_WORKER" | null;
+  employee_id?: number | null;
+  worker_assignment_id?: number | null;
+  conversation_id: number | null;
+};
+
+export type AgencyPendingReviewsResponse = {
+  pending_reviews: AgencyPendingReview[];
+  count: number;
+};
+
 /**
  * Fetch all agency conversations
  * @param filter - 'active', 'unread', or 'archived' (default: 'active')
@@ -253,6 +276,36 @@ export function useAgencyMessages(conversationId: number | null) {
     refetchInterval: 15000, // Poll every 15s as fallback when WebSocket events are missed
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+  });
+}
+
+/**
+ * Fetch pending review obligations for agency users.
+ * Used by global hard-gate modal in AgencyShell.
+ */
+export function useAgencyPendingReviews(enabled = true) {
+  return useQuery({
+    queryKey: ["agency-pending-reviews"],
+    queryFn: async (): Promise<AgencyPendingReviewsResponse> => {
+      const response = await fetch(`${API_BASE}/api/agency/reviews/pending`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(errorBody, "Failed to fetch pending reviews")
+        );
+      }
+
+      return response.json();
+    },
+    enabled,
+    staleTime: 30000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 45000,
+    retry: 1,
   });
 }
 

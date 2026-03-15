@@ -311,9 +311,17 @@ export interface PendingReview {
   job_id: number;
   job_title: string;
   completed_at: string | null;
-  reviewee_id: number;
+  reviewee_id: number | null;
   reviewee_name: string;
-  review_type: "WORKER_TO_CLIENT" | "CLIENT_TO_WORKER";
+  review_type:
+    | "WORKER_TO_CLIENT"
+    | "CLIENT_TO_WORKER"
+    | "AGENCY_TO_CLIENT"
+    | "CLIENT_TO_AGENCY"
+    | "CLIENT_TO_AGENCY_EMPLOYEE";
+  review_target?: "EMPLOYEE" | "AGENCY" | "TEAM_WORKER" | null;
+  employee_id?: number | null;
+  worker_assignment_id?: number | null;
   conversation_id: number | null;
 }
 

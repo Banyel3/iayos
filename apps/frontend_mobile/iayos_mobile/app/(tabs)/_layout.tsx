@@ -48,6 +48,12 @@ export default function TabLayout() {
   const { data: pendingReviews, refetch: refetchPendingReviews } =
     usePendingReviews(isAuthenticated);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      refetchPendingReviews();
+    }
+  }, [isAuthenticated, refetchPendingReviews]);
+
   // Check for pending reviews when app comes to foreground
   useEffect(() => {
     const subscription = AppState.addEventListener(
@@ -69,11 +75,7 @@ export default function TabLayout() {
   // Show modal when pending reviews exist
   useEffect(() => {
     if (pendingReviews && pendingReviews.count > 0) {
-      // Only show if the first pending review has a conversation_id
-      const firstReview = pendingReviews.pending_reviews[0];
-      if (firstReview?.conversation_id) {
-        setShowPendingReview(true);
-      }
+      setShowPendingReview(true);
     } else {
       setShowPendingReview(false);
     }
@@ -216,7 +218,7 @@ export default function TabLayout() {
       {/* Force Review Modal - shown when user has pending reviews */}
       <PendingReviewModal
         visible={showPendingReview}
-        pendingReview={pendingReviews?.pending_reviews?.[0] ?? null}
+        pendingReviews={pendingReviews?.pending_reviews ?? []}
       />
       {/* Global KYC enforcement listener */}
       <KYCRequiredListener />
