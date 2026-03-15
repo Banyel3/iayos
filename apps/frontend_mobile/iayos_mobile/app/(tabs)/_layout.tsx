@@ -9,12 +9,12 @@ import {
 } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
+import { PendingReviewModal } from "@/components";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useAuth } from "@/context/AuthContext";
 import { KYCBanner } from "@/components/KYCBanner";
-import PendingReviewModal from "@/components/PendingReviewModal";
 import KYCRequiredListener from "@/components/KYCRequiredListener";
 import { usePendingReviews } from "@/lib/hooks/useReviews";
 import { useUnreadMessageCount } from "@/lib/hooks/useUnreadCounts";

@@ -7,6 +7,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { useAuth } from "@/context/AuthContext";
 
 // Pending earnings item for individual job payments held in buffer
 export interface PendingEarningItem {
@@ -64,6 +65,8 @@ interface WithdrawPayload {
  * Polls every 10 seconds to keep reserved balance up-to-date
  */
 export function useWallet() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return useQuery<WalletData>({
     queryKey: ["wallet"],
     queryFn: async (): Promise<WalletData> => {
@@ -75,6 +78,7 @@ export function useWallet() {
     gcTime: 1000 * 60 * 5, // 5 minutes (cacheTime)
     refetchInterval: 1000 * 10, // Poll every 10 seconds for reserved balance updates
     refetchIntervalInBackground: false, // Don't poll when app is in background
+    enabled: !isLoading && isAuthenticated,
   });
 }
 
@@ -141,6 +145,8 @@ export function useWithdraw() {
  * Shows payments held in 7-day buffer period
  */
 export function usePendingEarnings() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return useQuery<PendingEarningsResponse>({
     queryKey: ["pendingEarnings"],
     queryFn: async () => {
@@ -150,5 +156,6 @@ export function usePendingEarnings() {
     },
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5, // 5 minutes
+    enabled: !isLoading && isAuthenticated,
   });
 }
