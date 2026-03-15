@@ -5808,14 +5808,15 @@ export default function ChatScreen() {
                 )}
 
               {/* ================================================================ */}
-              {/* AGENCY PROJECT JOB WORKFLOW (PROJECT payment_model only) */}
+              {/* AGENCY PROJECT JOB WORKFLOW (LEGACY SINGLE-DAY PROJECT ONLY) */}
               {/* ================================================================ */}
               {/* Workflow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays */}
 
               {/* AGENCY VIEW: Dispatch and Mark Complete buttons */}
               {conversation.is_agency_job &&
                 conversation.my_role === "AGENCY" &&
-                conversation.job.payment_model !== "DAILY" &&
+                conversation.job.payment_model === "PROJECT" &&
+                !isProjectMultiDayJob &&
                 conversation.assigned_employees &&
                 conversation.assigned_employees.length > 0 &&
                 (() => {
@@ -6011,7 +6012,8 @@ export default function ChatScreen() {
               {/* CLIENT VIEW: Confirm arrivals and Approve & Pay */}
               {conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job.payment_model !== "DAILY" &&
+                conversation.job.payment_model === "PROJECT" &&
+                !isProjectMultiDayJob &&
                 conversation.assigned_employees &&
                 conversation.assigned_employees.length > 0 &&
                 (() => {
