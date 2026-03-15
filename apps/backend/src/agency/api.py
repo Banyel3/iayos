@@ -4470,6 +4470,9 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         all_dispatched = all(a.dispatched for a in all_assignments)
         dispatched_count = sum(1 for a in all_assignments if a.dispatched)
         total_count = all_assignments.count()
+        is_active_backjob_cycle = bool(
+            dispute_for_dispatch and dispute_for_dispatch.status in ['IN_NEGOTIATION', 'UNDER_REVIEW']
+        )
         
         # Send system message in conversation
         from profiles.models import Conversation, Message
@@ -4478,7 +4481,10 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             if conv:
                 Message.create_system_message(conv, f"📋 {employee.fullName} has been dispatched to the job site")
                 if all_dispatched:
-                    Message.create_system_message(conv, f"✅ All {total_count} employees dispatched! Waiting for client to confirm arrivals.")
+                    if is_active_backjob_cycle:
+                        Message.create_system_message(conv, f"✅ All {total_count} employees dispatched! Waiting for client to confirm backjob work has started.")
+                    else:
+                        Message.create_system_message(conv, f"✅ All {total_count} employees dispatched! Waiting for client to confirm arrivals.")
         except Exception as e:
             logger.warning(f"⚠️ Failed to send system message for dispatch: {str(e)}")
         
@@ -4495,7 +4501,11 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             'all_dispatched': all_dispatched,
             'dispatched_count': dispatched_count,
             'total_count': total_count,
-            'next_step': 'Wait for client to confirm employee arrival'
+            'next_step': (
+                'Wait for client to confirm backjob work has started'
+                if is_active_backjob_cycle
+                else 'Wait for client to confirm employee arrival'
+            )
         }
         
     except Exception as e:
