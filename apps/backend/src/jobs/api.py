@@ -3949,6 +3949,18 @@ def worker_mark_on_the_way(request, job_id: int):
             status=400,
         )
 
+    is_project_multiday = (
+        getattr(job, 'payment_model', None) == 'PROJECT'
+        and int(getattr(job, 'duration_days', 0) or 0) > 1
+    )
+    if is_project_multiday:
+        return Response(
+            {
+                "error": "This is a multi-day project job. Use the Attendance check-in flow instead of Mark On The Way.",
+            },
+            status=400,
+        )
+
     if job.workerMarkedOnTheWay:
         return Response(
             {
@@ -4017,6 +4029,18 @@ def worker_mark_job_started(request, job_id: int):
     if job.status not in [JobPosting.JobStatus.IN_PROGRESS, JobPosting.JobStatus.ACTIVE]:
         return Response(
             {"error": f"Job must be IN_PROGRESS or ACTIVE (legacy compatibility). Current status: {job.status}"},
+            status=400,
+        )
+
+    is_project_multiday = (
+        getattr(job, 'payment_model', None) == 'PROJECT'
+        and int(getattr(job, 'duration_days', 0) or 0) > 1
+    )
+    if is_project_multiday:
+        return Response(
+            {
+                "error": "This is a multi-day project job. Use the Attendance check-in/checkout flow instead of Mark Job Started.",
+            },
             status=400,
         )
 
@@ -4131,6 +4155,18 @@ def client_confirm_work_started(request, job_id: int):
             return Response(
                 {"error": f"Job must be IN_PROGRESS or ACTIVE (legacy compatibility). Current status: {job.status}"},
                 status=400
+            )
+
+        is_project_multiday = (
+            getattr(job, 'payment_model', None) == 'PROJECT'
+            and int(getattr(job, 'duration_days', 0) or 0) > 1
+        )
+        if is_project_multiday:
+            return Response(
+                {
+                    "error": "This is a multi-day project job. Use the Attendance flow (including checkout confirmation) instead of Confirm Work Started.",
+                },
+                status=400,
             )
         
         # Check if already confirmed
@@ -4352,15 +4388,20 @@ def worker_mark_job_complete(request, job_id: int):
             if is_project_multiday:
                 from accounts.models import DailyAttendance
 
-                has_confirmed_attendance = DailyAttendance.objects.filter(
+                effective_day = get_effective_work_date(job)
+                has_final_day_checkout_confirmation = DailyAttendance.objects.filter(
                     jobID=job,
                     workerID=worker_profile,
+                    date=effective_day,
                     client_confirmed=True,
+                    time_out__isnull=False,
                 ).exists()
 
-                if not has_confirmed_attendance:
+                if not has_final_day_checkout_confirmation:
                     return Response(
-                        {"error": "Client must confirm at least one attendance day before marking this multi-day project complete"},
+                        {
+                            "error": "Client must confirm checkout for the current work day before worker can mark this multi-day project complete."
+                        },
                         status=400
                     )
             else:

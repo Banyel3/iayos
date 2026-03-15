@@ -2713,6 +2713,8 @@ export default function ChatScreen() {
     conversation.job?.status === "IN_PROGRESS" &&
     isProjectMultiDayFlow &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
+  const isLegacySingleProjectFlow =
+    conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -4757,7 +4759,7 @@ export default function ChatScreen() {
 
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
@@ -4791,7 +4793,7 @@ export default function ChatScreen() {
               {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
@@ -4811,7 +4813,7 @@ export default function ChatScreen() {
               {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
@@ -4843,7 +4845,7 @@ export default function ChatScreen() {
 
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted &&
@@ -4869,7 +4871,7 @@ export default function ChatScreen() {
 
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
@@ -4900,12 +4902,11 @@ export default function ChatScreen() {
               {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
-                ((isProjectMultiDayFlow && !isTeamProjectAttendance) ||
-                  (conversation.job.clientConfirmedWorkStarted &&
-                    conversation.job.workerMarkedJobStarted)) &&
+                conversation.job.clientConfirmedWorkStarted &&
+                conversation.job.workerMarkedJobStarted &&
                 !conversation.job.workerMarkedComplete && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.markCompleteButton]}
@@ -4932,7 +4933,7 @@ export default function ChatScreen() {
               {/* WORKER: Waiting for Client Approval (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete && (
@@ -4952,7 +4953,7 @@ export default function ChatScreen() {
               {/* Bug 6 fix: hide when worker has marked complete — show Approve & Pay instead */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
@@ -4992,7 +4993,7 @@ export default function ChatScreen() {
               {/* Final payment already done, but completion still pending */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.job?.remainingPaymentPaid &&
                 !conversation.job.clientMarkedComplete && (
                   <View style={[styles.actionButton, styles.completedAction]}>
@@ -5036,7 +5037,7 @@ export default function ChatScreen() {
               {/* CLIENT: Approve Completion Button (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                conversation.job?.payment_model !== "DAILY" &&
+                isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete && (
