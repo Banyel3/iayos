@@ -127,7 +127,7 @@ export async function fetchAvailableJobs(): Promise<JobPosting[]> {
 
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch jobs: ${response.status} ${response.statusText}`
+      `Failed to fetch jobs: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -167,7 +167,7 @@ export async function fetchJobCategories(): Promise<JobCategory[]> {
 
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch categories: ${response.status} ${response.statusText}`
+      `Failed to fetch categories: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -201,7 +201,7 @@ export async function fetchWorkers(): Promise<WorkerListing[]> {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-      }
+      },
     );
 
     if (locationResponse.ok) {
@@ -224,7 +224,7 @@ export async function fetchWorkers(): Promise<WorkerListing[]> {
             timeout: 5000,
             enableHighAccuracy: false,
           });
-        }
+        },
       );
       userLatitude = position.coords.latitude;
       userLongitude = position.coords.longitude;
@@ -251,7 +251,7 @@ export async function fetchWorkers(): Promise<WorkerListing[]> {
       .json()
       .catch(() => ({ error: "Failed to fetch workers" }));
     throw new Error(
-      getErrorMessage(errorData, `Failed to fetch workers: ${response.status}`)
+      getErrorMessage(errorData, `Failed to fetch workers: ${response.status}`),
     );
   }
 
@@ -280,7 +280,7 @@ export async function fetchMyApplications(): Promise<Set<string>> {
 
   if (data.success && data.applications) {
     return new Set<string>(
-      data.applications.map((app: any) => app.job_id.toString())
+      data.applications.map((app: any) => app.job_id.toString()),
     );
   }
 
@@ -333,7 +333,7 @@ export async function fetchCompletedJobs(): Promise<JobPosting[]> {
 
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch completed jobs: ${response.status} ${response.statusText}`
+      `Failed to fetch completed jobs: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -393,12 +393,12 @@ export async function fetchAgencies(params?: {
     `${API_BASE_URL}/client/agencies/browse?${queryParams.toString()}`,
     {
       credentials: "include",
-    }
+    },
   );
 
   if (!response.ok) {
     throw new Error(
-      `Failed to fetch agencies: ${response.status} ${response.statusText}`
+      `Failed to fetch agencies: ${response.status} ${response.statusText}`,
     );
   }
 
@@ -415,7 +415,7 @@ export async function fetchAgencies(params?: {
  * Fetch a single agency profile by ID
  */
 export async function fetchAgencyProfile(
-  agencyId: string | number
+  agencyId: string | number,
 ): Promise<AgencyProfile> {
   const response = await fetch(`${API_BASE_URL}/client/agencies/${agencyId}`, {
     credentials: "include",
@@ -626,7 +626,7 @@ export interface CreateListingJobResponse {
 }
 
 export async function createListingJob(
-  params: CreateListingJobParams
+  params: CreateListingJobParams,
 ): Promise<CreateListingJobResponse> {
   const response = await fetch(`${API_BASE_URL}/jobs/create-mobile`, {
     method: "POST",
@@ -641,8 +641,10 @@ export async function createListingJob(
     const errorData = await response.json().catch(() => ({}));
     return {
       success: false,
-      error:
-        getErrorMessage(errorData, `HTTP ${response.status}: ${response.statusText}`),
+      error: getErrorMessage(
+        errorData,
+        `HTTP ${response.status}: ${response.statusText}`,
+      ),
     };
   }
 

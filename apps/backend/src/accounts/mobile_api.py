@@ -2,6 +2,7 @@
 # Mobile-specific API endpoints optimized for Flutter app
 
 import os
+import re
 from ninja import Router
 from ninja.responses import Response
 from typing import Optional
@@ -72,6 +73,36 @@ def _is_testing_mode_enabled() -> bool:
     return bool(getattr(settings, "TESTING", False))
 
 
+def _derive_duration_days(job) -> int:
+    """Infer duration for legacy jobs that may be missing duration_days."""
+    configured = int(getattr(job, "duration_days", 0) or 0)
+    if configured > 0:
+        return configured
+
+    expected_duration = str(getattr(job, "expectedDuration", "") or "").strip().lower()
+    if expected_duration:
+        unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration)
+        if unit_match:
+            value = int(unit_match.group(1) or 1)
+            unit = unit_match.group(2) or "day"
+            if unit.startswith("week") or unit.startswith("wk"):
+                return max(1, value * 7)
+            return max(1, value)
+
+        plain_number = re.search(r"^\d+$", expected_duration)
+        if plain_number:
+            return max(1, int(expected_duration))
+
+    preferred_start = getattr(job, "preferredStartDate", None)
+    scheduled_end = getattr(job, "scheduled_end_date", None)
+    if preferred_start and scheduled_end:
+        span_days = (scheduled_end - preferred_start).days + 1
+        if span_days > 0:
+            return span_days
+
+    return 1
+
+
 def _get_effective_work_date(job):
     base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
     if not _is_testing_mode_enabled():
@@ -81,12 +112,46 @@ def _get_effective_work_date(job):
     if day_offset <= 0:
         return base_date
 
-    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    duration_days = _derive_duration_days(job)
     if duration_days > 0:
         max_offset = max(duration_days - 1, 0)
         day_offset = min(day_offset, max_offset)
 
     return base_date + timedelta(days=day_offset)
+
+
+def _sync_project_multiday_total_days_worked(job) -> int:
+    """Synchronize PROJECT multi-day progress from confirmed attendance rows.
+
+    Returns the effective total_days_worked after sync.
+    """
+    try:
+        if getattr(job, "payment_model", None) != "PROJECT":
+            return int(getattr(job, "total_days_worked", 0) or 0)
+
+        if _derive_duration_days(job) <= 1:
+            return int(getattr(job, "total_days_worked", 0) or 0)
+
+        from .models import DailyAttendance
+
+        confirmed_days = (
+            DailyAttendance.objects.filter(jobID=job, client_confirmed=True)
+            .values_list("date", flat=True)
+            .distinct()
+            .count()
+        )
+
+        current_total = int(getattr(job, "total_days_worked", 0) or 0)
+        synced_total = max(current_total, int(confirmed_days or 0))
+
+        if synced_total != current_total:
+            job.total_days_worked = synced_total
+            job.save(update_fields=["total_days_worked", "updatedAt"])
+
+        return synced_total
+    except Exception as err:
+        print(f"⚠️ [MOBILE] Failed to sync PROJECT total_days_worked: {err}")
+        return int(getattr(job, "total_days_worked", 0) or 0)
 
 #region MOBILE AUTH ENDPOINTS
 
@@ -7506,7 +7571,7 @@ def worker_check_in(request, job_id: int):
         # Allow DAILY jobs and PROJECT multi-day jobs that use attendance tracking.
         is_daily_job = job.payment_model == 'DAILY'
         is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
         )
         if not (is_daily_job or is_project_multiday_job):
             return Response({"error": "This endpoint supports DAILY jobs and PROJECT multi-day jobs only"}, status=400)
@@ -7661,7 +7726,7 @@ def worker_check_out(request, job_id: int):
         # Validate job is DAILY payment model
         is_daily_job = job.payment_model == 'DAILY'
         is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
         )
         if not (is_daily_job or is_project_multiday_job):
             return Response({"error": "This endpoint supports DAILY and PROJECT multi-day jobs only"}, status=400)
@@ -7722,7 +7787,7 @@ def worker_cancel_check_in(request, job_id: int):
 
         is_daily_job = job.payment_model == 'DAILY'
         is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
         )
         if not (is_daily_job or is_project_multiday_job):
             return Response({"error": "This endpoint supports DAILY jobs and PROJECT multi-day jobs only"}, status=400)
@@ -7847,7 +7912,7 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             }, status=400)
         
         is_project_multiday = (
-            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
         )
 
         if is_project_multiday:
@@ -7872,6 +7937,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
                 'payment_processed_at',
                 'updatedAt',
             ])
+
+            # Keep PROJECT multi-day progress aligned with confirmed attendance days.
+            synced_days_worked = _sync_project_multiday_total_days_worked(job)
         else:
             # DAILY jobs keep existing behavior with per-day payment processing.
             result = DailyPaymentService.confirm_attendance_client(
@@ -7882,6 +7950,8 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
 
             if not result.get('success'):
                 return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+
+            synced_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
         
         # Enhance response with worker info
         worker_name = None
@@ -7902,6 +7972,7 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
+            "total_days_worked": synced_days_worked,
             "message": (
                 "Attendance confirmed. Day recorded for final project payout."
                 if is_project_multiday
@@ -7936,7 +8007,7 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
 
         is_daily_job = job.payment_model == 'DAILY'
         is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and int(getattr(job, 'duration_days', 0) or 0) > 1
+            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
         )
 
         if not (is_daily_job or is_project_multiday_job):
@@ -8039,6 +8110,9 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 'updatedAt',
             ])
 
+            # Keep PROJECT multi-day progress aligned with confirmed attendance days.
+            synced_days_worked = _sync_project_multiday_total_days_worked(job)
+
             result = {
                 'success': True,
                 'message': 'Marked absent. Penalty applied for final payout adjustments.',
@@ -8053,6 +8127,8 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             if not result.get('success'):
                 return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
 
+            synced_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
+
         if target_worker:
             worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
         else:
@@ -8066,6 +8142,7 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
+            "total_days_worked": synced_days_worked,
             "absent_penalty_amount": float(attendance.absent_penalty_amount or 0),
             "message": result.get('message', "Marked as absent. No payment recorded for today."),
         }

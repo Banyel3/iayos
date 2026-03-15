@@ -53,7 +53,7 @@ def _is_testing_mode_enabled() -> bool:
 
 def _get_clamped_qa_day_offset(job) -> int:
     day_offset = max(int(getattr(job, "qa_day_offset", 0) or 0), 0)
-    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    duration_days = _derive_duration_days(job)
     if duration_days > 0:
         max_offset = max(duration_days - 1, 0)
         day_offset = min(day_offset, max_offset)
@@ -2221,7 +2221,7 @@ def get_conversation_messages(request, conversation_id: int):
         qa_day_offset = _get_clamped_qa_day_offset(job)
         is_daily_job = hasattr(job, 'payment_model') and job.payment_model == "DAILY"
         is_project_multiday = bool(
-            getattr(job, 'payment_model', None) == "PROJECT" and int(getattr(job, 'duration_days', 0) or 0) > 1
+            getattr(job, 'payment_model', None) == "PROJECT" and _derive_duration_days(job) > 1
         )
         if (is_daily_job or is_project_multiday) and job.status == "IN_PROGRESS":
             from accounts.models import DailyAttendance, DailySkipDayRequest

@@ -216,6 +216,9 @@ def create_team_job(
     scheduled_end_date: Optional[str] = None,
     materials_needed: Optional[list] = None,
     payment_method: str = 'WALLET',
+    payment_model: str = 'PROJECT',
+    daily_rate: Optional[Decimal] = None,
+    duration_days: Optional[int] = None,
     job_scope: str = 'MODERATE_PROJECT',
     skill_level_required: str = 'INTERMEDIATE',
     work_environment: str = 'INDOOR'
@@ -242,16 +245,40 @@ def create_team_job(
     if missing:
         return {'success': False, 'error': f'Invalid specialization IDs: {missing}'}
     
+    payment_model_upper = str(payment_model or 'PROJECT').upper()
+    if payment_model_upper not in ['PROJECT', 'DAILY']:
+        return {'success': False, 'error': 'Invalid payment_model. Choose PROJECT or DAILY'}
+
+    payment_method_upper = str(payment_method or 'WALLET').upper()
+    if payment_method_upper != 'WALLET':
+        return {'success': False, 'error': 'Team job creation currently supports WALLET payment only'}
+
+    effective_total_budget = Decimal(str(total_budget))
+    effective_daily_rate: Optional[Decimal] = None
+    effective_duration_days: Optional[int] = None
+
+    if payment_model_upper == 'DAILY':
+        if daily_rate is None or duration_days is None:
+            return {'success': False, 'error': 'daily_rate and duration_days are required for DAILY team jobs'}
+
+        effective_daily_rate = Decimal(str(daily_rate))
+        effective_duration_days = int(duration_days)
+        if effective_daily_rate <= 0 or effective_duration_days <= 0:
+            return {'success': False, 'error': 'daily_rate and duration_days must be positive'}
+
+        # DAILY team budget is derived from rate/day per worker.
+        effective_total_budget = effective_daily_rate * Decimal(str(effective_duration_days)) * Decimal(str(total_workers))
+
     # Calculate budget allocation
     budget_allocations = calculate_budget_allocation(
-        Decimal(str(total_budget)), skill_slots_data, allocation_type
+        effective_total_budget, skill_slots_data, allocation_type
     )
     
     # Validate manual allocation totals match
     if allocation_type == 'MANUAL_ALLOCATION':
         allocated_sum = sum(alloc['budget'] for alloc in budget_allocations)
-        if abs(allocated_sum - Decimal(str(total_budget))) > Decimal('1'):  # Allow ₱1 variance
-            return {'success': False, 'error': f'Manual allocation total (₱{allocated_sum}) does not match total budget (₱{total_budget})'}
+        if abs(allocated_sum - effective_total_budget) > Decimal('1'):  # Allow ₱1 variance
+            return {'success': False, 'error': f'Manual allocation total (₱{allocated_sum}) does not match total budget (₱{effective_total_budget})'}
     
     # Get client's base profile
     client_profile_obj = (
@@ -278,12 +305,17 @@ def create_team_job(
         },
     )
     
-    # Check wallet balance for escrow (50% of total) + platform fee (10% of total)
-    escrow_amount = Decimal(str(total_budget)) * Decimal('0.5')
-    platform_fee = Decimal(str(total_budget)) * settings.PLATFORM_FEE_RATE  # 10% of total budget
+    # Check wallet balance for escrow + platform fee
+    # PROJECT: 50% escrow; DAILY: 100% escrow upfront
+    escrow_amount = (
+        effective_total_budget if payment_model_upper == 'DAILY'
+        else effective_total_budget * Decimal('0.5')
+    )
+    platform_fee = effective_total_budget * settings.PLATFORM_FEE_RATE  # 10% of total budget
     total_needed = escrow_amount + platform_fee
+    wallet = None
     
-    if payment_method == 'WALLET':
+    if payment_method_upper == 'WALLET':
         try:
             wallet = Wallet.objects.get(accountFK=client_profile_obj.accountFK)
             if wallet.balance < total_needed:
@@ -315,7 +347,9 @@ def create_team_job(
         title=title,
         description=description,
         location=location,
-        budget=Decimal(str(total_budget)),
+        budget=effective_total_budget,
+        escrowAmount=escrow_amount,
+        remainingPayment=Decimal('0.00') if payment_model_upper == 'DAILY' else (effective_total_budget * Decimal('0.5')),
         urgency=urgency,
         preferredStartDate=preferred_start_date_obj,
         scheduled_end_date=scheduled_end_date_obj,
@@ -323,6 +357,9 @@ def create_team_job(
         jobType='LISTING',  # Team jobs are listings
         status='ACTIVE',
         is_team_job=True,
+        payment_model=payment_model_upper,
+        daily_rate_agreed=float(effective_daily_rate) if payment_model_upper == 'DAILY' and effective_daily_rate is not None else None,
+        duration_days=effective_duration_days if payment_model_upper == 'DAILY' else None,
         budget_allocation_type=allocation_type,
         team_job_start_threshold=Decimal(str(team_start_threshold)),
         job_scope=job_scope,
@@ -350,8 +387,10 @@ def create_team_job(
         created_slots.append(slot)
     
     # Handle payment (if wallet)
-    if payment_method == 'WALLET':
+    if payment_method_upper == 'WALLET':
         # Deduct from wallet
+        if wallet is None:
+            return {'success': False, 'error': 'Wallet not found'}
         wallet.balance -= total_needed
         wallet.reservedBalance += escrow_amount  # Hold escrow
         wallet.save()
@@ -364,7 +403,20 @@ def create_team_job(
             amount=escrow_amount,
             balanceAfter=wallet.balance,
             status='COMPLETED',
-            description=f'Team job escrow (50%) for: {title} (Platform fee: ₱{platform_fee})'
+            description=(
+                f"Team job escrow ({'100%' if payment_model_upper == 'DAILY' else '50%'}) for: {title} "
+                f"(Platform fee: ₱{platform_fee})"
+            )
+        )
+
+    if payment_model_upper == 'DAILY' and effective_daily_rate is not None and effective_duration_days is not None:
+        from jobs.daily_payment_service import DailyPaymentService
+
+        DailyPaymentService.create_daily_job(
+            job=job,
+            daily_rate=effective_daily_rate,
+            duration_days=effective_duration_days,
+            num_workers=total_workers,
         )
     
     # NOTE: Conversation is NOT created here. It will be created automatically
@@ -376,6 +428,8 @@ def create_team_job(
         'job_id': job.jobID,
         'skill_slots_created': len(created_slots),
         'total_workers_needed': total_workers,
+        'payment_model': payment_model_upper,
+        'total_budget': float(effective_total_budget),
         'escrow_amount': float(escrow_amount),
         'platform_fee': float(platform_fee),
         'message': f'Team job created with {len(created_slots)} skill slots requiring {total_workers} workers'
@@ -1251,8 +1305,6 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     Client approves team job completion. This closes the job and team conversation.
     Requires all workers to have marked their assignments as complete.
     """
-    from profiles.models import Conversation, ConversationParticipant
-    
     try:
         job = Job.objects.get(jobID=job_id)
     except Job.DoesNotExist:
@@ -1291,68 +1343,81 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             'error': f'{incomplete_count} worker(s) have not yet marked their work as complete'
         }
     
-    # ==========================================================================
-    # CRITICAL: Pre-validate wallet balance BEFORE marking job as complete
-    # This prevents the bug where job is marked COMPLETED but payment fails
-    # ==========================================================================
     payment_method_upper = (payment_method or 'WALLET').upper()
-    
+    if payment_method_upper not in ['WALLET', 'CASH']:
+        return {'success': False, 'error': 'Invalid payment method. Choose WALLET or CASH'}
+
+    if payment_method_upper == 'CASH' and not cash_proof_url:
+        return {'success': False, 'error': 'Cash proof image is required for CASH payment'}
+
+    # Remaining final payment follows single-job behavior: remainingPayment + materialsCost.
+    remaining_amount = (job.remainingPayment or Decimal('0.00')) + (job.materialsCost or Decimal('0.00'))
+    if remaining_amount <= 0:
+        return {'success': False, 'error': 'No remaining payment is due for this team job'}
+
+    # Pre-validate wallet balance BEFORE updating job flags.
     if payment_method_upper == 'WALLET':
-        from accounts.models import Wallet
-        from decimal import Decimal
-        
-        # Get or create wallet for client
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user,
-            defaults={'balance': Decimal('0')}
+            defaults={'balance': Decimal('0.00')}
         )
-        
-        # Calculate remaining payment (50% of budget)
-        remaining_amount = job.budget * Decimal('0.5')
-        
-        # Check if client has sufficient balance BEFORE proceeding
         if wallet.balance < remaining_amount:
-            print(f"❌ [TeamJob] Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
             return {
                 'success': False,
                 'error': f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} but only have ₱{wallet.balance:,.2f}. Please deposit more funds or choose CASH payment.'
             }
-        
-        print(f"✅ [TeamJob] Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
-    
-    # Mark job as completed
+
     old_status = job.status
-    job.status = 'COMPLETED'
-    job.clientMarkedComplete = True
-    job.clientMarkedCompleteAt = timezone.now()
-    # For team jobs, mark worker complete when client approves (all workers already marked their assignments complete)
-    job.workerMarkedComplete = True
-    job.workerMarkedCompleteAt = timezone.now()
-    # Mark remaining payment as paid (team jobs handle payment differently - escrow was paid at creation)
-    job.remainingPaymentPaid = True
-    job.remainingPaymentAt = timezone.now()
+    now = timezone.now()
+
+    with transaction.atomic():
+        client_wallet, _ = Wallet.objects.get_or_create(
+            accountFK=client_user,
+            defaults={'balance': Decimal('0.00')}
+        )
+
+        if payment_method_upper == 'WALLET':
+            client_wallet = Wallet.objects.select_for_update().get(accountFK=client_user)
+            # Re-validate balance after acquiring the row lock to prevent races
+            if client_wallet.balance < remaining_amount:
+                raise ValueError(
+                    f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
+                    f'but only have ₱{client_wallet.balance:,.2f}. '
+                    'Please deposit more funds or choose CASH payment.'
+                )
+            client_wallet.balance -= remaining_amount
+            client_wallet.save(update_fields=['balance'])
+
+        Transaction.objects.create(
+            walletID=client_wallet,
+            amount=remaining_amount,
+            transactionType='PAYMENT',
+            status='COMPLETED',
+            description=f"Final payment for team job: {job.title}" + (" (cash proof uploaded)" if payment_method_upper == 'CASH' else ""),
+            balanceAfter=client_wallet.balance,
+            relatedJobPosting=job,
+            paymentMethod=payment_method_upper,
+        )
+
+        job.status = 'COMPLETED'
+        job.clientMarkedComplete = True
+        job.clientMarkedCompleteAt = now
+        # For team jobs, mark worker complete when client approves (all workers already marked assignments complete)
+        job.workerMarkedComplete = True
+        job.workerMarkedCompleteAt = now
+        job.finalPaymentMethod = payment_method_upper
+        job.paymentMethodSelectedAt = now
+        job.remainingPaymentPaid = True
+        job.remainingPaymentPaidAt = now
+
+        if payment_method_upper == 'CASH':
+            job.cashPaymentProofUrl = cash_proof_url
+            job.cashProofUploadedAt = now
+
+        job.save()
     
-    if cash_proof_url:
-        job.cashPaymentProofUrl = cash_proof_url
-        job.cashProofUploadedAt = timezone.now()
-    
-    job.save()
-    
-    # Close team conversation
-    try:
-        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-        if conversation:
-            conversation.status = Conversation.ConversationStatus.COMPLETED
-            conversation.save()
-            print(f"✅ Team conversation {conversation.conversationID} closed for completed team job {job_id}")
-            
-            # Auto-archive if both parties have reviewed
-            from profiles.conversation_service import archive_conversation, should_auto_archive
-            if should_auto_archive(conversation):
-                archive_result = archive_conversation(conversation)
-                print(f"📦 {archive_result.get('message', 'Team conversation auto-archived')}")
-    except Exception as e:
-        print(f"⚠️ Failed to close team conversation: {str(e)}")
+    # NOTE: Keep conversation ACTIVE after approval, consistent with single-job flow.
+    # Conversation should only close after both parties submit reviews.
     
     # Update all assignments to COMPLETED status
     JobWorkerAssignment.objects.filter(
@@ -1387,6 +1452,8 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     return {
         'success': True,
         'job_id': job_id,
+        'payment_method': payment_method_upper,
+        'amount_paid': float(remaining_amount),
         'workers_completed': job.total_workers_assigned,
         'message': 'Team job completed successfully'
     }

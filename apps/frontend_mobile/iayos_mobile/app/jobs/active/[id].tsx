@@ -158,7 +158,10 @@ export default function ActiveJobDetailScreen() {
       const data = await response.json();
 
       // Transform backend response to match frontend interface
-      const categoryName = typeof data.category === 'object' ? data.category?.name : (data.category || 'Uncategorized');
+      const categoryName =
+        typeof data.category === "object"
+          ? data.category?.name
+          : data.category || "Uncategorized";
       const clientData = data.client || {};
       const workerData = data.assigned_worker || data.worker || null;
 
@@ -167,34 +170,42 @@ export default function ActiveJobDetailScreen() {
         title: data.title,
         description: data.description,
         category: categoryName,
-        budget: data.budget != null ? `₱${Number(data.budget).toLocaleString()}` : 'TBD',
-        location: data.location || 'Location not specified',
+        budget:
+          data.budget != null
+            ? `₱${Number(data.budget).toLocaleString()}`
+            : "TBD",
+        location: data.location || "Location not specified",
         status: data.status,
-        worker_marked_complete: data.workerMarkedComplete || data.worker_marked_complete || false,
-        client_marked_complete: data.clientMarkedComplete || data.client_marked_complete || false,
+        worker_marked_complete:
+          data.workerMarkedComplete || data.worker_marked_complete || false,
+        client_marked_complete:
+          data.clientMarkedComplete || data.client_marked_complete || false,
         completion_notes: data.completionNotes || data.completion_notes || null,
-        assigned_at: data.assigned_at || data.created_at || '',
+        assigned_at: data.assigned_at || data.created_at || "",
         started_at: data.started_at || null,
         worker_marked_complete_at: data.worker_marked_complete_at || null,
         client: {
           id: clientData.id || 0,
-          name: clientData.name || 'Client',
+          name: clientData.name || "Client",
           avatar: clientData.avatar || null,
           phone: clientData.phone || null,
         },
-        worker: workerData ? {
-          id: workerData.id || 0,
-          name: workerData.name || 'Worker',
-          avatar: workerData.avatar || null,
-          phone: workerData.phone || null,
-        } : null,
-        photos: data.photos?.map((url: string, idx: number) => ({
-          id: idx,
-          url,
-          file_name: `photo-${idx}`,
-        })) || [],
+        worker: workerData
+          ? {
+              id: workerData.id || 0,
+              name: workerData.name || "Worker",
+              avatar: workerData.avatar || null,
+              phone: workerData.phone || null,
+            }
+          : null,
+        photos:
+          data.photos?.map((url: string, idx: number) => ({
+            id: idx,
+            url,
+            file_name: `photo-${idx}`,
+          })) || [],
         estimated_completion: data.estimated_completion || null,
-        payment_model: data.payment_model || 'PROJECT',
+        payment_model: data.payment_model || "PROJECT",
         daily_rate_agreed: data.daily_rate_agreed ?? null,
         duration_days: data.duration_days ?? null,
         is_team_job: data.is_team_job || false,
@@ -210,7 +221,7 @@ export default function ActiveJobDetailScreen() {
   // Team job detail hook (for additional team data)
   const { data: teamJobData } = useTeamJobDetail(
     Number(id),
-    !!job?.is_team_job
+    !!job?.is_team_job,
   );
 
   // Team job completion hooks
@@ -223,16 +234,19 @@ export default function ActiveJobDetailScreen() {
       ? job.worker_assignments.find((a) => a.worker_id === currentWorkerId)
       : null;
 
-  // Check if all workers in team have marked complete
+  // Keep completion gating aligned with backend, which only checks ACTIVE assignments.
+  const activeAssignments = job?.worker_assignments
+    ? job.worker_assignments.filter((a) => a.assignment_status === "ACTIVE")
+    : [];
+
   const allWorkersComplete =
-    job?.is_team_job && job?.worker_assignments
-      ? job.worker_assignments.every((a) => a.worker_marked_complete)
+    job?.is_team_job && activeAssignments.length > 0
+      ? activeAssignments.every((a) => a.worker_marked_complete)
       : false;
 
-  // Count completed workers
-  const completedWorkersCount =
-    job?.worker_assignments?.filter((a) => a.worker_marked_complete).length ||
-    0;
+  const completedWorkersCount = activeAssignments.filter(
+    (a) => a.worker_marked_complete,
+  ).length;
 
   // Upload photos helper function
   const uploadPhotos = async (jobId: string): Promise<boolean> => {
@@ -266,7 +280,7 @@ export default function ActiveJobDetailScreen() {
           {
             method: "POST",
             body: formData,
-          }
+          },
         );
 
         if (!response.ok) {
@@ -310,7 +324,7 @@ export default function ActiveJobDetailScreen() {
         const uploadSuccess = await uploadPhotos(id);
         if (!uploadSuccess) {
           throw new Error(
-            "Job marked complete, but some photos failed to upload"
+            "Job marked complete, but some photos failed to upload",
           );
         }
       }
@@ -322,7 +336,7 @@ export default function ActiveJobDetailScreen() {
         "Success",
         uploadedPhotos.length > 0
           ? `Job marked as complete with ${uploadedPhotos.length} photo(s)! The client will review your work.`
-          : "Job marked as complete! The client will review your work and approve completion."
+          : "Job marked as complete! The client will review your work and approve completion.",
       );
       setShowCompletionModal(false);
       setCompletionNotes("");
@@ -337,13 +351,30 @@ export default function ActiveJobDetailScreen() {
 
   // Approve completion (client)
   const approveCompletionMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({
+      paymentMethod,
+      cashProofImage,
+    }: {
+      paymentMethod: "WALLET" | "CASH";
+      cashProofImage?: string;
+    }) => {
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod);
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: `cash_proof_${id}_${Date.now()}.jpg`,
+        } as any);
+      }
+
       const response = await apiRequest(
         ENDPOINTS.APPROVE_COMPLETION(parseInt(id)),
         {
           method: "POST",
-          body: JSON.stringify({ payment_method: "GCASH" }),
-        }
+          body: formData as any,
+        },
       );
 
       if (!response.ok) {
@@ -354,16 +385,12 @@ export default function ActiveJobDetailScreen() {
       return response.json();
     },
     onSuccess: () => {
-      Alert.alert(
-        "Success",
-        "Job completion approved! Payment will be processed shortly.",
-        [
-          {
-            text: "OK",
-            onPress: () => safeGoBack(router, "/(tabs)/jobs"),
-          },
-        ]
-      );
+      Alert.alert("Success", "Job completion approved and payment processed.", [
+        {
+          text: "OK",
+          onPress: () => safeGoBack(router, "/(tabs)/jobs"),
+        },
+      ]);
       queryClient.invalidateQueries({ queryKey: ["jobs", "active", id] });
       queryClient.invalidateQueries({ queryKey: ["jobs", "active"] });
     },
@@ -380,7 +407,7 @@ export default function ActiveJobDetailScreen() {
       if (!permissionResult.granted) {
         Alert.alert(
           "Permission Required",
-          "Please allow access to your photo library"
+          "Please allow access to your photo library",
         );
         return;
       }
@@ -406,11 +433,50 @@ export default function ActiveJobDetailScreen() {
     setUploadedPhotos(uploadedPhotos.filter((_, i) => i !== index));
   };
 
+  const pickCashProofThenApprove = async (target: "SOLO" | "TEAM") => {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      Alert.alert(
+        "Permission Required",
+        "Please allow access to your photo library",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    const uri = result.assets[0].uri;
+
+    if (target === "TEAM") {
+      clientApproveMutation.mutate({
+        jobId: Number(id),
+        paymentMethod: "CASH",
+        cashProofImage: uri,
+      });
+      return;
+    }
+
+    approveCompletionMutation.mutate({
+      paymentMethod: "CASH",
+      cashProofImage: uri,
+    });
+  };
+
   const handleMarkComplete = () => {
     if (!completionNotes.trim()) {
       Alert.alert(
         "Required",
-        "Please add completion notes describing the work done"
+        "Please add completion notes describing the work done",
       );
       return;
     }
@@ -426,21 +492,26 @@ export default function ActiveJobDetailScreen() {
             markCompleteMutation.mutate({ completion_notes: completionNotes });
           },
         },
-      ]
+      ],
     );
   };
 
   const handleApproveCompletion = () => {
     Alert.alert(
-      "Approve Completion",
-      "Are you satisfied with the work? Approving will release the payment to the worker.",
+      "Select Payment Method",
+      "Choose how you want to pay the final amount.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Approve",
-          onPress: () => approveCompletionMutation.mutate(),
+          text: "Wallet",
+          onPress: () =>
+            approveCompletionMutation.mutate({ paymentMethod: "WALLET" }),
         },
-      ]
+        {
+          text: "Cash",
+          onPress: () => pickCashProofThenApprove("SOLO"),
+        },
+      ],
     );
   };
 
@@ -457,7 +528,7 @@ export default function ActiveJobDetailScreen() {
     if (!completionNotes.trim()) {
       Alert.alert(
         "Required",
-        "Please add completion notes describing the work done"
+        "Please add completion notes describing the work done",
       );
       return;
     }
@@ -477,6 +548,7 @@ export default function ActiveJobDetailScreen() {
           onPress: () => {
             workerCompleteMutation.mutate(
               {
+                jobId: Number(id),
                 assignmentId: selectedAssignment.assignment_id,
                 completionNotes: completionNotes,
               },
@@ -484,7 +556,7 @@ export default function ActiveJobDetailScreen() {
                 onSuccess: () => {
                   Alert.alert(
                     "Success",
-                    "Your work has been marked as complete!"
+                    "Your work has been marked as complete!",
                   );
                   setShowCompletionModal(false);
                   setCompletionNotes("");
@@ -497,14 +569,14 @@ export default function ActiveJobDetailScreen() {
                 onError: (error: any) => {
                   Alert.alert(
                     "Error",
-                    error.message || "Failed to mark complete"
+                    error.message || "Failed to mark complete",
                   );
                 },
-              }
+              },
             );
           },
         },
-      ]
+      ],
     );
   };
 
@@ -512,40 +584,49 @@ export default function ActiveJobDetailScreen() {
     if (!allWorkersComplete) {
       Alert.alert(
         "Workers Not Complete",
-        `${completedWorkersCount}/${job?.total_workers_needed || 0} workers have marked their work complete. All workers must complete their work first.`
+        `${completedWorkersCount}/${job?.total_workers_needed || 0} workers have marked their work complete. All workers must complete their work first.`,
       );
       return;
     }
 
     Alert.alert(
-      "Approve Team Job",
-      "Are you satisfied with all workers' work? Approving will release payment to all team members.",
+      "Select Payment Method",
+      "All workers are complete. Choose how you want to pay the final amount.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Approve All",
+          text: "Wallet",
           onPress: () => {
             clientApproveMutation.mutate(
-              { jobId: Number(id) },
+              { jobId: Number(id), paymentMethod: "WALLET" },
               {
                 onSuccess: () => {
                   Alert.alert(
                     "Success",
-                    "Team job completed! Payments will be processed.",
-                    [{ text: "OK", onPress: () => safeGoBack(router, "/(tabs)/jobs") }]
+                    "Team job completed! Payment processed.",
+                    [
+                      {
+                        text: "OK",
+                        onPress: () => safeGoBack(router, "/(tabs)/jobs"),
+                      },
+                    ],
                   );
                 },
                 onError: (error: any) => {
                   Alert.alert(
                     "Error",
-                    error.message || "Failed to approve completion"
+                    error.message || "Failed to approve completion",
                   );
                 },
-              }
+              },
             );
           },
         },
-      ]
+        {
+          text: "Cash",
+          onPress: () => pickCashProofThenApprove("TEAM"),
+        },
+      ],
     );
   };
 
@@ -635,9 +716,21 @@ export default function ActiveJobDetailScreen() {
             <Text style={styles.detailLabel}>Budget</Text>
             <Text style={styles.detailValue}>{job.budget}</Text>
             {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
-              <Text style={{ fontSize: 11, color: Colors.primary, marginTop: 2 }}>📅 ₱{Number(job.daily_rate_agreed).toLocaleString()}/day</Text>
+              <Text
+                style={{ fontSize: 11, color: Colors.primary, marginTop: 2 }}
+              >
+                📅 ₱{Number(job.daily_rate_agreed).toLocaleString()}/day
+              </Text>
             ) : (
-              <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 2 }}>💼 Project</Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: Colors.textSecondary,
+                  marginTop: 2,
+                }}
+              >
+                💼 Project
+              </Text>
             )}
           </View>
           <View style={styles.detailCard}>
@@ -647,9 +740,7 @@ export default function ActiveJobDetailScreen() {
               color={Colors.primary}
             />
             <Text style={styles.detailLabel}>Location</Text>
-            <Text style={styles.detailValue}>
-              {job.location}
-            </Text>
+            <Text style={styles.detailValue}>{job.location}</Text>
           </View>
         </View>
 
@@ -687,8 +778,21 @@ export default function ActiveJobDetailScreen() {
                   style={styles.userAvatar}
                 />
               ) : (
-                <View style={[styles.userAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                <View
+                  style={[
+                    styles.userAvatar,
+                    {
+                      backgroundColor: Colors.background,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="person"
+                    size={28}
+                    color={Colors.textSecondary}
+                  />
                 </View>
               )}
               <View style={styles.userInfo}>
@@ -699,7 +803,9 @@ export default function ActiveJobDetailScreen() {
                     size={16}
                     color={Colors.textSecondary}
                   />
-                  <Text style={styles.userPhone}>{job.client.phone || "Not available"}</Text>
+                  <Text style={styles.userPhone}>
+                    {job.client.phone || "Not available"}
+                  </Text>
                 </View>
                 <Text style={styles.tapToViewHint}>Tap to view profile</Text>
               </View>
@@ -725,8 +831,21 @@ export default function ActiveJobDetailScreen() {
                   style={styles.userAvatar}
                 />
               ) : (
-                <View style={[styles.userAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Ionicons name="person" size={28} color={Colors.textSecondary} />
+                <View
+                  style={[
+                    styles.userAvatar,
+                    {
+                      backgroundColor: Colors.background,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="person"
+                    size={28}
+                    color={Colors.textSecondary}
+                  />
                 </View>
               )}
               <View style={styles.userInfo}>
@@ -877,8 +996,21 @@ export default function ActiveJobDetailScreen() {
                           style={styles.assignmentAvatar}
                         />
                       ) : (
-                        <View style={[styles.assignmentAvatar, { backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }]}>
-                          <Ionicons name="person" size={20} color={Colors.textSecondary} />
+                        <View
+                          style={[
+                            styles.assignmentAvatar,
+                            {
+                              backgroundColor: Colors.background,
+                              alignItems: "center",
+                              justifyContent: "center",
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="person"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
                         </View>
                       )}
                       <View style={styles.assignmentInfo}>

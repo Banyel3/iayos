@@ -90,7 +90,9 @@ export function useTeamJobDetail(jobId: number, enabled: boolean = true) {
         const error = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(getErrorMessage(error, "Failed to fetch team job details"));
+        throw new Error(
+          getErrorMessage(error, "Failed to fetch team job details"),
+        );
       }
       return response.json() as Promise<TeamJobDetail>;
     },
@@ -297,7 +299,9 @@ export function useWorkerCompleteAssignment() {
         message?: string;
       };
       if (!response.ok) {
-        throw new Error(getErrorMessage(data, "Failed to mark assignment complete"));
+        throw new Error(
+          getErrorMessage(data, "Failed to mark assignment complete"),
+        );
       }
       return data;
     },
@@ -329,16 +333,29 @@ export function useClientApproveTeamJob() {
   return useMutation({
     mutationFn: async ({
       jobId,
-      ratings,
+      paymentMethod,
+      cashProofImage,
     }: {
       jobId: number;
-      ratings?: Record<number, number>; // assignment_id -> rating (1-5)
+      paymentMethod?: "WALLET" | "CASH";
+      cashProofImage?: string;
     }) => {
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod || "WALLET");
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: `team_cash_proof_${jobId}_${Date.now()}.jpg`,
+        } as any);
+      }
+
       const response = await apiRequest(
         ENDPOINTS.TEAM_APPROVE_COMPLETION(jobId),
         {
           method: "POST",
-          body: JSON.stringify({ ratings }),
+          body: formData as any,
         },
       );
 
@@ -428,7 +445,9 @@ export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
         const error = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(getErrorMessage(error, "Failed to fetch team job applications"));
+        throw new Error(
+          getErrorMessage(error, "Failed to fetch team job applications"),
+        );
       }
       return response.json() as Promise<{
         applications: TeamJobApplication[];

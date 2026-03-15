@@ -93,6 +93,28 @@ export interface ReceiptMaterial {
   client_approved: boolean;
 }
 
+export interface TeamWorkerAllocation {
+  worker_id: number;
+  worker_account_id: number;
+  worker_name: string;
+  skill: string | null;
+  slot_position: number;
+  allocated_amount: number;
+}
+
+export interface TeamDistribution {
+  allocation_method: string | null;
+  total_workers: number;
+  labor_budget_pool: number;
+  materials_cost: number;
+  team_earnings_pool: number;
+  total_allocated_to_workers: number;
+  unallocated_amount: number;
+  platform_fee: number;
+  client_total_paid: number;
+  worker_allocations: TeamWorkerAllocation[];
+}
+
 export interface JobReceipt {
   // Job info
   job_id: number;
@@ -122,6 +144,7 @@ export interface JobReceipt {
   // Parties
   client: ReceiptParty;
   worker: ReceiptParty | null;
+  team_distribution?: TeamDistribution | null;
 
   // Transaction history
   transactions: ReceiptTransaction[];

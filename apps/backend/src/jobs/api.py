@@ -358,7 +358,14 @@ def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
 
 
 def _get_required_project_days(job: JobPosting) -> int:
-    """Resolve required project days from structured field or expectedDuration fallback."""
+    """Resolve required project days with backward-compatible fallbacks.
+
+    Priority:
+    1) duration_days field
+    2) preferredStartDate -> scheduled_end_date span (inclusive)
+    3) expectedDuration text
+    4) historical progression hints (qa_day_offset / total_days_worked)
+    """
     structured_days = getattr(job, "duration_days", None)
     try:
         if structured_days is not None:
@@ -368,7 +375,37 @@ def _get_required_project_days(job: JobPosting) -> int:
     except (TypeError, ValueError):
         pass
 
-    return _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+    preferred_start = getattr(job, "preferredStartDate", None)
+    scheduled_end = getattr(job, "scheduled_end_date", None)
+    if preferred_start and scheduled_end:
+        try:
+            if scheduled_end >= preferred_start:
+                span_days = (scheduled_end - preferred_start).days + 1
+                if span_days > 0:
+                    return span_days
+        except Exception:
+            pass
+
+    parsed_expected = _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+    if parsed_expected > 1:
+        return parsed_expected
+
+    # Legacy jobs may have empty duration fields but already progressed across days.
+    try:
+        qa_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+        if qa_offset > 0:
+            return qa_offset + 1
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        worked_days = int(getattr(job, "total_days_worked", 0) or 0)
+        if worked_days > 1:
+            return worked_days
+    except (TypeError, ValueError):
+        pass
+
+    return 1
 
 
 def _resolve_project_duration_days_from_payload(data) -> int:
@@ -4529,20 +4566,31 @@ def client_approve_job_completion(
 ):
     """
     Client approves job completion and selects payment method
-    Payment methods: WALLET, GCASH, or CASH (with proof upload)
+    Payment methods: WALLET or CASH (with proof upload)
     
     Form data:
-    - payment_method: "WALLET" | "GCASH" | "CASH" (required)
+    - payment_method: "WALLET" | "CASH" (required)
     - cash_proof_image: file upload (required if payment_method is CASH)
     """
     try:
         print(f"✅ Client approving job {job_id} completion")
-        
+
+        # Reject JSON requests — payment_method and cash_proof_image must come from
+        # multipart/form-data.  Accepting JSON would silently fall through to the
+        # Form() default ("WALLET") and charge the wallet even when the user
+        # selected a different method.
+        content_type = getattr(request, 'content_type', '')
+        if 'application/json' in content_type.lower():
+            return Response(
+                {"error": "This endpoint requires multipart/form-data. JSON payloads are not supported."},
+                status=415,
+            )
+
         # Get payment method from form data (default to WALLET)
         payment_method_upper = payment_method.upper() if payment_method else 'WALLET'
-        if payment_method_upper not in ['WALLET', 'GCASH', 'CASH']:
+        if payment_method_upper not in ['WALLET', 'CASH']:
             return Response(
-                {"error": "Invalid payment method. Choose WALLET, GCASH, or CASH"},
+                {"error": "Invalid payment method. Choose WALLET or CASH"},
                 status=400
             )
         
@@ -4709,22 +4757,24 @@ def client_approve_job_completion(
                     status=500
                 )
         
-        # Mark as complete by client and save payment method
+        # Prepare in-memory completion fields.
+        # NOTE: job.save() is intentionally deferred until after payment processing
+        # succeeds, so that a payment failure never leaves the job in a COMPLETED
+        # state without a recorded payment.
         old_status = job.status
         job.clientMarkedComplete = True
         job.clientMarkedCompleteAt = timezone.now()
         job.finalPaymentMethod = payment_method_upper
         job.paymentMethodSelectedAt = timezone.now()
-        
-        # Save cash proof URL if provided
+
+        # Stage cash proof URL if provided
         if cash_proof_url:
             job.cashPaymentProofUrl = cash_proof_url
             job.cashProofUploadedAt = timezone.now()
-        
-        job.status = "COMPLETED"
-        job.save()
 
-        print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
+        job.status = "COMPLETED"
+
+        print(f"📋 Client approved job {job_id} completion with {payment_method_upper} payment. Processing payment…")
         
         # NOTE: Do NOT close conversation here - keep it ACTIVE until both parties have reviewed.
         # Conversation will be closed in the review submission endpoint after both reviews are submitted.
@@ -5049,22 +5099,14 @@ def client_approve_job_completion(
             }, status=400)
                 
         except Exception as payment_error:
-            print(f"⚠️ Error processing payment: {str(payment_error)}")
+            print(f"⚠️ Error processing payment for job {job_id}: {type(payment_error).__name__}: {str(payment_error)}")
             import traceback
             traceback.print_exc()
-            # Allow proceeding with review even if payment fails
-            return {
-                "success": True,
-                "message": "Job completion approved! Payment processing error, please contact support.",
-                "job_id": job_id,
-                "worker_marked_complete": job.workerMarkedComplete,
-                "client_marked_complete": job.clientMarkedComplete,
-                "status": job.status,
-                "requires_payment": False,
-                "payment_error": True,
-                "prompt_review": True,
-                "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
-            }
+
+            return Response(
+                {"error": "Final payment failed. Job was not completed. Please try again or contact support."},
+                status=500,
+            )
         
     except Exception as e:
         print(f"❌ Error approving job completion: {str(e)}")
@@ -7986,6 +8028,9 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             scheduled_end_date=payload.scheduled_end_date,
             materials_needed=payload.materials_needed,
             payment_method=payload.payment_method or 'WALLET',
+            payment_model=(payload.payment_model or 'PROJECT'),
+            daily_rate=Decimal(str(payload.daily_rate)) if payload.daily_rate is not None else None,
+            duration_days=payload.duration_days,
             job_scope=payload.job_scope or 'MODERATE_PROJECT',
             skill_level_required=payload.skill_level_required or 'INTERMEDIATE',
             work_environment=payload.work_environment or 'INDOOR'
@@ -8270,7 +8315,12 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
 @require_kyc
-def approve_team_job_completion(request, job_id: int, payment_method: str = Form('WALLET')):
+def approve_team_job_completion(
+    request,
+    job_id: int,
+    payment_method: str = Form('WALLET'),
+    cash_proof_image: UploadedFile = File(None),
+):
     """
     Client approves team job completion after all workers have marked complete.
     This closes the job and team conversation.
@@ -8286,10 +8336,43 @@ def approve_team_job_completion(request, job_id: int, payment_method: str = Form
     if project_gate_error:
         return Response(project_gate_error, status=400)
     
+    cash_proof_url = None
+    payment_method_upper = (payment_method or 'WALLET').upper()
+
+    if payment_method_upper == 'CASH':
+        if not cash_proof_image:
+            return Response({"error": "Cash proof image is required for CASH payment"}, status=400)
+
+        try:
+            from datetime import datetime
+            import uuid
+
+            file_content = cash_proof_image.read()
+            file_extension = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_id = str(uuid.uuid4())[:8]
+            file_path = f"users/{request.auth.accountID}/jobs/{job_id}/proof/team_cash_proof_{timestamp}_{unique_id}.{file_extension}"
+
+            if not settings.STORAGE:
+                raise Exception("Storage not configured")
+
+            settings.STORAGE.storage().from_('user-uploads').upload(
+                file_path,
+                file_content,
+                {
+                    'content-type': cash_proof_image.content_type or 'image/jpeg',
+                    'upsert': 'true'
+                }
+            )
+            cash_proof_url = settings.STORAGE.storage().from_('user-uploads').get_public_url(file_path)
+        except Exception as upload_error:
+            return Response({"error": f"Failed to upload cash proof image: {upload_error}"}, status=500)
+
     result = client_approve_team_job(
         job_id=job_id,
         client_user=request.auth,
-        payment_method=payment_method
+        payment_method=payment_method_upper,
+        cash_proof_url=cash_proof_url,
     )
     
     if not result.get('success'):
@@ -8577,6 +8660,7 @@ def get_job_receipt(request, job_id: int):
         earning_amount_from_transactions = Decimal('0.00')
         pending_earning_amount_from_transactions = Decimal('0.00')
         platform_fee_retained = Decimal('0.00')
+        has_platform_fee_transaction = False
         try:
             # Get all transactions related to this job (from any wallet)
             from accounts.models import Transaction, Profile
@@ -8679,7 +8763,36 @@ def get_job_receipt(request, job_id: int):
                     txn.transactionType == Transaction.TransactionType.FEE
                     and txn.status == Transaction.TransactionStatus.COMPLETED
                 ):
+                    has_platform_fee_transaction = True
                     platform_fee_retained += Decimal(str(txn.amount))
+
+            # Some team and legacy flows bundled platform fee into escrow/payment records
+            # without creating a dedicated FEE transaction. Add a synthetic row so receipt
+            # transaction history clearly shows the fee component.
+            if (
+                not is_cancelled_job
+                and platform_fee > Decimal('0.00')
+                and not has_platform_fee_transaction
+            ):
+                fee_created_at = (
+                    job.escrowPaidAt.isoformat() if job.escrowPaidAt
+                    else (job.createdAt.isoformat() if job.createdAt else None)
+                )
+                transactions.append({
+                    'id': -9001,
+                    'type': 'FEE',
+                    'amount': float(platform_fee),
+                    'status': 'COMPLETED',
+                    'description': 'Platform fee (synthetic row for bundled-fee transactions)',
+                    'reference_number': None,
+                    'payment_method': job.finalPaymentMethod or 'WALLET',
+                    'affected_account_id': job.clientID.profileID.accountFK.accountID,
+                    'affected_role': 'CLIENT',
+                    'affected_name': resolve_account_name(job.clientID.profileID.accountFK),
+                    'impact': 'DEBIT',
+                    'created_at': fee_created_at,
+                    'completed_at': fee_created_at,
+                })
 
             # Legacy fallback: synthesize receipt timeline rows for old cancelled jobs
             # when no linked transactions exist yet.
@@ -8787,6 +8900,7 @@ def get_job_receipt(request, job_id: int):
         
         # Build worker/agency info
         worker_info = None
+        team_distribution = None
         if job.assignedWorkerID:
             worker_profile = job.assignedWorkerID.profileID
             worker_info = {
@@ -8805,14 +8919,44 @@ def get_job_receipt(request, job_id: int):
             ).select_related('workerID__profileID', 'skillSlotID__specializationID')
             
             team_workers = []
+            allocation_rows = []
+            total_allocated_to_workers = Decimal('0.00')
             for assign in team_assignments:
                 wp = assign.workerID.profileID
+                allocated_amount = Decimal('0.00')
+                if assign.skillSlotID and assign.skillSlotID.workers_needed > 0:
+                    allocated_amount = Decimal(str(assign.skillSlotID.budget_allocated)) / Decimal(str(assign.skillSlotID.workers_needed))
+
                 team_workers.append({
                     'id': assign.workerID_id,
                     'name': f"{wp.firstName} {wp.lastName}",
                     'avatar': wp.profileImg,
                     'skill': assign.skillSlotID.specializationID.specializationName if assign.skillSlotID else None,
+                    'allocated_amount': float(allocated_amount),
                 })
+
+                allocation_rows.append({
+                    'worker_id': assign.workerID_id,
+                    'worker_account_id': assign.workerID.profileID.accountFK.accountID,
+                    'worker_name': f"{wp.firstName} {wp.lastName}",
+                    'skill': assign.skillSlotID.specializationID.specializationName if assign.skillSlotID else None,
+                    'slot_position': assign.slot_position,
+                    'allocated_amount': float(allocated_amount),
+                })
+                total_allocated_to_workers += allocated_amount
+
+            team_distribution = {
+                'allocation_method': getattr(job, 'budget_allocation_type', None),
+                'total_workers': len(team_workers),
+                'labor_budget_pool': float(budget),
+                'materials_cost': float(materials_cost),
+                'team_earnings_pool': float(worker_earnings),
+                'total_allocated_to_workers': float(total_allocated_to_workers),
+                'unallocated_amount': float(max(Decimal('0.00'), worker_earnings - total_allocated_to_workers)),
+                'platform_fee': float(platform_fee),
+                'client_total_paid': float(total_client_paid),
+                'worker_allocations': allocation_rows,
+            }
             
             worker_info = {
                 'type': 'TEAM',
@@ -8901,6 +9045,7 @@ def get_job_receipt(request, job_id: int):
                 # Parties involved
                 'client': client_info,
                 'worker': worker_info,
+                'team_distribution': team_distribution,
                 
                 # Transaction history
                 'transactions': transactions,
@@ -10175,9 +10320,10 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         return Response({"error": "Job not found"}, status=404)
 
     is_daily = getattr(job, 'payment_model', None) == 'DAILY'
+    required_days = _get_required_project_days(job)
     is_project_multiday = (
         getattr(job, 'payment_model', None) == 'PROJECT'
-        and int(getattr(job, 'duration_days', 0) or 0) > 1
+        and required_days > 1
     )
     if not is_daily and not is_project_multiday:
         return Response({
@@ -10192,7 +10338,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
 
     stored_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
     old_offset = max(stored_offset, 0)
-    duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    duration_days = required_days if is_project_multiday else int(getattr(job, 'duration_days', 0) or 0)
     max_offset = max(duration_days - 1, 0) if duration_days > 0 else None
 
     # Self-heal previously persisted out-of-range values from older QA builds.
@@ -10454,6 +10600,69 @@ def finish_daily_job(request, job_id: int):
     if not job.clientID or job.clientID.profileID.accountFK != request.auth:
         return Response({"error": "Only the job client can finish this daily job"}, status=403)
 
+    from decimal import Decimal
+    from django.db.models import Sum
+    from accounts.models import DailyAttendance, Wallet, Transaction, Notification
+    from jobs.daily_payment_service import DailyPaymentService
+
+    # Settle any fully confirmed and still-unprocessed attendance first.
+    confirmed_unprocessed_rows = DailyAttendance.objects.filter(
+        jobID=job,
+        payment_processed=False,
+        worker_confirmed=True,
+        client_confirmed=True,
+        status__in=['PRESENT', 'HALF_DAY'],
+    ).order_by('date', 'attendanceID')
+
+    for attendance in confirmed_unprocessed_rows:
+        DailyPaymentService.process_day_payment(attendance)
+
+    # Compute unused daily escrow principal for refund to client.
+    total_paid = DailyAttendance.objects.filter(
+        jobID=job,
+        payment_processed=True,
+    ).aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+
+    escrow_collected = Decimal(str(getattr(job, 'daily_escrow_total', Decimal('0.00')) or Decimal('0.00')))
+    if escrow_collected < Decimal('0.00'):
+        escrow_collected = Decimal('0.00')
+
+    refundable_escrow = escrow_collected - total_paid
+    if refundable_escrow < Decimal('0.00'):
+        refundable_escrow = Decimal('0.00')
+
+    if refundable_escrow > Decimal('0.00'):
+        client_account = job.clientID.profileID.accountFK
+        client_wallet, _ = Wallet.objects.select_for_update().get_or_create(accountFK=client_account)
+        client_wallet.balance += refundable_escrow
+
+        if client_wallet.reservedBalance > Decimal('0.00'):
+            reserved_release = min(client_wallet.reservedBalance, refundable_escrow)
+            client_wallet.reservedBalance -= reserved_release
+
+        client_wallet.save()
+
+        Transaction.objects.create(
+            walletID=client_wallet,
+            transactionType=Transaction.TransactionType.REFUND,
+            amount=refundable_escrow,
+            balanceAfter=client_wallet.balance,
+            status=Transaction.TransactionStatus.COMPLETED,
+            description=f'Unused daily escrow refund at job finish - Job #{job.jobID}',
+            relatedJobPosting=job,
+            paymentMethod='WALLET',
+        )
+
+        Notification.objects.create(
+            accountFK=client_account,
+            notificationType='PAYMENT_REFUNDED',
+            title='Unused Escrow Refunded',
+            message=(
+                f"Daily job '{job.title}' finished. Refunded ₱{refundable_escrow} unused daily escrow to your wallet."
+            ),
+            relatedJobID=job.jobID,
+        )
+
     # Finish the job and unlock review flow for both parties.
     now = timezone.now()
     job.status = 'COMPLETED'
@@ -10482,6 +10691,9 @@ def finish_daily_job(request, job_id: int):
             'event': 'daily_job_finished',
             'duration_days': int(getattr(job, 'duration_days', 0) or 0),
             'total_days_worked': int(getattr(job, 'total_days_worked', 0) or 0),
+            'escrow_collected': float(escrow_collected),
+            'worker_compensation_paid': float(total_paid),
+            'client_refund_amount': float(refundable_escrow),
         },
     )
 
@@ -10508,11 +10720,19 @@ def finish_daily_job(request, job_id: int):
 
     return {
         'success': True,
-        'message': 'Daily job marked as finished. Reviews can now be submitted.',
+        'message': (
+            f"Daily job marked as finished. Reviews can now be submitted. "
+            f"Unused escrow refunded: ₱{refundable_escrow}."
+            if refundable_escrow > Decimal('0.00')
+            else 'Daily job marked as finished. Reviews can now be submitted.'
+        ),
         'job_id': job.jobID,
         'status': job.status,
         'client_marked_complete': job.clientMarkedComplete,
         'worker_marked_complete': job.workerMarkedComplete,
+        'escrow_collected': float(escrow_collected),
+        'worker_compensation_paid': float(total_paid),
+        'refund_amount': float(refundable_escrow),
     }
 
 

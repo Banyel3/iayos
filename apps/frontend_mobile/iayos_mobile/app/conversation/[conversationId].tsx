@@ -507,7 +507,9 @@ export default function ChatScreen() {
     conversation?.status || ""
   ).toUpperCase();
   const normalizedJobStatus = (
-    conversation?.job?.effective_status || conversation?.job?.status || ""
+    conversation?.job?.effective_status ||
+    conversation?.job?.status ||
+    ""
   ).toUpperCase();
   const hasCancellationCompatFlag = conversation?.job?.is_cancelled === true;
   const isJobCompleted = normalizedJobStatus === "COMPLETED";
@@ -1153,10 +1155,14 @@ export default function ChatScreen() {
     const effectiveDurationDays =
       configuredDuration > 0 ? configuredDuration : fallbackDuration;
     const isProjectMultiDayFlow =
-      conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+      conversation.job?.payment_model === "PROJECT" &&
+      effectiveDurationDays > 1;
 
     // Check if work started was confirmed
-    if (!isProjectMultiDayFlow && !conversation.job.clientConfirmedWorkStarted) {
+    if (
+      !isProjectMultiDayFlow &&
+      !conversation.job.clientConfirmedWorkStarted
+    ) {
       Alert.alert(
         "Cannot Mark Complete",
         "Client must confirm that work has started before you can mark it as complete.",
@@ -2687,10 +2693,21 @@ export default function ChatScreen() {
     configuredDurationDays > 0 ? configuredDurationDays : fallbackDurationDays;
   const totalDaysWorked = Number(conversation.job?.total_days_worked || 0);
   const qaOffset = Number(conversation.qa_day_offset || 0);
+  const qaDisplayOffset =
+    isTestingModeEnabled && Number.isFinite(qaOffset) && qaOffset > 0
+      ? qaOffset
+      : 0;
+  const effectiveWorkedDays =
+    effectiveDurationDays > 0
+      ? Math.min(
+          effectiveDurationDays,
+          Math.max(0, totalDaysWorked + qaDisplayOffset),
+        )
+      : Math.max(0, totalDaysWorked + qaDisplayOffset);
   const qaMaxOffset =
     effectiveDurationDays > 0 ? Math.max(effectiveDurationDays - 1, 0) : 0;
   const reachedConfiguredDuration =
-    effectiveDurationDays > 0 && totalDaysWorked >= effectiveDurationDays;
+    effectiveDurationDays > 0 && effectiveWorkedDays >= effectiveDurationDays;
   const reachedQaOffsetLimit =
     isTestingModeEnabled &&
     effectiveDurationDays > 0 &&
@@ -2710,8 +2727,15 @@ export default function ChatScreen() {
     conversation.job?.payment_model === "DAILY" &&
     conversation.job?.status === "IN_PROGRESS" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
+  const attendanceRows = Array.isArray(conversation.attendance_today)
+    ? conversation.attendance_today
+    : [];
   const isProjectMultiDayFlow =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const hasTeamProjectAttendanceSignals =
+    conversation.is_team_job &&
+    conversation.job?.payment_model === "PROJECT" &&
+    (isProjectMultiDayJob || attendanceRows.length > 0);
   const showProjectEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.status === "IN_PROGRESS" &&
@@ -2719,6 +2743,92 @@ export default function ChatScreen() {
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
+
+  const clientAttendanceRows =
+    conversation.my_role === "CLIENT" &&
+    conversation.is_team_job &&
+    isTeamProjectAttendance
+      ? (() => {
+          const assignments = Array.isArray(
+            conversation.team_worker_assignments,
+          )
+            ? conversation.team_worker_assignments
+            : [];
+          const consumedAttendanceIndexes = new Set<number>();
+
+          const merged = assignments.map((assignment) => {
+            const matchIndex = attendanceRows.findIndex(
+              (row: any, idx: number) => {
+                if (consumedAttendanceIndexes.has(idx)) {
+                  return false;
+                }
+
+                const rowAccountId = Number(row?.worker_account_id);
+                const rowWorkerId = Number(row?.worker_id);
+                const assignmentAccountId = Number(assignment?.account_id);
+                const assignmentWorkerId = Number(assignment?.worker_id);
+
+                const accountMatch =
+                  Number.isFinite(rowAccountId) &&
+                  Number.isFinite(assignmentAccountId) &&
+                  rowAccountId === assignmentAccountId;
+
+                const workerMatch =
+                  Number.isFinite(rowWorkerId) &&
+                  Number.isFinite(assignmentWorkerId) &&
+                  rowWorkerId === assignmentWorkerId;
+
+                return accountMatch || workerMatch;
+              },
+            );
+
+            if (matchIndex >= 0) {
+              consumedAttendanceIndexes.add(matchIndex);
+              const matchedRow: any = attendanceRows[matchIndex];
+              return {
+                ...matchedRow,
+                worker_id: matchedRow?.worker_id ?? assignment.worker_id,
+                worker_account_id:
+                  matchedRow?.worker_account_id ?? assignment.account_id,
+                worker_name: matchedRow?.worker_name || assignment.name,
+                worker_avatar: matchedRow?.worker_avatar || assignment.avatar,
+                assignment_id: assignment.assignment_id,
+                awaiting_worker: false,
+              };
+            }
+
+            return {
+              attendance_id: `awaiting-${assignment.assignment_id}`,
+              worker_id: assignment.worker_id,
+              worker_account_id: assignment.account_id,
+              worker_name: assignment.name,
+              worker_avatar: assignment.avatar,
+              date:
+                conversation.effective_work_date ||
+                new Date().toISOString().slice(0, 10),
+              time_in: null,
+              time_out: null,
+              status: "AWAITING_WORKER",
+              is_dispatched: false,
+              worker_confirmed: false,
+              worker_confirmed_at: null,
+              client_confirmed: false,
+              client_confirmed_at: null,
+              amount_earned: 0,
+              payment_processed: false,
+              notes: "Awaiting worker on-the-way",
+              assignment_id: assignment.assignment_id,
+              awaiting_worker: true,
+            };
+          });
+
+          const unmatchedAttendance = attendanceRows.filter(
+            (_row: any, idx: number) => !consumedAttendanceIndexes.has(idx),
+          );
+
+          return [...merged, ...unmatchedAttendance];
+        })()
+      : attendanceRows;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -3676,7 +3786,7 @@ export default function ChatScreen() {
                         DAILY Duration Reached
                       </Text>
                       <Text style={styles.dailyEndActionsText}>
-                        Worked {totalDaysWorked}/{configuredDurationDays}{" "}
+                        Worked {effectiveWorkedDays}/{effectiveDurationDays}{" "}
                         day(s). Choose to extend one more day (with escrow
                         top-up) or finish this job and proceed to reviews.
                       </Text>
@@ -3776,7 +3886,7 @@ export default function ChatScreen() {
                         PROJECT Duration Reached
                       </Text>
                       <Text style={styles.dailyEndActionsText}>
-                        Worked {totalDaysWorked}/{configuredDurationDays}{" "}
+                        Worked {effectiveWorkedDays}/{effectiveDurationDays}{" "}
                         day(s). You can extend this project by 1 day or finish
                         the job now.
                       </Text>
@@ -3826,17 +3936,14 @@ export default function ChatScreen() {
                           onPress={() => {
                             if (conversation.is_team_job) {
                               Alert.alert(
-                                "Finish Team Project Job",
-                                "Mark this PROJECT multi-day team job as finished now? This will move it into review/backjob flow.",
+                                "Approve Team Completion & Pay",
+                                "All team assignments are complete. Continue to choose payment method (Wallet or Cash) for final payment.",
                                 [
                                   { text: "Cancel", style: "cancel" },
                                   {
-                                    text: "Finish Job",
-                                    style: "destructive",
+                                    text: "Continue",
                                     onPress: () =>
-                                      projectFinishJobMutation.mutate({
-                                        jobId: conversation.job.id,
-                                      }),
+                                      handleApproveTeamJobCompletion(),
                                   },
                                 ],
                               );
@@ -3865,7 +3972,13 @@ export default function ChatScreen() {
                             projectExtendOneDayMutation.isPending
                           }
                         >
-                          {projectFinishJobMutation.isPending ? (
+                          {conversation.is_team_job &&
+                          approveTeamJobCompletionMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : projectFinishJobMutation.isPending ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
@@ -3943,238 +4056,237 @@ export default function ChatScreen() {
                         style={styles.teamWorkersScrollView}
                         contentContainerStyle={styles.teamWorkersScrollContent}
                       >
-                        {conversation.attendance_today &&
-                        conversation.attendance_today.length > 0 ? (
-                          conversation.attendance_today.map(
-                            (attendance: any) => (
-                              <View
-                                key={attendance.attendance_id}
-                                style={[
-                                  styles.teamWorkerCardCompact,
-                                  attendance.client_confirmed &&
-                                    styles.teamWorkerCardConfirmed,
-                                ]}
-                              >
-                                <View style={styles.teamWorkerInfoCompact}>
-                                  {attendance.worker_avatar ? (
-                                    <Image
-                                      source={{
-                                        uri: attendance.worker_avatar,
-                                      }}
-                                      style={styles.teamWorkerAvatarCompact}
-                                    />
-                                  ) : (
-                                    <View
-                                      style={[
-                                        styles.teamWorkerAvatarCompact,
-                                        styles.teamWorkerAvatarPlaceholder,
-                                      ]}
-                                    >
-                                      <Ionicons
-                                        name="person"
-                                        size={16}
-                                        color={Colors.textSecondary}
-                                      />
-                                    </View>
-                                  )}
-                                  <View style={styles.teamWorkerDetailsCompact}>
-                                    <Text
-                                      style={styles.teamWorkerNameCompact}
-                                      numberOfLines={1}
-                                    >
-                                      {attendance.worker_name?.split(" ")[0] ||
-                                        "Worker"}
-                                    </Text>
-                                    {attendance.time_in && (
-                                      <Text
-                                        style={styles.teamWorkerSkillCompact}
-                                      >
-                                        {format(
-                                          new Date(attendance.time_in),
-                                          "h:mm a",
-                                        )}
-                                        {attendance.time_out &&
-                                          ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
-                                      </Text>
-                                    )}
-                                  </View>
-                                </View>
-
-                                {attendance.client_confirmed ? (
-                                  <View style={styles.arrivedBadgeCompact}>
-                                    <Ionicons
-                                      name={
-                                        isProjectMultiDayJob
-                                          ? "checkmark-circle"
-                                          : "wallet"
-                                      }
-                                      size={14}
-                                      color={Colors.success}
-                                    />
-                                    <Text style={styles.arrivedTextCompact}>
-                                      {isProjectMultiDayJob
-                                        ? "Confirmed"
-                                        : `₱${Number(attendance.amount_earned).toLocaleString()}`}
-                                    </Text>
-                                  </View>
-                                ) : attendance.time_out ? (
-                                  // Employee has checked out - confirm attendance.
-                                  <TouchableOpacity
-                                    style={styles.confirmArrivalButtonCompact}
-                                    onPress={() =>
-                                      setCountdownConfig({
-                                        visible: true,
-                                        title: isProjectMultiDayJob
-                                          ? "Confirm Attendance"
-                                          : "Confirm Attendance",
-                                        message: isProjectMultiDayJob
-                                          ? `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`
-                                          : `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
-                                        confirmLabel: isProjectMultiDayJob
-                                          ? "Confirm Day"
-                                          : "Confirm & Pay",
-                                        countdownSeconds: 7,
-                                        onConfirm: () => {
-                                          setCountdownConfig(null);
-                                          clientConfirmAttendanceMutation.mutate(
-                                            {
-                                              attendanceId:
-                                                attendance.attendance_id,
-                                            },
-                                          );
-                                        },
-                                        icon: isProjectMultiDayJob
-                                          ? "checkmark-circle"
-                                          : "wallet",
-                                        iconColor: Colors.warning,
-                                      })
-                                    }
-                                    disabled={
-                                      clientConfirmAttendanceMutation.isPending
-                                    }
-                                  >
-                                    {clientConfirmAttendanceMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Text
-                                        style={
-                                          styles.confirmArrivalButtonTextCompact
-                                        }
-                                      >
-                                        {isProjectMultiDayJob
-                                          ? "Confirm"
-                                          : "Pay"}
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                ) : attendance.time_in ? (
-                                  // Employee is working - show Mark Checkout button
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.confirmArrivalButtonCompact,
-                                      { backgroundColor: Colors.warning },
-                                    ]}
-                                    onPress={() =>
-                                      Alert.alert(
-                                        "Mark Checkout",
-                                        `Mark ${attendance.worker_name || "worker"} as done for today?`,
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          {
-                                            text: "Mark Checkout",
-                                            onPress: () =>
-                                              clientMarkCheckoutMutation.mutate(
-                                                {
-                                                  jobId: conversation.job.id,
-                                                  attendanceId:
-                                                    attendance.attendance_id,
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
-                                    }
-                                    disabled={
-                                      clientMarkCheckoutMutation.isPending
-                                    }
-                                  >
-                                    {clientMarkCheckoutMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Text
-                                        style={
-                                          styles.confirmArrivalButtonTextCompact
-                                        }
-                                      >
-                                        Out
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                ) : attendance.is_dispatched ? (
-                                  // Employee dispatched but not arrived - show Verify Arrival button
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.confirmArrivalButtonCompact,
-                                      { backgroundColor: Colors.primary },
-                                    ]}
-                                    onPress={() =>
-                                      Alert.alert(
-                                        "Verify Arrival",
-                                        `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          {
-                                            text: "Verify",
-                                            onPress: () =>
-                                              clientVerifyArrivalMutation.mutate(
-                                                {
-                                                  jobId: conversation.job.id,
-                                                  attendanceId:
-                                                    attendance.attendance_id,
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
-                                    }
-                                    disabled={
-                                      clientVerifyArrivalMutation.isPending
-                                    }
-                                  >
-                                    {clientVerifyArrivalMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Ionicons
-                                        name="car"
-                                        size={14}
-                                        color={Colors.white}
-                                      />
-                                    )}
-                                  </TouchableOpacity>
+                        {clientAttendanceRows &&
+                        clientAttendanceRows.length > 0 ? (
+                          clientAttendanceRows.map((attendance: any) => (
+                            <View
+                              key={String(attendance.attendance_id)}
+                              style={[
+                                styles.teamWorkerCardCompact,
+                                attendance.client_confirmed &&
+                                  styles.teamWorkerCardConfirmed,
+                              ]}
+                            >
+                              <View style={styles.teamWorkerInfoCompact}>
+                                {attendance.worker_avatar ? (
+                                  <Image
+                                    source={{
+                                      uri: attendance.worker_avatar,
+                                    }}
+                                    style={styles.teamWorkerAvatarCompact}
+                                  />
                                 ) : (
-                                  <View style={styles.pendingBadge}>
+                                  <View
+                                    style={[
+                                      styles.teamWorkerAvatarCompact,
+                                      styles.teamWorkerAvatarPlaceholder,
+                                    ]}
+                                  >
                                     <Ionicons
-                                      name="time-outline"
-                                      size={14}
-                                      color={Colors.warning}
+                                      name="person"
+                                      size={16}
+                                      color={Colors.textSecondary}
                                     />
-                                    <Text style={styles.pendingText}>
-                                      Pending
-                                    </Text>
                                   </View>
                                 )}
+                                <View style={styles.teamWorkerDetailsCompact}>
+                                  <Text
+                                    style={styles.teamWorkerNameCompact}
+                                    numberOfLines={1}
+                                  >
+                                    {attendance.worker_name?.split(" ")[0] ||
+                                      "Worker"}
+                                  </Text>
+                                  {attendance.time_in && (
+                                    <Text style={styles.teamWorkerSkillCompact}>
+                                      {format(
+                                        new Date(attendance.time_in),
+                                        "h:mm a",
+                                      )}
+                                      {attendance.time_out &&
+                                        ` - ${format(new Date(attendance.time_out), "h:mm a")}`}
+                                    </Text>
+                                  )}
+                                </View>
                               </View>
-                            ),
-                          )
+
+                              {attendance.awaiting_worker ? (
+                                <View style={styles.pendingBadge}>
+                                  <Ionicons
+                                    name="time-outline"
+                                    size={14}
+                                    color={Colors.warning}
+                                  />
+                                  <Text style={styles.pendingText}>
+                                    Awaiting worker...
+                                  </Text>
+                                </View>
+                              ) : attendance.client_confirmed ? (
+                                <View style={styles.arrivedBadgeCompact}>
+                                  <Ionicons
+                                    name={
+                                      isProjectMultiDayJob
+                                        ? "checkmark-circle"
+                                        : "wallet"
+                                    }
+                                    size={14}
+                                    color={Colors.success}
+                                  />
+                                  <Text style={styles.arrivedTextCompact}>
+                                    {isProjectMultiDayJob
+                                      ? "Confirmed"
+                                      : `₱${Number(attendance.amount_earned).toLocaleString()}`}
+                                  </Text>
+                                </View>
+                              ) : attendance.time_out ? (
+                                // Employee has checked out - confirm attendance.
+                                <TouchableOpacity
+                                  style={styles.confirmArrivalButtonCompact}
+                                  onPress={() =>
+                                    setCountdownConfig({
+                                      visible: true,
+                                      title: isProjectMultiDayJob
+                                        ? "Confirm Attendance"
+                                        : "Confirm Attendance",
+                                      message: isProjectMultiDayJob
+                                        ? `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`
+                                        : `Confirm ${attendance.worker_name || "worker"}'s attendance and release ₱${Number(attendance.amount_earned || 0).toLocaleString()} payment?`,
+                                      confirmLabel: isProjectMultiDayJob
+                                        ? "Confirm Day"
+                                        : "Confirm & Pay",
+                                      countdownSeconds: 7,
+                                      onConfirm: () => {
+                                        setCountdownConfig(null);
+                                        clientConfirmAttendanceMutation.mutate({
+                                          attendanceId:
+                                            attendance.attendance_id,
+                                        });
+                                      },
+                                      icon: isProjectMultiDayJob
+                                        ? "checkmark-circle"
+                                        : "wallet",
+                                      iconColor: Colors.warning,
+                                    })
+                                  }
+                                  disabled={
+                                    clientConfirmAttendanceMutation.isPending
+                                  }
+                                >
+                                  {clientConfirmAttendanceMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
+                                  ) : (
+                                    <Text
+                                      style={
+                                        styles.confirmArrivalButtonTextCompact
+                                      }
+                                    >
+                                      {isProjectMultiDayJob ? "Confirm" : "Pay"}
+                                    </Text>
+                                  )}
+                                </TouchableOpacity>
+                              ) : attendance.time_in ? (
+                                // Employee is working - show Mark Checkout button
+                                <TouchableOpacity
+                                  style={[
+                                    styles.confirmArrivalButtonCompact,
+                                    { backgroundColor: Colors.warning },
+                                  ]}
+                                  onPress={() =>
+                                    Alert.alert(
+                                      "Mark Checkout",
+                                      `Mark ${attendance.worker_name || "worker"} as done for today?`,
+                                      [
+                                        { text: "Cancel", style: "cancel" },
+                                        {
+                                          text: "Mark Checkout",
+                                          onPress: () =>
+                                            clientMarkCheckoutMutation.mutate({
+                                              jobId: conversation.job.id,
+                                              attendanceId:
+                                                attendance.attendance_id,
+                                            }),
+                                        },
+                                      ],
+                                    )
+                                  }
+                                  disabled={
+                                    clientMarkCheckoutMutation.isPending
+                                  }
+                                >
+                                  {clientMarkCheckoutMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
+                                  ) : (
+                                    <Text
+                                      style={
+                                        styles.confirmArrivalButtonTextCompact
+                                      }
+                                    >
+                                      Out
+                                    </Text>
+                                  )}
+                                </TouchableOpacity>
+                              ) : attendance.is_dispatched ? (
+                                // Employee dispatched but not arrived - show Verify Arrival button
+                                <TouchableOpacity
+                                  style={[
+                                    styles.confirmArrivalButtonCompact,
+                                    { backgroundColor: Colors.primary },
+                                  ]}
+                                  onPress={() =>
+                                    Alert.alert(
+                                      "Verify Arrival",
+                                      `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
+                                      [
+                                        { text: "Cancel", style: "cancel" },
+                                        {
+                                          text: "Verify",
+                                          onPress: () =>
+                                            clientVerifyArrivalMutation.mutate({
+                                              jobId: conversation.job.id,
+                                              attendanceId:
+                                                attendance.attendance_id,
+                                            }),
+                                        },
+                                      ],
+                                    )
+                                  }
+                                  disabled={
+                                    clientVerifyArrivalMutation.isPending
+                                  }
+                                >
+                                  {clientVerifyArrivalMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.white}
+                                    />
+                                  ) : (
+                                    <Ionicons
+                                      name="car"
+                                      size={14}
+                                      color={Colors.white}
+                                    />
+                                  )}
+                                </TouchableOpacity>
+                              ) : (
+                                <View style={styles.pendingBadge}>
+                                  <Ionicons
+                                    name="time-outline"
+                                    size={14}
+                                    color={Colors.warning}
+                                  />
+                                  <Text style={styles.pendingText}>
+                                    Pending
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          ))
                         ) : (
                           <View style={styles.noAttendanceContainer}>
                             <Ionicons
@@ -4208,6 +4320,7 @@ export default function ChatScreen() {
               {conversation.is_team_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
+                !hasTeamProjectAttendanceSignals &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "WORKER" &&
                 user &&
@@ -4219,6 +4332,19 @@ export default function ChatScreen() {
                     );
 
                   if (!myAssignment) return null;
+
+                  // Attendance-driven team project flow supersedes legacy assignment phases.
+                  // If the worker already has today's attendance record/activity,
+                  // avoid rendering legacy "waiting for client to confirm arrival" banner.
+                  if (
+                    myWorkerAttendanceToday &&
+                    (Boolean(myWorkerAttendanceToday.is_dispatched) ||
+                      Boolean(myWorkerAttendanceToday.time_in) ||
+                      Boolean(myWorkerAttendanceToday.time_out) ||
+                      Boolean(myWorkerAttendanceToday.client_confirmed))
+                  ) {
+                    return null;
+                  }
 
                   // Check if arrival was confirmed
                   if (!myAssignment.client_confirmed_arrival) {

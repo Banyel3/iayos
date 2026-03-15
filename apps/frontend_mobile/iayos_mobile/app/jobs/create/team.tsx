@@ -70,6 +70,7 @@ type AllocationMethod =
   | "EQUAL_PER_WORKER"
   | "EQUAL_PER_SKILL"
   | "MANUAL_ALLOCATION";
+type PaymentModel = "PROJECT" | "DAILY";
 
 const ALLOCATION_METHODS: {
   value: AllocationMethod;
@@ -106,6 +107,9 @@ export default function CreateTeamJobScreen() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [totalBudget, setTotalBudget] = useState("");
+  const [paymentModel, setPaymentModel] = useState<PaymentModel>("PROJECT");
+  const [dailyRate, setDailyRate] = useState("");
+  const [durationDays, setDurationDays] = useState("");
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
@@ -204,7 +208,13 @@ export default function CreateTeamJobScreen() {
     return skillSlots[0]?.specialization_id ?? null;
   }, [skillSlots]);
 
-  const budgetNum = parseFloat(totalBudget) || 0;
+  const projectBudgetNum = parseFloat(totalBudget) || 0;
+  const dailyRateNum = parseFloat(dailyRate) || 0;
+  const durationDaysNum = parseInt(durationDays, 10) || 0;
+  const budgetNum =
+    paymentModel === "DAILY"
+      ? dailyRateNum * durationDaysNum * Math.max(1, totalWorkersNeeded)
+      : projectBudgetNum;
 
   // Safety fallback for any legacy state hydration with deprecated value.
   useEffect(() => {
@@ -244,7 +254,7 @@ export default function CreateTeamJobScreen() {
   }, [skillSlots, budgetNum, allocationMethod, totalWorkersNeeded]);
 
   // Calculate escrow and fees
-  const escrowAmount = budgetNum * 0.5;
+  const escrowAmount = paymentModel === "DAILY" ? budgetNum : budgetNum * 0.5;
   const platformFee = budgetNum * 0.1;
   const totalDue = escrowAmount + platformFee;
   const hasEnoughBalance = walletBalance >= totalDue;
@@ -499,11 +509,20 @@ export default function CreateTeamJobScreen() {
   const validateForm = () => {
     if (!title.trim()) return "Please enter a job title";
     if (!description.trim()) return "Please enter a job description";
-    if (skillSlots.length < 1)
-      return "Please add at least 1 skill requirement";
+    if (skillSlots.length < 1) return "Please add at least 1 skill requirement";
     if (totalWorkersNeeded < 2)
       return "Team jobs require at least 2 workers total";
-    if (!totalBudget || budgetNum < 100) return "Minimum budget is ₱100";
+    if (paymentModel === "PROJECT") {
+      if (!totalBudget || budgetNum < 100) return "Minimum budget is ₱100";
+    }
+    if (paymentModel === "DAILY") {
+      if (!dailyRate || dailyRateNum <= 0)
+        return "Please enter a valid daily rate";
+      if (!durationDays || durationDaysNum <= 0)
+        return "Please enter a valid duration in days";
+      if (budgetNum < 100)
+        return "Computed total budget is too low (minimum ₱100)";
+    }
     if (!barangay || !street) return "Please provide a complete location";
     if (!hasEnoughBalance)
       return `Insufficient wallet balance. Need ₱${totalDue.toFixed(2)}`;
@@ -540,6 +559,9 @@ export default function CreateTeamJobScreen() {
       urgency: urgency,
       preferred_start_date: startDate?.toISOString().split("T")[0],
       scheduled_end_date: scheduledEndDate?.toISOString().split("T")[0],
+      payment_model: paymentModel,
+      daily_rate: paymentModel === "DAILY" ? dailyRateNum : undefined,
+      duration_days: paymentModel === "DAILY" ? durationDaysNum : undefined,
       materials_needed: materials,
       budget_allocation_type: allocationMethod,
       job_scope: jobScope,
@@ -663,7 +685,8 @@ export default function CreateTeamJobScreen() {
               />
 
               <Text style={styles.hint}>
-                Title, description, and price suggestions are based on the first selected skill requirement.
+                Title, description, and price suggestions are based on the first
+                selected skill requirement.
               </Text>
               <Text style={styles.hint}>
                 Team jobs require at least 2 workers total.
@@ -860,22 +883,98 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Total Budget (₱)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={totalBudget}
-                  onChangeText={setTotalBudget}
-                  placeholder="1000"
-                  keyboardType="numeric"
-                />
-                <Text style={styles.hint}>
-                  This is the total amount workers will receive for the entire
-                  job.
-                </Text>
+                <Text style={styles.label}>Payment Model</Text>
+                <View style={styles.urgencyOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.urgencyOption,
+                      paymentModel === "PROJECT" && {
+                        borderColor: Colors.primary,
+                        backgroundColor: `${Colors.primary}10`,
+                      },
+                    ]}
+                    onPress={() => setPaymentModel("PROJECT")}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        paymentModel === "PROJECT" && { color: Colors.primary },
+                      ]}
+                    >
+                      Project Rate
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.urgencyOption,
+                      paymentModel === "DAILY" && {
+                        borderColor: Colors.primary,
+                        backgroundColor: `${Colors.primary}10`,
+                      },
+                    ]}
+                    onPress={() => setPaymentModel("DAILY")}
+                  >
+                    <Text
+                      style={[
+                        styles.urgencyText,
+                        paymentModel === "DAILY" && { color: Colors.primary },
+                      ]}
+                    >
+                      Daily Rate
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
+              {paymentModel === "DAILY" ? (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Daily Rate Per Worker (₱)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={dailyRate}
+                      onChangeText={setDailyRate}
+                      placeholder="500"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Duration (Days)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={durationDays}
+                      onChangeText={setDurationDays}
+                      placeholder="5"
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.hint}>
+                      Total budget is auto-calculated: daily rate x days x
+                      workers
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Total Budget (₱)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={totalBudget}
+                    onChangeText={setTotalBudget}
+                    placeholder="1000"
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.hint}>
+                    This is the total amount workers will receive for the entire
+                    job.
+                  </Text>
+                </View>
+              )}
+
               {/* AI Price Suggestion Card */}
-              {skillSlots.length > 0 &&
+              {paymentModel === "PROJECT" &&
+                skillSlots.length > 0 &&
                 (title.length >= 5 || description.length >= 10) && (
                   <PriceSuggestionCard
                     minPrice={
@@ -957,7 +1056,9 @@ export default function CreateTeamJobScreen() {
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>
-                      50% Escrow (Downpayment)
+                      {paymentModel === "DAILY"
+                        ? "100% Escrow (Daily Job)"
+                        : "50% Escrow (Downpayment)"}
                     </Text>
                     <Text style={styles.summaryValue}>
                       ₱{escrowAmount.toFixed(2)}
@@ -1011,7 +1112,9 @@ export default function CreateTeamJobScreen() {
                           router.push({
                             pathname: "/payments/deposit",
                             params: {
-                              amount: Math.ceil(totalDue - walletBalance).toString(),
+                              amount: Math.ceil(
+                                totalDue - walletBalance,
+                              ).toString(),
                             },
                           } as any)
                         }
@@ -1021,7 +1124,9 @@ export default function CreateTeamJobScreen() {
                           size={18}
                           color={Colors.white}
                         />
-                        <Text style={styles.depositButtonText}>Deposit Funds</Text>
+                        <Text style={styles.depositButtonText}>
+                          Deposit Funds
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}

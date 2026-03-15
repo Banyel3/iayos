@@ -284,6 +284,7 @@ export interface JobReceiptData {
     title: string;
     job_type?: string;
     status?: string;
+    is_team_job?: boolean;
   } | null;
   payments?: {
     job_budget?: number;
@@ -307,21 +308,26 @@ export async function downloadJobReceiptPdf(
   receipt: JobReceiptData,
   userRole: 'CLIENT' | 'WORKER'
 ): Promise<void> {
-  const isClient = userRole === 'CLIENT';
+  void userRole;
+  const isTeamJob = !!receipt.job?.is_team_job;
   const payments = receipt.payments || {};
 
-  const paymentRows = isClient
+  const paymentRows = isTeamJob
     ? `
         <tr><td>Job Budget</td><td>${formatCurrencyPdf(payments.job_budget || 0)}</td></tr>
         ${payments.escrow_amount != null ? `<tr><td>Escrow (50%)</td><td>${formatCurrencyPdf(payments.escrow_amount)}</td></tr>` : ''}
         ${payments.remaining_payment != null ? `<tr><td>Remaining (50%)</td><td>${formatCurrencyPdf(payments.remaining_payment)}</td></tr>` : ''}
         <tr><td>Platform Fee</td><td>${formatCurrencyPdf(payments.platform_fee || 0)}</td></tr>
-        <tr class="total-row"><td>Total Paid</td><td>${formatCurrencyPdf(payments.total_paid || 0)}</td></tr>
+        <tr><td>Team Earnings Pool</td><td>${formatCurrencyPdf(payments.worker_earnings || 0)}</td></tr>
+        <tr class="total-row"><td>Total Client Paid</td><td>${formatCurrencyPdf(payments.total_paid || 0)}</td></tr>
       `
     : `
         <tr><td>Job Budget</td><td>${formatCurrencyPdf(payments.job_budget || 0)}</td></tr>
-        <tr><td>Platform Fee</td><td>-${formatCurrencyPdf(payments.platform_fee || 0)}</td></tr>
-        <tr class="total-row"><td>Your Earnings</td><td>${formatCurrencyPdf(payments.worker_earnings || 0)}</td></tr>
+        ${payments.escrow_amount != null ? `<tr><td>Escrow (50%)</td><td>${formatCurrencyPdf(payments.escrow_amount)}</td></tr>` : ''}
+        ${payments.remaining_payment != null ? `<tr><td>Remaining (50%)</td><td>${formatCurrencyPdf(payments.remaining_payment)}</td></tr>` : ''}
+        <tr><td>Platform Fee</td><td>${formatCurrencyPdf(payments.platform_fee || 0)}</td></tr>
+        <tr><td>Worker Earnings</td><td>${formatCurrencyPdf(payments.worker_earnings || 0)}</td></tr>
+        <tr class="total-row"><td>Total Client Paid</td><td>${formatCurrencyPdf(payments.total_paid || 0)}</td></tr>
       `;
 
   const html = `
