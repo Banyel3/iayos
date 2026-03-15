@@ -4508,6 +4508,58 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         
         # Check if already dispatched (unless this is a new backjob cycle)
         if assignment.dispatched and not can_redispatch_for_backjob:
+            # Backward compatibility + idempotency for PROJECT multi-day jobs:
+            # legacy records may already be dispatched via assignment flags while
+            # missing DailyAttendance markers used by attendance-driven UIs.
+            if is_project_multiday:
+                dispatched_time = assignment.dispatchedAt or timezone.now()
+                work_date = dispatched_time.date()
+                arrival_confirmed = bool(getattr(assignment, 'clientConfirmedArrival', False))
+                arrival_time = getattr(assignment, 'clientConfirmedArrivalAt', None)
+
+                DailyAttendance.objects.update_or_create(
+                    jobID=job,
+                    employeeID=employee,
+                    date=work_date,
+                    defaults={
+                        'workerID': None,
+                        'assignmentID': None,
+                        'time_in': arrival_time if arrival_confirmed else None,
+                        'time_out': None,
+                        'status': 'PENDING' if arrival_confirmed else 'DISPATCHED',
+                        'worker_confirmed': True,
+                        'worker_confirmed_at': dispatched_time,
+                        'client_confirmed': arrival_confirmed,
+                        'client_confirmed_at': arrival_time if arrival_confirmed else None,
+                        'amount_earned': Decimal('0.00'),
+                        'notes': 'Dispatch already existed (PROJECT multi-day idempotent sync)',
+                    }
+                )
+
+                all_assignments = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+                )
+                dispatched_count = sum(1 for a in all_assignments if a.dispatched)
+                total_count = all_assignments.count()
+                all_dispatched = total_count > 0 and dispatched_count == total_count
+
+                return {
+                    'success': True,
+                    'message': f'{employee.fullName} was already marked on the way',
+                    'assignment_id': assignment.assignmentID,
+                    'employee_id': employee_id,
+                    'employee_name': employee.fullName,
+                    'dispatched_at': dispatched_time.isoformat(),
+                    'already_dispatched': True,
+                    'attendance_synced': True,
+                    'status': assignment.status,
+                    'all_dispatched': all_dispatched,
+                    'dispatched_count': dispatched_count,
+                    'total_count': total_count,
+                    'next_step': 'Wait for client to confirm employee arrival',
+                }
+
             return Response({
                 'success': False,
                 'error': f'{employee.fullName} has already been dispatched',
