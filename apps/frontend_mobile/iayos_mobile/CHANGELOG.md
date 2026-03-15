@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team DAILY Completion Parity with Single DAILY Flow**
+  - Updated active team job actions to block PROJECT-only team completion paths when the job is `DAILY`.
+  - Routed client team DAILY end action to the daily finish flow so settlement follows the same attendance-driven model as single DAILY jobs.
+  - Added a dedicated DAILY-specific `Finish Daily Job` client action in active job details for team daily jobs.
+  - Added backend guardrails to reject PROJECT-style team completion endpoints for DAILY jobs and direct callers to the daily finish route.
+  - Improved mobile attendance check-out assignment validation to properly recognize team-assigned workers.
+  - **Impact**: Team DAILY jobs now follow the same completion and payout behavior as single DAILY jobs, preventing PROJECT-style approval drift.
+
 - **Team Job Unified Receipt + Allocation Breakdown**
   - Added unified team receipt view showing full-transaction settlement (`Total Client Paid`, `Team Earnings Pool`, and `Platform Fee`) instead of role-specific single-worker totals.
   - Added explicit team allocation section (`Who gets what`) listing each assigned worker's skill slot and allocated amount.

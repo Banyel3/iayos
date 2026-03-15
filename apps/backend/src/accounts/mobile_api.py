@@ -7750,8 +7750,16 @@ def worker_check_out(request, job_id: int):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
         
-        # Verify worker is assigned to this job
+        # Verify worker is assigned to this job (direct assignment or team assignment)
         is_assigned = (job.assignedWorkerID == worker)
+        if not is_assigned and job.is_team_job:
+            team_assignment = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).first()
+            is_assigned = team_assignment is not None
+
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
 

@@ -34,6 +34,7 @@ import {
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
+import { useDailyFinishJob } from "@/lib/hooks/useDailyPayment";
 
 // ============================================================================
 // Interfaces
@@ -227,6 +228,9 @@ export default function ActiveJobDetailScreen() {
   // Team job completion hooks
   const workerCompleteMutation = useWorkerCompleteAssignment();
   const clientApproveMutation = useClientApproveTeamJob();
+  const dailyFinishMutation = useDailyFinishJob();
+
+  const isTeamDaily = job?.is_team_job && job?.payment_model === "DAILY";
 
   // Determine if this worker is assigned to this team job
   const myAssignment =
@@ -525,6 +529,14 @@ export default function ActiveJobDetailScreen() {
   };
 
   const handleTeamMarkComplete = () => {
+    if (isTeamDaily) {
+      Alert.alert(
+        "Daily Attendance Flow",
+        "Team DAILY jobs use attendance check-in/check-out, not assignment-level completion.",
+      );
+      return;
+    }
+
     if (!completionNotes.trim()) {
       Alert.alert(
         "Required",
@@ -581,6 +593,46 @@ export default function ActiveJobDetailScreen() {
   };
 
   const handleTeamApproveCompletion = () => {
+    if (isTeamDaily) {
+      Alert.alert(
+        "Finish Daily Job",
+        "This team DAILY job follows daily attendance settlement. Mark it as finished now?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Finish",
+            style: "destructive",
+            onPress: () => {
+              dailyFinishMutation.mutate(
+                { jobId: Number(id) },
+                {
+                  onSuccess: () => {
+                    Alert.alert(
+                      "Success",
+                      "Daily job finished. Unused escrow (if any) was refunded.",
+                      [
+                        {
+                          text: "OK",
+                          onPress: () => safeGoBack(router, "/(tabs)/jobs"),
+                        },
+                      ],
+                    );
+                  },
+                  onError: (error: any) => {
+                    Alert.alert(
+                      "Error",
+                      error.message || "Failed to finish daily job",
+                    );
+                  },
+                },
+              );
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     if (!allWorkersComplete) {
       Alert.alert(
         "Workers Not Complete",
@@ -1062,6 +1114,7 @@ export default function ActiveJobDetailScreen() {
                     {/* Worker's own assignment - show mark complete button */}
                     {isWorker &&
                       assignment.worker_id === currentWorkerId &&
+                      job.payment_model !== "DAILY" &&
                       !assignment.worker_marked_complete && (
                         <TouchableOpacity
                           style={styles.assignmentActionButton}
@@ -1086,6 +1139,7 @@ export default function ActiveJobDetailScreen() {
 
                 {/* Client: Approve All Workers Button */}
                 {!isWorker &&
+                  job.payment_model !== "DAILY" &&
                   allWorkersComplete &&
                   !job.client_marked_complete && (
                     <TouchableOpacity
@@ -1126,6 +1180,32 @@ export default function ActiveJobDetailScreen() {
                     </Text>
                   </View>
                 )}
+
+                {!isWorker &&
+                  job.payment_model === "DAILY" &&
+                  !job.client_marked_complete && (
+                    <TouchableOpacity
+                      style={styles.approveAllButton}
+                      onPress={handleTeamApproveCompletion}
+                      disabled={dailyFinishMutation.isPending}
+                      activeOpacity={0.8}
+                    >
+                      {dailyFinishMutation.isPending ? (
+                        <ActivityIndicator color={Colors.white} />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="flag"
+                            size={20}
+                            color={Colors.white}
+                          />
+                          <Text style={styles.approveAllText}>
+                            Finish Daily Job
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
               </>
             )}
           </View>
