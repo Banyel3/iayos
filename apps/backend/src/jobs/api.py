@@ -7742,6 +7742,47 @@ def confirm_backjob_started(request, job_id: int):
                 },
                 status=400,
             )
+
+        # Agency backjob workflow requires all assigned employees to be dispatched
+        # before client can confirm work started for the current backjob cycle.
+        if job.assignedAgencyFK:
+            from accounts.models import JobEmployeeAssignment
+
+            assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS']
+            ).select_related('employee')
+
+            if assignments.exists():
+                backjob_cycle_start = dispute.workerScheduleConfirmedAt
+                undispatched_names = []
+
+                for assignment in assignments:
+                    is_dispatched = bool(getattr(assignment, 'dispatched', False))
+                    dispatched_at = getattr(assignment, 'dispatchedAt', None)
+
+                    if not is_dispatched:
+                        undispatched_names.append(assignment.employee.fullName)
+                        continue
+
+                    # If cycle start is known, dispatch must be from this cycle.
+                    if backjob_cycle_start and (not dispatched_at or dispatched_at < backjob_cycle_start):
+                        undispatched_names.append(assignment.employee.fullName)
+
+                if undispatched_names:
+                    pending_count = len(undispatched_names)
+                    sample_names = ", ".join(undispatched_names[:3])
+                    if pending_count > 3:
+                        sample_names = f"{sample_names}, and {pending_count - 3} more"
+
+                    return Response(
+                        {
+                            "error": "All assigned agency employees must be dispatched before confirming backjob started",
+                            "pending_dispatch_count": pending_count,
+                            "pending_dispatch_employees": sample_names,
+                        },
+                        status=400,
+                    )
         
         # Confirm backjob work has started
         dispute.backjobStarted = True
