@@ -12,6 +12,7 @@ This module handles all payment-related operations for the admin panel:
 
 from django.db.models import Sum, Count, Avg, Q, F, DecimalField, Value
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth, Coalesce
+from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
 from datetime import datetime, timedelta
@@ -1004,29 +1005,38 @@ def process_payout(
                 'error': 'Payout amount must be greater than 0'
             }
         
-        # Create payout transaction
-        description = f"Payout to worker via {payout_method}"
-        if payout_method == 'GCASH' and gcash_number:
-            description += f" - GCash: {gcash_number}"
-        elif payout_method == 'BANK_TRANSFER' and bank_details:
-            description += f" - {bank_details}"
-        
-        payout_txn = Transaction.objects.create(
-            walletID=wallet,
-            transactionType='WITHDRAWAL',
-            amount=amount_decimal,
-            status='COMPLETED',
-            paymentMethod=payout_method,
-            description=description,
-            referenceNumber=f"PAYOUT-{worker_id}-{timezone.now().timestamp()}",
-            completedAt=timezone.now()
-        )
-        
-        # Update wallet balance (deduct payout)
-        wallet.balance -= amount_decimal
-        wallet.save()
-        payout_txn.balanceAfter = wallet.balance
-        payout_txn.save()
+        with transaction.atomic():
+            wallet = Wallet.objects.select_for_update().get(walletID=wallet.walletID)
+
+            if wallet.balance < amount_decimal:
+                return {
+                    'success': False,
+                    'error': f'Insufficient wallet balance for payout. Available: ₱{wallet.balance}'
+                }
+
+            # Create payout transaction
+            description = f"Payout to worker via {payout_method}"
+            if payout_method == 'GCASH' and gcash_number:
+                description += f" - GCash: {gcash_number}"
+            elif payout_method == 'BANK_TRANSFER' and bank_details:
+                description += f" - {bank_details}"
+
+            payout_txn = Transaction.objects.create(
+                walletID=wallet,
+                transactionType='WITHDRAWAL',
+                amount=amount_decimal,
+                status='COMPLETED',
+                paymentMethod=payout_method,
+                description=description,
+                referenceNumber=f"PAYOUT-{worker_id}-{timezone.now().timestamp()}",
+                completedAt=timezone.now()
+            )
+
+            # Update wallet balance (deduct payout)
+            wallet.balance -= amount_decimal
+            wallet.save(update_fields=['balance', 'updatedAt'])
+            payout_txn.balanceAfter = wallet.balance
+            payout_txn.save(update_fields=['balanceAfter'])
         
         return {
             'success': True,

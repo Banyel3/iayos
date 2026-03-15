@@ -2651,6 +2651,24 @@ class Wallet(models.Model):
             models.Index(fields=['accountFK']),
             models.Index(fields=['autoWithdrawEnabled']),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(balance__gte=Decimal('0.00')),
+                name='wallet_balance_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reservedBalance__gte=Decimal('0.00')),
+                name='wallet_reserved_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(pendingEarnings__gte=Decimal('0.00')),
+                name='wallet_pending_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(balance__gte=models.F('reservedBalance')),
+                name='wallet_balance_gte_reserved',
+            ),
+        ]
     
     @property
     def availableBalance(self):
