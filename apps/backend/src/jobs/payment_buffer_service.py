@@ -161,7 +161,7 @@ def add_pending_earnings(
         balanceAfter=recipient_wallet.balance,  # Balance unchanged, this is pending
         status="PENDING",
         description=f"Pending payment for job: {job.title} (releases {release_date.strftime('%b %d, %Y')})" + 
-                    (f" (Agency: {job.assignedAgencyFK.businessName})" if recipient_type == "agency" else ""),
+                    (f" (Agency: {getattr(job.assignedAgencyFK, 'businessName', 'Agency')})" if recipient_type == "agency" else ""),
         referenceNumber=f"JOB-{job.jobID}-PENDING-{timezone.now().strftime('%Y%m%d%H%M%S')}",
         relatedJobPosting=job
     )
@@ -235,87 +235,126 @@ def release_pending_payment(job: Job, force: bool = False) -> dict:
             'error': f'Payment not yet due. Release date: {job.paymentReleaseDate.strftime("%b %d, %Y")}'
         }
     
-    # Determine recipient
+    # Multi-recipient path first: release all pending earning transactions for this job.
+    pending_txns = list(
+        Transaction.objects.select_related('walletID__accountFK').filter(
+            relatedJobPosting=job,
+            transactionType="PENDING_EARNING",
+            status="PENDING"
+        ).order_by('transactionID')
+    )
+
+    if pending_txns:
+        total_released = Decimal('0.00')
+        released_recipients = 0
+
+        for pending_txn in pending_txns:
+            recipient_wallet = Wallet.objects.select_for_update().get(pk=pending_txn.walletID.pk)
+            amount = pending_txn.amount
+            recipient_account = recipient_wallet.accountFK
+
+            if recipient_wallet.pendingEarnings >= amount:
+                recipient_wallet.pendingEarnings -= amount
+            else:
+                recipient_wallet.pendingEarnings = Decimal('0.00')
+
+            recipient_wallet.balance += amount
+            recipient_wallet.save(update_fields=['balance', 'pendingEarnings', 'updatedAt'])
+
+            pending_txn.status = "COMPLETED"
+            pending_txn.balanceAfter = recipient_wallet.balance
+            pending_txn.description = (pending_txn.description or "").replace("Pending payment", "Payment released")
+            pending_txn.completedAt = timezone.now()
+            pending_txn.save(update_fields=['status', 'balanceAfter', 'description', 'completedAt', 'updatedAt'])
+
+            Transaction.objects.create(
+                walletID=recipient_wallet,
+                transactionType="EARNING",
+                amount=amount,
+                balanceAfter=recipient_wallet.balance,
+                status="COMPLETED",
+                description=f"Payment released for job: {job.title}",
+                referenceNumber=f"JOB-{job.jobID}-RELEASE-{timezone.now().strftime('%Y%m%d%H%M%S')}-{pending_txn.transactionID}",
+                relatedJobPosting=job,
+                completedAt=timezone.now()
+            )
+
+            Notification.objects.create(
+                accountFK=recipient_account,
+                notificationType="PAYMENT_RELEASED",
+                title="Payment Released! 🎉",
+                message=f"You received ₱{amount} for '{job.title}'. The funds have been added to your wallet!",
+                relatedJobID=job.jobID
+            )
+
+            total_released += amount
+            released_recipients += 1
+
+        job.paymentReleasedToWorker = True
+        job.paymentReleasedAt = timezone.now()
+        job.paymentHeldReason = 'RELEASED'
+        job.save(update_fields=['paymentReleasedToWorker', 'paymentReleasedAt', 'paymentHeldReason', 'updatedAt'])
+
+        print(f"💸 Released ₱{total_released} to {released_recipients} recipient(s) for Job #{job.jobID}")
+
+        return {
+            'success': True,
+            'amount': total_released,
+            'recipients_released': released_recipients,
+            'recipient_type': 'multiple' if released_recipients > 1 else 'single'
+        }
+
+    # Backward-compatible single-recipient fallback for legacy jobs
     recipient_account = None
     recipient_type = None
-    
+
     if job.assignedWorkerID and job.assignedWorkerID.profileID:
         recipient_account = job.assignedWorkerID.profileID.accountFK
         recipient_type = "worker"
     elif job.assignedAgencyFK:
         recipient_account = job.assignedAgencyFK.accountFK
         recipient_type = "agency"
-    
+
     if not recipient_account:
         return {'success': False, 'error': 'No recipient found for this job'}
-    
-    # Get wallet
+
     try:
-        recipient_wallet = Wallet.objects.get(accountFK=recipient_account)
+        recipient_wallet = Wallet.objects.select_for_update().get(accountFK=recipient_account)
     except Wallet.DoesNotExist:
         return {'success': False, 'error': 'Recipient wallet not found'}
-    
-    # Find the pending transaction for this job
-    pending_txn = Transaction.objects.filter(
-        walletID=recipient_wallet,
-        relatedJobPosting=job,
-        transactionType="PENDING_EARNING",
-        status="PENDING"
-    ).first()
-    
-    if not pending_txn:
-        # Fallback: use job budget
-        amount = job.budget
-        print(f"⚠️ No pending transaction found, using job budget: ₱{amount}")
-    else:
-        amount = pending_txn.amount
-    
-    # Transfer from pendingEarnings to balance
+
+    amount = job.budget
     if recipient_wallet.pendingEarnings >= amount:
         recipient_wallet.pendingEarnings -= amount
     else:
-        # Edge case: pendingEarnings was modified, just zero it out
         recipient_wallet.pendingEarnings = Decimal('0.00')
-    
+
     recipient_wallet.balance += amount
-    recipient_wallet.save()
-    
-    print(f"💸 Released ₱{amount} to {recipient_type} wallet. New balance: ₱{recipient_wallet.balance}, Pending: ₱{recipient_wallet.pendingEarnings}")
-    
-    # Update pending transaction to COMPLETED
-    if pending_txn:
-        pending_txn.status = "COMPLETED"
-        pending_txn.balanceAfter = recipient_wallet.balance
-        pending_txn.description = pending_txn.description.replace("Pending payment", "Payment released")
-        pending_txn.completedAt = timezone.now()
-        pending_txn.save()
-    
-    # Create EARNING transaction record for the release
+    recipient_wallet.save(update_fields=['balance', 'pendingEarnings', 'updatedAt'])
+
     Transaction.objects.create(
         walletID=recipient_wallet,
         transactionType="EARNING",
         amount=amount,
         balanceAfter=recipient_wallet.balance,
         status="COMPLETED",
-        description=f"Payment released for job: {job.title}" + 
-                    (f" (Agency: {job.assignedAgencyFK.businessName})" if recipient_type == "agency" else ""),
+        description=f"Payment released for job: {job.title}" +
+                    (f" (Agency: {getattr(job.assignedAgencyFK, 'businessName', 'Agency')})" if recipient_type == "agency" else ""),
         referenceNumber=f"JOB-{job.jobID}-RELEASE-{timezone.now().strftime('%Y%m%d%H%M%S')}",
         relatedJobPosting=job,
         completedAt=timezone.now()
     )
-    
-    # Update job
+
     job.paymentReleasedToWorker = True
     job.paymentReleasedAt = timezone.now()
     job.paymentHeldReason = 'RELEASED'
-    job.save()
-    
-    # Notify the recipient
+    job.save(update_fields=['paymentReleasedToWorker', 'paymentReleasedAt', 'paymentHeldReason', 'updatedAt'])
+
     if recipient_type == "agency":
         Notification.objects.create(
             accountFK=recipient_account,
             notificationType="PAYMENT_RELEASED",
-            title=f"Payment Released! 🎉",
+            title="Payment Released! 🎉",
             message=f"Your agency received ₱{amount} for '{job.title}'. The funds have been added to your wallet!",
             relatedJobID=job.jobID
         )
@@ -323,13 +362,11 @@ def release_pending_payment(job: Job, force: bool = False) -> dict:
         Notification.objects.create(
             accountFK=recipient_account,
             notificationType="PAYMENT_RELEASED",
-            title=f"Payment Released! 🎉",
+            title="Payment Released! 🎉",
             message=f"You received ₱{amount} for '{job.title}'. The funds have been added to your wallet!",
             relatedJobID=job.jobID
         )
-    
-    print(f"📬 Payment release notification sent to {recipient_type} {recipient_account.email}")
-    
+
     return {
         'success': True,
         'amount': amount,
