@@ -8660,6 +8660,7 @@ def get_job_receipt(request, job_id: int):
         earning_amount_from_transactions = Decimal('0.00')
         pending_earning_amount_from_transactions = Decimal('0.00')
         platform_fee_retained = Decimal('0.00')
+        has_platform_fee_transaction = False
         try:
             # Get all transactions related to this job (from any wallet)
             from accounts.models import Transaction, Profile
@@ -8762,7 +8763,36 @@ def get_job_receipt(request, job_id: int):
                     txn.transactionType == Transaction.TransactionType.FEE
                     and txn.status == Transaction.TransactionStatus.COMPLETED
                 ):
+                    has_platform_fee_transaction = True
                     platform_fee_retained += Decimal(str(txn.amount))
+
+            # Some team and legacy flows bundled platform fee into escrow/payment records
+            # without creating a dedicated FEE transaction. Add a synthetic row so receipt
+            # transaction history clearly shows the fee component.
+            if (
+                not is_cancelled_job
+                and platform_fee > Decimal('0.00')
+                and not has_platform_fee_transaction
+            ):
+                fee_created_at = (
+                    job.escrowPaidAt.isoformat() if job.escrowPaidAt
+                    else (job.createdAt.isoformat() if job.createdAt else None)
+                )
+                transactions.append({
+                    'id': -9001,
+                    'type': 'FEE',
+                    'amount': float(platform_fee),
+                    'status': 'COMPLETED',
+                    'description': 'Platform fee (synthetic row for bundled-fee transactions)',
+                    'reference_number': None,
+                    'payment_method': job.finalPaymentMethod or 'WALLET',
+                    'affected_account_id': job.clientID.profileID.accountFK.accountID,
+                    'affected_role': 'CLIENT',
+                    'affected_name': resolve_account_name(job.clientID.profileID.accountFK),
+                    'impact': 'DEBIT',
+                    'created_at': fee_created_at,
+                    'completed_at': fee_created_at,
+                })
 
             # Legacy fallback: synthesize receipt timeline rows for old cancelled jobs
             # when no linked transactions exist yet.
@@ -8870,6 +8900,7 @@ def get_job_receipt(request, job_id: int):
         
         # Build worker/agency info
         worker_info = None
+        team_distribution = None
         if job.assignedWorkerID:
             worker_profile = job.assignedWorkerID.profileID
             worker_info = {
@@ -8888,14 +8919,44 @@ def get_job_receipt(request, job_id: int):
             ).select_related('workerID__profileID', 'skillSlotID__specializationID')
             
             team_workers = []
+            allocation_rows = []
+            total_allocated_to_workers = Decimal('0.00')
             for assign in team_assignments:
                 wp = assign.workerID.profileID
+                allocated_amount = Decimal('0.00')
+                if assign.skillSlotID and assign.skillSlotID.workers_needed > 0:
+                    allocated_amount = Decimal(str(assign.skillSlotID.budget_allocated)) / Decimal(str(assign.skillSlotID.workers_needed))
+
                 team_workers.append({
                     'id': assign.workerID_id,
                     'name': f"{wp.firstName} {wp.lastName}",
                     'avatar': wp.profileImg,
                     'skill': assign.skillSlotID.specializationID.specializationName if assign.skillSlotID else None,
+                    'allocated_amount': float(allocated_amount),
                 })
+
+                allocation_rows.append({
+                    'worker_id': assign.workerID_id,
+                    'worker_account_id': assign.workerID.profileID.accountFK.accountID,
+                    'worker_name': f"{wp.firstName} {wp.lastName}",
+                    'skill': assign.skillSlotID.specializationID.specializationName if assign.skillSlotID else None,
+                    'slot_position': assign.slot_position,
+                    'allocated_amount': float(allocated_amount),
+                })
+                total_allocated_to_workers += allocated_amount
+
+            team_distribution = {
+                'allocation_method': getattr(job, 'budget_allocation_type', None),
+                'total_workers': len(team_workers),
+                'labor_budget_pool': float(budget),
+                'materials_cost': float(materials_cost),
+                'team_earnings_pool': float(worker_earnings),
+                'total_allocated_to_workers': float(total_allocated_to_workers),
+                'unallocated_amount': float(max(Decimal('0.00'), worker_earnings - total_allocated_to_workers)),
+                'platform_fee': float(platform_fee),
+                'client_total_paid': float(total_client_paid),
+                'worker_allocations': allocation_rows,
+            }
             
             worker_info = {
                 'type': 'TEAM',
@@ -8984,6 +9045,7 @@ def get_job_receipt(request, job_id: int):
                 # Parties involved
                 'client': client_info,
                 'worker': worker_info,
+                'team_distribution': team_distribution,
                 
                 # Transaction history
                 'transactions': transactions,

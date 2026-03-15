@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Job Unified Receipt + Allocation Breakdown**
+  - Added unified team receipt view showing full-transaction settlement (`Total Client Paid`, `Team Earnings Pool`, and `Platform Fee`) instead of role-specific single-worker totals.
+  - Added explicit team allocation section (`Who gets what`) listing each assigned worker's skill slot and allocated amount.
+  - Enhanced backend team receipt payload with `team_distribution` details (`worker_allocations`, allocated totals, unallocated amount, fee and client-paid summary).
+  - Added synthetic receipt transaction row for platform fee when legacy/team flows bundled fee into escrow/payment records without a dedicated `FEE` transaction row.
+  - Updated exported PDF receipt to use whole-transaction summary for team jobs (single receipt perspective for all parties).
+  - **Impact**: Team receipts now consistently explain where funds go, who receives what, and where platform fee is applied, while preserving one shared transaction view.
+
 - **PROJECT Multi-Day Worked-Day Counter Sync + Dialog Accuracy**
   - Synced backend PROJECT multi-day progress tracking with confirmed attendance rows by updating `job.total_days_worked` after client confirmation and no-work confirmations.
   - Updated conversation end-action cards to display effective worked progress (`Worked X/Y day(s)`) using fallback duration and QA offset in TESTING mode.

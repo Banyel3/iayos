@@ -68,6 +68,8 @@ export default function JobReceiptModal({
     (receipt?.status || "").toUpperCase() === "CANCELLED";
   const isDailyPaymentModel =
     (receipt?.payment?.payment_model || "PROJECT").toUpperCase() === "DAILY";
+  const isTeamReceipt = !!receipt?.is_team_job;
+  const teamDistribution = receipt?.team_distribution ?? null;
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -81,6 +83,7 @@ export default function JobReceiptModal({
             id: receipt.job_id,
             title: receipt.title,
             status: receipt.status,
+            is_team_job: receipt.is_team_job,
           },
           payments: {
             job_budget: receipt.payment?.budget,
@@ -540,30 +543,49 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 </Text>
               </View>
 
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>
-                  {isCancelledReceipt
-                    ? userRole === "CLIENT"
-                      ? "Net Paid After Refund"
-                      : "Earnings For This Job"
-                    : userRole === "CLIENT"
-                      ? "Total You Paid"
-                      : "Your Earnings"}
-                </Text>
-                <Text style={styles.totalValue}>
-                  {formatCurrency(
-                    isCancelledReceipt
+              {isTeamReceipt && !isCancelledReceipt ? (
+                <>
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Total Client Paid</Text>
+                    <Text style={styles.totalValue}>
+                      {formatCurrency(receipt.payment.total_client_paid)}
+                    </Text>
+                  </View>
+                  <View style={styles.totalRowSecondary}>
+                    <Text style={styles.totalLabelSecondary}>
+                      Team Earnings Pool
+                    </Text>
+                    <Text style={styles.totalValueSecondary}>
+                      {formatCurrency(receipt.payment.worker_earnings)}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    {isCancelledReceipt
                       ? userRole === "CLIENT"
-                        ? (receipt.payment.actual_client_paid ??
-                          receipt.payment.total_client_paid)
-                        : (receipt.payment.actual_worker_earnings ??
-                          receipt.payment.worker_earnings)
+                        ? "Net Paid After Refund"
+                        : "Earnings For This Job"
                       : userRole === "CLIENT"
-                        ? receipt.payment.total_client_paid
-                        : receipt.payment.worker_earnings,
-                  )}
-                </Text>
-              </View>
+                        ? "Total You Paid"
+                        : "Your Earnings"}
+                  </Text>
+                  <Text style={styles.totalValue}>
+                    {formatCurrency(
+                      isCancelledReceipt
+                        ? userRole === "CLIENT"
+                          ? (receipt.payment.actual_client_paid ??
+                            receipt.payment.total_client_paid)
+                          : (receipt.payment.actual_worker_earnings ??
+                            receipt.payment.worker_earnings)
+                        : userRole === "CLIENT"
+                          ? receipt.payment.total_client_paid
+                          : receipt.payment.worker_earnings,
+                    )}
+                  </Text>
+                </View>
+              )}
 
               {isCancelledReceipt && (
                 <>
@@ -747,6 +769,66 @@ ${RECEIPT_DISCLAIMER_TEXT}
                 </View>
               )}
             </View>
+
+            {/* Team Allocation Card */}
+            {isTeamReceipt &&
+              teamDistribution &&
+              teamDistribution.worker_allocations?.length > 0 && (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Team Allocation</Text>
+                  <Text style={styles.cardSubtitle}>Who gets what</Text>
+                  <View style={styles.divider} />
+
+                  {teamDistribution.worker_allocations.map((alloc) => (
+                    <View
+                      key={`${alloc.worker_id}-${alloc.slot_position}`}
+                      style={styles.paymentRow}
+                    >
+                      <View style={styles.allocationLabelContainer}>
+                        <Text style={styles.paymentLabel}>{alloc.worker_name}</Text>
+                        <Text style={styles.allocationSkillText}>
+                          {alloc.skill || "General"} • Slot #{alloc.slot_position}
+                        </Text>
+                      </View>
+                      <Text style={styles.paymentValue}>
+                        {formatCurrency(alloc.allocated_amount)}
+                      </Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.paymentDivider} />
+
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentLabel}>Total Allocated to Workers</Text>
+                    <Text style={styles.paymentValue}>
+                      {formatCurrency(teamDistribution.total_allocated_to_workers)}
+                    </Text>
+                  </View>
+
+                  {teamDistribution.unallocated_amount > 0 && (
+                    <View style={styles.paymentRow}>
+                      <Text style={styles.paymentLabel}>Unallocated Amount</Text>
+                      <Text style={styles.paymentValue}>
+                        {formatCurrency(teamDistribution.unallocated_amount)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.paymentRow}>
+                    <Text style={styles.paymentLabel}>Platform Fee</Text>
+                    <Text style={[styles.paymentValue, styles.feeText]}>
+                      {formatCurrency(teamDistribution.platform_fee)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Client Total Paid</Text>
+                    <Text style={styles.totalValue}>
+                      {formatCurrency(teamDistribution.client_total_paid)}
+                    </Text>
+                  </View>
+                </View>
+              )}
 
             {/* Transactions Card */}
             {receipt.transactions && receipt.transactions.length > 0 && (
@@ -1057,6 +1139,11 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.xs,
   },
+  cardSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
   divider: {
     height: 1,
     backgroundColor: Colors.border,
@@ -1141,6 +1228,33 @@ const styles = StyleSheet.create({
     ...Typography.heading.h3,
     color: Colors.primary,
     fontWeight: "700",
+  },
+  totalRowSecondary: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: Colors.info + "20",
+    marginTop: Spacing.xs,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  totalLabelSecondary: {
+    ...Typography.body.medium,
+    color: Colors.info,
+    fontWeight: "600",
+  },
+  totalValueSecondary: {
+    ...Typography.heading.h4,
+    color: Colors.info,
+    fontWeight: "700",
+  },
+  allocationLabelContainer: {
+    flex: 1,
+  },
+  allocationSkillText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   paymentMethodRow: {
     flexDirection: "row",
