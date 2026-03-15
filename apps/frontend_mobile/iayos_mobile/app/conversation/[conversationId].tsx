@@ -468,6 +468,8 @@ export default function ChatScreen() {
     // Use API aggregate first; fallback to split flags for safety.
     (conversation?.job?.clientReviewed ||
       localAgencyClientReviewSubmitted ||
+      (conversation?.job?.next_review_action === null &&
+        (conversation?.my_editable_reviews?.length ?? 0) > 0) ||
       (hasAgencyEmployeeReviewsCompleted &&
         agencyNextReviewAction === null &&
         !!conversation?.job?.agencyReviewed))
@@ -2102,9 +2104,12 @@ export default function ChatScreen() {
                     return;
                   }
 
+                  setLocalAgencyClientReviewSubmitted(true);
+                  setReviewStatusSyncing(true);
+                  setShowReviewModal(false);
                   Alert.alert(
                     "Already Rated",
-                    "You've already rated this employee. Refreshing...",
+                    "You have already rated this employee. Refreshing conversation status.",
                   );
                 });
               } else {

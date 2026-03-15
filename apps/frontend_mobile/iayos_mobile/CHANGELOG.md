@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Archived Agency Job Review Gate Recovery + Legacy Compatibility**
+  - Fixed conversation review modal recovery when employee review submit returns duplicate (`already reviewed/rated`) so users are no longer trapped in a required-review dialog.
+  - Added fallback state handling to close/sync the modal when no remaining employee reviews are pending after a duplicate response.
+  - Added compatibility fallback in review gating to treat agency-client review flow as complete when backend reports no next review action but legacy review records already exist.
+  - **Impact**: Archived agency jobs no longer re-block clients on already-reviewed employees, and duplicate-submit flows recover cleanly.
+
 - **Insufficient Wallet Flow Parity for Agency + Team Job Creation**
   - Investigated single-job creation flow and matched its submit-time insufficient-balance prompt behavior.
   - Team job creation now shows the same `Insufficient Wallet Balance` alert on submit with direct `Deposit Funds` route to `/payments/deposit` and prefilled shortage amount.
