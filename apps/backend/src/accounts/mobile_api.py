@@ -4949,6 +4949,8 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
                 'PAYMENT': Transaction.TransactionType.PAYMENT,
                 'WITHDRAWAL': Transaction.TransactionType.WITHDRAWAL,
                 'EARNING': Transaction.TransactionType.EARNING,
+                'PENDING_EARNING': Transaction.TransactionType.PENDING_EARNING,
+                'PENDING': Transaction.TransactionType.PENDING_EARNING,
                 'REFUND': Transaction.TransactionType.REFUND,
             }
             if type.upper() in type_mapping:
@@ -7599,6 +7601,112 @@ def cleanup_maestro_test_data(request):
 # Auto-payment triggers when client confirms worker has gone home.
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date):
+    """
+    Release DAILY pending earnings from previous days once worker checks in again.
+
+    Trigger rule:
+    - On successful worker check-in for a DAILY job
+    - Release this worker's pending daily payouts for the same job where
+      pending transaction date is before check-in date
+    """
+    from decimal import Decimal
+    from django.db import transaction as db_transaction
+    from django.db.models import Q
+    from .models import Wallet, Transaction, Notification
+
+    # Only DAILY jobs use this next-day auto-release path.
+    if str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() != 'DAILY':
+        return {
+            'released_amount': Decimal('0.00'),
+            'released_count': 0,
+        }
+
+    with db_transaction.atomic():
+        wallet = Wallet.objects.select_for_update().filter(accountFK=worker_account).first()
+        if not wallet:
+            return {
+                'released_amount': Decimal('0.00'),
+                'released_count': 0,
+            }
+
+        pending_txns = list(
+            Transaction.objects.filter(
+                Q(paymentMethod=Transaction.PaymentMethod.WALLET) | Q(paymentMethod__isnull=True),
+                walletID=wallet,
+                relatedJobPosting=job,
+                transactionType=Transaction.TransactionType.PENDING_EARNING,
+                createdAt__date__lt=checkin_date,
+            ).order_by('transactionID')
+        )
+
+        if not pending_txns:
+            return {
+                'released_amount': Decimal('0.00'),
+                'released_count': 0,
+            }
+
+        released_total = Decimal('0.00')
+        released_count = 0
+
+        for pending_txn in pending_txns:
+            release_ref = f"DAILY-AUTO-REL-{pending_txn.transactionID}"
+            already_released = Transaction.objects.filter(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.EARNING,
+                referenceNumber=release_ref,
+            ).exists()
+            if already_released:
+                continue
+
+            amount = Decimal(str(pending_txn.amount or Decimal('0.00')))
+            if amount <= 0:
+                continue
+
+            if wallet.pendingEarnings >= amount:
+                wallet.pendingEarnings -= amount
+            else:
+                wallet.pendingEarnings = Decimal('0.00')
+
+            wallet.balance += amount
+            wallet.save(update_fields=['balance', 'pendingEarnings', 'updatedAt'])
+
+            Transaction.objects.create(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.EARNING,
+                amount=amount,
+                balanceAfter=wallet.balance,
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f"Daily pending payout released on next-day check-in - Job #{job.jobID}",
+                relatedJobPosting=job,
+                paymentMethod=Transaction.PaymentMethod.WALLET,
+                referenceNumber=release_ref,
+                completedAt=timezone.now(),
+            )
+
+            released_total += amount
+            released_count += 1
+
+        if released_count > 0:
+            try:
+                Notification.objects.create(
+                    accountFK=worker_account,
+                    notificationType='PAYMENT_RELEASED',
+                    title='Daily Payout Released',
+                    message=(
+                        f"₱{released_total:,.2f} from previous day payout(s) for '{job.title}' "
+                        "has been moved to your available wallet balance after today\'s check-in."
+                    ),
+                    relatedJobID=job.jobID,
+                )
+            except Exception as notify_err:
+                print(f"⚠️ [MOBILE] Auto-release notification failed: {notify_err}")
+
+        return {
+            'released_amount': released_total,
+            'released_count': released_count,
+        }
+
 @mobile_router.post("/daily-attendance/{job_id}/worker-check-in", auth=dual_auth)
 @require_kyc
 def worker_check_in(request, job_id: int):
@@ -7739,6 +7847,46 @@ def worker_check_in(request, job_id: int):
             })
         except Exception as ws_error:
             print(f"⚠️ [MOBILE] Worker on-the-way websocket broadcast failed: {str(ws_error)}")
+
+        auto_release = _release_previous_daily_pending_on_checkin(
+            job=job,
+            worker_account=request.auth,
+            checkin_date=today,
+        )
+
+        released_amount = auto_release.get('released_amount')
+        released_count = int(auto_release.get('released_count') or 0)
+        released_amount_float = float(released_amount) if released_amount else 0.0
+
+        if job.is_team_job and released_count > 0:
+            try:
+                from profiles.models import Conversation, Message
+
+                team_conversation = Conversation.objects.filter(
+                    relatedJobPosting=job,
+                    conversation_type='TEAM_GROUP',
+                ).first()
+
+                if team_conversation:
+                    Message.objects.create(
+                        conversationID=team_conversation,
+                        sender=None,
+                        senderAgency=None,
+                        messageType='SYSTEM',
+                        messageText=(
+                            f"💰 Daily payout update: ₱{released_amount_float:,.2f} from previous day "
+                            "pending earnings has been released to wallet balance after today's check-in."
+                        ),
+                    )
+            except Exception as msg_error:
+                print(f"⚠️ [MOBILE] Team daily payout system note failed: {msg_error}")
+
+        response_message = "Marked on the way. Ask the client to verify arrival."
+        if released_count > 0:
+            response_message = (
+                f"Marked on the way. ₱{released_amount_float:,.2f} from previous day pending payout(s) "
+                "was released to your wallet balance."
+            )
         
         return {
             "success": True,
@@ -7748,7 +7896,9 @@ def worker_check_in(request, job_id: int):
             "time_in": None,
             "date": str(today),
             "status": attendance.status,
-            "message": "Marked on the way. Ask the client to verify arrival.",
+            "message": response_message,
+            "released_previous_pending_amount": released_amount_float,
+            "released_previous_pending_count": released_count,
             "awaiting_client_confirmation": True
         }
         

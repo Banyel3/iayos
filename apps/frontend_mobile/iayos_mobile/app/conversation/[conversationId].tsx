@@ -2933,10 +2933,13 @@ export default function ChatScreen() {
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
 
+  const isTeamAttendanceFlow =
+    conversation.is_team_job &&
+    (conversation.job?.payment_model === "DAILY" || isTeamProjectAttendance);
+
   const clientAttendanceRows =
     conversation.my_role === "CLIENT" &&
-    conversation.is_team_job &&
-    isTeamProjectAttendance
+    isTeamAttendanceFlow
       ? (() => {
           const assignments = Array.isArray(
             conversation.team_worker_assignments,
@@ -3005,7 +3008,7 @@ export default function ChatScreen() {
               client_confirmed_at: null,
               amount_earned: 0,
               payment_processed: false,
-              notes: "Awaiting worker on-the-way",
+              notes: "Awaiting worker to mark as on the way",
               assignment_id: assignment.assignment_id,
               awaiting_worker: true,
             };
@@ -3345,6 +3348,7 @@ export default function ChatScreen() {
 
               {conversation.my_role === "CLIENT" &&
                 isJobCompleted &&
+                conversation.job.payment_model !== "DAILY" &&
                 conversation.job.remainingPaymentPaid &&
                 !conversation.job.paymentBuffer?.is_payment_released &&
                 !conversation.backjob?.has_backjob && (
@@ -4252,6 +4256,23 @@ export default function ChatScreen() {
                   {/* Client View: Confirm attendance for each worker */}
                   {conversation.my_role === "CLIENT" && (
                     <>
+                      {conversation.job?.payment_model === "DAILY" &&
+                        clientAttendanceRows.length > 0 &&
+                        clientAttendanceRows.every(
+                          (attendance: any) => attendance.awaiting_worker,
+                        ) && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.waitingButtonText}>
+                              Awaiting workers to mark as on the way...
+                            </Text>
+                          </View>
+                        )}
+
                       {!conversation.is_team_job &&
                         !isTeamProjectAttendance &&
                         !hasAnyCheckedInToday &&

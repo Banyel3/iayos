@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wallet Pending Filter Tab for Worker Payout Visibility**
+  - Added a new `Pending` transaction filter tab in wallet/profile transactions.
+  - Wired mobile filter mapping to request `PENDING_EARNING` transactions from backend.
+  - Updated backend mobile transaction type mapping to accept `PENDING_EARNING` (and `PENDING` alias).
+  - DAILY jobs now auto-release previous day pending payout(s) to wallet balance when worker checks in the following day.
+  - Added a system note in team job conversation when that next-day auto-release happens so workers can see it in-chat.
+  - Removed `Release Payment Now` action for DAILY jobs in conversation screen (kept for non-DAILY flows).
+  - **Impact**: Worker day payouts held in buffer are now easy to find in transaction history and clearly follow the pending-earnings flow.
+
+- **Team DAILY Client Waiting Status Card (On-The-Way Visibility)**
+  - Extended team attendance row merging for client view to include DAILY team jobs, not just PROJECT multi-day.
+  - Added placeholder team worker rows for DAILY when no attendance has been logged yet.
+  - Added client-facing waiting card: `Awaiting workers to mark as on the way...` when all workers are still pending.
+  - **Impact**: Clients can now see clear pre-arrival team status in DAILY jobs, matching PROJECT visibility.
+
 - **DAILY Per-Click Payment Method Selection (Wallet or Cash Proof)**
   - Added per-attendance client prompt in conversation flow for DAILY jobs to choose `Wallet` or `Cash` when confirming a checked-out worker.
   - Added cash-proof image capture/upload support in DAILY attendance confirmation (`cash_proof_image` multipart payload).
