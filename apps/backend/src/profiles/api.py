@@ -2359,7 +2359,8 @@ def get_conversation_messages(request, conversation_id: int):
             # Get client's review of worker/employee
             client_review_qs = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=client_account
+                reviewerID=client_account,
+                status='ACTIVE'
             )
 
             # Team job worker view: return the review addressed to the current worker account.
@@ -2391,8 +2392,9 @@ def get_conversation_messages(request, conversation_id: int):
             # Get worker's review of client
             worker_review = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=worker_account
-            ).first()
+                reviewerID=worker_account,
+                status='ACTIVE'
+            ).order_by('-createdAt').first()
             
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
@@ -2415,8 +2417,9 @@ def get_conversation_messages(request, conversation_id: int):
             worker_review = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=request.auth,
-                reviewerType="WORKER"
-            ).first()
+                reviewerType="WORKER",
+                status='ACTIVE'
+            ).order_by('-createdAt').first()
             
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
@@ -2448,11 +2451,24 @@ def get_conversation_messages(request, conversation_id: int):
             review_qs = JobReview.objects.filter(
                 jobID=job,
                 reviewerType__in=["WORKER", "AGENCY"],
-            ).select_related("reviewerID").order_by("createdAt")
+                status='ACTIVE'
+            ).select_related("reviewerID").order_by("-createdAt")
+
+            seen_counterparty_reviewer_keys = set()
 
             for review in review_qs:
                 reviewer_identity = resolve_reviewer_identity(review)
                 reviewer_account_id = reviewer_identity["reviewer_account_id"]
+
+                reviewer_key = (
+                    reviewer_identity.get("reviewer_type"),
+                    reviewer_account_id,
+                )
+                if reviewer_key in seen_counterparty_reviewer_keys:
+                    # Keep only the most recent review per reviewer in conversation payload.
+                    continue
+                seen_counterparty_reviewer_keys.add(reviewer_key)
+
                 worker_meta = account_to_worker_meta.get(reviewer_account_id, {})
 
                 reviewer_name = worker_meta.get("name") or reviewer_identity["reviewer_name"]
@@ -2478,7 +2494,9 @@ def get_conversation_messages(request, conversation_id: int):
             jobID=job,
             reviewerID=request.auth,
             status='ACTIVE'
-        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('createdAt')
+        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('-createdAt')
+
+        seen_editable_targets = set()
 
         for authored_review in my_reviews_qs:
             within_24h = (now - authored_review.createdAt) <= timedelta(hours=24)
@@ -2510,6 +2528,12 @@ def get_conversation_messages(request, conversation_id: int):
                 if reviewee_profile:
                     profile_name = f"{reviewee_profile.firstName or ''} {reviewee_profile.lastName or ''}".strip()
                     target_name = profile_name or target_name
+
+            target_key = (target_type, target_id)
+            if target_key in seen_editable_targets:
+                # Keep only the newest editable review per target.
+                continue
+            seen_editable_targets.add(target_key)
 
             my_editable_reviews_data.append({
                 'review_id': authored_review.reviewID,
