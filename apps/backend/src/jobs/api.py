@@ -440,6 +440,15 @@ def _get_elapsed_project_days(job: JobPosting) -> int:
 
     if job.clientConfirmedWorkStartedAt:
         start_date = timezone.localtime(job.clientConfirmedWorkStartedAt).date()
+    else:
+        # Backward compatibility: legacy agency/team records may not have
+        # clientConfirmedWorkStartedAt populated. Fall back to structural dates.
+        start_date = (
+            getattr(job, 'actual_start_date', None)
+            or getattr(job, 'preferredStartDate', None)
+        )
+
+    if start_date:
         today = timezone.localdate()
         elapsed = (today - start_date).days + 1
     else:
@@ -468,6 +477,13 @@ def _project_multi_day_gate_error(job: JobPosting):
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
     if payment_model != "PROJECT":
         return None
+
+    # Backward compatibility self-heal for legacy records that are already
+    # in-progress but missing start/end/duration metadata.
+    try:
+        _derive_and_self_heal_job_date_window(job)
+    except Exception as heal_err:
+        print(f"⚠️ Project gate self-heal skipped for job #{job.jobID}: {heal_err}")
 
     required_days = _get_required_project_days(job)
     if required_days <= 1:
@@ -11246,6 +11262,38 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
         assignment.clientConfirmedArrival = True
         assignment.clientConfirmedArrivalAt = timezone.now()
         assignment.save()
+
+        # Backward compatibility + parity: initialize project start markers on
+        # first confirmed arrival so elapsed-day gating works for invite jobs.
+        job_changed_fields = []
+        effective_day = get_effective_work_date(job)
+
+        if not job.clientConfirmedWorkStarted:
+            job.clientConfirmedWorkStarted = True
+            job_changed_fields.append('clientConfirmedWorkStarted')
+
+        if not job.clientConfirmedWorkStartedAt:
+            job.clientConfirmedWorkStartedAt = timezone.now()
+            job_changed_fields.append('clientConfirmedWorkStartedAt')
+
+        if not getattr(job, 'actual_start_date', None):
+            job.actual_start_date = effective_day
+            job_changed_fields.append('actual_start_date')
+
+        if int(getattr(job, 'total_days_worked', 0) or 0) <= 0:
+            job.total_days_worked = 1
+            job_changed_fields.append('total_days_worked')
+
+        if int(getattr(job, 'duration_days', 0) or 0) <= 0:
+            job.duration_days = _get_required_project_days(job)
+            job_changed_fields.append('duration_days')
+
+        if int(getattr(job, 'qa_day_offset', 0) or 0) < 0:
+            job.qa_day_offset = 0
+            job_changed_fields.append('qa_day_offset')
+
+        if job_changed_fields:
+            job.save(update_fields=list(dict.fromkeys(job_changed_fields)))
         
         # Check how many employees have arrived vs total
         all_assignments = JobEmployeeAssignment.objects.filter(
@@ -11278,6 +11326,7 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             "all_arrived": all_arrived,
             "arrived_count": arrived_count,
             "total_count": total_count,
+            "effective_work_date": effective_day.isoformat(),
             "next_step": "All employees arrived" if all_arrived else f"{total_count - arrived_count} employee(s) still pending arrival"
         }
         

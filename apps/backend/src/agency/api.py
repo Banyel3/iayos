@@ -51,20 +51,57 @@ def _get_required_project_days(job) -> int:
     if configured > 0:
         return configured
 
+    preferred_start = getattr(job, "preferredStartDate", None)
+    scheduled_end = getattr(job, "scheduled_end_date", None)
+    if preferred_start and scheduled_end and scheduled_end >= preferred_start:
+        return max(1, (scheduled_end - preferred_start).days + 1)
+
     expected = str(getattr(job, "expectedDuration", "") or "").strip().lower()
     if expected:
         import re
 
-        match = re.search(r"(\d+)", expected)
-        if match:
-            try:
-                parsed = int(match.group(1))
-                if parsed > 0:
-                    return parsed
-            except ValueError:
-                pass
+        unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected)
+        if unit_match:
+            parsed = int(unit_match.group(1))
+            unit = unit_match.group(2)
+            if unit.startswith("week") or unit.startswith("wk"):
+                return max(1, parsed * 7)
+            return max(1, parsed)
+
+        numeric_match = re.fullmatch(r"\d+", expected)
+        if numeric_match:
+            return max(1, int(expected))
 
     return 1
+
+
+def _self_heal_project_job_window(job) -> None:
+    """Backfill missing PROJECT date metadata for legacy in-progress jobs."""
+    changed_fields = []
+
+    preferred_start = getattr(job, "preferredStartDate", None)
+    actual_start = getattr(job, "actual_start_date", None)
+
+    if not actual_start and preferred_start:
+        job.actual_start_date = preferred_start
+        changed_fields.append("actual_start_date")
+
+    if not getattr(job, "clientConfirmedWorkStartedAt", None) and (actual_start or preferred_start):
+        start_date = actual_start or preferred_start
+        job.clientConfirmedWorkStartedAt = timezone.make_aware(
+            datetime.datetime.combine(start_date, datetime.time.min)
+        )
+        job.clientConfirmedWorkStarted = True
+        changed_fields.extend(["clientConfirmedWorkStartedAt", "clientConfirmedWorkStarted"])
+
+    if int(getattr(job, "duration_days", 0) or 0) <= 0:
+        derived_days = _get_required_project_days(job)
+        if derived_days > 0:
+            job.duration_days = derived_days
+            changed_fields.append("duration_days")
+
+    if changed_fields:
+        job.save(update_fields=list(dict.fromkeys(changed_fields)))
 
 
 def _get_elapsed_project_days(job) -> int:
@@ -75,10 +112,14 @@ def _get_elapsed_project_days(job) -> int:
         return max(0, total_days_worked + qa_offset)
 
     started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
-    if not started_at:
+    if started_at:
+        start_date = timezone.localtime(started_at).date()
+    else:
+        start_date = getattr(job, "actual_start_date", None) or getattr(job, "preferredStartDate", None)
+
+    if not start_date:
         return max(0, qa_offset)
 
-    start_date = timezone.localtime(started_at).date()
     today = timezone.localdate()
     elapsed = (today - start_date).days + 1
     return max(0, elapsed + qa_offset)
@@ -88,6 +129,11 @@ def _project_multi_day_gate_error(job):
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
     if payment_model != "PROJECT":
         return None
+
+    try:
+        _self_heal_project_job_window(job)
+    except Exception as heal_err:
+        logger.warning(f"Project gate self-heal skipped for job #{getattr(job, 'jobID', 'unknown')}: {heal_err}")
 
     required_days = _get_required_project_days(job)
     if required_days <= 1:
@@ -1197,9 +1243,31 @@ def accept_job_invite(request, job_id: int):
         from django.utils import timezone
         job.inviteStatus = "ACCEPTED"
         job.inviteRespondedAt = timezone.now()
+
+        # Multi-day parity initialization for PROJECT invite jobs.
+        payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+        if payment_model == 'PROJECT':
+            changed_fields = ['inviteStatus', 'inviteRespondedAt']
+
+            if int(getattr(job, 'duration_days', 0) or 0) <= 0:
+                job.duration_days = _get_required_project_days(job)
+                changed_fields.append('duration_days')
+
+            if int(getattr(job, 'total_days_worked', 0) or 0) < 0:
+                job.total_days_worked = 0
+                changed_fields.append('total_days_worked')
+
+            if int(getattr(job, 'qa_day_offset', 0) or 0) < 0:
+                job.qa_day_offset = 0
+                changed_fields.append('qa_day_offset')
+
+            # Keep start timestamps unset until first confirmed arrival/work start.
+            job.save(update_fields=list(dict.fromkeys(changed_fields)))
+        else:
+            job.save(update_fields=['inviteStatus', 'inviteRespondedAt'])
+
         # NOTE: Job stays ACTIVE until employees are assigned
         # Status changes to IN_PROGRESS only when assign_employees is called
-        job.save()
         
         # Create conversation between client and agency for this job
         from profiles.models import Conversation
