@@ -1,6 +1,7 @@
 import json
+from django.http import HttpRequest
 from typing import List, Optional
-from ninja import Router, Schema
+from ninja import Router, Schema, Query
 # from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
 # from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
 from ninja.responses import Response
@@ -68,174 +69,48 @@ def get_kyc_audit_logs(request, action: Optional[str] = None, limit: int = 100):
     return fetch_kyc_logs(action_filter=action, limit=limit)
 
 
-@router.get("/kyc/{kyc_id}", auth=cookie_auth)
-def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
-    """
-    Get detailed information for a single KYC record with signed file URLs.
-    TEMPORARY: AUTH BYPASSED FOR DEBUGGING
-    """
-    from accounts.models import kyc, kycFiles, Accounts, Profile, Agency
-    from agency.models import AgencyKYC, AgencyKycFile
-    from adminpanel.models import KYCLogs
-    from iayos_project.utils import get_signed_url
-    import re
-    
+@router.get("/kyc/all", auth=cookie_auth)
+def get_all_kyc(request: HttpRequest):
     try:
-        print(f"DEBUG: [ADMIN] Fetching KYC detail: ID={kyc_id}, Type={kyc_type}")
-        
-        if kyc_type.upper() == "AGENCY":
-            # Fetch agency KYC
-            agency_kyc = AgencyKYC.objects.select_related(
-                'accountFK'
-            ).filter(agencyKycID=kyc_id).first()
-            
-            if not agency_kyc:
-                print(f"DEBUG: Agency KYC {kyc_id} not found")
-                return Response({"error": "Agency KYC not found"}, status=404)
-            
-            print(f"DEBUG: Found Agency KYC for {agency_kyc.accountFK.email}")
-            
-            # Fetch corresponding Agency profile
-            agency = Agency.objects.filter(accountFK=agency_kyc.accountFK).first()
-            
-            # Get agency files
-            files = AgencyKycFile.objects.filter(agencyKyc=agency_kyc).values(
-                'fileID', 'fileURL', 'fileType', 'uploadedAt'
-            )
-            
-            # Generate signed URLs for each file
-            files_with_urls = []
-            for file in files:
-                file_url = file['fileURL']
-                # Extract path from URL for Supabase
-                path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
-                if path_match:
-                    path = path_match.group(1)
-                    signed_url = get_signed_url('agency', path, expires_in=3600)
-                    files_with_urls.append({
-                        'id': file['fileID'],
-                        'url': signed_url or file_url,
-                        'type': file['fileType'],
-                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
-                    })
-            
-            # Get verification history from logs
-            logs = KYCLogs.objects.filter(
-                kycID=kyc_id,
-                kycType="AGENCY",
-                action__in=['APPROVED', 'REJECTED', 'APPROVED', 'Rejected']
-            ).order_by('-reviewedAt').values(
-                'action', 'reason', 'reviewedBy__email', 'reviewedAt'
-            )
-            
-            history = []
-            for log in logs:
-                history.append({
-                    'action': log['action'],
-                    'reason': log['reason'],
-                    'reviewedBy': log['reviewedBy__email'] or "System",
-                    'reviewedAt': log['reviewedAt'].isoformat() if log['reviewedAt'] else None
-                })
-            
-            return {
-                "success": True,
-                "kycType": "AGENCY",
-                "kyc": {
-                    "id": agency_kyc.agencyKycID,
-                    "status": agency_kyc.status,
-                    "businessName": agency.businessName if agency else "N/A",
-                    "businessDescription": agency.businessDesc if agency else "N/A",
-                    "submittedAt": agency_kyc.createdAt.isoformat() if agency_kyc.createdAt else None,
-                    "reviewedAt": agency_kyc.reviewedAt.isoformat() if agency_kyc.reviewedAt else None,
-                },
-                "user": {
-                    "id": agency_kyc.accountFK.accountID,
-                    "email": agency_kyc.accountFK.email,
-                    "name": agency.businessName if agency else "N/A",
-                    "type": "AGENCY"
-                },
-                "files": files_with_urls,
-                "history": history
-            }
-        
-        else:
-            # Fetch user KYC
-            user_kyc = kyc.objects.select_related(
-                'accountFK'
-            ).filter(kycID=kyc_id).first()
-            
-            if not user_kyc:
-                print(f"DEBUG: User KYC {kyc_id} not found")
-                return Response({"error": "KYC not found"}, status=404)
-            
-            print(f"DEBUG: Found User KYC for {user_kyc.accountFK.email}")
-            
-            # Get KYC files
-            files = kycFiles.objects.filter(kycID=user_kyc).values(
-                'kycFileID', 'fileURL', 'idType', 'uploadedAt'
-            )
-            
-            # Generate signed URLs for each file
-            files_with_urls = []
-            for file in files:
-                file_url = file['fileURL']
-                # Extract path from URL for Supabase
-                path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
-                if path_match:
-                    path = path_match.group(1)
-                    signed_url = get_signed_url('kyc-docs', path, expires_in=3600)
-                    files_with_urls.append({
-                        'id': file['kycFileID'],
-                        'url': signed_url or file_url,
-                        'type': file['idType'],
-                        'uploadedAt': file['uploadedAt'].isoformat() if hasattr(file, 'uploadedAt') and file['uploadedAt'] else None
-                    })
-            
-            # Get verification history from logs
-            logs = KYCLogs.objects.filter(
-                kycID=kyc_id,
-                kycType="USER",
-                action__in=['APPROVED', 'REJECTED', 'APPROVED', 'Rejected']
-            ).order_by('-reviewedAt').values(
-                'action', 'reason', 'reviewedBy__email', 'reviewedAt'
-            )
-            
-            history = []
-            for log in logs:
-                history.append({
-                    'action': log['action'],
-                    'reason': log['reason'],
-                    'reviewedBy': log['reviewedBy__email'] or "System",
-                    'reviewedAt': log['reviewedAt'].isoformat() if log['reviewedAt'] else None
-                })
-            
-            # Get user profile info
-            profile = Profile.objects.filter(accountFK=user_kyc.accountFK).first()
-            
-            return {
-                "success": True,
-                "kycType": "USER",
-                "kyc": {
-                    "id": user_kyc.kycID,
-                    "status": user_kyc.kyc_status,
-                    "submittedAt": user_kyc.createdAt.isoformat() if hasattr(user_kyc, 'createdAt') and user_kyc.createdAt else None,
-                    "reviewedAt": None,  # User KYC model doesn't have reviewedAt
-                },
-                "user": {
-                    "id": user_kyc.accountFK.accountID,
-                    "email": user_kyc.accountFK.email,
-                    "name": f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else "N/A",
-                    "type": profile.profileType if profile else "WORKER"
-                },
-                "files": files_with_urls,
-                "history": history
-            }
-            
+        data = fetchAll_kyc(request)
+        return {"success": True, **data}
     except Exception as e:
-        print(f"DEBUG: ❌ Error in get_kyc_detail: {str(e)}")
+        print(f"❌ Error in get_all_kyc: {str(e)}")
         import traceback
         traceback.print_exc()
-        return Response({"success": False, "error": str(e)}, status=500)
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/pending", auth=cookie_auth)
+def get_pending_kyc_optimized(request: HttpRequest, page: int = 1, page_size: int = 20):
+    """
+    Get paginated pending KYC records using optimized queries.
+    Loads faster than /kyc/all for large datasets.
+    """
+    try:
+        result = get_kyc_list_optimized(status_filter='PENDING', page=page, page_size=page_size)
+        return {"success": True, **result}
+    except Exception as e:
+        print(f"❌ Error in get_pending_kyc_optimized: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/logs", auth=cookie_auth)
+def get_kyc_logs(request: HttpRequest, action: str | None = None, limit: int = 100):
+    """
+    Get KYC audit logs with optional filtering.
+    """
+    try:
+        if limit > 500: limit = 500
+        result = fetch_kyc_logs(action_filter=action, limit=limit)
+        return {"success": True, "logs": result, "count": len(result)}
+    except Exception as e:
+        print(f"❌ Error fetching KYC logs: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
 
 
 def broadcast_admin_job_status_update(job_id: int, update_data: dict):
@@ -289,169 +164,10 @@ def get_dashboard_stats(request):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/kyc/all", auth=cookie_auth)
-def get_all_kyc(request):
-    try:
-        data = fetchAll_kyc(request)
-        return {"success": True, **data}
-    except Exception as e:
-        print(f"❌ Error in get_all_kyc: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
 
 
-@router.get("/kyc/pending", auth=cookie_auth)
-def get_pending_kyc_optimized(request, page: int = 1, page_size: int = 20):
-    """
-    Get paginated pending KYC records using optimized queries.
-    Loads faster than /kyc/all for large datasets.
-    
-    Query params:
-    - page: Page number (default 1)
-    - page_size: Items per page (default 20)
-    """
-    try:
-        result = get_kyc_list_optimized(status_filter='PENDING', page=page, page_size=page_size)
-        return {"success": True, **result}
-    except Exception as e:
-        print(f"❌ Error in get_pending_kyc_optimized: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
 
 
-@router.get("/kyc/{kyc_id}/extracted-data", auth=cookie_auth)
-def get_kyc_extracted_data(request, kyc_id: int):
-    """
-    Get AI-extracted KYC data for admin review.
-    Shows extracted values side-by-side with user-confirmed values.
-    
-    Path params:
-    - kyc_id: KYC record ID
-    
-    Returns:
-    - extracted: AI-extracted fields with confidence scores
-    - confirmed: User-confirmed fields
-    - user_edited_fields: List of fields user modified
-    - overall_confidence: AI confidence score
-    """
-    try:
-        from accounts.models import kyc as KYCModel, KYCExtractedData
-        
-        print(f"🔍 [ADMIN KYC] Fetching extracted data for KYC ID: {kyc_id}")
-        
-        # Get KYC record
-        try:
-            kyc_record = KYCModel.objects.get(kycID=kyc_id)
-        except KYCModel.DoesNotExist:
-            return {"success": False, "error": f"KYC record {kyc_id} not found"}
-        
-        # Get extracted data
-        try:
-            extracted = KYCExtractedData.objects.get(kycID=kyc_record)
-            comparison_data = extracted.get_comparison_data()
-            autofill_data = extracted.get_autofill_data()
-            
-            return {
-                "success": True,
-                "kyc_id": kyc_id,
-                "has_extracted_data": True,
-                "extraction_status": extracted.extraction_status,
-                "extraction_source": extracted.extraction_source,
-                "overall_confidence": extracted.overall_confidence,
-                "comparison": comparison_data,
-                "autofill_fields": autofill_data,
-                "user_edited_fields": extracted.user_edited_fields or [],
-                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
-                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
-            }
-            
-        except KYCExtractedData.DoesNotExist:
-            return {
-                "success": True,
-                "kyc_id": kyc_id,
-                "has_extracted_data": False,
-                "message": "No extracted data available for this KYC record"
-            }
-            
-    except Exception as e:
-        print(f"❌ [ADMIN KYC] Error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": "Failed to fetch extracted data"}
-
-
-@router.get("/kyc/agency/{kyc_id}/extracted-data", auth=cookie_auth)
-def get_agency_kyc_extracted_data(request, kyc_id: int):
-    """
-    Get AI-extracted Agency KYC data for admin review.
-    Shows extracted values side-by-side with user-confirmed values.
-    
-    Path params:
-    - kyc_id: AgencyKYC record ID
-    
-    Returns:
-    - confirmed: User-confirmed fields (business info + representative info)
-    - overall_confidence: AI confidence score
-    """
-    try:
-        from agency.models import AgencyKYC, AgencyKYCExtractedData
-        
-        print(f"🔍 [ADMIN AGENCY KYC] Fetching extracted data for Agency KYC ID: {kyc_id}")
-        
-        # Get AgencyKYC record
-        try:
-            kyc_record = AgencyKYC.objects.get(agencyKycID=kyc_id)
-        except AgencyKYC.DoesNotExist:
-            return {"success": False, "error": f"Agency KYC record {kyc_id} not found"}
-        
-        # Get extracted data
-        try:
-            extracted = AgencyKYCExtractedData.objects.get(agencyKyc=kyc_record)
-            
-            # Build confirmed data object
-            confirmed_data = {
-                "business_name": extracted.confirmed_business_name or extracted.extracted_business_name or "",
-                "business_type": extracted.confirmed_business_type or extracted.extracted_business_type or "",
-                "business_address": extracted.confirmed_business_address or extracted.extracted_business_address or "",
-                "permit_number": extracted.confirmed_permit_number or extracted.extracted_permit_number or "",
-                "permit_issue_date": str(extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date or "") if (extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date) else "",
-                "permit_expiry_date": str(extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date or "") if (extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date) else "",
-                "dti_number": extracted.confirmed_dti_number or extracted.extracted_dti_number or "",
-                "sec_number": extracted.confirmed_sec_number or extracted.extracted_sec_number or "",
-                "tin": extracted.confirmed_tin or extracted.extracted_tin or "",
-                "rep_full_name": extracted.confirmed_rep_full_name or extracted.extracted_rep_full_name or "",
-                "rep_id_number": extracted.confirmed_rep_id_number or extracted.extracted_rep_id_number or "",
-                "rep_birth_date": str(extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date or "") if (extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date) else "",
-                "rep_address": extracted.confirmed_rep_address or extracted.extracted_rep_address or "",
-            }
-            
-            return {
-                "success": True,
-                "kyc_id": kyc_id,
-                "has_extracted_data": True,
-                "extraction_status": extracted.extraction_status,
-                "overall_confidence": extracted.overall_confidence,
-                "confirmed": confirmed_data,
-                "user_edited_fields": extracted.user_edited_fields or [],
-                "extracted_at": extracted.extracted_at.isoformat() if extracted.extracted_at else None,
-                "confirmed_at": extracted.confirmed_at.isoformat() if extracted.confirmed_at else None,
-            }
-            
-        except AgencyKYCExtractedData.DoesNotExist:
-            return {
-                "success": True,
-                "kyc_id": kyc_id,
-                "has_extracted_data": False,
-                "message": "No extracted data available for this Agency KYC record"
-            }
-            
-    except Exception as e:
-        print(f"❌ [ADMIN AGENCY KYC] Error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": "Failed to fetch agency extracted data"}
 
     
 @router.post("/kyc/review", auth=cookie_auth)
@@ -527,153 +243,6 @@ def reject_agency_kyc_verification(request):
         import traceback
         traceback.print_exc()
         return {"success": False, "error": str(e)}
-
-
-@router.get("/kyc/{kyc_id}", auth=None) # Temporarily removed auth for debugging
-def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
-    """
-    Get detailed information for a single KYC record with signed file URLs.
-    
-    Args:
-        kyc_id: KYC record ID (kycID for USER, agencyKycID for AGENCY)
-        kyc_type: "USER" or "AGENCY" (default: "USER")
-    
-    Returns:
-        KYC record with user/agency info, files with signed URLs, and verification history
-    """
-    from accounts.models import kyc, kycFiles, Accounts, Profile, AgencyProfile
-    from agency.models import AgencyKYC, AgencyKycFile
-    from adminpanel.models import KYCLogs
-    from iayos_project.utils import get_signed_url
-    import re
-    
-    try:
-        print(f"[ADMIN] Fetching KYC detail: ID={kyc_id}, Type={kyc_type}")
-        
-        if kyc_type.upper() == "AGENCY":
-            # Fetch agency KYC
-            agency_kyc = AgencyKYC.objects.select_related(
-                'agencyID__profileID__accountFK'
-            ).filter(agencyKycID=kyc_id).first()
-            
-            if not agency_kyc:
-                return Response({"error": "Agency KYC not found"}, status=404)
-            
-            # Get agency files
-            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values(
-                'agencyKycFileID', 'fileURL', 'idType', 'uploadedAt'
-            )
-            
-            # Generate signed URLs for each file
-            files_with_urls = []
-            for file in files:
-                file_url = file['fileURL']
-                # Extract path from URL for Supabase
-                path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
-                if path_match:
-                    path = path_match.group(1)
-                    signed_url = get_signed_url('agency', path, expires_in=3600)
-                    files_with_urls.append({
-                        'id': file['agencyKycFileID'],
-                        'url': signed_url or file_url,
-                        'type': file['idType'],
-                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
-                    })
-            
-            # Get verification history from logs
-            logs = KYCLogs.objects.filter(
-                kycID=kyc_id,
-                action__in=['APPROVED', 'REJECTED']
-            ).order_by('-reviewedAt').values(
-                'action', 'reason', 'reviewedBy', 'reviewedAt'
-            )
-            
-            return {
-                "success": True,
-                "kycType": "AGENCY",
-                "kyc": {
-                    "id": agency_kyc.agencyKycID,
-                    "status": agency_kyc.status,
-                    "businessName": agency_kyc.businessName or "N/A",
-                    "businessDescription": agency_kyc.businessDesc or "N/A",
-                    "submittedAt": agency_kyc.submittedAt.isoformat() if agency_kyc.submittedAt else None,
-                    "reviewedAt": agency_kyc.reviewedAt.isoformat() if agency_kyc.reviewedAt else None,
-                },
-                "user": {
-                    "id": agency_kyc.agencyID.profileID.accountFK.accountID,
-                    "email": agency_kyc.agencyID.profileID.accountFK.email,
-                    "name": agency_kyc.businessName or "N/A",
-                    "type": "AGENCY"
-                },
-                "files": files_with_urls,
-                "history": list(logs)
-            }
-        
-        else:
-            # Fetch user KYC
-            user_kyc = kyc.objects.select_related(
-                'accountFK'
-            ).filter(kycID=kyc_id).first()
-            
-            if not user_kyc:
-                return Response({"error": "KYC not found"}, status=404)
-            
-            # Get KYC files
-            files = kycFiles.objects.filter(kycID=user_kyc).values(
-                'kycFileID', 'fileURL', 'idType', 'uploadedAt'
-            )
-            
-            # Generate signed URLs for each file
-            files_with_urls = []
-            for file in files:
-                file_url = file['fileURL']
-                # Extract path from URL for Supabase
-                path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
-                if path_match:
-                    path = path_match.group(1)
-                    signed_url = get_signed_url('kyc-docs', path, expires_in=3600)
-                    files_with_urls.append({
-                        'id': file['kycFileID'],
-                        'url': signed_url or file_url,
-                        'type': file['idType'],
-                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
-                    })
-            
-            # Get verification history from logs
-            logs = KYCLogs.objects.filter(
-                kycID=kyc_id,
-                action__in=['APPROVED', 'REJECTED']
-            ).order_by('-reviewedAt').values(
-                'action', 'reason', 'reviewedBy', 'reviewedAt'
-            )
-            
-            # Get user profile info
-            profile = Profile.objects.filter(accountFK=user_kyc.accountFK).first()
-            
-            return {
-                "success": True,
-                "kycType": "USER",
-                "kyc": {
-                    "id": user_kyc.kycID,
-                    "status": user_kyc.kyc_status,
-                    "submittedAt": user_kyc.createdAt.isoformat() if user_kyc.createdAt else None,
-                    "reviewedAt": None,  # User KYC model doesn't have reviewedAt
-                },
-                "user": {
-                    "id": user_kyc.accountFK.accountID,
-                    "email": user_kyc.accountFK.email,
-                    "name": f"{profile.firstName or ''} {profile.lastName or ''}" if profile else "N/A",
-                    "type": profile.profileType if profile else "WORKER"
-                },
-                "files": files_with_urls,
-                "history": list(logs)
-            }
-    
-    except Exception as e:
-        print(f"❌ Error fetching KYC detail: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({"error": str(e)}, status=500)
 
 
 @router.delete("/kyc/{kyc_id}", auth=cookie_auth)
@@ -877,28 +446,6 @@ def review_agency_kyc_submission(request, agency_kyc_id: int):
         return {"success": False, "error": str(e)}
 
 
-@router.get("/kyc/logs", auth=cookie_auth)
-def get_kyc_logs(request, action: str | None = None, limit: int = 100):
-    """
-    Get KYC audit logs with optional filtering.
-    
-    Query params:
-    - action: Filter by "APPROVED" or "Rejected" (optional)
-    - limit: Max number of logs to return (default 100, max 500)
-    """
-    try:
-        # Validate limit
-        if limit > 500:
-            limit = 500
-        
-        result = fetch_kyc_logs(action_filter=action, limit=limit)
-        print(f"✅ Successfully fetched {len(result)} KYC logs")
-        return {"success": True, "logs": result, "count": len(result)}
-    except Exception as e:
-        print(f"❌ Error fetching KYC logs: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "error": str(e)}
 
 
 
@@ -2010,7 +1557,14 @@ def get_reviews_stats(request):
 
 
 @router.get("/reviews/all", auth=cookie_auth)
-def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | None = None, reviewer_type: str | None = None, min_rating: float | None = None):
+def get_all_reviews(request, 
+    page: int = 1, 
+    page_size: int = 20, 
+    status: Optional[str] = Query(None), 
+    reviewer_type: Optional[str] = Query(None), 
+    min_rating: Optional[float] = Query(None), 
+    reviewee_id: Optional[str] = Query(None), 
+    reviewer_id: Optional[str] = Query(None)):
     """
     Get paginated list of all general user reviews.
     
@@ -2020,9 +1574,19 @@ def get_all_reviews(request, page: int = 1, page_size: int = 20, status: str | N
     - status: Filter by status (ACTIVE, FLAGGED, HIDDEN, DELETED)
     - reviewer_type: Filter by reviewer type (CLIENT, WORKER)
     - min_rating: Minimum rating filter (1.0 - 5.0)
+    - reviewee_id: Filter by reviewee account ID
+    - reviewer_id: Filter by reviewer account ID
     """
     try:
-        result = get_reviews_list_optimized(page=page, page_size=page_size, status=status, reviewer_type=reviewer_type, min_rating=min_rating)
+        result = get_reviews_list_optimized(
+            page=page, 
+            page_size=page_size, 
+            status=status, 
+            reviewer_type=reviewer_type, 
+            min_rating=min_rating,
+            reviewee_id=reviewee_id,
+            reviewer_id=reviewer_id
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"Error fetching all reviews: {str(e)}")
@@ -3811,6 +3375,188 @@ def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_addre
         import traceback
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
+
+
+# ============================================================
+# KYC DETAILED VIEWS (Moved to end to avoid route shadowing)
+# ============================================================
+
+@router.get("/kyc/{kyc_id}", auth=cookie_auth)
+def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
+    """
+    Get detailed information for a single KYC record with signed file URLs.
+    Handles both USER and AGENCY types.
+    """
+    from accounts.models import kyc, kycFiles, Accounts, Profile, Agency
+    from agency.models import AgencyKYC, AgencyKycFile
+    from adminpanel.models import KYCLogs
+    from iayos_project.utils import get_signed_url
+    import re
+    
+    try:
+        if kyc_type.upper() == "AGENCY":
+            agency_kyc = AgencyKYC.objects.select_related('accountFK').filter(agencyKycID=kyc_id).first()
+            if not agency_kyc:
+                return Response({"error": "Agency KYC not found"}, status=404)
+            
+            agency = Agency.objects.filter(accountFK=agency_kyc.accountFK).first()
+            files = AgencyKycFile.objects.filter(agencyKyc=agency_kyc).values('fileID', 'fileURL', 'fileType', 'uploadedAt')
+            
+            files_with_urls = []
+            for file in files:
+                file_url = file['fileURL']
+                path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                if path_match:
+                    path = path_match.group(1)
+                    signed_url = get_signed_url('agency', path, expires_in=3600)
+                    files_with_urls.append({
+                        'id': file['fileID'],
+                        'url': signed_url or file_url,
+                        'type': file['fileType'],
+                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
+                    })
+            
+            logs = KYCLogs.objects.filter(kycID=kyc_id, kycType="AGENCY", action__in=['APPROVED', 'REJECTED', 'Rejected']).order_by('-reviewedAt').values('action', 'reason', 'reviewedBy__email', 'reviewedAt')
+            history = []
+            for log in logs:
+                history.append({
+                    'action': log['action'],
+                    'reason': log['reason'],
+                    'reviewedBy': log['reviewedBy__email'] or "System",
+                    'reviewedAt': log['reviewedAt'].isoformat() if log['reviewedAt'] else None
+                })
+            
+            return {
+                "success": True,
+                "kycType": "AGENCY",
+                "kyc": {
+                    "id": agency_kyc.agencyKycID,
+                    "status": agency_kyc.status,
+                    "businessName": agency.businessName if agency else "N/A",
+                    "businessDescription": agency.businessDesc if agency else "N/A",
+                    "submittedAt": agency_kyc.createdAt.isoformat() if agency_kyc.createdAt else None,
+                    "reviewedAt": agency_kyc.reviewedAt.isoformat() if agency_kyc.reviewedAt else None,
+                },
+                "user": {
+                    "id": agency_kyc.accountFK.accountID,
+                    "email": agency_kyc.accountFK.email,
+                    "name": agency.businessName if agency else "N/A",
+                    "type": "AGENCY"
+                },
+                "files": files_with_urls,
+                "history": history
+            }
+        else:
+            user_kyc = kyc.objects.select_related('accountFK').filter(kycID=kyc_id).first()
+            if not user_kyc:
+                return Response({"error": "KYC not found"}, status=404)
+            
+            files = kycFiles.objects.filter(kycID=user_kyc).values('kycFileID', 'fileURL', 'idType', 'uploadedAt')
+            files_with_urls = []
+            for file in files:
+                file_url = file['fileURL']
+                path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                if path_match:
+                    path = path_match.group(1)
+                    signed_url = get_signed_url('kyc-docs', path, expires_in=3600)
+                    files_with_urls.append({
+                        'id': file['kycFileID'],
+                        'url': signed_url or file_url,
+                        'type': file['idType'],
+                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
+                    })
+            
+            logs = KYCLogs.objects.filter(kycID=kyc_id, kycType="USER", action__in=['APPROVED', 'REJECTED', 'Rejected']).order_by('-reviewedAt').values('action', 'reason', 'reviewedBy__email', 'reviewedAt')
+            history = []
+            for log in logs:
+                history.append({
+                    'action': log['action'],
+                    'reason': log['reason'],
+                    'reviewedBy': log['reviewedBy__email'] or "System",
+                    'reviewedAt': log['reviewedAt'].isoformat() if log['reviewedAt'] else None
+                })
+            
+            return {
+                "success": True,
+                "kycType": "USER",
+                "kyc": {
+                    "id": user_kyc.kycID,
+                    "status": user_kyc.kyc_status,
+                    "submittedAt": user_kyc.createdAt.isoformat() if user_kyc.createdAt else None,
+                    "reviewedAt": user_kyc.updatedAt.isoformat() if user_kyc.updatedAt else None,
+                },
+                "user": {
+                    "id": user_kyc.accountFK.accountID,
+                    "email": user_kyc.accountFK.email,
+                    "name": f"{user_kyc.accountFK.email}",
+                    "type": "USER"
+                },
+                "files": files_with_urls,
+                "history": history
+            }
+    except Exception as e:
+        print(f"❌ Error in get_kyc_detail: {str(e)}")
+        return Response({"error": str(e)}, status=500)
+
+
+@router.get("/kyc/{kyc_id}/extracted-data", auth=cookie_auth)
+def get_kyc_extracted_data(request, kyc_id: int):
+    """AI-extracted data for user KYC review."""
+    from accounts.models import kyc as KYCModel, KYCExtractedData
+    try:
+        kyc_record = KYCModel.objects.get(kycID=kyc_id)
+        extracted = KYCExtractedData.objects.get(kycID=kyc_record)
+        return {
+            "success": True,
+            "has_extracted_data": True,
+            "comparison": extracted.get_comparison_data(),
+            "overall_confidence": extracted.overall_confidence
+        }
+    except (KYCModel.DoesNotExist, KYCExtractedData.DoesNotExist):
+        return {"success": True, "has_extracted_data": False}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/kyc/agency/{kyc_id}/extracted-data", auth=cookie_auth)
+def get_agency_kyc_extracted_data(request, kyc_id: int):
+    """AI-extracted data for agency KYC review."""
+    from agency.models import AgencyKYC, AgencyKYCExtractedData
+    try:
+        kyc_record = AgencyKYC.objects.get(agencyKycID=kyc_id)
+        extracted = AgencyKYCExtractedData.objects.get(agencyKyc=kyc_record)
+
+        def _date_to_iso_str(val):
+            return val.isoformat() if val else ""
+
+        confirmed = {
+            "business_name": extracted.confirmed_business_name or extracted.extracted_business_name,
+            "business_type": extracted.confirmed_business_type or extracted.extracted_business_type,
+            "business_address": extracted.confirmed_business_address or extracted.extracted_business_address,
+            "permit_number": extracted.confirmed_permit_number or extracted.extracted_permit_number,
+            "permit_issue_date": _date_to_iso_str(extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date),
+            "permit_expiry_date": _date_to_iso_str(extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date),
+            "dti_number": extracted.confirmed_dti_number or extracted.extracted_dti_number,
+            "sec_number": extracted.confirmed_sec_number or extracted.extracted_sec_number,
+            "tin": extracted.confirmed_tin or extracted.extracted_tin,
+            "rep_full_name": extracted.confirmed_rep_full_name or extracted.extracted_rep_full_name,
+            "rep_id_number": extracted.confirmed_rep_id_number or extracted.extracted_rep_id_number,
+            "rep_birth_date": _date_to_iso_str(extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date),
+            "rep_address": extracted.confirmed_rep_address or extracted.extracted_rep_address,
+        }
+
+        return {
+            "success": True,
+            "has_extracted_data": True,
+            "extraction_status": extracted.extraction_status,
+            "user_edited_fields": extracted.user_edited_fields or [],
+            "overall_confidence": extracted.overall_confidence,
+            "confirmed": confirmed,
+        }
+    except (AgencyKYC.DoesNotExist, AgencyKYCExtractedData.DoesNotExist):
+        return {"success": True, "has_extracted_data": False}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 

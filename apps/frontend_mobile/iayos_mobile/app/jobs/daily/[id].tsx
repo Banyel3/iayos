@@ -342,7 +342,7 @@ export default function DailyJobDetailScreen() {
 
     Alert.alert(
       "Cancel Daily Job",
-      "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
+      "Only unused daily escrow is refundable. Any completed days stay paid, and the platform fee is retained. Continue cancelling this daily job?",
       [
         { text: "Keep Job", style: "cancel" },
         {
@@ -351,8 +351,16 @@ export default function DailyJobDetailScreen() {
           onPress: async () => {
             chooseCancellationReason(async (reason) => {
               try {
-                await cancelJobMutation.mutateAsync({ jobId, reason });
-                Alert.alert("Success", "Job cancelled");
+                const result = await cancelJobMutation.mutateAsync({ jobId, reason });
+                const refund = Number(result?.refund_amount || 0).toFixed(2);
+                const retained = Number(result?.platform_fee_retained || 0).toFixed(2);
+                const stage = result?.cancellation_stage
+                  ? result.cancellation_stage.replace(/_/g, " ").toLowerCase()
+                  : null;
+                Alert.alert(
+                  "Job Cancelled",
+                  `Unused escrow refunded: ₱${refund}\nPlatform fee retained: ₱${retained}${stage ? `\nStage: ${stage}` : ""}`,
+                );
                 safeGoBack(router, "/(tabs)/jobs");
               } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : "Failed to cancel job";

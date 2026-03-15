@@ -214,6 +214,37 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
                         job=job,
                         reference=f"CANCEL-WORKER-{job.jobID}-{reference_suffix}-{idx + 1}",
                     )
+
+            # Keep platform-fee visibility in transaction history for cancelled jobs.
+            existing_fee_txn = Transaction.objects.filter(
+                relatedJobPosting=job,
+                transactionType=Transaction.TransactionType.FEE,
+            ).order_by('-createdAt').first()
+            client_wallet_for_fee, _ = Wallet.objects.get_or_create(accountFK=client_account)
+
+            if existing_fee_txn:
+                if existing_fee_txn.status != Transaction.TransactionStatus.COMPLETED:
+                    existing_fee_txn.status = Transaction.TransactionStatus.COMPLETED
+                    existing_fee_txn.completedAt = now
+                    existing_fee_txn.amount = platform_fee
+                    existing_fee_txn.description = (
+                        existing_fee_txn.description
+                        or f"Platform fee retained for cancelled job - Job #{job.jobID}"
+                    )
+                    existing_fee_txn.save(update_fields=["status", "completedAt", "amount", "description", "updatedAt"])
+            else:
+                Transaction.objects.create(
+                    walletID=client_wallet_for_fee,
+                    transactionType=Transaction.TransactionType.FEE,
+                    amount=platform_fee,
+                    balanceAfter=client_wallet_for_fee.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f"Platform fee retained for cancelled job - Job #{job.jobID}",
+                    relatedJobPosting=job,
+                    referenceNumber=f"CANCEL-FEE-{job.jobID}-{reference_suffix}",
+                    paymentMethod='WALLET',
+                    completedAt=now,
+                )
         else:
             # Reserved-only flow (typically LISTING before acceptance).
             wallet, _ = Wallet.objects.get_or_create(accountFK=client_account)

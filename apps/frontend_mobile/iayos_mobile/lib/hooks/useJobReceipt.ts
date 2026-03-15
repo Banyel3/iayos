@@ -12,6 +12,7 @@ import { getErrorMessage } from "../utils/parse-api-error";
 
 // Receipt data types
 export interface ReceiptPayment {
+  payment_model?: string;
   currency: string;
   budget: number;
   escrow_amount: number;
@@ -79,6 +80,7 @@ export interface ReceiptCancellation {
   summary?: string | null;
   client_refund_amount: number;
   worker_compensation_amount: number;
+  platform_fee_retained?: number;
 }
 
 export interface ReceiptMaterial {

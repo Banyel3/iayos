@@ -19,6 +19,7 @@ from accounts.models import (
     Job, 
     WorkerProfile, 
     JobWorkerAssignment, 
+    JobLog,
     DailyAttendance,
     DailyJobExtension,
     DailyRateChange,
@@ -896,61 +897,224 @@ class DailyPaymentService:
     ) -> Dict[str, Any]:
         """
         Cancel remaining days of a daily job.
-        Refunds unused escrow to client.
+        Refunds only unused escrow principal to the client.
+        Platform fee remains retained by the platform.
         """
         if job.payment_model != 'DAILY':
             return {'success': False, 'error': 'Job is not a daily-rate job'}
         
         if job.status not in ['ACTIVE', 'IN_PROGRESS']:
             return {'success': False, 'error': f'Cannot cancel job in {job.status} status'}
+
+        # First settle any fully-confirmed attendance rows that were not processed yet.
+        # This prevents underpaying workers when cancellation happens after a completed day.
+        confirmed_unprocessed_rows = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=False,
+            worker_confirmed=True,
+            client_confirmed=True,
+            status__in=['PRESENT', 'HALF_DAY'],
+        ).order_by('date', 'attendanceID')
+
+        for attendance in confirmed_unprocessed_rows:
+            DailyPaymentService.process_day_payment(attendance)
         
-        # Calculate unused escrow
-        total_paid = DailyAttendance.objects.filter(
+        # Calculate paid-out principal based on processed attendance.
+        paid_attendance_qs = DailyAttendance.objects.filter(
             jobID=job,
             payment_processed=True
-        ).aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
-        
-        unused_escrow = job.daily_escrow_total - total_paid
-        
-        if unused_escrow > 0:
-            # Refund to client
-            client_account = job.clientID.profileID.accountFK
-            client_wallet, _ = Wallet.objects.get_or_create(accountFK=client_account)
-            
-            client_wallet.balance += unused_escrow
-            client_wallet.reservedBalance -= unused_escrow
+        )
+        total_paid = paid_attendance_qs.aggregate(total=Sum('amount_earned'))['total'] or Decimal('0.00')
+        processed_days_count = paid_attendance_qs.count()
+
+        pending_attendance_count = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=False,
+        ).exclude(status='ABSENT').count()
+
+        escrow_collected = Decimal(str(job.daily_escrow_total or Decimal('0.00')))
+        if escrow_collected < Decimal('0.00'):
+            escrow_collected = Decimal('0.00')
+
+        refundable_escrow = escrow_collected - total_paid
+        if refundable_escrow < Decimal('0.00'):
+            refundable_escrow = Decimal('0.00')
+
+        if processed_days_count == 0 and pending_attendance_count == 0:
+            cancellation_stage = 'BEFORE_FIRST_PAID_DAY'
+        elif processed_days_count == 0 and pending_attendance_count > 0:
+            cancellation_stage = 'DAY_IN_PROGRESS_NO_PAYOUT_YET'
+        elif refundable_escrow > Decimal('0.00') and pending_attendance_count > 0:
+            cancellation_stage = 'MID_DAY_AFTER_SOME_PAYOUT'
+        elif refundable_escrow > Decimal('0.00'):
+            cancellation_stage = 'BETWEEN_PAID_DAYS'
+        else:
+            cancellation_stage = 'AFTER_ALL_DAYS_PAID'
+
+        platform_fee_retained = (escrow_collected * DailyPaymentService.PLATFORM_FEE_PERCENT).quantize(Decimal('0.01'))
+
+        # Refund escrow principal only (platform fee is retained).
+        client_account = job.clientID.profileID.accountFK
+        client_wallet, _ = Wallet.objects.get_or_create(accountFK=client_account)
+
+        if refundable_escrow > Decimal('0.00'):
+            client_wallet.balance += refundable_escrow
+
+            # Keep reserved balance non-negative; some payment paths deduct directly,
+            # while others may reserve funds before conversion.
+            if client_wallet.reservedBalance > Decimal('0.00'):
+                reserved_release = min(client_wallet.reservedBalance, refundable_escrow)
+                client_wallet.reservedBalance -= reserved_release
+
             client_wallet.save()
-            
-            # Create refund transaction
+
             Transaction.objects.create(
                 walletID=client_wallet,
-                transactionType='REFUND',
-                amount=unused_escrow,
+                transactionType=Transaction.TransactionType.REFUND,
+                amount=refundable_escrow,
                 balanceAfter=client_wallet.balance,
-                status='COMPLETED',
-                description=f'Refund for cancelled days - Job #{job.jobID}',
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f'Refund for cancelled daily job remaining escrow - Job #{job.jobID}',
                 relatedJobPosting=job,
                 paymentMethod='WALLET'
             )
+        else:
+            client_wallet.save()
+
+        # Keep platform-fee visibility in transaction history for cancelled daily jobs.
+        existing_fee_txn = Transaction.objects.filter(
+            relatedJobPosting=job,
+            transactionType=Transaction.TransactionType.FEE,
+        ).order_by('-createdAt').first()
+
+        if escrow_collected > Decimal('0.00'):
+            if existing_fee_txn:
+                if existing_fee_txn.status != Transaction.TransactionStatus.COMPLETED:
+                    existing_fee_txn.status = Transaction.TransactionStatus.COMPLETED
+                    existing_fee_txn.completedAt = timezone.now()
+                    existing_fee_txn.amount = platform_fee_retained
+                    existing_fee_txn.description = (
+                        existing_fee_txn.description
+                        or f'Platform fee retained for cancelled daily job - Job #{job.jobID}'
+                    )
+                    existing_fee_txn.save(update_fields=['status', 'completedAt', 'amount', 'description', 'updatedAt'])
+            else:
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    transactionType=Transaction.TransactionType.FEE,
+                    amount=platform_fee_retained,
+                    balanceAfter=client_wallet.balance,
+                    status=Transaction.TransactionStatus.COMPLETED,
+                    description=f'Platform fee retained for cancelled daily job - Job #{job.jobID}',
+                    relatedJobPosting=job,
+                    paymentMethod='WALLET',
+                    completedAt=timezone.now(),
+                    referenceNumber=f'DAILY-FEE-RET-{job.jobID}-{timezone.now().strftime("%Y%m%d%H%M%S")}',
+                )
         
         # Update job status
+        old_status = job.status
         job.status = 'CANCELLED'
         job.cancellationReason = reason
         job.save()
-        
-        # Notify parties
+
+        # Persist structured cancellation metadata in JobLog so receipt fallback parsing
+        # can reconstruct settlement details even if optional model fields are absent.
+        JobLog.objects.create(
+            jobID=job,
+            notes=(
+                f"[{timezone.now().strftime('%Y-%m-%d %I:%M:%S %p')}] Daily job cancelled by {cancelled_by}. "
+                f"Stage={cancellation_stage}; client_refund=₱{refundable_escrow}; "
+                f"worker_compensation=₱{total_paid}; reason={reason}"
+            ),
+            changedBy=user,
+            oldStatus=old_status,
+            newStatus=job.status,
+        )
+
+        # Close related conversation immediately when cancellation is finalized.
+        # This keeps chat state consistent with project cancellation behavior.
+        try:
+            from profiles.models import Conversation
+            from profiles.conversation_service import archive_conversation
+
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=['status', 'updatedAt'])
+                archive_conversation(conversation)
+        except Exception:
+            # Cancellation should not fail if conversation closure/archive fails.
+            pass
+
+        # Notify client
+        client_cancel_message = (
+            f"Daily job cancelled ({cancellation_stage}). "
+            f"₱{refundable_escrow} unused escrow refunded to your wallet. "
+            f"Platform fee retained: ₱{platform_fee_retained}."
+        )
+
         Notification.objects.create(
-            accountFK=job.clientID.profileID.accountFK,
+            accountFK=client_account,
             notificationType='JOB_CANCELLED',
             title='Job Cancelled',
-            message=f'Daily job cancelled. ₱{unused_escrow} refunded to your wallet.',
+            message=client_cancel_message,
             relatedJobID=job.jobID
         )
+
+        if refundable_escrow > Decimal('0.00'):
+            Notification.objects.create(
+                accountFK=client_account,
+                notificationType='PAYMENT_REFUNDED',
+                title='Unused Escrow Refunded',
+                message=(
+                    f"Refunded ₱{refundable_escrow} unused daily escrow to your wallet. "
+                    f"Platform fee retained: ₱{platform_fee_retained}."
+                ),
+                relatedJobID=job.jobID
+            )
+
+        # Notify worker/agency participants so mobile can surface consistent cancellation context.
+        recipients: List[Accounts] = []
+        if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK:
+            recipients.append(job.assignedWorkerID.profileID.accountFK)
+        if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+            recipients.append(job.assignedAgencyFK.accountFK)
+
+        seen_accounts = set()
+        for recipient in recipients:
+            if recipient.accountID in seen_accounts:
+                continue
+            seen_accounts.add(recipient.accountID)
+
+            Notification.objects.create(
+                accountFK=recipient,
+                notificationType='JOB_CANCELLED',
+                title='Daily Job Cancelled',
+                message=(
+                    f"Job '{job.title}' was cancelled by {cancelled_by.lower()}. "
+                    f"Stage: {cancellation_stage}. Reason: {reason}."
+                ),
+                relatedJobID=job.jobID
+            )
         
         return {
             'success': True,
+            'cancelled_by': cancelled_by,
+            'cancellation_stage': cancellation_stage,
+            'days_planned': int(job.duration_days or 0),
+            'days_paid': int(processed_days_count),
+            'days_with_unprocessed_attendance': int(pending_attendance_count),
             'days_completed': job.total_days_worked,
             'total_paid_out': float(total_paid),
-            'refund_amount': float(unused_escrow),
-            'message': f'Job cancelled. ₱{unused_escrow} refunded to client.'
+            'worker_compensation_amount': float(total_paid),
+            'escrow_collected': float(escrow_collected),
+            'refund_amount': float(refundable_escrow),
+            'platform_fee_retained': float(platform_fee_retained),
+            'refunded_escrow_only': True,
+            'message': (
+                f'Job cancelled ({cancellation_stage}). '
+                f'₱{refundable_escrow} unused escrow refunded to client. '
+                f'Platform fee retained: ₱{platform_fee_retained}.'
+            )
         }

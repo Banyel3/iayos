@@ -39,7 +39,9 @@ export function useUnreadMessageCount() {
 
         return 0;
       } catch (error) {
-        console.error("Failed to fetch unread message count:", error);
+        if (__DEV__) {
+          console.warn("Failed to fetch unread message count:", error);
+        }
         return 0;
       }
     },
@@ -72,7 +74,9 @@ export function useUnreadNotificationCount() {
         const data: any = await response.json();
         return Number(data?.unread_count ?? data?.count ?? data?.unreadCount ?? 0);
       } catch (error) {
-        console.error("Failed to fetch unread notification count:", error);
+        if (__DEV__) {
+          console.warn("Failed to fetch unread notification count:", error);
+        }
         return 0;
       }
     },

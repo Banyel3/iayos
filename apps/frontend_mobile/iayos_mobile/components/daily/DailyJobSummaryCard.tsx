@@ -5,7 +5,13 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadows,
+} from "@/constants/theme";
 import type { DailySummary } from "@/lib/hooks/useDailyPayment";
 
 interface DailyJobSummaryCardProps {
@@ -17,13 +23,20 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
   summary,
   isWorker,
 }) => {
-  const progressPercent = summary.duration_days > 0
-    ? Math.min(100, (summary.days_worked / summary.duration_days) * 100)
-    : 0;
+  const progressPercent =
+    summary.duration_days > 0
+      ? Math.min(100, (summary.days_worked / summary.duration_days) * 100)
+      : 0;
 
-  const escrowUsedPercent = summary.payments.escrow_total > 0
-    ? Math.min(100, ((summary.payments.escrow_total - summary.payments.escrow_remaining) / summary.payments.escrow_total) * 100)
-    : 0;
+  const escrowUsedPercent =
+    summary.payments.escrow_total > 0
+      ? Math.min(
+          100,
+          ((summary.payments.escrow_total - summary.payments.escrow_remaining) /
+            summary.payments.escrow_total) *
+            100,
+        )
+      : 0;
 
   return (
     <View style={styles.container}>
@@ -35,7 +48,9 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
             <Text style={styles.badgeText}>Daily Rate Job</Text>
           </View>
         </View>
-        <Text style={styles.rateText}>₱{summary.daily_rate.toLocaleString()}/day</Text>
+        <Text style={styles.rateText}>
+          ₱{summary.daily_rate.toLocaleString()}/day
+        </Text>
       </View>
 
       {/* Progress Section */}
@@ -47,7 +62,9 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
           </Text>
         </View>
         <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
+          <View
+            style={[styles.progressBar, { width: `${progressPercent}%` }]}
+          />
         </View>
         <Text style={styles.remainingText}>
           {summary.remaining_days} days remaining
@@ -58,15 +75,25 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
       <View style={styles.statsGrid}>
         {/* Attendance Stats */}
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: Colors.successLight }]}>
-            <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+          <View
+            style={[styles.statIcon, { backgroundColor: Colors.successLight }]}
+          >
+            <Ionicons
+              name="checkmark-circle"
+              size={16}
+              color={Colors.success}
+            />
           </View>
-          <Text style={styles.statValue}>{summary.attendance.days_present}</Text>
+          <Text style={styles.statValue}>
+            {summary.attendance.days_present}
+          </Text>
           <Text style={styles.statLabel}>Present</Text>
         </View>
 
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: Colors.warningLight }]}>
+          <View
+            style={[styles.statIcon, { backgroundColor: Colors.warningLight }]}
+          >
             <Ionicons name="time" size={16} color={Colors.warning} />
           </View>
           <Text style={styles.statValue}>{summary.attendance.days_half}</Text>
@@ -74,7 +101,9 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
         </View>
 
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: Colors.errorLight }]}>
+          <View
+            style={[styles.statIcon, { backgroundColor: Colors.errorLight }]}
+          >
             <Ionicons name="close-circle" size={16} color={Colors.error} />
           </View>
           <Text style={styles.statValue}>{summary.attendance.days_absent}</Text>
@@ -82,10 +111,14 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
         </View>
 
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: Colors.infoLight }]}>
+          <View
+            style={[styles.statIcon, { backgroundColor: Colors.infoLight }]}
+          >
             <Ionicons name="hourglass" size={16} color={Colors.info} />
           </View>
-          <Text style={styles.statValue}>{summary.attendance.pending_confirmation}</Text>
+          <Text style={styles.statValue}>
+            {summary.attendance.pending_confirmation}
+          </Text>
           <Text style={styles.statLabel}>Pending</Text>
         </View>
       </View>
@@ -100,11 +133,16 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
             ₱{summary.payments.total_earned.toLocaleString()} earned
           </Text>
         </View>
-        
+
         <View style={styles.escrowProgressContainer}>
-          <View style={[styles.escrowProgressBar, { width: `${escrowUsedPercent}%` }]} />
+          <View
+            style={[
+              styles.escrowProgressBar,
+              { width: `${escrowUsedPercent}%` },
+            ]}
+          />
         </View>
-        
+
         <View style={styles.escrowDetails}>
           <View style={styles.escrowDetailItem}>
             <Text style={styles.escrowDetailLabel}>Total Escrow</Text>
@@ -122,8 +160,12 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
           {typeof summary.payments.absent_penalty_total === "number" &&
             summary.payments.absent_penalty_total > 0 && (
               <View style={styles.escrowDetailItem}>
-                <Text style={styles.escrowDetailLabel}>Absent Penalty (10%)</Text>
-                <Text style={[styles.escrowDetailValue, { color: Colors.error }]}>
+                <Text style={styles.escrowDetailLabel}>
+                  Absent Penalty (10%)
+                </Text>
+                <Text
+                  style={[styles.escrowDetailValue, { color: Colors.error }]}
+                >
                   -₱{summary.payments.absent_penalty_total.toLocaleString()}
                 </Text>
               </View>
@@ -131,8 +173,12 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
 
           {typeof summary.payments.net_expected_earnings === "number" && (
             <View style={styles.escrowDetailItem}>
-              <Text style={styles.escrowDetailLabel}>Net Expected Earnings</Text>
-              <Text style={[styles.escrowDetailValue, { color: Colors.primary }]}>
+              <Text style={styles.escrowDetailLabel}>
+                Net Expected Earnings
+              </Text>
+              <Text
+                style={[styles.escrowDetailValue, { color: Colors.primary }]}
+              >
                 ₱{summary.payments.net_expected_earnings.toLocaleString()}
               </Text>
             </View>
@@ -141,16 +187,33 @@ export const DailyJobSummaryCard: React.FC<DailyJobSummaryCardProps> = ({
       </View>
 
       {/* Pending Requests Badge */}
-      {(summary.pending_requests.extensions > 0 || summary.pending_requests.rate_changes > 0) && (
+      {(summary.pending_requests.extensions > 0 ||
+        summary.pending_requests.rate_changes > 0) && (
         <View style={styles.pendingBadge}>
           <Ionicons name="alert-circle" size={16} color={Colors.warning} />
           <Text style={styles.pendingBadgeText}>
-            {summary.pending_requests.extensions > 0 && `${summary.pending_requests.extensions} extension request(s)`}
-            {summary.pending_requests.extensions > 0 && summary.pending_requests.rate_changes > 0 && " • "}
-            {summary.pending_requests.rate_changes > 0 && `${summary.pending_requests.rate_changes} rate change(s)`}
+            {summary.pending_requests.extensions > 0 &&
+              `${summary.pending_requests.extensions} extension request(s)`}
+            {summary.pending_requests.extensions > 0 &&
+              summary.pending_requests.rate_changes > 0 &&
+              " • "}
+            {summary.pending_requests.rate_changes > 0 &&
+              `${summary.pending_requests.rate_changes} rate change(s)`}
           </Text>
         </View>
       )}
+
+      <View style={styles.refundPolicyNote}>
+        <Ionicons
+          name="information-circle-outline"
+          size={14}
+          color={Colors.info}
+        />
+        <Text style={styles.refundPolicyText}>
+          Daily cancellation policy: only unused escrow is refundable. Paid days
+          stay paid and platform fee is retained.
+        </Text>
+      </View>
     </View>
   );
 };
@@ -319,6 +382,21 @@ const styles = StyleSheet.create({
     color: Colors.warning,
     fontWeight: Typography.fontWeight.medium as any,
     flex: 1,
+  },
+  refundPolicyNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  refundPolicyText: {
+    flex: 1,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.info,
+    lineHeight: 16,
   },
 });
 
