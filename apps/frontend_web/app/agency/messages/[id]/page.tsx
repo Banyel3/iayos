@@ -880,6 +880,9 @@ export default function AgencyChatScreen() {
     job.payment_model === "DAILY" &&
     assigned_employees?.length > 0;
 
+  const isProjectMultiDayAttendanceFlow =
+    shouldShowProjectWorkflow && isProjectMultiDayFlow;
+
   const dailyAttendanceDispatchedIds = new Set(
     (attendanceData?.records || [])
       .filter((record) => {
@@ -894,6 +897,21 @@ export default function AgencyChatScreen() {
         dailyAttendanceDispatchedIds.has(e.employeeId),
       ).length
     : 0;
+
+  const projectAttendanceDispatchedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => {
+        const status = String(record.status || "").toUpperCase();
+        return status === "DISPATCHED" || Boolean(record.time_in);
+      })
+      .map((record) => record.employee_id),
+  );
+
+  const projectAttendanceArrivedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => Boolean(record.time_in))
+      .map((record) => record.employee_id),
+  );
 
   const canMarkBackjobCompleteNow =
     isAgencyBackjob &&
@@ -1065,9 +1083,19 @@ export default function AgencyChatScreen() {
 
             {shouldShowProjectWorkflow &&
               (() => {
-                const allDispatched = allEmployeesDispatched;
+                const allDispatched = isProjectMultiDayAttendanceFlow
+                  ? assigned_employees.every((e: AssignedEmployee) =>
+                      projectAttendanceDispatchedIds.has(e.employeeId),
+                    )
+                  : allEmployeesDispatched;
                 const isBackjobProjectFlow = hasActiveBackjobCycle;
-                const allArrived = isBackjobProjectFlow ? true : allEmployeesArrived;
+                const allArrived = isBackjobProjectFlow
+                  ? true
+                  : isProjectMultiDayAttendanceFlow
+                    ? assigned_employees.every((e: AssignedEmployee) =>
+                        projectAttendanceArrivedIds.has(e.employeeId),
+                      )
+                    : allEmployeesArrived;
                 const allComplete = assigned_employees.every(
                   (e: AssignedEmployee) =>
                     isStatusInActiveBackjobCycle(
@@ -1080,14 +1108,18 @@ export default function AgencyChatScreen() {
                   (job.workerMarkedComplete && !hasActiveBackjobCycle);
                 const dispatchedCount = assigned_employees.filter(
                   (e: AssignedEmployee) =>
-                    isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
+                    isProjectMultiDayAttendanceFlow
+                      ? projectAttendanceDispatchedIds.has(e.employeeId)
+                      : isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
                 ).length;
                 const arrivedCount = assigned_employees.filter(
                   (e: AssignedEmployee) =>
-                    isStatusInActiveBackjobCycle(
-                      e.clientConfirmedArrival,
-                      e.clientConfirmedArrivalAt,
-                    ),
+                    isProjectMultiDayAttendanceFlow
+                      ? projectAttendanceArrivedIds.has(e.employeeId)
+                      : isStatusInActiveBackjobCycle(
+                          e.clientConfirmedArrival,
+                          e.clientConfirmedArrivalAt,
+                        ),
                 ).length;
                 const totalCount = assigned_employees.length;
 
@@ -1104,6 +1136,16 @@ export default function AgencyChatScreen() {
                 }
 
                 if (!allDispatched) {
+                  const pendingDispatchEmployees = assigned_employees.filter(
+                    (e: AssignedEmployee) =>
+                      isProjectMultiDayAttendanceFlow
+                        ? !projectAttendanceDispatchedIds.has(e.employeeId)
+                        : !isStatusInActiveBackjobCycle(
+                            e.dispatched,
+                            e.dispatchedAt,
+                          ),
+                  );
+
                   return (
                     <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
                       <CardContent className="p-3">
@@ -1112,13 +1154,15 @@ export default function AgencyChatScreen() {
                             Dispatch Pending ({dispatchedCount}/{totalCount})
                           </span>
                         </div>
+                        {pendingDispatchEmployees.length > 0 && (
+                          <p className="text-[11px] text-blue-700 mb-2">
+                            Awaiting employee{pendingDispatchEmployees.length > 1 ? "s" : ""} to be dispatched: {pendingDispatchEmployees.map((e: AssignedEmployee) => e.name).join(", ")}
+                          </p>
+                        )}
                         <div className="space-y-1.5 text-xs">
-                          {assigned_employees.map(
+                          {pendingDispatchEmployees.map(
                             (e: AssignedEmployee) =>
-                              !isStatusInActiveBackjobCycle(
-                                e.dispatched,
-                                e.dispatchedAt,
-                              ) && (
+                              (
                                 <div
                                   key={e.employeeId}
                                   className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"

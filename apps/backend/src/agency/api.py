@@ -4383,7 +4383,9 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
     WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
     """
     try:
-        from accounts.models import Job, JobEmployeeAssignment, JobDispute
+        from decimal import Decimal
+        import re
+        from accounts.models import Job, JobEmployeeAssignment, JobDispute, DailyAttendance
         from agency.models import AgencyEmployee
         from django.utils import timezone
         
@@ -4404,6 +4406,17 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 'success': False,
                 'error': 'This endpoint is for PROJECT jobs only. Use /dispatch for daily-rate jobs.'
             }, status=400)
+
+        configured_duration_days = int(getattr(job, 'duration_days', 0) or 0)
+        if configured_duration_days <= 0:
+            expected_duration_text = str(getattr(job, 'expectedDuration', '') or '').lower()
+            duration_match = re.search(r'(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b', expected_duration_text)
+            if duration_match:
+                duration_value = int(duration_match.group(1) or 1)
+                duration_unit = duration_match.group(2) or 'day'
+                configured_duration_days = duration_value * 7 if duration_unit.startswith('week') or duration_unit.startswith('wk') else duration_value
+
+        is_project_multiday = configured_duration_days > 1
         
         # Verify job belongs to this agency
         if not job.assignedAgencyFK or job.assignedAgencyFK.accountFK_id != user.accountID:
@@ -4512,10 +4525,34 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 assignment.employeeMarkedCompleteAt = None
         
         # Mark as dispatched
+        dispatch_now = timezone.now()
         assignment.dispatched = True
-        assignment.dispatchedAt = timezone.now()
+        assignment.dispatchedAt = dispatch_now
         assignment.status = 'IN_PROGRESS'
         assignment.save()
+
+        # Sync PROJECT multi-day dispatch into DailyAttendance so attendance-driven
+        # flows (mobile/web) reflect on-the-way state consistently.
+        if is_project_multiday:
+            work_date = dispatch_now.date()
+            DailyAttendance.objects.update_or_create(
+                jobID=job,
+                employeeID=employee,
+                date=work_date,
+                defaults={
+                    'workerID': None,
+                    'assignmentID': None,
+                    'time_in': None,
+                    'time_out': None,
+                    'status': 'DISPATCHED',
+                    'worker_confirmed': True,
+                    'worker_confirmed_at': dispatch_now,
+                    'client_confirmed': False,
+                    'client_confirmed_at': None,
+                    'amount_earned': Decimal('0.00'),
+                    'notes': 'Dispatched by agency representative (PROJECT multi-day)'
+                }
+            )
         
         # Update job status if needed
         if job.status == 'ASSIGNED':
@@ -4565,6 +4602,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             'employee_id': employee_id,
             'employee_name': employee.fullName,
             'dispatched_at': assignment.dispatchedAt.isoformat(),
+            'attendance_synced': is_project_multiday,
             'status': assignment.status,
             'all_dispatched': all_dispatched,
             'dispatched_count': dispatched_count,
