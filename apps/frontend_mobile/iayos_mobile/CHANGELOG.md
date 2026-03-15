@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PROJECT Multi-Day Worked-Day Counter Sync + Dialog Accuracy**
+  - Synced backend PROJECT multi-day progress tracking with confirmed attendance rows by updating `job.total_days_worked` after client confirmation and no-work confirmations.
+  - Updated conversation end-action cards to display effective worked progress (`Worked X/Y day(s)`) using fallback duration and QA offset in TESTING mode.
+  - Prevents phantom `0/3 days` messaging when QA skip-next-day is used and aligns UI progress text with completion gate behavior.
+  - **Impact**: Clients now see accurate day progress before tapping `Job Finished`, and PROJECT multi-day finish gating matches tracked attendance in production and QA testing flows.
+
 - **Team Job Posting Payment Model Selector (Project vs Daily)**
   - Added payment model selection in team job create screen: `Project Rate` or `Daily Rate`.
   - Added DAILY inputs for `daily rate per worker` and `duration (days)`.

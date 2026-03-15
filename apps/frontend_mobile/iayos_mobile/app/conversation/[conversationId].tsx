@@ -2691,10 +2691,18 @@ export default function ChatScreen() {
     configuredDurationDays > 0 ? configuredDurationDays : fallbackDurationDays;
   const totalDaysWorked = Number(conversation.job?.total_days_worked || 0);
   const qaOffset = Number(conversation.qa_day_offset || 0);
+  const qaDisplayOffset =
+    isTestingModeEnabled && Number.isFinite(qaOffset) && qaOffset > 0
+      ? qaOffset
+      : 0;
+  const effectiveWorkedDays =
+    effectiveDurationDays > 0
+      ? Math.min(effectiveDurationDays, Math.max(0, totalDaysWorked + qaDisplayOffset))
+      : Math.max(0, totalDaysWorked + qaDisplayOffset);
   const qaMaxOffset =
     effectiveDurationDays > 0 ? Math.max(effectiveDurationDays - 1, 0) : 0;
   const reachedConfiguredDuration =
-    effectiveDurationDays > 0 && totalDaysWorked >= effectiveDurationDays;
+    effectiveDurationDays > 0 && effectiveWorkedDays >= effectiveDurationDays;
   const reachedQaOffsetLimit =
     isTestingModeEnabled &&
     effectiveDurationDays > 0 &&
@@ -3785,7 +3793,7 @@ export default function ChatScreen() {
                         DAILY Duration Reached
                       </Text>
                       <Text style={styles.dailyEndActionsText}>
-                        Worked {totalDaysWorked}/{configuredDurationDays}{" "}
+                        Worked {effectiveWorkedDays}/{effectiveDurationDays}{" "}
                         day(s). Choose to extend one more day (with escrow
                         top-up) or finish this job and proceed to reviews.
                       </Text>
@@ -3885,7 +3893,7 @@ export default function ChatScreen() {
                         PROJECT Duration Reached
                       </Text>
                       <Text style={styles.dailyEndActionsText}>
-                        Worked {totalDaysWorked}/{configuredDurationDays}{" "}
+                        Worked {effectiveWorkedDays}/{effectiveDurationDays}{" "}
                         day(s). You can extend this project by 1 day or finish
                         the job now.
                       </Text>
