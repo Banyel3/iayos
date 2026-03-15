@@ -291,7 +291,7 @@ export default function WorkerCalendarModal({
                                 month: "short",
                                 day: "numeric",
                               })}{" "}
-                              ->{" "}
+                              {"->"}{" "}
                               {new Date(
                                 job.scheduled_end_date + "T00:00:00",
                               ).toLocaleDateString(undefined, {
