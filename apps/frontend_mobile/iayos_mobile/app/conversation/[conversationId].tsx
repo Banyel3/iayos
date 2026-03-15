@@ -6065,6 +6065,9 @@ export default function ChatScreen() {
                     (e) => isEmployeeComplete(e),
                   );
 
+                  const notDispatchedEmployees =
+                    conversation.assigned_employees.filter((e) => !e.dispatched);
+
                   // Employees dispatched but not arrived yet
                   const pendingArrival = conversation.assigned_employees.filter(
                     (e) => e.dispatched && !e.clientConfirmedArrival,
@@ -6082,29 +6085,45 @@ export default function ChatScreen() {
                     <>
                       {/* Waiting for agency to dispatch */}
                       {!allDispatched && (
-                        <View
-                          style={[styles.actionButton, styles.waitingButton]}
-                        >
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.waitingButtonText}>
-                            Waiting for agency to dispatch employees (
-                            {
-                              conversation.assigned_employees.filter(
-                                (e) => e.dispatched,
-                              ).length
-                            }{" "}
-                            of {conversation.assigned_employees.length}{" "}
-                            dispatched)
-                          </Text>
+                        <View style={styles.employeeActionsSection}>
+                          <View
+                            style={[styles.actionButton, styles.waitingButton]}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.waitingButtonText}>
+                              Waiting for agency to dispatch employees (
+                              {
+                                conversation.assigned_employees.filter(
+                                  (e) => e.dispatched,
+                                ).length
+                              }{" "}
+                              of {conversation.assigned_employees.length}{" "}
+                              dispatched)
+                            </Text>
+                          </View>
+
+                          {notDispatchedEmployees.map((employee) => (
+                            <View
+                              key={`not-dispatched-${employee.id}`}
+                              style={styles.confirmArrivalWorkerRow}
+                            >
+                              <Text
+                                style={styles.confirmArrivalWorkerName}
+                                numberOfLines={1}
+                              >
+                                {employee.name} has not been dispatched.
+                              </Text>
+                            </View>
+                          ))}
                         </View>
                       )}
 
                       {/* Confirm arrivals section */}
-                      {pendingArrival.length > 0 && (
+                      {allDispatched && pendingArrival.length > 0 && (
                         <View style={styles.employeeActionsSection}>
                           <TouchableOpacity
                             style={styles.confirmArrivalsCollapseHeader}

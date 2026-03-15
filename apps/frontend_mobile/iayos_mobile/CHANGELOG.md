@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Client Arrival Gating Requires Full Agency Dispatch (Team PROJECT)**
+  - Updated client-side conversation flow so `Confirm Arrival` actions are hidden until all assigned agency employees are dispatched.
+  - Added explicit per-employee pending dispatch messaging (e.g., `Employee X has not been dispatched.`) when dispatch is incomplete.
+  - **Impact**: Clients now follow the intended workflow strictly: agency dispatches all assigned employees first, then client arrival confirmation becomes available.
+
 - **Archived Agency Job Review Gate Recovery + Legacy Compatibility**
   - Fixed conversation review modal recovery when employee review submit returns duplicate (`already reviewed/rated`) so users are no longer trapped in a required-review dialog.
   - Added fallback state handling to close/sync the modal when no remaining employee reviews are pending after a duplicate response.
