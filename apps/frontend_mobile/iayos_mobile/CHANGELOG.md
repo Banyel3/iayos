@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents outdated CTA prompts after client completes release-payment flow.
   - **Impact**: Conversation state now reflects post-release behavior and removes misleading backjob actions.
 
+- **Team Multi-Day PROJECT Arrival Flow Unblocked**
+  - Prevented legacy non-attendance team PROJECT blocks from rendering in multi-day flows, so workers are no longer forced into premature “waiting for client to confirm arrival” state.
+  - Added guard so dispatched waiting state only appears when the worker has actually marked on-the-way (`worker_confirmed_at` present).
+  - **Impact**: Team multi-day worker flow now starts correctly with “On The Way,” matching single DAILY attendance-first behavior while keeping final payment gated to job completion.
+
 - **DAILY Skip-Day Absence Penalty + State Sync**
   - Client-approved DAILY skip-day now updates conversation state immediately with optimistic cache sync to prevent stale buttons and duplicate-click rejections.
   - Added attendance row patching for approved skip-day responses so ABSENT/payment-processed state appears without waiting for refetch.
