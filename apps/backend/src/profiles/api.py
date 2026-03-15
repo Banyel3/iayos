@@ -2370,7 +2370,7 @@ def get_conversation_messages(request, conversation_id: int):
                     revieweeID=request.auth
                 )
 
-            client_review = client_review_qs.order_by('-createdAt').first()
+            client_review = client_review_qs.order_by('-updatedAt', '-createdAt').first()
             
             if client_review:
                 client_reviewer_identity = resolve_reviewer_identity(client_review)
@@ -2394,7 +2394,7 @@ def get_conversation_messages(request, conversation_id: int):
                 jobID=job,
                 reviewerID=worker_account,
                 status='ACTIVE'
-            ).order_by('-createdAt').first()
+            ).order_by('-updatedAt', '-createdAt').first()
             
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
@@ -2419,7 +2419,7 @@ def get_conversation_messages(request, conversation_id: int):
                 reviewerID=request.auth,
                 reviewerType="WORKER",
                 status='ACTIVE'
-            ).order_by('-createdAt').first()
+            ).order_by('-updatedAt', '-createdAt').first()
             
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
@@ -2452,7 +2452,7 @@ def get_conversation_messages(request, conversation_id: int):
                 jobID=job,
                 reviewerType__in=["WORKER", "AGENCY"],
                 status='ACTIVE'
-            ).select_related("reviewerID").order_by("-createdAt")
+            ).select_related("reviewerID").order_by("-updatedAt", "-createdAt")
 
             seen_counterparty_reviewer_keys = set()
 
@@ -2494,7 +2494,7 @@ def get_conversation_messages(request, conversation_id: int):
             jobID=job,
             reviewerID=request.auth,
             status='ACTIVE'
-        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('-createdAt')
+        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('-updatedAt', '-createdAt')
 
         seen_editable_targets = set()
 
