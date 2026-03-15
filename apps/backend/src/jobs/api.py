@@ -7711,12 +7711,21 @@ def confirm_backjob_started(request, job_id: int):
         if not dispute.workerScheduleConfirmed:
             return Response({"error": "Worker must confirm the scheduled date before backjob can start"}, status=400)
 
-        today = timezone.localdate()
-        if today < dispute.scheduled_date:
+        # Use business-local date for schedule comparisons.
+        # TIME_ZONE is UTC in settings, but backjob schedules are user-facing local dates.
+        # This avoids false negatives during early PH hours (e.g., 4 AM PH is prior UTC date).
+        from zoneinfo import ZoneInfo
+
+        business_tz_name = getattr(settings, "BUSINESS_TIME_ZONE", "Asia/Manila")
+        business_today = timezone.now().astimezone(ZoneInfo(business_tz_name)).date()
+
+        if business_today < dispute.scheduled_date:
             return Response(
                 {
                     "error": "Backjob cannot be started before the scheduled date",
                     "scheduled_date": dispute.scheduled_date.isoformat(),
+                    "today": business_today.isoformat(),
+                    "timezone": business_tz_name,
                 },
                 status=400,
             )
@@ -7725,23 +7734,6 @@ def confirm_backjob_started(request, job_id: int):
         if dispute.backjobStarted:
             print(f"   Backjob already confirmed as started at {dispute.backjobStartedAt}")
             return Response({"error": "Backjob work has already been confirmed as started"}, status=400)
-
-        # Require an agreed schedule before allowing work-start confirmation.
-        if not dispute.scheduled_date:
-            return Response(
-                {"error": "Backjob start cannot be confirmed until admin sets a scheduled date"},
-                status=400,
-            )
-
-        today = timezone.now().date()
-        if today < dispute.scheduled_date:
-            return Response(
-                {
-                    "error": "Backjob can only be confirmed on or after the scheduled date",
-                    "scheduled_date": dispute.scheduled_date.isoformat(),
-                },
-                status=400,
-            )
 
         # Agency backjob workflow requires all assigned employees to be dispatched
         # before client can confirm work started for the current backjob cycle.

@@ -1154,6 +1154,18 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                 scheduled_end_date_obj = datetime.strptime(scheduled_end_date_str, "%Y-%m-%d").date()
             except ValueError:
                 return {'success': False, 'error': 'Invalid scheduled_end_date format. Use YYYY-MM-DD'}
+
+        if preferred_start_date_obj and scheduled_end_date_obj and scheduled_end_date_obj < preferred_start_date_obj:
+            return {
+                'success': False,
+                'error': 'scheduled_end_date cannot be earlier than preferred_start_date'
+            }
+
+        # PROJECT multi-day support parity:
+        # derive duration days from the inclusive date window when possible.
+        project_duration_days = 1
+        if preferred_start_date_obj and scheduled_end_date_obj:
+            project_duration_days = max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
         
         # Get client wallet
         wallet, created = Wallet.objects.get_or_create(
@@ -1205,6 +1217,8 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
                     assignedAgencyFK=assigned_agency,
                     assignedWorkerID=assigned_worker,
                     is_team_job=is_multi_employee,  # True if multi-employee mode
+                    payment_model='PROJECT',
+                    duration_days=project_duration_days,
                     # Universal job fields for ML accuracy - use values from request (model has defaults if None)
                     job_scope=job_data.get('job_scope'),
                     skill_level_required=job_data.get('skill_level_required'),
