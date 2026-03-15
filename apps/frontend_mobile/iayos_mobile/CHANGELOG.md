@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Insufficient Wallet Flow Parity for Agency + Team Job Creation**
+  - Investigated single-job creation flow and matched its submit-time insufficient-balance prompt behavior.
+  - Team job creation now shows the same `Insufficient Wallet Balance` alert on submit with direct `Deposit Funds` route to `/payments/deposit` and prefilled shortage amount.
+  - Team submit button is no longer blocked solely by low balance so clients can trigger the deposit prompt flow consistently.
+  - Agency job request wallet warning/deposit CTA visibility now uses computed required downpayment instead of raw budget text checks.
+  - **Impact**: Agency and team create flows now mirror single-job deposit guidance and let clients top up directly from creation screens.
+
+- **Job Request End-Date One-Day Checkbox Date Handling**
+  - Fixed mobile job request date handling to use calendar-day comparisons (date-only), not raw timestamp math.
+  - Fixed end-date behavior so selecting a next-day end date does not leave the `This job is one day or less` state enabled.
+  - Updated payload date formatting to local `YYYY-MM-DD` output instead of UTC-based conversion to prevent date shifting.
+  - **Impact**: Multi-day job requests now stay correctly recognized as multi-day when end date is the following day.
+
 - **Global Mandatory Review Gate (All Pending Jobs List)**
   - Upgraded mobile pending-review blocker to render all pending review jobs instead of only the first item.
   - Added per-job `Review Now` actions so users can jump directly into each required conversation.
