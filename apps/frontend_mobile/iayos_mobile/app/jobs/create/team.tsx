@@ -223,6 +223,25 @@ export default function CreateTeamJobScreen() {
     }
   }, [allocationMethod]);
 
+  // Auto-calculate duration days for Daily Rate when dates are provided
+  // (inclusive date range), same behavior as single-job daily creation.
+  useEffect(() => {
+    if (paymentModel !== "DAILY") return;
+
+    if (startDate && isOneDayJob) {
+      setDurationDays("1");
+      return;
+    }
+
+    if (startDate && scheduledEndDate) {
+      const diffTime = Math.abs(
+        scheduledEndDate.getTime() - startDate.getTime(),
+      );
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      setDurationDays(diffDays.toString());
+    }
+  }, [paymentModel, startDate, scheduledEndDate, isOneDayJob]);
+
   // Calculate budget allocation preview
   const budgetAllocation = useMemo(() => {
     if (skillSlots.length === 0 || budgetNum === 0) return [];

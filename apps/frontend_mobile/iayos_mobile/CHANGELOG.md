@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team DAILY Date-Range Duration Auto-Calc + Release-Now Stability**
+  - Fixed team DAILY job creation to auto-calculate `duration_days` from selected start and end dates (inclusive), matching single-job DAILY behavior.
+  - One-day team jobs now consistently set duration to `1` when one-day mode is enabled.
+  - Fixed backend release-payment-now failure caused by updating a non-existent `updatedAt` field on `Transaction` during pending-earning release.
+  - **Impact**: Team DAILY posts now compute duration correctly from dates, and release button no longer throws a 500 for valid jobs.
+
 - **Team PROJECT Worker Helper Guidance Messages**
   - Added clearer worker-side helper guidance in conversation attendance UI for team PROJECT flows.
   - Added pre-action guidance before tapping `On The Way` so workers understand arrival verification and check-out dependencies.
