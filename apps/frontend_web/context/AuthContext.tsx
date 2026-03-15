@@ -14,6 +14,45 @@ import Cookies from "js-cookie";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const GENERIC_LOGIN_ERROR = "Unable to sign in right now. Please try again.";
+
+const toSafeLoginMessage = (status?: number, backendMessage?: string): string => {
+  const normalized = (backendMessage || "").toLowerCase();
+
+  if (status === 429 || normalized.includes("rate limit") || normalized.includes("too many requests")) {
+    return "Too many login attempts. Please wait a minute and try again.";
+  }
+
+  if (
+    status === 401 ||
+    normalized.includes("invalid") ||
+    normalized.includes("incorrect") ||
+    normalized.includes("wrong password") ||
+    normalized.includes("credentials")
+  ) {
+    return "Invalid email or password.";
+  }
+
+  if (normalized.includes("verify") && normalized.includes("email")) {
+    return "Please verify your email address before signing in.";
+  }
+
+  if (
+    status === 403 ||
+    normalized.includes("suspend") ||
+    normalized.includes("disabled") ||
+    normalized.includes("inactive")
+  ) {
+    return "Your account is currently unavailable. Please contact support.";
+  }
+
+  if (status && status >= 500) {
+    return "Server is temporarily unavailable. Please try again shortly.";
+  }
+
+  return GENERIC_LOGIN_ERROR;
+};
+
 // 🔥 Centralized cache clearing function
 const clearAllAuthCaches = () => {
   // Clear all localStorage auth-related items
@@ -150,21 +189,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         // Read error detail from response
         const errorData = await response.json().catch(() => ({}));
-        let errorMessage = "Login failed";
+        let backendMessage = "";
 
         // Handle structured error: {"error": [{"message": "..."}]}
         if (Array.isArray(errorData.error) && errorData.error.length > 0) {
-          errorMessage = errorData.error[0].message || errorMessage;
+          backendMessage = errorData.error[0].message || "";
         } else if (errorData.message) {
-          errorMessage = errorData.message;
+          backendMessage = errorData.message;
         } else if (errorData.detail) {
-          errorMessage = errorData.detail;
+          backendMessage = errorData.detail;
         }
+
+        const safeMessage = toSafeLoginMessage(response.status, backendMessage);
+        console.error("Login failed:", {
+          status: response.status,
+          backendMessage,
+        });
 
         // Login failed - ensure everything is cleared
         setUser(null);
         clearAllAuthCaches();
-        throw new Error(errorMessage);
+        throw new Error(safeMessage);
       }
 
       // Get the login response which includes tokens
@@ -173,15 +218,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Backend always returns HTTP 200, even for errors like wrong password,
       // suspended account, unverified email, etc.  Check for error payload first.
       if (loginData.error) {
-        let errorMessage = "Login failed";
+        let backendMessage = "";
         if (Array.isArray(loginData.error) && loginData.error.length > 0) {
-          errorMessage = (loginData.error[0].message || errorMessage).trim();
+          backendMessage = (loginData.error[0].message || "").trim();
         } else if (typeof loginData.error === "string") {
-          errorMessage = loginData.error.trim();
+          backendMessage = loginData.error.trim();
         }
+        const safeMessage = toSafeLoginMessage(response.status, backendMessage);
+        console.error("Login error payload received:", {
+          status: response.status,
+          backendMessage,
+        });
         setUser(null);
         clearAllAuthCaches();
-        throw new Error(errorMessage);
+        throw new Error(safeMessage);
       }
 
       // Store access token and set cookies manually
@@ -224,10 +274,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         const errText = await userDataResponse.text();
         console.error("User Data Response Failed:", userDataResponse.status, errText);
+        const safeMessage = toSafeLoginMessage(userDataResponse.status, errText);
         // Failed to get user data - clear everything
         setUser(null);
         clearAllAuthCaches();
-        throw new Error(`Failed to fetch user data after login: ${userDataResponse.status} ${errText}`);
+        throw new Error(safeMessage);
       }
     } catch (error) {
       // Ensure everything is cleared on any error
