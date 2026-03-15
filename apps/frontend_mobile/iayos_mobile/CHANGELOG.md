@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team PROJECT Worker Helper Guidance Messages**
+  - Added clearer worker-side helper guidance in conversation attendance UI for team PROJECT flows.
+  - Added pre-action guidance before tapping `On The Way` so workers understand arrival verification and check-out dependencies.
+  - Improved post check-out helper copy to explicitly explain waiting states:
+    - waiting for client to confirm workday,
+    - waiting for client to extend or finish+pay when configured duration is reached,
+    - next-step guidance after confirmed day/payment.
+  - **Impact**: Workers now see actionable next-step messages at each attendance stage, reducing confusion in team PROJECT rate workflows.
+
 - **Backjob Schedule Date Picker Stability + Change Review Submit Fix**
   - Fixed backjob schedule modal date handling to normalize date-only values and avoid picker reversion while selecting dates.
   - Improved Android date picker event handling so only confirmed selections are applied (dismiss events no longer overwrite state).
