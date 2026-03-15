@@ -230,12 +230,19 @@ def _get_required_project_days(job: JobPosting) -> int:
 
 def _get_elapsed_project_days(job: JobPosting) -> int:
     """Compute elapsed work days since client confirmed start (inclusive)."""
-    if not job.clientConfirmedWorkStartedAt:
-        return 0
+    total_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
 
-    start_date = timezone.localtime(job.clientConfirmedWorkStartedAt).date()
-    today = timezone.localdate()
-    elapsed = (today - start_date).days + 1
+    if job.clientConfirmedWorkStartedAt:
+        start_date = timezone.localtime(job.clientConfirmedWorkStartedAt).date()
+        today = timezone.localdate()
+        elapsed = (today - start_date).days + 1
+    else:
+        elapsed = 0
+
+    # Attendance-driven multi-day flows update this counter even when
+    # clientConfirmedWorkStartedAt is not populated (team/agency project flows).
+    if total_days_worked > 0:
+        elapsed = max(elapsed, total_days_worked)
 
     # Honor QA fast-forward offset when present on environments that have it.
     qa_day_offset = getattr(job, "qa_day_offset", 0) or 0
