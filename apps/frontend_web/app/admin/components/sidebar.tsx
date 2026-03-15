@@ -243,6 +243,7 @@ export default function Sidebar({ className }: SidebarProps) {
   const [pendingCertsCount, setPendingCertsCount] = useState<number>(0);
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] =
     useState<number>(0);
+  const [openDisputesCount, setOpenDisputesCount] = useState<number>(0);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [adminUser, setAdminUser] = useState<{
     name: string;
@@ -338,15 +339,35 @@ export default function Sidebar({ className }: SidebarProps) {
       }
     };
 
+    const fetchOpenDisputesCount = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/api/adminpanel/jobs/disputes/stats`,
+          { credentials: "include" },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setOpenDisputesCount(data.stats?.open_disputes || 0);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching open disputes count:", error);
+      }
+    };
+
     fetchPendingCount();
     fetchPendingCertsCount();
     fetchPendingWithdrawalsCount();
+    fetchOpenDisputesCount();
 
     // Refresh counts every 30 seconds
     const interval = setInterval(() => {
       fetchPendingCount();
       fetchPendingCertsCount();
       fetchPendingWithdrawalsCount();
+      fetchOpenDisputesCount();
     }, 30000);
 
     return () => clearInterval(interval);
@@ -410,6 +431,12 @@ export default function Sidebar({ className }: SidebarProps) {
         count: pendingWithdrawalsCount > 0 ? pendingWithdrawalsCount : null,
       };
     }
+    if (item.name === "Disputes") {
+      return {
+        ...item,
+        count: openDisputesCount > 0 ? openDisputesCount : null,
+      };
+    }
     return item;
   });
 
@@ -454,7 +481,10 @@ export default function Sidebar({ className }: SidebarProps) {
 
   // Total badge count for mobile top bar
   const totalBadge =
-    pendingKYCCount + pendingCertsCount + pendingWithdrawalsCount;
+    pendingKYCCount +
+    pendingCertsCount +
+    pendingWithdrawalsCount +
+    openDisputesCount;
 
   // On mobile, sidebar drawer is always expanded (never collapsed)
   const showExpanded = isMobile || !collapsed;
@@ -475,7 +505,7 @@ export default function Sidebar({ className }: SidebarProps) {
           {totalBadge > 0 && (
             <span className="relative flex items-center justify-center w-8 h-8">
               <Bell className="h-5 w-5 text-gray-500" />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#00BAF1] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {totalBadge > 9 ? "9+" : totalBadge}
               </span>
             </span>
@@ -652,7 +682,7 @@ export default function Sidebar({ className }: SidebarProps) {
                           {item.count !== undefined &&
                             item.count !== null &&
                             item.count > 0 && (
-                              <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                              <span className="px-2 py-0.5 text-xs font-medium bg-[#00BAF1] text-white rounded-full">
                                 {item.count}
                               </span>
                             )}
@@ -698,7 +728,7 @@ export default function Sidebar({ className }: SidebarProps) {
                         item.count !== undefined &&
                         item.count !== null &&
                         item.count > 0 && (
-                          <span className="px-2 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                          <span className="px-2 py-0.5 text-xs font-medium bg-[#00BAF1] text-white rounded-full">
                             {item.count}
                           </span>
                         )}
