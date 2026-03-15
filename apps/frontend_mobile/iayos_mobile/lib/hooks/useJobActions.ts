@@ -776,7 +776,10 @@ export function useAgencyMarkProjectComplete() {
         all_complete: boolean;
       }>;
     },
-    onSuccess: (data: { employee_name: string; all_complete: boolean }, { jobId }) => {
+    onSuccess: (
+      data: { employee_name: string; all_complete: boolean },
+      { jobId },
+    ) => {
       Toast.show({
         type: "success",
         text1: "Work Marked Complete",

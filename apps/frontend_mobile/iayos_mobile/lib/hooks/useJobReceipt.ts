@@ -1,6 +1,6 @@
 /**
  * useJobReceipt - Hook for fetching job receipt/invoice data
- * 
+ *
  * This hook fetches complete payment breakdown and timeline information
  * for completed jobs. Works for all completed jobs, including those
  * completed before this feature was implemented.
@@ -48,7 +48,7 @@ export interface ReceiptParty {
   name: string;
   avatar: string | null;
   contact: string | null;
-  type?: 'WORKER' | 'AGENCY';
+  type?: "WORKER" | "AGENCY";
 }
 
 export interface ReceiptTransaction {
@@ -103,7 +103,7 @@ export interface JobReceipt {
   location: string;
   is_team_job: boolean;
   job_type: string;
-  
+
   // Status and dates
   status: string;
   created_at: string | null;
@@ -112,17 +112,17 @@ export interface JobReceipt {
   client_approved_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
-  
+
   // Payment breakdown
   payment: ReceiptPayment;
-  
+
   // Buffer status
   buffer: ReceiptBuffer;
-  
+
   // Parties
   client: ReceiptParty;
   worker: ReceiptParty | null;
-  
+
   // Transaction history
   transactions: ReceiptTransaction[];
 
@@ -151,14 +151,18 @@ export function useJobReceipt(jobId: number | null, enabled: boolean = true) {
     queryKey: ["job-receipt", jobId],
     queryFn: async (): Promise<JobReceiptResponse> => {
       if (!jobId) throw new Error("Job ID is required");
-      
+
       const response = await apiRequest(ENDPOINTS.JOB_RECEIPT(jobId));
-      
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to fetch receipt" })) as { error?: string };
+        const errorData = (await response
+          .json()
+          .catch(() => ({ error: "Failed to fetch receipt" }))) as {
+          error?: string;
+        };
         throw new Error(getErrorMessage(errorData, "Failed to fetch receipt"));
       }
-      
+
       return response.json() as Promise<JobReceiptResponse>;
     },
     enabled: enabled && !!jobId,
@@ -170,7 +174,10 @@ export function useJobReceipt(jobId: number | null, enabled: boolean = true) {
 /**
  * Format currency amount for display
  */
-export function formatCurrency(amount: number, currency: string = "PHP"): string {
+export function formatCurrency(
+  amount: number,
+  currency: string = "PHP",
+): string {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: currency,
@@ -184,7 +191,7 @@ export function formatCurrency(amount: number, currency: string = "PHP"): string
  */
 export function formatReceiptDate(dateString: string | null): string {
   if (!dateString) return "N/A";
-  
+
   const date = new Date(dateString);
   return date.toLocaleDateString("en-PH", {
     year: "numeric",
@@ -216,7 +223,7 @@ export function getTransactionTypeLabel(type: string): string {
  */
 export function getHoldReasonLabel(reason: string | null): string {
   if (!reason) return "N/A";
-  
+
   const labels: Record<string, string> = {
     BUFFER_PERIOD: "7-day holding period",
     BACKJOB_PENDING: "Backjob request pending",
