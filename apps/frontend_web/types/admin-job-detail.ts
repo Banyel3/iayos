@@ -13,6 +13,9 @@ export interface JobTimeline {
   client_reviewed: string | null;
   worker_reviewed: string | null;
   reviews_complete: boolean;
+  // Legacy compatibility keys still returned by backend for older consumers.
+  worker_completed?: string | null;
+  reviews_submitted?: string | null;
 }
 
 export interface JobPhoto {
@@ -57,6 +60,12 @@ export interface JobDetail {
   urgency: string;
   status: string;
   job_type: string;
+  payment_model?: string;
+  is_team_job?: boolean;
+  total_workers_needed?: number;
+  total_workers_assigned?: number;
+  duration_days?: number | null;
+  total_days_worked?: number;
   materials_needed: string[];
   expected_duration: string | null;
   preferred_start_date: string | null;

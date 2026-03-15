@@ -230,6 +230,12 @@ export default function JobDetailPage() {
               <JobTimelineVisualization
                 timeline={job.timeline}
                 jobStatus={job.status}
+                paymentModel={job.payment_model}
+                isTeamJob={job.is_team_job}
+                totalWorkersNeeded={job.total_workers_needed}
+                totalWorkersAssigned={job.total_workers_assigned}
+                durationDays={job.duration_days}
+                totalDaysWorked={job.total_days_worked}
               />
             </CardContent>
           </Card>
