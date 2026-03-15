@@ -379,74 +379,6 @@ export default function AgencyChatScreen() {
     return 1;
   };
 
-  const handleExtendProjectOneDay = async () => {
-    if (!conversation?.job?.id) return;
-
-    const confirmed = window.confirm(
-      "Extend project duration by 1 day? This keeps the job active for one more work day.",
-    );
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/jobs/${conversation.job.id}/project/extend-one-day`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, "Failed to extend project by one day"),
-        );
-      }
-
-      toast.success(data?.message || "Project extended by 1 day");
-      refetch();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to extend project by one day",
-      );
-    }
-  };
-
-  const handleFinishProjectNow = async () => {
-    if (!conversation?.job?.id) return;
-
-    const confirmed = window.confirm(
-      "Finish this project now? This action starts project completion and settlement.",
-    );
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/jobs/${conversation.job.id}/project/finish`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(getErrorMessage(data, "Failed to finish project"));
-      }
-
-      toast.success(data?.message || "Project marked as finished");
-      refetch();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to finish project",
-      );
-    }
-  };
-
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation?.job.id) return;
@@ -1241,24 +1173,8 @@ export default function AgencyChatScreen() {
                               </Badge>
                             </div>
                             <p className="text-xs text-blue-800 font-medium">
-                              Extend by 1 day to continue work, or finish the job now.
+                              Waiting for client to decide whether to extend the project or mark it finished.
                             </p>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-[10px] bg-[#00BAF1] hover:bg-[#00a8d8]"
-                                onClick={handleExtendProjectOneDay}
-                              >
-                                Extend +1 Day
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-[10px] bg-red-600 hover:bg-red-700"
-                                onClick={handleFinishProjectNow}
-                              >
-                                Job Finished
-                              </Button>
-                            </div>
                           </CardContent>
                         </Card>
                       );
