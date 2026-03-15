@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from .services import generateCookie
 from decimal import Decimal
+import re
 from adminpanel.audit_service import log_action
 
 
@@ -112,6 +113,30 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c
+
+
+def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
+    """Best-effort parser for expected duration text (e.g. 2 days, 1 week)."""
+    if not expected_duration:
+        return 1
+
+    text = str(expected_duration).strip().lower()
+    if not text:
+        return 1
+
+    unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", text)
+    if unit_match:
+        value = int(unit_match.group(1))
+        unit = unit_match.group(2)
+        if unit.startswith('week') or unit.startswith('wk'):
+            return max(1, value * 7)
+        return max(1, value)
+
+    numeric_match = re.fullmatch(r"\d+", text)
+    if numeric_match:
+        return max(1, int(text))
+
+    return 1
 
 
 def _derive_cancellation_reason(job: JobPosting) -> Optional[str]:
@@ -1196,10 +1221,20 @@ def create_mobile_invite_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[s
             }
 
         # PROJECT multi-day support parity:
-        # derive duration days from the inclusive date window when possible.
-        project_duration_days = 1
-        if preferred_start_date_obj and scheduled_end_date_obj:
+        # prefer explicit duration_days, then inclusive date window,
+        # then expected_duration parser fallback.
+        explicit_duration = job_data.get('duration_days')
+        project_duration_days = 0
+        try:
+            project_duration_days = int(explicit_duration or 0)
+        except (TypeError, ValueError):
+            project_duration_days = 0
+
+        if project_duration_days <= 0 and preferred_start_date_obj and scheduled_end_date_obj:
             project_duration_days = max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
+
+        if project_duration_days <= 0:
+            project_duration_days = _parse_expected_duration_days(job_data.get('expected_duration'))
         
         # Get client wallet
         wallet, created = Wallet.objects.get_or_create(

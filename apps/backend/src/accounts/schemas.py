@@ -416,6 +416,7 @@ class CreateInviteJobMobileSchema(Schema):
     budget: float
     location: str
     expected_duration: Optional[str] = None
+    duration_days: Optional[int] = None
     urgency_level: str  # 'LOW' | 'MEDIUM' | 'HIGH'
     preferred_start_date: str  # YYYY-MM-DD format (required)
     scheduled_end_date: str    # YYYY-MM-DD format (required)
