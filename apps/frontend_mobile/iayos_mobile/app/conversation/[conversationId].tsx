@@ -2709,7 +2709,7 @@ export default function ChatScreen() {
     conversation.job?.status === "IN_PROGRESS" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const isProjectMultiDayFlow =
-    conversation.job?.payment_model === "PROJECT" && configuredDurationDays > 1;
+    conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
   const showProjectEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.status === "IN_PROGRESS" &&
