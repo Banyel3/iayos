@@ -4842,25 +4842,25 @@ def client_approve_job_completion(
             # Handle WALLET payment (instant deduction from client, but pending for worker)
             if payment_method_upper == 'WALLET':
                 print(f"💳 Wallet payment selected - checking balance")
-                
-                # Get or create wallet for client
-                wallet, _ = Wallet.objects.get_or_create(
-                    accountFK=client_profile.profileID.accountFK,
-                    defaults={'balance': 0}
-                )
-                
-                # Check if client has sufficient balance
-                if wallet.balance < remaining_amount:
-                    return Response({
-                        "error": "Insufficient wallet balance",
-                        "required": float(remaining_amount),
-                        "available": float(wallet.balance),
-                        "message": f"You need ₱{remaining_amount} but only have ₱{wallet.balance}. Please deposit more funds or use a different payment method."
-                    }, status=400)
-                
-                # Deduct remaining payment from wallet
-                wallet.balance -= remaining_amount
-                wallet.save()
+
+                with db_transaction.atomic():
+                    wallet, _ = Wallet.objects.select_for_update().get_or_create(
+                        accountFK=client_profile.profileID.accountFK,
+                        defaults={'balance': Decimal('0.00')}
+                    )
+
+                    # Check if client has sufficient balance (after lock)
+                    if wallet.balance < remaining_amount:
+                        return Response({
+                            "error": "Insufficient wallet balance",
+                            "required": float(remaining_amount),
+                            "available": float(wallet.balance),
+                            "message": f"You need ₱{remaining_amount} but only have ₱{wallet.balance}. Please deposit more funds or use a different payment method."
+                        }, status=400)
+
+                    # Deduct remaining payment from wallet
+                    wallet.balance -= remaining_amount
+                    wallet.save(update_fields=['balance', 'updatedAt'])
                 
                 print(f"💸 Deducted ₱{remaining_amount} from client wallet. New balance: ₱{wallet.balance}")
                 
@@ -6202,21 +6202,23 @@ def create_invite_job(
         payment_method = payment_method.upper()
         
         if payment_method == "WALLET":
-            # Check wallet balance
-            if wallet.balance < downpayment:
-                return Response(
-                    {
-                        "error": "Insufficient wallet balance",
-                        "required": float(downpayment),
-                        "available": float(wallet.balance)
-                    },
-                    status=400
-                )
-            
             with db_transaction.atomic():
+                wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+
+                # Check wallet balance after lock
+                if wallet.balance < downpayment:
+                    return Response(
+                        {
+                            "error": "Insufficient wallet balance",
+                            "required": float(downpayment),
+                            "available": float(wallet.balance)
+                        },
+                        status=400
+                    )
+
                 # Deduct escrow from wallet
                 wallet.balance -= downpayment
-                wallet.save()
+                wallet.save(update_fields=['balance', 'updatedAt'])
                 
                 # Create INVITE job with PENDING invite status
                 job = Job.objects.create(

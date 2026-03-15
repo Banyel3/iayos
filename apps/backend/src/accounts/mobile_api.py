@@ -2580,8 +2580,8 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 from decimal import Decimal
                 from .models import Wallet, Transaction, Notification
                 
-                # Get client's wallet
-                wallet = Wallet.objects.get(accountFK=request.auth)
+                # Get and lock client's wallet for charge conversion
+                wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 # Calculate the total to charge (50% escrow + 10% platform fee)
                 escrow_amount = job.escrowAmount
@@ -2616,9 +2616,21 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                             status=400
                         )
                 
+                # Final non-negative guard before deduction
+                if wallet.balance < total_to_charge:
+                    wallet.reservedBalance += original_reserved
+                    return Response(
+                        {
+                            "error": "Insufficient balance while processing payment",
+                            "required": float(total_to_charge),
+                            "available": float(wallet.balance),
+                        },
+                        status=400
+                    )
+
                 # Deduct the actual amount from balance
                 wallet.balance -= total_to_charge
-                wallet.save()
+                wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
                 
                 print(f"💸 [MOBILE] Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}")
                 
@@ -4750,12 +4762,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 status=404
             )
         
-        # Check sufficient balance
-        if wallet.balance < Decimal(str(amount)):
-            return Response(
-                {"error": f"Insufficient balance. Available: ₱{wallet.balance}"},
-                status=400
-            )
+        amount_decimal = Decimal(str(amount))
         
         # Get payment method
         try:
@@ -4800,10 +4807,19 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
         
         # Use atomic transaction to ensure consistency
         with db_transaction.atomic():
+            # Lock wallet row and re-check balance to prevent concurrent overdraft
+            wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+
+            if wallet.balance < amount_decimal:
+                return Response(
+                    {"error": f"Insufficient balance. Available: ₱{wallet.balance}"},
+                    status=400
+                )
+
             # Deduct balance immediately
             old_balance = wallet.balance
-            wallet.balance -= Decimal(str(amount))
-            wallet.save()
+            wallet.balance -= amount_decimal
+            wallet.save(update_fields=['balance', 'updatedAt'])
             
             # Create pending withdrawal transaction
             method_display = {
@@ -4818,7 +4834,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             transaction = Transaction.objects.create(
                 walletID=wallet,
                 transactionType=Transaction.TransactionType.WITHDRAWAL,
-                amount=Decimal(str(amount)),
+                amount=amount_decimal,
                 balanceAfter=wallet.balance,
                 status=Transaction.TransactionStatus.PENDING,
                 description=f"Withdrawal to {method_display}",

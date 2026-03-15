@@ -556,7 +556,7 @@ class DailyPaymentService:
             # Check client wallet balance
             client_account = job.clientID.profileID.accountFK
             try:
-                client_wallet = Wallet.objects.get(accountFK=client_account)
+                client_wallet = Wallet.objects.select_for_update().get(accountFK=client_account)
             except Wallet.DoesNotExist:
                 extension.status = 'REJECTED'
                 extension.save()
@@ -748,7 +748,7 @@ class DailyPaymentService:
                     # Client needs to pay more
                     client_account = job.clientID.profileID.accountFK
                     try:
-                        client_wallet = Wallet.objects.get(accountFK=client_account)
+                        client_wallet = Wallet.objects.select_for_update().get(accountFK=client_account)
                     except Wallet.DoesNotExist:
                         rate_change.status = 'REJECTED'
                         rate_change.save()

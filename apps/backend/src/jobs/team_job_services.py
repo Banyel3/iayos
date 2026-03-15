@@ -436,7 +436,7 @@ def create_team_job(
     
     if payment_method_upper == 'WALLET':
         try:
-            wallet = Wallet.objects.get(accountFK=client_profile_obj.accountFK)
+            wallet = Wallet.objects.select_for_update().get(accountFK=client_profile_obj.accountFK)
             if wallet.balance < total_needed:
                 return {
                     'success': False,
@@ -510,9 +510,18 @@ def create_team_job(
         # Deduct from wallet
         if wallet is None:
             return {'success': False, 'error': 'Wallet not found'}
+
+        if wallet.balance < total_needed:
+            return {
+                'success': False,
+                'error': f'Insufficient wallet balance. Need ₱{total_needed}, have ₱{wallet.balance}',
+                'requires_deposit': True,
+                'amount_needed': float(total_needed)
+            }
+
         wallet.balance -= total_needed
         wallet.reservedBalance += escrow_amount  # Hold escrow
-        wallet.save()
+        wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
         
         # Create transaction record
         Transaction.objects.create(
@@ -1456,6 +1465,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             'error': 'Team DAILY jobs must be finished via /jobs/{job_id}/daily/finish after attendance settlement.'
         }
 
+    required_project_days = _get_required_project_days(job)
+    is_project_multiday = (
+        str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() == 'PROJECT'
+        and required_project_days > 1
+    )
+
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
         return project_gate_error
@@ -1470,23 +1485,30 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         worker_marked_complete=False
     )
     
+    unresolved_incomplete_count = 0
+    unresolved_incomplete_sample = []
     if incomplete_workers.exists():
-        incomplete_count = incomplete_workers.count()
-        incomplete_sample = [
+        unresolved_incomplete_count = incomplete_workers.count()
+        unresolved_incomplete_sample = [
             {
                 'assignment_id': a.assignmentID,
-                'worker_id': a.workerID.id,
+                'worker_id': getattr(a.workerID, 'workerProfileID', None),
                 'worker_name': f"{a.workerID.profileID.firstName} {a.workerID.profileID.lastName}".strip(),
                 'client_confirmed_arrival': bool(a.client_confirmed_arrival),
             }
             for a in incomplete_workers.select_related('workerID__profileID')[:5]
         ]
-        return {
-            'success': False, 
-            'error': f'{incomplete_count} worker(s) have not yet marked their work as complete',
-            'healed_assignments': healed_assignments,
-            'incomplete_assignments': incomplete_sample,
-        }
+
+        # Backward-compat parity with single-job PROJECT multi-day finish:
+        # once duration gate passes, don't block client completion on stale
+        # assignment worker_marked_complete flags.
+        if not is_project_multiday:
+            return {
+                'success': False,
+                'error': f'{unresolved_incomplete_count} worker(s) have not yet marked their work as complete',
+                'healed_assignments': healed_assignments,
+                'incomplete_assignments': unresolved_incomplete_sample,
+            }
     
     payment_method_upper = (payment_method or 'WALLET').upper()
     if payment_method_upper not in ['WALLET', 'CASH']:
@@ -1564,11 +1586,17 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     # NOTE: Keep conversation ACTIVE after approval, consistent with single-job flow.
     # Conversation should only close after both parties submit reviews.
     
-    # Update all assignments to COMPLETED status
+    # Update all active assignments to completed state for backward-compat.
+    # This mirrors single-job PROJECT multi-day finish behavior where client
+    # completion finalizes worker completion flags.
     JobWorkerAssignment.objects.filter(
         jobID=job,
         assignment_status='ACTIVE'
-    ).update(assignment_status='COMPLETED')
+    ).update(
+        assignment_status='COMPLETED',
+        worker_marked_complete=True,
+        worker_marked_complete_at=now,
+    )
     
     # Create completion log
     from accounts.models import JobLog
@@ -1601,5 +1629,7 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         'amount_paid': float(remaining_amount),
         'workers_completed': job.total_workers_assigned,
         'healed_assignments': healed_assignments,
+        'auto_completed_assignments': unresolved_incomplete_count,
+        'auto_completed_sample': unresolved_incomplete_sample,
         'message': 'Team job completed successfully'
     }

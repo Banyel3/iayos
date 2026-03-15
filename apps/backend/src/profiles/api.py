@@ -14,6 +14,7 @@ from .schemas import (
 from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
+from django.db import transaction as db_transaction
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
@@ -362,12 +363,7 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
                 status=404
             )
         
-        # Check sufficient balance
-        if wallet.balance < Decimal(str(amount)):
-            return Response(
-                {"error": "Insufficient balance"},
-                status=400
-            )
+        amount_decimal = Decimal(str(amount))
         
         # Get payment method details
         try:
@@ -392,9 +388,18 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
         print(f"   Current balance: ₱{wallet.balance}")
         print(f"   Withdrawing to: ***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'}")
         
-        # TEST MODE: Deduct funds immediately
-        wallet.balance -= Decimal(str(amount))
-        wallet.save()
+        # Deduct funds with row-level lock to prevent concurrent overdraft
+        with db_transaction.atomic():
+            wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+
+            if wallet.balance < amount_decimal:
+                return Response(
+                    {"error": "Insufficient balance"},
+                    status=400
+                )
+
+            wallet.balance -= amount_decimal
+            wallet.save(update_fields=['balance', 'updatedAt'])
         
         # Create completed transaction
         description = f"Withdrawal to {payment_method.accountName} ({payment_method.accountNumber})"
@@ -404,7 +409,7 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.WITHDRAWAL,
-            amount=Decimal(str(amount)),
+            amount=amount_decimal,
             balanceAfter=wallet.balance,
             status=Transaction.TransactionStatus.COMPLETED,
             description=description,
