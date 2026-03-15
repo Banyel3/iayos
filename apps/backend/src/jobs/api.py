@@ -4566,20 +4566,31 @@ def client_approve_job_completion(
 ):
     """
     Client approves job completion and selects payment method
-    Payment methods: WALLET, GCASH, or CASH (with proof upload)
+    Payment methods: WALLET or CASH (with proof upload)
     
     Form data:
-    - payment_method: "WALLET" | "GCASH" | "CASH" (required)
+    - payment_method: "WALLET" | "CASH" (required)
     - cash_proof_image: file upload (required if payment_method is CASH)
     """
     try:
         print(f"✅ Client approving job {job_id} completion")
-        
+
+        # Reject JSON requests — payment_method and cash_proof_image must come from
+        # multipart/form-data.  Accepting JSON would silently fall through to the
+        # Form() default ("WALLET") and charge the wallet even when the user
+        # selected a different method.
+        content_type = getattr(request, 'content_type', '')
+        if 'application/json' in content_type.lower():
+            return Response(
+                {"error": "This endpoint requires multipart/form-data. JSON payloads are not supported."},
+                status=415,
+            )
+
         # Get payment method from form data (default to WALLET)
         payment_method_upper = payment_method.upper() if payment_method else 'WALLET'
-        if payment_method_upper not in ['WALLET', 'GCASH', 'CASH']:
+        if payment_method_upper not in ['WALLET', 'CASH']:
             return Response(
-                {"error": "Invalid payment method. Choose WALLET, GCASH, or CASH"},
+                {"error": "Invalid payment method. Choose WALLET or CASH"},
                 status=400
             )
         
@@ -4746,22 +4757,24 @@ def client_approve_job_completion(
                     status=500
                 )
         
-        # Mark as complete by client and save payment method
+        # Prepare in-memory completion fields.
+        # NOTE: job.save() is intentionally deferred until after payment processing
+        # succeeds, so that a payment failure never leaves the job in a COMPLETED
+        # state without a recorded payment.
         old_status = job.status
         job.clientMarkedComplete = True
         job.clientMarkedCompleteAt = timezone.now()
         job.finalPaymentMethod = payment_method_upper
         job.paymentMethodSelectedAt = timezone.now()
-        
-        # Save cash proof URL if provided
+
+        # Stage cash proof URL if provided
         if cash_proof_url:
             job.cashPaymentProofUrl = cash_proof_url
             job.cashProofUploadedAt = timezone.now()
-        
-        job.status = "COMPLETED"
-        job.save()
 
-        print(f"✅ Client approved job {job_id} completion with {payment_method_upper} payment.")
+        job.status = "COMPLETED"
+
+        print(f"📋 Client approved job {job_id} completion with {payment_method_upper} payment. Processing payment…")
         
         # NOTE: Do NOT close conversation here - keep it ACTIVE until both parties have reviewed.
         # Conversation will be closed in the review submission endpoint after both reviews are submitted.
@@ -5086,22 +5099,14 @@ def client_approve_job_completion(
             }, status=400)
                 
         except Exception as payment_error:
-            print(f"⚠️ Error processing payment: {str(payment_error)}")
+            print(f"⚠️ Error processing payment for job {job_id}: {type(payment_error).__name__}: {str(payment_error)}")
             import traceback
             traceback.print_exc()
-            # Allow proceeding with review even if payment fails
-            return {
-                "success": True,
-                "message": "Job completion approved! Payment processing error, please contact support.",
-                "job_id": job_id,
-                "worker_marked_complete": job.workerMarkedComplete,
-                "client_marked_complete": job.clientMarkedComplete,
-                "status": job.status,
-                "requires_payment": False,
-                "payment_error": True,
-                "prompt_review": True,
-                "worker_id": job.assignedWorkerID.profileID.accountFK.accountID if job.assignedWorkerID else None
-            }
+
+            return Response(
+                {"error": "Final payment failed. Job was not completed. Please try again or contact support."},
+                status=500,
+            )
         
     except Exception as e:
         print(f"❌ Error approving job completion: {str(e)}")
@@ -8307,7 +8312,12 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
 
 @router.post("/{job_id}/team/approve-completion", auth=dual_auth)
 @require_kyc
-def approve_team_job_completion(request, job_id: int, payment_method: str = Form('WALLET')):
+def approve_team_job_completion(
+    request,
+    job_id: int,
+    payment_method: str = Form('WALLET'),
+    cash_proof_image: UploadedFile = File(None),
+):
     """
     Client approves team job completion after all workers have marked complete.
     This closes the job and team conversation.
@@ -8323,10 +8333,43 @@ def approve_team_job_completion(request, job_id: int, payment_method: str = Form
     if project_gate_error:
         return Response(project_gate_error, status=400)
     
+    cash_proof_url = None
+    payment_method_upper = (payment_method or 'WALLET').upper()
+
+    if payment_method_upper == 'CASH':
+        if not cash_proof_image:
+            return Response({"error": "Cash proof image is required for CASH payment"}, status=400)
+
+        try:
+            from datetime import datetime
+            import uuid
+
+            file_content = cash_proof_image.read()
+            file_extension = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_id = str(uuid.uuid4())[:8]
+            file_path = f"users/{request.auth.accountID}/jobs/{job_id}/proof/team_cash_proof_{timestamp}_{unique_id}.{file_extension}"
+
+            if not settings.STORAGE:
+                raise Exception("Storage not configured")
+
+            settings.STORAGE.storage().from_('user-uploads').upload(
+                file_path,
+                file_content,
+                {
+                    'content-type': cash_proof_image.content_type or 'image/jpeg',
+                    'upsert': 'true'
+                }
+            )
+            cash_proof_url = settings.STORAGE.storage().from_('user-uploads').get_public_url(file_path)
+        except Exception as upload_error:
+            return Response({"error": f"Failed to upload cash proof image: {upload_error}"}, status=500)
+
     result = client_approve_team_job(
         job_id=job_id,
         client_user=request.auth,
-        payment_method=payment_method
+        payment_method=payment_method_upper,
+        cash_proof_url=cash_proof_url,
     )
     
     if not result.get('success'):

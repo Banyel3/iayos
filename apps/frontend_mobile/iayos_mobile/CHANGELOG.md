@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PROJECT Final Payment Prompt + Completion Sync Hardening**
+  - Restored explicit `Wallet` / `Cash` selection when clients approve completion from Active Job details (solo + team), replacing the old hardcoded approval path.
+  - Added cash-proof upload support to the team approval endpoint and hook so CASH team approvals follow the same proof flow as regular/agency PROJECT jobs.
+  - Hardened backend completion flow to avoid leaving jobs completed when final payment processing fails (completion flags are rolled back and an error is returned).
+  - Fixed team completion payment marking to use actual payment processing + `remainingPaymentPaidAt` instead of setting paid state without processing.
+  - **Impact**: PROJECT jobs now consistently require explicit payment method selection and avoid false "completed-but-unpaid" states across solo/team/client->agency approval paths.
+
 - **Client Backjob Banner Hidden After Payment Release**
   - Updated conversation banner visibility to hide backjob-request/review-reminder prompts once payment release rights are waived (`paymentBuffer.is_payment_released === true`).
   - Prevents outdated CTA prompts after client completes release-payment flow.

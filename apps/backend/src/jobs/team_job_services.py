@@ -1291,52 +1291,78 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             'error': f'{incomplete_count} worker(s) have not yet marked their work as complete'
         }
     
-    # ==========================================================================
-    # CRITICAL: Pre-validate wallet balance BEFORE marking job as complete
-    # This prevents the bug where job is marked COMPLETED but payment fails
-    # ==========================================================================
     payment_method_upper = (payment_method or 'WALLET').upper()
-    
+    if payment_method_upper not in ['WALLET', 'CASH']:
+        return {'success': False, 'error': 'Invalid payment method. Choose WALLET or CASH'}
+
+    if payment_method_upper == 'CASH' and not cash_proof_url:
+        return {'success': False, 'error': 'Cash proof image is required for CASH payment'}
+
+    # Remaining final payment follows the same 50% + materials pattern as regular PROJECT jobs.
+    remaining_amount = (job.remainingPayment or Decimal('0.00')) + (job.materialsCost or Decimal('0.00'))
+    if remaining_amount <= 0:
+        remaining_amount = (job.budget or Decimal('0.00')) * Decimal('0.5')
+
+    # Pre-validate wallet balance BEFORE updating job flags.
     if payment_method_upper == 'WALLET':
-        from accounts.models import Wallet
-        from decimal import Decimal
-        
-        # Get or create wallet for client
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user,
-            defaults={'balance': Decimal('0')}
+            defaults={'balance': Decimal('0.00')}
         )
-        
-        # Calculate remaining payment (50% of budget)
-        remaining_amount = job.budget * Decimal('0.5')
-        
-        # Check if client has sufficient balance BEFORE proceeding
         if wallet.balance < remaining_amount:
-            print(f"❌ [TeamJob] Wallet balance check FAILED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
             return {
                 'success': False,
                 'error': f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} but only have ₱{wallet.balance:,.2f}. Please deposit more funds or choose CASH payment.'
             }
-        
-        print(f"✅ [TeamJob] Wallet balance check PASSED: Need ₱{remaining_amount}, have ₱{wallet.balance}")
-    
-    # Mark job as completed
+
     old_status = job.status
-    job.status = 'COMPLETED'
-    job.clientMarkedComplete = True
-    job.clientMarkedCompleteAt = timezone.now()
-    # For team jobs, mark worker complete when client approves (all workers already marked their assignments complete)
-    job.workerMarkedComplete = True
-    job.workerMarkedCompleteAt = timezone.now()
-    # Mark remaining payment as paid (team jobs handle payment differently - escrow was paid at creation)
-    job.remainingPaymentPaid = True
-    job.remainingPaymentAt = timezone.now()
-    
-    if cash_proof_url:
-        job.cashPaymentProofUrl = cash_proof_url
-        job.cashProofUploadedAt = timezone.now()
-    
-    job.save()
+    now = timezone.now()
+
+    with transaction.atomic():
+        client_wallet, _ = Wallet.objects.get_or_create(
+            accountFK=client_user,
+            defaults={'balance': Decimal('0.00')}
+        )
+
+        if payment_method_upper == 'WALLET':
+            client_wallet = Wallet.objects.select_for_update().get(accountFK=client_user)
+            # Re-validate balance after acquiring the row lock to prevent races
+            if client_wallet.balance < remaining_amount:
+                raise ValueError(
+                    f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
+                    f'but only have ₱{client_wallet.balance:,.2f}. '
+                    'Please deposit more funds or choose CASH payment.'
+                )
+            client_wallet.balance -= remaining_amount
+            client_wallet.save(update_fields=['balance'])
+
+        Transaction.objects.create(
+            walletID=client_wallet,
+            amount=remaining_amount,
+            transactionType='PAYMENT',
+            status='COMPLETED',
+            description=f"Final payment for team job: {job.title}" + (" (cash proof uploaded)" if payment_method_upper == 'CASH' else ""),
+            balanceAfter=client_wallet.balance,
+            relatedJobPosting=job,
+            paymentMethod=payment_method_upper,
+        )
+
+        job.status = 'COMPLETED'
+        job.clientMarkedComplete = True
+        job.clientMarkedCompleteAt = now
+        # For team jobs, mark worker complete when client approves (all workers already marked assignments complete)
+        job.workerMarkedComplete = True
+        job.workerMarkedCompleteAt = now
+        job.finalPaymentMethod = payment_method_upper
+        job.paymentMethodSelectedAt = now
+        job.remainingPaymentPaid = True
+        job.remainingPaymentPaidAt = now
+
+        if payment_method_upper == 'CASH':
+            job.cashPaymentProofUrl = cash_proof_url
+            job.cashProofUploadedAt = now
+
+        job.save()
     
     # Close team conversation
     try:
@@ -1387,6 +1413,8 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     return {
         'success': True,
         'job_id': job_id,
+        'payment_method': payment_method_upper,
+        'amount_paid': float(remaining_amount),
         'workers_completed': job.total_workers_assigned,
         'message': 'Team job completed successfully'
     }
