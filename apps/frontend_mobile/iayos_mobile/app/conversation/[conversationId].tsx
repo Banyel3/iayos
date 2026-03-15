@@ -3263,6 +3263,34 @@ export default function ChatScreen() {
         })()
       : attendanceRows;
 
+  const pendingAgencyDispatchNames =
+    conversation.my_role === "CLIENT" &&
+    conversation.is_agency_job &&
+    (conversation.job?.payment_model === "DAILY" || isProjectMultiDayJob)
+      ? (conversation.assigned_employees || [])
+          .filter((employee: any) => {
+            const employeeId = Number(employee?.id);
+            if (!Number.isFinite(employeeId)) {
+              return false;
+            }
+
+            const hasAttendanceSignal = attendanceRows.some((row: any) => {
+              const rowWorkerId = Number(row?.worker_id);
+              return (
+                Number.isFinite(rowWorkerId) &&
+                rowWorkerId === employeeId &&
+                (Boolean(row?.is_dispatched) ||
+                  Boolean(row?.time_in) ||
+                  Boolean(row?.time_out) ||
+                  Boolean(row?.client_confirmed))
+              );
+            });
+
+            return !hasAttendanceSignal;
+          })
+          .map((employee: any) => employee?.name || "Worker")
+      : [];
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Custom Header */}
@@ -4453,8 +4481,10 @@ export default function ChatScreen() {
                   {/* Client View: Confirm attendance for each worker */}
                   {conversation.my_role === "CLIENT" && (
                     <>
-                      {conversation.job?.payment_model === "DAILY" &&
-                        clientAttendanceRows.length > 0 &&
+                      {(conversation.job?.payment_model === "DAILY" ||
+                        (conversation.is_agency_job && isProjectMultiDayJob)) &&
+                        (clientAttendanceRows.length > 0 ||
+                          pendingAgencyDispatchNames.length > 0) &&
                         clientAttendanceRows.every(
                           (attendance: any) => attendance.awaiting_worker,
                         ) && (
@@ -4465,7 +4495,9 @@ export default function ChatScreen() {
                               color={Colors.textSecondary}
                             />
                             <Text style={styles.waitingButtonText}>
-                              Awaiting workers to mark as on the way...
+                              {pendingAgencyDispatchNames.length > 0
+                                ? `Awaiting ${pendingAgencyDispatchNames.join(", ")} to be dispatched...`
+                                : "Awaiting workers to mark as on the way..."}
                             </Text>
                           </View>
                         )}
@@ -4585,7 +4617,7 @@ export default function ChatScreen() {
                                     color={Colors.warning}
                                   />
                                   <Text style={styles.pendingText}>
-                                    Awaiting worker...
+                                    Awaiting {attendance.worker_name?.split(" ")[0] || "worker"} dispatch...
                                   </Text>
                                 </View>
                               ) : attendance.client_confirmed ? (
