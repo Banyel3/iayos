@@ -3056,7 +3056,7 @@ def get_job_detail(job_id: str):
     """
     Get comprehensive job details including timeline data for admin panel
     """
-    from accounts.models import Job, JobPhoto, JobApplication, JobReview
+    from accounts.models import Job, JobPhoto, JobApplication, JobReview, JobWorkerAssignment
     from django.shortcuts import get_object_or_404
     
     try:
@@ -3111,17 +3111,6 @@ def get_job_detail(job_id: str):
                 'name': job.categoryID.specializationName
             }
         
-        # Timeline data - 7 milestones
-        timeline = {
-            'job_posted': job.createdAt.isoformat(),
-            'worker_assigned': job.assignedWorkerID and job.updatedAt.isoformat(),
-            'start_initiated': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
-            'worker_arrived': job.clientConfirmedWorkStartedAt.isoformat() if job.clientConfirmedWorkStartedAt else None,
-            'worker_completed': job.workerMarkedCompleteAt.isoformat() if job.workerMarkedCompleteAt else None,
-            'client_confirmed': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
-            'reviews_submitted': job.completedAt.isoformat() if job.completedAt else None
-        }
-        
         # Completion photos
         photos = [
             {
@@ -3131,6 +3120,79 @@ def get_job_detail(job_id: str):
             }
             for photo in job.photos.all()
         ]
+
+        # Timeline data - flow aware (single, daily, team) with backward-compatible keys
+        team_mode = bool(job.is_team_job or job.has_skill_slots)
+        assignments_qs = JobWorkerAssignment.objects.none()
+        if team_mode:
+            assignments_qs = JobWorkerAssignment.objects.filter(
+                jobID=job
+            ).exclude(
+                assignment_status__in=['REMOVED', 'WITHDRAWN']
+            ).select_related('workerID__profileID')
+
+        assigned_ts = None
+        worker_name = None
+        if team_mode:
+            first_assignment = assignments_qs.order_by('assignedAt').first()
+            assigned_ts = first_assignment.assignedAt if first_assignment else None
+            worker_name = f"{job.total_workers_assigned}/{job.total_workers_needed} workers assigned"
+        elif job.assignedWorkerID:
+            assigned_ts = job.updatedAt
+            worker_name = f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip()
+
+        start_initiated_ts = job.clientConfirmedWorkStartedAt
+        if not start_initiated_ts and job.actual_start_date:
+            # Daily jobs may only track actual_start_date.
+            start_initiated_ts = job.actual_start_date
+
+        first_arrival_ts = None
+        latest_worker_complete_ts = None
+        if team_mode:
+            arrivals = [
+                a.client_confirmed_arrival_at
+                for a in assignments_qs
+                if a.client_confirmed_arrival_at
+            ]
+            if arrivals:
+                first_arrival_ts = min(arrivals)
+
+            worker_completions = [
+                a.worker_marked_complete_at
+                for a in assignments_qs
+                if a.worker_marked_complete_at
+            ]
+            if worker_completions:
+                latest_worker_complete_ts = max(worker_completions)
+
+        worker_arrived_ts = first_arrival_ts or job.clientConfirmedWorkStartedAt
+        worker_marked_complete_ts = latest_worker_complete_ts or job.workerMarkedCompleteAt
+
+        active_reviews_qs = job.reviews.filter(status='ACTIVE')
+        client_review = active_reviews_qs.filter(reviewerType='CLIENT').order_by('-createdAt').first()
+        worker_review = active_reviews_qs.filter(reviewerType__in=['WORKER', 'AGENCY']).order_by('-createdAt').first()
+        reviews_complete = bool(client_review and worker_review)
+
+        timeline = {
+            'job_posted': job.createdAt.isoformat(),
+            'worker_assigned': assigned_ts.isoformat() if assigned_ts else None,
+            'worker_name': worker_name,
+            'start_initiated': start_initiated_ts.isoformat() if start_initiated_ts else None,
+            'worker_arrived': worker_arrived_ts.isoformat() if worker_arrived_ts else None,
+            'worker_marked_complete': worker_marked_complete_ts.isoformat() if worker_marked_complete_ts else None,
+            'completion_photos': [p['url'] for p in photos],
+            'completion_notes': job.completionNotes or None,
+            'client_confirmed': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
+            'client_reviewed': client_review.createdAt.isoformat() if client_review else None,
+            'worker_reviewed': worker_review.createdAt.isoformat() if worker_review else None,
+            'reviews_complete': reviews_complete,
+            # Legacy keys for older consumers
+            'worker_completed': worker_marked_complete_ts.isoformat() if worker_marked_complete_ts else None,
+            'reviews_submitted': (
+                (client_review.createdAt.isoformat() if client_review else None)
+                or (worker_review.createdAt.isoformat() if worker_review else None)
+            ),
+        }
         
         # Applications
         applications = []
@@ -3186,6 +3248,12 @@ def get_job_detail(job_id: str):
             'urgency': job.urgency,
             'status': job.status,
             'job_type': job.jobType,
+            'payment_model': job.payment_model,
+            'is_team_job': bool(job.is_team_job or job.has_skill_slots),
+            'total_workers_needed': job.total_workers_needed,
+            'total_workers_assigned': job.total_workers_assigned,
+            'duration_days': job.duration_days,
+            'total_days_worked': job.total_days_worked,
             'materials_needed': job.materialsNeeded,
             'expected_duration': job.expectedDuration,
             'preferred_start_date': job.preferredStartDate.isoformat() if job.preferredStartDate else None,
