@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Review List Scroll in View Reviews Modal**
+  - Removed the review section height cap in the conversation review modal so long team worker review lists are no longer clipped.
+  - Keeps modal scrolling handled by the existing outer `ScrollView`, allowing clients to scroll through all worker reviews.
+  - **Impact**: Clients can now view the complete team review list (not just the first review card) in `View Reviews`.
+
 - **Team DAILY Date-Range Duration Auto-Calc + Release-Now Stability**
   - Fixed team DAILY job creation to auto-calculate `duration_days` from selected start and end dates (inclusive), matching single-job DAILY behavior.
   - One-day team jobs now consistently set duration to `1` when one-day mode is enabled.

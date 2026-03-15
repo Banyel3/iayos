@@ -9282,7 +9282,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    maxHeight: 400, // Allow scrolling if content is tall
     marginBottom: Spacing.md,
   },
   reviewWaitingContainer: {
