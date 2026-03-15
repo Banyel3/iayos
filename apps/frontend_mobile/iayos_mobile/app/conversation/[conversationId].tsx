@@ -2708,8 +2708,15 @@ export default function ChatScreen() {
     conversation.job?.payment_model === "DAILY" &&
     conversation.job?.status === "IN_PROGRESS" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
+  const attendanceRows = Array.isArray(conversation.attendance_today)
+    ? conversation.attendance_today
+    : [];
   const isProjectMultiDayFlow =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const hasTeamProjectAttendanceSignals =
+    conversation.is_team_job &&
+    conversation.job?.payment_model === "PROJECT" &&
+    (isProjectMultiDayJob || attendanceRows.length > 0);
   const showProjectEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.status === "IN_PROGRESS" &&
@@ -2717,10 +2724,6 @@ export default function ChatScreen() {
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
-
-  const attendanceRows = Array.isArray(conversation.attendance_today)
-    ? conversation.attendance_today
-    : [];
 
   const clientAttendanceRows =
     conversation.my_role === "CLIENT" &&
@@ -4315,6 +4318,7 @@ export default function ChatScreen() {
               {conversation.is_team_job &&
                 conversation.job?.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
+                !hasTeamProjectAttendanceSignals &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "WORKER" &&
                 user &&
@@ -4326,6 +4330,19 @@ export default function ChatScreen() {
                     );
 
                   if (!myAssignment) return null;
+
+                  // Attendance-driven team project flow supersedes legacy assignment phases.
+                  // If the worker already has today's attendance record/activity,
+                  // avoid rendering legacy "waiting for client to confirm arrival" banner.
+                  if (
+                    myWorkerAttendanceToday &&
+                    (Boolean(myWorkerAttendanceToday.is_dispatched) ||
+                      Boolean(myWorkerAttendanceToday.time_in) ||
+                      Boolean(myWorkerAttendanceToday.time_out) ||
+                      Boolean(myWorkerAttendanceToday.client_confirmed))
+                  ) {
+                    return null;
+                  }
 
                   // Check if arrival was confirmed
                   if (!myAssignment.client_confirmed_arrival) {

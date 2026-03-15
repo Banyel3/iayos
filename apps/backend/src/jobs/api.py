@@ -10175,9 +10175,10 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         return Response({"error": "Job not found"}, status=404)
 
     is_daily = getattr(job, 'payment_model', None) == 'DAILY'
+    required_days = _get_required_project_days(job)
     is_project_multiday = (
         getattr(job, 'payment_model', None) == 'PROJECT'
-        and int(getattr(job, 'duration_days', 0) or 0) > 1
+        and required_days > 1
     )
     if not is_daily and not is_project_multiday:
         return Response({
@@ -10192,7 +10193,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
 
     stored_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
     old_offset = max(stored_offset, 0)
-    duration_days = int(getattr(job, 'duration_days', 0) or 0)
+    duration_days = required_days if is_project_multiday else int(getattr(job, 'duration_days', 0) or 0)
     max_offset = max(duration_days - 1, 0) if duration_days > 0 else None
 
     # Self-heal previously persisted out-of-range values from older QA builds.
