@@ -119,6 +119,40 @@ def _get_effective_work_date(job):
 
     return base_date + timedelta(days=day_offset)
 
+
+def _sync_project_multiday_total_days_worked(job) -> int:
+    """Synchronize PROJECT multi-day progress from confirmed attendance rows.
+
+    Returns the effective total_days_worked after sync.
+    """
+    try:
+        if getattr(job, "payment_model", None) != "PROJECT":
+            return int(getattr(job, "total_days_worked", 0) or 0)
+
+        if _derive_duration_days(job) <= 1:
+            return int(getattr(job, "total_days_worked", 0) or 0)
+
+        from .models import DailyAttendance
+
+        confirmed_days = (
+            DailyAttendance.objects.filter(jobID=job, client_confirmed=True)
+            .values_list("date", flat=True)
+            .distinct()
+            .count()
+        )
+
+        current_total = int(getattr(job, "total_days_worked", 0) or 0)
+        synced_total = max(current_total, int(confirmed_days or 0))
+
+        if synced_total != current_total:
+            job.total_days_worked = synced_total
+            job.save(update_fields=["total_days_worked", "updatedAt"])
+
+        return synced_total
+    except Exception as err:
+        print(f"⚠️ [MOBILE] Failed to sync PROJECT total_days_worked: {err}")
+        return int(getattr(job, "total_days_worked", 0) or 0)
+
 #region MOBILE AUTH ENDPOINTS
 
 @mobile_router.post("/auth/register")
@@ -7903,6 +7937,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
                 'payment_processed_at',
                 'updatedAt',
             ])
+
+            # Keep PROJECT multi-day progress aligned with confirmed attendance days.
+            synced_days_worked = _sync_project_multiday_total_days_worked(job)
         else:
             # DAILY jobs keep existing behavior with per-day payment processing.
             result = DailyPaymentService.confirm_attendance_client(
@@ -7913,6 +7950,8 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
 
             if not result.get('success'):
                 return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+
+            synced_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
         
         # Enhance response with worker info
         worker_name = None
@@ -7933,6 +7972,7 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
+            "total_days_worked": synced_days_worked,
             "message": (
                 "Attendance confirmed. Day recorded for final project payout."
                 if is_project_multiday
@@ -8070,6 +8110,9 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 'updatedAt',
             ])
 
+            # Keep PROJECT multi-day progress aligned with confirmed attendance days.
+            synced_days_worked = _sync_project_multiday_total_days_worked(job)
+
             result = {
                 'success': True,
                 'message': 'Marked absent. Penalty applied for final payout adjustments.',
@@ -8084,6 +8127,8 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             if not result.get('success'):
                 return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
 
+            synced_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
+
         if target_worker:
             worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
         else:
@@ -8097,6 +8142,7 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
+            "total_days_worked": synced_days_worked,
             "absent_penalty_amount": float(attendance.absent_penalty_amount or 0),
             "message": result.get('message', "Marked as absent. No payment recorded for today."),
         }
