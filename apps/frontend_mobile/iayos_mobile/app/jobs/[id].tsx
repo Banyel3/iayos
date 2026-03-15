@@ -1533,26 +1533,6 @@ export default function JobDetailScreen() {
               />
             </TouchableOpacity>
           )}
-          {/* Cancel button - for job owner on non-terminal project jobs */}
-          {user?.accountID === job.postedBy?.id &&
-            job.status !== "COMPLETED" &&
-            job.status !== "CANCELLED" && (
-            <TouchableOpacity
-              onPress={handleCancelJob}
-              style={styles.deleteButton}
-              disabled={cancelJobMutation.isPending}
-            >
-              {cancelJobMutation.isPending ? (
-                <ActivityIndicator size="small" color={Colors.error} />
-              ) : (
-                <Ionicons
-                  name="close-circle-outline"
-                  size={24}
-                  color={Colors.error}
-                />
-              )}
-            </TouchableOpacity>
-          )}
           {isWorker && (
             <SaveButton
               jobId={parseInt(id)}
@@ -3378,6 +3358,35 @@ export default function JobDetailScreen() {
           </View>
         )}
 
+      {/* Cancel Button (Fixed at bottom) - Only for job owner on non-terminal jobs */}
+      {user?.accountID === job.postedBy?.id &&
+        job.status !== "COMPLETED" &&
+        job.status !== "CANCELLED" && (
+          <View style={styles.bottomActionContainer} pointerEvents="box-none">
+            <TouchableOpacity
+              onPress={handleCancelJob}
+              style={styles.bottomCancelButton}
+              disabled={cancelJobMutation.isPending}
+              activeOpacity={0.85}
+            >
+              {cancelJobMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.error} />
+              ) : (
+                <>
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={Colors.error}
+                  />
+                  <Text style={styles.bottomCancelButtonText}>
+                    {job.is_team_job ? "Cancel Team Job" : "Cancel Job"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
       {/* Image Modal */}
       <Modal visible={showImageModal} transparent animationType="fade">
         <View style={styles.imageModalContainer}>
@@ -4142,6 +4151,34 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     ...Shadows.medium,
+  },
+  bottomActionContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    ...Shadows.medium,
+  },
+  bottomCancelButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.error,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: Spacing.sm,
+    ...Shadows.small,
+  },
+  bottomCancelButtonText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: "700",
+    color: Colors.error,
   },
   kycWarningBanner: {
     flexDirection: "row",

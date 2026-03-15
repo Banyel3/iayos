@@ -1,6 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
+import { API_BASE } from "@/lib/api/config";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { MessageCircle, RefreshCw } from "lucide-react";
+import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import {
   Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
@@ -52,6 +57,29 @@ interface JobCardProps {
 
 export function JobCard({ job, onAccept, accepting }: JobCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
+  const router = useRouter();
+  const handleViewChat = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setOpeningChat(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/profiles/chat/conversation-by-job/${job.jobID}?reopen=true`,
+        { credentials: "include" },
+      );
+      const data = await res.json();
+      if (res.ok && data?.success && data?.conversation_id) {
+        router.push(`/agency/messages/${data.conversation_id}`);
+        return;
+      }
+      toast.error(getErrorMessage(data, "Failed to open chat conversation"));
+    } catch (err) {
+      console.error("Error opening conversation by job:", err);
+      toast.error("Failed to open chat conversation");
+    } finally {
+      setOpeningChat(false);
+    }
+  };
 
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
@@ -185,8 +213,8 @@ export function JobCard({ job, onAccept, accepting }: JobCardProps) {
           </Badge>
         </div>
 
-        {/* Action Button */}
-        <div className="pt-4 border-t">
+        {/* Action Buttons */}
+        <div className="pt-4 border-t flex flex-col gap-2">
           <Button
             onClick={() => onAccept(job.jobID)}
             disabled={accepting}
@@ -195,6 +223,20 @@ export function JobCard({ job, onAccept, accepting }: JobCardProps) {
           >
             <CheckCircle2 className="h-5 w-5 mr-2" />
             {accepting ? "Starting Job..." : "Start Working on This Job"}
+          </Button>
+          <Button
+            onClick={handleViewChat}
+            disabled={openingChat}
+            className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+            size="lg"
+            variant="outline"
+          >
+            {openingChat ? (
+              <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+            ) : (
+              <MessageCircle className="h-5 w-5 mr-2" />
+            )}
+            View Chat
           </Button>
           <p className="text-xs text-gray-500 text-center mt-2">
             You've been hired for this job

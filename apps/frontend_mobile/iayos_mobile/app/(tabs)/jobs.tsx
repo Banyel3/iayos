@@ -1239,22 +1239,24 @@ export default function JobsScreen() {
                     </View>
                   </View>
 
-                  {/* Job Title */}
+                  {/* Job Title and Details */}
                   <Text style={styles.jobTitle} numberOfLines={2}>
                     {app.job_title}
                   </Text>
+                  <Text style={styles.jobCategory}>Applied Job</Text>
+                  <Text style={styles.jobDescription} numberOfLines={2}>
+                    {app.job_description}
+                  </Text>
 
                   {/* Client Info */}
-                  <View style={styles.clientInfo}>
+                  <View style={styles.userInfoContainer}>
                     {app.client_img ? (
                       <Image
                         source={{ uri: app.client_img }}
-                        style={styles.clientAvatar}
+                        style={styles.userAvatar}
                       />
                     ) : (
-                      <View
-                        style={[styles.clientAvatar, styles.avatarPlaceholder]}
-                      >
+                      <View style={[styles.userAvatar, styles.avatarPlaceholder]}>
                         <Ionicons
                           name="person"
                           size={16}
@@ -1262,30 +1264,17 @@ export default function JobsScreen() {
                         />
                       </View>
                     )}
-                    <Text style={styles.clientName} numberOfLines={1}>
-                      {app.client_name}
-                    </Text>
+                    <View style={styles.userTextContainer}>
+                      <Text style={styles.userLabel}>Client</Text>
+                      <Text style={styles.userName} numberOfLines={1}>
+                        {app.client_name}
+                      </Text>
+                    </View>
                   </View>
 
-                  {/* Budget Info */}
-                  <View style={styles.budgetRow}>
-                    <Text style={styles.budgetLabel}>
-                      {app.budget_option === "NEGOTIATE"
-                        ? "Your Offer:"
-                        : "Client Budget:"}
-                    </Text>
-                    <Text style={styles.budgetText}>
-                      ₱
-                      {(app.budget_option === "NEGOTIATE" && app.proposed_budget
-                        ? app.proposed_budget
-                        : app.job_budget
-                      ).toLocaleString()}
-                    </Text>
-                  </View>
-
-                  {/* Location and Date */}
-                  <View style={styles.locationRow}>
-                    <View style={styles.locationInfo}>
+                  {/* Location and Budget */}
+                  <View style={styles.jobFooter}>
+                    <View style={styles.locationContainer}>
                       <Ionicons
                         name="location-outline"
                         size={16}
@@ -1295,8 +1284,12 @@ export default function JobsScreen() {
                         {app.job_location}
                       </Text>
                     </View>
-                    <Text style={styles.dateText}>
-                      {new Date(app.created_at).toLocaleDateString()}
+                    <Text style={styles.budgetText}>
+                      ₱
+                      {(app.budget_option === "NEGOTIATE" && app.proposed_budget
+                        ? app.proposed_budget
+                        : app.job_budget
+                      ).toLocaleString()}
                     </Text>
                   </View>
                 </TouchableOpacity>

@@ -4,12 +4,17 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import websocketService, {
   WebSocketMessage,
   ChatMessage,
   ConnectionState,
 } from "../services/websocket";
 import { API_BASE_URL } from "@/lib/api/config";
+import {
+  containsContactInfo,
+  CONTACT_INFO_BLOCKED_MESSAGE,
+} from "@/lib/utils/contact-filter";
 
 /**
  * Hook to manage WebSocket connection state
@@ -81,6 +86,11 @@ export function useSendMessage() {
       text: string,
       type: "TEXT" | "IMAGE" = "TEXT",
     ): Promise<boolean> => {
+      if (type === "TEXT" && containsContactInfo(text)) {
+        toast.error(CONTACT_INFO_BLOCKED_MESSAGE);
+        return false;
+      }
+
       // Try WebSocket first
       const sent = websocketService.sendMessage(conversationId, text, type);
 
@@ -118,6 +128,16 @@ export function useSendMessage() {
             queryKey: ["messages", conversationId],
           });
           return true;
+        }
+
+        try {
+          const errorData = await response.json();
+          if (errorData?.error_code === "CONTACT_INFO_BLOCKED") {
+            toast.error(errorData.error || CONTACT_INFO_BLOCKED_MESSAGE);
+            return false;
+          }
+        } catch {
+          // Ignore non-JSON error bodies and fall through to generic handling.
         }
 
         console.error(
@@ -174,6 +194,13 @@ export function useMessageListener(conversationId?: number) {
             queryKey: ["agency-messages", conversationId],
           });
         }
+      }
+
+      if (
+        data.type === "error" &&
+        (data as any).error_code === "CONTACT_INFO_BLOCKED"
+      ) {
+        toast.error((data as any).error || CONTACT_INFO_BLOCKED_MESSAGE);
       }
     });
 

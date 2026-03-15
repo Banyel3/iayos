@@ -311,6 +311,10 @@ export default function CreateJobScreen() {
   const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">(
     "PROJECT",
   );
+  const isAgencyHire = !!agencyId;
+  const effectivePaymentModel: "PROJECT" | "DAILY" = isAgencyHire
+    ? "PROJECT"
+    : paymentModel;
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
@@ -356,7 +360,7 @@ export default function CreateJobScreen() {
   // PROJECT: 50% of budget + 10% platform fee
   // DAILY: 100% of (daily_rate * duration_days) + 10% platform fee
   const requiredDownpayment = React.useMemo(() => {
-    if (paymentModel === "PROJECT") {
+    if (effectivePaymentModel === "PROJECT") {
       return budget ? parseFloat(budget) * 0.5 * 1.05 : 0;
     } else {
       // DAILY payment model
@@ -368,7 +372,14 @@ export default function CreateJobScreen() {
       }
       return 0;
     }
-  }, [paymentModel, budget, dailyRate, durationDays]);
+  }, [effectivePaymentModel, budget, dailyRate, durationDays]);
+
+  // Agency hires only support PROJECT payment model.
+  useEffect(() => {
+    if (isAgencyHire && paymentModel !== "PROJECT") {
+      setPaymentModel("PROJECT");
+    }
+  }, [isAgencyHire, paymentModel]);
 
   const hasInsufficientBalance = walletBalance < requiredDownpayment;
   const shortfallAmount = requiredDownpayment - walletBalance;
@@ -1081,7 +1092,7 @@ export default function CreateJobScreen() {
     }
 
     // Validate payment model specific fields
-    if (paymentModel === "PROJECT") {
+    if (effectivePaymentModel === "PROJECT") {
       if (!budget || parseFloat(budget) <= 0) {
         Alert.alert("Error", "Please enter a valid budget");
         return;
@@ -1163,7 +1174,7 @@ export default function CreateJobScreen() {
     // Check wallet balance
     if (hasInsufficientBalance) {
       const paymentDesc =
-        paymentModel === "PROJECT"
+        effectivePaymentModel === "PROJECT"
           ? "50% downpayment"
           : "100% escrow (daily rate × days)";
       Alert.alert(
@@ -1203,7 +1214,7 @@ export default function CreateJobScreen() {
       job_scope: jobScope ?? null,
       work_environment: workEnvironment ?? null,
       // Payment model specific fields
-      payment_model: paymentModel,
+      payment_model: effectivePaymentModel,
     };
 
     // Materials needed - map selected IDs to names + add manual materials
@@ -1224,7 +1235,7 @@ export default function CreateJobScreen() {
 
     // Add payment model specific fields
     // Add payment model specific fields
-    if (paymentModel === "PROJECT") {
+    if (effectivePaymentModel === "PROJECT") {
       jobData.budget = parseFloat(budget);
     } else {
       const rate = parseFloat(dailyRate);
@@ -2451,29 +2462,33 @@ export default function CreateJobScreen() {
                       Fixed Budget
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.optionButton,
-                      paymentModel === "DAILY" && styles.optionButtonActive,
-                      isOneDayJob && styles.optionButtonDisabled,
-                    ]}
-                    onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
-                    disabled={isOneDayJob}
-                  >
-                    <Text
+                  {!isAgencyHire && (
+                    <TouchableOpacity
                       style={[
-                        styles.optionButtonText,
-                        paymentModel === "DAILY" &&
-                          styles.optionButtonTextActive,
-                        isOneDayJob && styles.optionButtonTextDisabled,
+                        styles.optionButton,
+                        paymentModel === "DAILY" && styles.optionButtonActive,
+                        isOneDayJob && styles.optionButtonDisabled,
                       ]}
+                      onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
+                      disabled={isOneDayJob}
                     >
-                      Daily Rate
-                    </Text>
-                  </TouchableOpacity>
+                      <Text
+                        style={[
+                          styles.optionButtonText,
+                          paymentModel === "DAILY" &&
+                            styles.optionButtonTextActive,
+                          isOneDayJob && styles.optionButtonTextDisabled,
+                        ]}
+                      >
+                        Daily Rate
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <Text style={styles.hint}>
-                  {isOneDayJob
+                  {isAgencyHire
+                    ? "Agency hires use fixed budget only (50% downpayment, 50% on completion)"
+                    : isOneDayJob
                     ? "Daily rate is unavailable for one-day jobs (Fixed Budget only)"
                     : paymentModel === "PROJECT"
                       ? "Pay for the entire project (50% downpayment, 50% on completion)"

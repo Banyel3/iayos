@@ -136,10 +136,15 @@ export default function AgencyMessagesPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "ACTIVE":
-      case "IN_PROGRESS":
         return (
           <Badge variant="default" className="bg-green-500">
-            {status === "ACTIVE" ? "Active" : "In Progress"}
+            Active
+          </Badge>
+        );
+      case "IN_PROGRESS":
+        return (
+          <Badge className="bg-blue-50 text-[#00BAF1] border border-[#00BAF1] hover:bg-blue-100">
+            In Progress
           </Badge>
         );
       case "COMPLETED":

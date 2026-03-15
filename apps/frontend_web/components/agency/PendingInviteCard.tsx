@@ -7,14 +7,22 @@ import {
   MapPin,
   Users,
   Clock,
-  AlertTriangle,
   Package,
   CheckCircle,
   XCircle,
   Loader2,
-  Wrench,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Client {
   id: number;
@@ -49,7 +57,14 @@ interface PendingInviteJob {
   status: string;
   jobType: string;
   expectedDuration: string | null;
+  expected_duration?: string | null;
+  duration_days?: number | null;
   preferredStartDate: string | null;
+  preferred_start_date?: string | null;
+  scheduledEndDate?: string | null;
+  scheduled_end_date?: string | null;
+  endDate?: string | null;
+  end_date?: string | null;
   materialsNeeded?: string[];
   client: Client;
   createdAt: string;
@@ -92,15 +107,41 @@ export default function PendingInviteCard({
   accepting = false,
 }: PendingInviteCardProps) {
   const [loading, setLoading] = useState(false);
+  const [showAcceptConfirm, setShowAcceptConfirm] = useState(false);
 
-  const urgencyColors = {
-    LOW: "bg-green-100 text-green-800",
-    MEDIUM: "bg-yellow-100 text-yellow-800",
-    HIGH: "bg-red-100 text-red-800",
+  const expectedDurationLabel =
+    job.expectedDuration ??
+    job.expected_duration ??
+    (typeof job.duration_days === "number"
+      ? `${job.duration_days} day${job.duration_days === 1 ? "" : "s"}`
+      : null);
+
+  const startDateRaw = job.preferredStartDate ?? job.preferred_start_date;
+  const endDateRaw =
+    job.scheduledEndDate ??
+    job.scheduled_end_date ??
+    job.endDate ??
+    job.end_date;
+
+  const formatShortDate = (dateValue: string | null | undefined) => {
+    if (!dateValue) return "Not specified";
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) return "Not specified";
+    return parsed.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
   };
 
-  const downpayment = job.budget * 0.5;
-  const remaining = job.budget * 0.5;
+  const simplifiedSkillSlots =
+    job.is_team_job && job.skill_slots && job.skill_slots.length > 0
+      ? job.skill_slots
+          .map((slot) => {
+            const count = slot.workers_needed ?? 0;
+            return `${slot.specialization_name} (${count})`;
+          })
+          .join(", ")
+      : "";
 
   const handleAccept = async () => {
     setLoading(true);
@@ -108,11 +149,13 @@ export default function PendingInviteCard({
       await onAccept(job.jobID);
     } finally {
       setLoading(false);
+      setShowAcceptConfirm(false);
     }
   };
 
   return (
-    <Card className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group border-t-4 border-t-[#00BAF1]">
+    <>
+    <Card className="border border-[#00BAF1]/25 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group bg-white">
       <CardContent className="relative p-4 sm:p-6 opacity-100">
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 md:gap-6">
           {/* Left Column: Details */}
@@ -120,10 +163,10 @@ export default function PendingInviteCard({
             {/* Title and Badges */}
             <div className="space-y-3">
               <div className="flex items-start gap-3 flex-wrap">
-                <h3 className="text-xl font-bold text-gray-900 group-hover:text-[#00BAF1] transition-colors">
+                <h3 className="text-xl font-bold text-slate-900 group-hover:text-[#0098c7] transition-colors">
                   {job.title}
                 </h3>
-                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#00BAF1]/10 text-[#00BAF1] border border-[#00BAF1]/20">
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#00BAF1]/15 text-[#008fb8] border border-[#00BAF1]/30">
                   DIRECT INVITE
                 </span>
                 {job.urgency && (
@@ -136,180 +179,112 @@ export default function PendingInviteCard({
                     {job.urgency}
                   </span>
                 )}
-                {job.is_team_job && (
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-300 flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    TEAM JOB ({job.total_workers_needed})
-                  </span>
-                )}
               </div>
-              <p className="text-gray-600 leading-relaxed text-sm">
+              <p className="text-slate-600 leading-relaxed text-sm">
                 {job.description}
               </p>
             </div>
 
-            {/* Info Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+            {/* Info Cards */}
+            <div className="grid grid-cols-2 gap-4 md:flex md:flex-wrap">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
                 <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                   <Banknote className="h-4 w-4 text-[#00BAF1]" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Budget</p>
-                  <div className="font-bold text-gray-900">
+                  <p className="text-xs text-slate-500 font-medium">Total Budget</p>
+                  <div className="font-bold text-slate-900">
                     ₱{job.budget?.toLocaleString()}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:min-w-0 md:w-fit md:max-w-[26rem]">
                 <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                   <MapPin className="h-4 w-4 text-[#00BAF1]" />
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Location</p>
-                  <p className="font-semibold text-gray-900 truncate">
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-500 font-medium">Location</p>
+                  <p className="font-semibold text-slate-900 md:whitespace-nowrap truncate">
                     {job.location}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
-                  <Clock className="h-4 w-4 text-[#00BAF1]" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Ex. Duration</p>
-                  <p className="font-bold text-gray-900 truncate">
-                    {job.expectedDuration || "Not specified"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+              <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
                 <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
                   <Calendar className="h-4 w-4 text-[#00BAF1]" />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 font-medium">Start Date</p>
-                  <p className="font-semibold text-gray-900">
-                    {job.preferredStartDate
-                      ? new Date(job.preferredStartDate).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                      : "Not specified"}
+                  <p className="text-xs text-slate-500 font-medium">Start Date</p>
+                  <p className="font-semibold text-slate-900">
+                    {formatShortDate(startDateRaw)}
                   </p>
                 </div>
               </div>
+
+              {expectedDurationLabel && (
+                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
+                  <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                    <Clock className="h-4 w-4 text-[#00BAF1]" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 font-medium">Ex. Duration</p>
+                    <p className="font-semibold text-slate-900 truncate">
+                      {expectedDurationLabel}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {endDateRaw && (
+                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
+                  <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                    <Calendar className="h-4 w-4 text-[#00BAF1]" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 font-medium">End Date</p>
+                    <p className="font-semibold text-slate-900">
+                      {formatShortDate(endDateRaw)}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Additional info block Container */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Box 1: Payment Details */}
-              <div className="bg-green-50 rounded-lg p-4 border border-green-100 h-full">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center">
-                    <div className="p-1 bg-green-100 rounded mr-2">
-                      <Banknote className="h-4 w-4 text-green-600" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900 text-sm">Payment Breakdown</h4>
-                  </div>
-                  <span className="text-sm font-bold text-green-700">₱{job.budget?.toLocaleString()}</span>
-                </div>
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between border-b border-green-200/50 pb-1.5">
-                    <span className="text-gray-600 hover:text-gray-900 transition-colors">50% Escrow Downpayment:</span>
-                    <span className="font-semibold text-green-700">₱{downpayment.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between pt-0.5">
-                    <span className="text-gray-600 hover:text-gray-900 transition-colors">Remaining Return:</span>
-                    <span className="font-semibold text-gray-800">₱{remaining.toLocaleString()}</span>
-                  </div>
-                </div>
-                <p className="text-[10px] text-gray-500 mt-2.5 italic flex items-center gap-1 opacity-80">
-                  <CheckCircle className="h-3 w-3 text-green-600" />
-                  Escrow guarantees downpayment.
+            {job.is_team_job && simplifiedSkillSlots && (
+              <div className="p-3 bg-transparent rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-slate-900 mb-1 text-sm">
+                  Required Workers
+                </h4>
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  {simplifiedSkillSlots}
                 </p>
               </div>
-
-              {/* Box 2: Warning Box */}
-              <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200 flex flex-col items-start gap-2 h-full">
-                <div className="flex items-center gap-2">
-                  <div className="p-1 bg-yellow-100 rounded">
-                    <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0" />
-                  </div>
-                  <span className="font-bold text-yellow-800 text-sm">Important Commitment</span>
-                </div>
-                <div className="text-xs text-yellow-800/90 leading-relaxed ml-1">
-                  By accepting this invitation, you commit to completing the job as described.
-                  If you reject, the client will be refunded immediately without penalties.
-                </div>
-              </div>
-            </div>
+            )}
 
             {job.materialsNeeded && job.materialsNeeded.length > 0 && (
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                 <div className="flex items-center mb-3">
-                  <div className="p-1 bg-gray-200 rounded mr-2">
-                    <Package className="h-4 w-4 text-gray-600" />
+                  <div className="p-1 bg-[#00BAF1]/15 rounded mr-2">
+                    <Package className="h-4 w-4 text-[#008fb8]" />
                   </div>
-                  <h4 className="font-semibold text-gray-900 text-sm">Materials Needed</h4>
+                  <h4 className="font-semibold text-slate-900 text-sm">Materials Needed</h4>
                 </div>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {job.materialsNeeded.map((material, index) => (
-                    <li key={index} className="flex items-start gap-2 text-xs text-gray-700">
-                      <span className="text-[#00BAF1] font-bold">•</span> {material}
+                    <li key={index} className="flex items-start gap-2 text-xs text-slate-700">
+                      <span className="text-[#008fb8] font-bold">•</span> {material}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* Skill Slots for Team Jobs */}
-            {job.is_team_job && job.skill_slots && job.skill_slots.length > 0 && (
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <h4 className="font-semibold text-gray-900 mb-3 flex items-center text-sm">
-                  <Users className="h-4 w-4 text-purple-600 mr-2" />
-                  Required Workers ({job.total_workers_needed} total)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {job.skill_slots.map((slot) => (
-                    <div
-                      key={slot.skill_slot_id ?? `${slot.specialization_name}-${slot.workers_needed ?? 0}`}
-                      className="flex items-center justify-between gap-2 p-2 bg-white rounded border border-purple-100 shadow-sm hover:border-purple-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <Wrench className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                        <span className="font-medium text-gray-800 truncate text-xs">
-                          {slot.specialization_name}
-                        </span>
-                        <span className="text-[10px] text-gray-500 px-1 py-0.5 bg-gray-100 rounded shrink-0 hidden sm:inline font-medium uppercase truncate max-w-[60px]">
-                          {slot.skill_level_required || "ANY"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-gray-600 whitespace-nowrap bg-gray-50 px-1.5 rounded">
-                          {(slot.workers_needed ?? 0)} req
-                        </span>
-                        <span className="text-[11px] font-bold text-purple-600 whitespace-nowrap bg-purple-100 px-1.5 py-0.5 rounded-full">
-                          ₱{(slot.budget_allocated ?? 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-2 text-[10px] text-purple-700 flex items-center gap-1 opacity-80 font-medium">
-                  <CheckCircle className="w-3 h-3" />
-                  Assign employees to skill slots after accepting.
-                </p>
-              </div>
-            )}
-
             {/* Suggested Workers */}
             {availableWorkers.length > 0 && (
               <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100">
-                <h4 className="font-semibold text-gray-900 mb-3 flex items-center text-sm">
+                <h4 className="font-semibold text-slate-900 mb-3 flex items-center text-sm">
                   <Users className="h-4 w-4 text-[#00BAF1] mr-2" />
                   Available Workers Match ({availableWorkers.length})
                 </h4>
@@ -321,7 +296,7 @@ export default function PendingInviteCard({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 text-xs truncate">
+                          <p className="font-semibold text-slate-900 text-xs truncate">
                             {worker.name}
                           </p>
                           {worker.isVerified && (
@@ -330,14 +305,14 @@ export default function PendingInviteCard({
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-gray-500 truncate mt-0.5">
+                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
                           {worker.specialization || "General Services"}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="flex items-center justify-end gap-1">
                           <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded font-medium">⭐ {worker.rating?.toFixed?.(1) ?? "0.0"}</span>
-                          <span className="text-[10px] text-gray-500">{worker.completedJobs} jobs</span>
+                          <span className="text-[10px] text-slate-500">{worker.completedJobs} jobs</span>
                         </div>
                         <p className="text-[10px] font-bold text-[#00BAF1] mt-0.5">
                           {worker.hourlyRate}
@@ -346,7 +321,7 @@ export default function PendingInviteCard({
                     </div>
                   ))}
                   {availableWorkers.length > 4 && (
-                    <div className="flex items-center justify-center p-2 bg-gray-50/50 rounded border border-dashed border-gray-200 text-xs text-gray-500 font-medium">
+                    <div className="flex items-center justify-center p-2 bg-slate-50/50 rounded border border-dashed border-slate-200 text-xs text-slate-500 font-medium">
                       + {availableWorkers.length - 4} more
                     </div>
                   )}
@@ -355,24 +330,24 @@ export default function PendingInviteCard({
             )}
 
             {/* Client Info footer */}
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-4">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-4">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">Client:</span>
-                  <span className="text-sm font-semibold text-gray-700 flex items-center gap-1 hover:text-[#00BAF1] cursor-pointer transition-colors">
+                  <span className="text-sm text-slate-500">Client:</span>
+                  <span className="text-sm font-semibold text-slate-700 flex items-center gap-1 hover:text-[#0098c7] cursor-pointer transition-colors">
                     {job.client.name}
                   </span>
                 </div>
                 {job.category && (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">Category:</span>
+                    <span className="text-sm text-slate-500">Category:</span>
                     <span className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium border border-gray-200">
                       {job.category.name}
                     </span>
                   </div>
                 )}
               </div>
-              <div className="text-xs text-gray-400 flex items-center gap-1">
+              <div className="text-xs text-slate-400 flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 Invited on {new Date(job.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               </div>
@@ -383,9 +358,9 @@ export default function PendingInviteCard({
           {/* Right Column: Actions */}
           <div className="flex flex-row md:flex-col gap-3 min-w-[200px]">
             <button
-              onClick={handleAccept}
+              onClick={() => setShowAcceptConfirm(true)}
               disabled={loading || accepting}
-              className="flex-1 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#00BAF1] hover:bg-sky-500 text-white rounded-lg transition-all text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 active:scale-95"
+              className="flex-1 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#00BAF1] hover:bg-[#00a8d8] text-white rounded-lg transition-all text-sm font-bold shadow-sm disabled:opacity-50"
             >
               {loading || accepting ? (
                 <Loader2 className="h-4 w-4 animate-spin shrink-0" />
@@ -397,16 +372,16 @@ export default function PendingInviteCard({
             <button
               onClick={() => onReject(job)}
               disabled={loading || accepting}
-              className="flex-1 w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 rounded-lg transition-all text-sm font-bold shadow-sm disabled:opacity-50 active:scale-95 hover:shadow hover:-translate-y-0.5 disabled:hover:translate-y-0"
+              className="flex-1 w-full flex items-center justify-center gap-2 px-4 py-3 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 rounded-lg transition-all text-sm font-bold shadow-sm disabled:opacity-50"
             >
               <XCircle className="h-4 w-4 shrink-0" />
               Reject
             </button>
 
-            <div className="hidden md:flex flex-col items-center justify-center text-center p-3 bg-gray-50 rounded border border-dashed border-gray-200 mt-2">
-              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Time Remaining</span>
-              <span className="text-xs font-bold text-gray-600 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-[#00BAF1]" />
+            <div className="hidden md:flex flex-col items-center justify-center text-center p-3 bg-slate-50 rounded border border-dashed border-slate-200 mt-2">
+              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">Time Remaining</span>
+              <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-[#008fb8]" />
                 48 hours
               </span>
             </div>
@@ -414,5 +389,29 @@ export default function PendingInviteCard({
         </div>
       </CardContent>
     </Card>
+    <AlertDialog open={showAcceptConfirm} onOpenChange={setShowAcceptConfirm}>
+      <AlertDialogContent className="border border-[#00BAF1]/35">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-slate-900">Confirm Job Acceptance</AlertDialogTitle>
+          <AlertDialogDescription className="text-slate-600 leading-relaxed">
+            By accepting this invitation, you commit to completing the job as described.
+            If you reject, the client will be refunded immediately without penalties.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="border-[#00BAF1]/35 text-[#008fb8] hover:bg-[#00BAF1]/10">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleAccept}
+            className="bg-[#00BAF1] hover:bg-[#00a8d8] focus:ring-[#008fb8]"
+            disabled={loading || accepting}
+          >
+            {loading || accepting ? "Accepting..." : "Accept Job"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

@@ -20,7 +20,7 @@ from django.conf import settings
 from datetime import timedelta
 import re
 from zoneinfo import ZoneInfo
-from .content_filter import censor_contact_info
+from .content_filter import contains_contact_info
 
 
 router = Router()
@@ -28,6 +28,7 @@ router = Router()
 __all__ = ["router"]
 
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
+CONTACT_INFO_BLOCKED_MESSAGE = "For safety, sharing phone numbers or email addresses in chat is not allowed."
 
 
 def _get_user_profile(request) -> Profile:
@@ -2772,15 +2773,23 @@ def send_message(request, data: SendMessageSchema):
                 status=403,
             )
         
-        sanitized_text = censor_contact_info(data.message_text)
+        normalized_message_type = (data.message_type or "TEXT").upper()
+        if normalized_message_type == "TEXT" and contains_contact_info(data.message_text):
+            return Response(
+                {
+                    "error": CONTACT_INFO_BLOCKED_MESSAGE,
+                    "error_code": "CONTACT_INFO_BLOCKED",
+                },
+                status=400,
+            )
 
         # Create the message (sender=None for agency, senderAgency=None for profile)
         message = Message.objects.create(
             conversationID=conversation,
             sender=sender_profile,
             senderAgency=sender_agency,
-            messageText=sanitized_text,
-            messageType=data.message_type or "TEXT"
+            messageText=data.message_text,
+            messageType=normalized_message_type,
         )
         
         # Determine sender name

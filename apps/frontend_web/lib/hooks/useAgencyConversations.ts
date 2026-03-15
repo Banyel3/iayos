@@ -5,6 +5,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
+import { toast } from "sonner";
+import {
+  containsContactInfo,
+  CONTACT_INFO_BLOCKED_MESSAGE,
+} from "@/lib/utils/contact-filter";
 
 // Types
 export type AgencyConversationJob = {
@@ -121,6 +126,19 @@ export type AgencyMessage = {
   sent_by_agency: boolean;
 };
 
+export type AgencyReview = {
+  review_id: number;
+  reviewer_type: string;
+  reviewer_name?: string;
+  rating: number | null;
+  rating_quality: number | null;
+  rating_communication: number | null;
+  rating_punctuality: number | null;
+  rating_professionalism: number | null;
+  comment: string;
+  created_at: string | null;
+};
+
 export type AgencyConversationDetail = {
   conversation_id: number;
   job: AgencyConversationJob;
@@ -145,6 +163,12 @@ export type AgencyConversationDetail = {
   my_role?: string; // Role in the conversation (CLIENT/WORKER/AGENCY)
   can_send_message?: boolean;
   can_send_reason?: string | null;
+  agency_review?: AgencyReview | null;
+  worker_review?: AgencyReview | null;
+  my_review?: AgencyReview | null;
+  client_review?: AgencyReview | null;
+  counterparty_reviews?: AgencyReview[];
+  reviews?: AgencyReview[];
 };
 
 /**
@@ -248,6 +272,11 @@ export function useAgencySendMessage() {
       text: string;
       type?: "TEXT" | "IMAGE";
     }) => {
+      if (type === "TEXT" && containsContactInfo(text)) {
+        toast.error(CONTACT_INFO_BLOCKED_MESSAGE);
+        throw new Error("CONTACT_INFO_BLOCKED");
+      }
+
       const response = await fetch(
         `${API_BASE}/api/agency/conversations/${conversationId}/send`,
         {
@@ -262,6 +291,16 @@ export function useAgencySendMessage() {
       );
 
       if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          if (errorData?.error_code === "CONTACT_INFO_BLOCKED") {
+            toast.error(errorData.error || CONTACT_INFO_BLOCKED_MESSAGE);
+            throw new Error("CONTACT_INFO_BLOCKED");
+          }
+        } catch {
+          // Ignore non-JSON error responses and fall through.
+        }
+
         throw new Error(`Failed to send message: ${response.statusText}`);
       }
 

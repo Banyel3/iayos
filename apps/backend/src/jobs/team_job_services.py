@@ -1814,7 +1814,6 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         'worker_payment_release_date_formatted': first_pending_result['release_date_str'] if first_pending_result else None,
         'workers_completed': job.total_workers_assigned,
         'healed_assignments': healed_assignments,
-        'auto_completed_assignments': unresolved_incomplete_count,
-        'auto_completed_sample': unresolved_incomplete_sample,
-        'message': 'Team job completed successfully'
+        'message': 'Team job completed successfully',
+        'new_wallet_balance': float(wallet.balance) if payment_method_upper == 'WALLET' else None,
     }

@@ -13,6 +13,7 @@ from accounts.models import Accounts, Agency
 import logging
 from django.conf import settings
 from django.utils import timezone
+import datetime
 from datetime import timedelta
 from jobs.cancellation_service import cancel_job_with_scenarios
 
@@ -2266,10 +2267,75 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "marked_complete": False,
             })
         
-        # Check review status
+        # Check review status and include review payloads for agency chat details.
         from accounts.models import JobReview
         worker_reviewed = JobReview.objects.filter(jobID=job, reviewerID=account).exists()
         client_reviewed = JobReview.objects.filter(jobID=job, reviewerID=client_profile.accountFK).exists()
+
+        def serialize_review(review):
+            if not review:
+                return None
+
+            reviewer_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+            reviewer_name = (
+                f"{reviewer_profile.firstName} {reviewer_profile.lastName}".strip()
+                if reviewer_profile else review.reviewerID.email
+            )
+
+            return {
+                "review_id": review.reviewID,
+                "reviewer_type": review.reviewerType,
+                "reviewer_name": reviewer_name,
+                "rating": float(review.rating) if review.rating is not None else None,
+                "rating_quality": float(review.rating_quality) if review.rating_quality is not None else None,
+                "rating_communication": float(review.rating_communication) if review.rating_communication is not None else None,
+                "rating_punctuality": float(review.rating_punctuality) if review.rating_punctuality is not None else None,
+                "rating_professionalism": float(review.rating_professionalism) if review.rating_professionalism is not None else None,
+                "comment": review.comment or "",
+                "created_at": review.createdAt.isoformat() if review.createdAt else None,
+            }
+
+        job_reviews = JobReview.objects.filter(
+            jobID=job,
+            status='ACTIVE'
+        ).select_related(
+            'reviewerID',
+            'revieweeAgencyID',
+            'revieweeEmployeeID',
+        ).order_by('-createdAt')
+
+        agency_review_obj = job_reviews.filter(
+            reviewerID=account
+        ).first()
+
+        assigned_employee_ids = [emp["employeeId"] for emp in assigned_employees]
+
+        client_review_obj = None
+        if agency:
+            client_review_obj = job_reviews.filter(
+                reviewerType='CLIENT',
+                revieweeAgencyID=agency,
+            ).first()
+
+        if not client_review_obj and assigned_employee_ids:
+            client_review_obj = job_reviews.filter(
+                reviewerType='CLIENT',
+                revieweeEmployeeID__employeeID__in=assigned_employee_ids,
+            ).first()
+
+        if not client_review_obj:
+            client_review_obj = job_reviews.filter(
+                reviewerType='CLIENT'
+            ).first()
+
+        agency_review_data = serialize_review(agency_review_obj)
+        client_review_data = serialize_review(client_review_obj)
+
+        reviews_payload = []
+        if agency_review_data:
+            reviews_payload.append(agency_review_data)
+        if client_review_data:
+            reviews_payload.append(client_review_data)
 
         # Active backjob/dispute info for agency chat banners/actions.
         from accounts.models import JobDispute
@@ -2420,6 +2486,12 @@ def get_agency_conversation_messages(request, conversation_id: int):
             "total_messages": len(messages_list),
             "status": conv.status,
             "my_role": "AGENCY",
+            "agency_review": agency_review_data,
+            "worker_review": agency_review_data,
+            "my_review": agency_review_data,
+            "client_review": client_review_data,
+            "counterparty_reviews": [client_review_data] if client_review_data else [],
+            "reviews": reviews_payload,
             "backjob": backjob_info,
             "can_send_message": can_send_message,
             "can_send_reason": can_send_reason,
@@ -2440,9 +2512,11 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
     """
     try:
         from profiles.models import Conversation, Message
-        from profiles.content_filter import censor_contact_info
+        from profiles.content_filter import contains_contact_info
         from accounts.models import Profile, Agency
         from .models import AgencyKYC
+
+        contact_info_blocked_message = "For safety, sharing phone numbers or email addresses in chat is not allowed."
         
         account = request.auth
         
@@ -2515,20 +2589,28 @@ def send_agency_message(request, conversation_id: int, payload: schemas.AgencySe
                 conv.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
                 print(f"🔄 Auto-reopened conversation {conv.conversationID} for active backjob {active_dispute.disputeID}")
         
-        sanitized_text = censor_contact_info(payload.message_text)
+        normalized_message_type = (payload.message_type or "TEXT").upper()
+        if normalized_message_type == "TEXT" and contains_contact_info(payload.message_text):
+            return Response(
+                {
+                    "error": contact_info_blocked_message,
+                    "error_code": "CONTACT_INFO_BLOCKED",
+                },
+                status=400,
+            )
 
         # Create message as agency-authored (avoid dual-profile ambiguity).
         message = Message.objects.create(
             conversationID=conv,
             sender=None,
             senderAgency=agency,
-            messageText=sanitized_text,
-            messageType=payload.message_type,
+            messageText=payload.message_text,
+            messageType=normalized_message_type,
             isRead=False
         )
         
         # Update conversation - Note: Message.save() already handles some of this
-        conv.lastMessageText = sanitized_text[:100] if len(sanitized_text) > 100 else sanitized_text
+        conv.lastMessageText = payload.message_text[:100] if len(payload.message_text) > 100 else payload.message_text
         conv.lastMessageSender = agency_profile  # May be None for agency users
         conv.unreadCountClient += 1  # Increment client's unread
         conv.save(update_fields=['lastMessageText', 'lastMessageSender', 'unreadCountClient', 'updatedAt'])
@@ -4210,7 +4292,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
     WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
     """
     try:
-        from accounts.models import Job, JobEmployeeAssignment
+        from accounts.models import Job, JobEmployeeAssignment, JobDispute
         from agency.models import AgencyEmployee
         from django.utils import timezone
         
@@ -4239,11 +4321,27 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 'error': 'This job is not assigned to your agency'
             }, status=403)
         
-        # Verify job is in valid status
-        if job.status not in ['ASSIGNED', 'ACTIVE', 'IN_PROGRESS']:
+        # Allow dispatch for jobs that are ASSIGNED, ACTIVE, IN_PROGRESS, or
+        # COMPLETED (backjob redispatch).  COMPLETED jobs always have an
+        # associated dispute so we simply check for any dispute record.
+        dispute_for_dispatch = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
+        has_dispute = dispute_for_dispatch is not None
+
+        logger.info(
+            f"[dispatch-project v2] job={job_id} status={job.status} "
+            f"has_dispute={has_dispute} employee={employee_id}"
+        )
+
+        if job.status not in ['ASSIGNED', 'ACTIVE', 'IN_PROGRESS', 'COMPLETED']:
             return Response({
                 'success': False,
                 'error': f'Cannot dispatch employee for job in {job.status} status'
+            }, status=400)
+
+        if job.status == 'COMPLETED' and not has_dispute:
+            return Response({
+                'success': False,
+                'error': 'Cannot dispatch for a completed job without a dispute/backjob'
             }, status=400)
         
         # Get employee
@@ -4264,21 +4362,63 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             assignment = JobEmployeeAssignment.objects.get(
                 job=job,
                 employee=employee,
-                status__in=['ASSIGNED', 'IN_PROGRESS']
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
             )
         except JobEmployeeAssignment.DoesNotExist:
             return Response({
                 'success': False,
                 'error': f'{employee.fullName} is not assigned to this job'
             }, status=404)
+
+        # Backjob redispatch support:
+        # If a dispute exists, allow re-dispatch even when assignment.dispatched
+        # was already true from the original job cycle.
+        backjob_cycle_start = None
+        if dispute_for_dispatch:
+            # Priority order matches the original: workerScheduleConfirmedAt,
+            # scheduled_date, in_negotiation_at, openedDate.
+            # scheduled_date is a DateField; promote it to a timezone-aware
+            # datetime (start-of-day UTC) so it is comparable with the
+            # timezone-aware assignment.dispatchedAt DateTimeField.
+            scheduled_raw = getattr(dispute_for_dispatch, 'scheduled_date', None)
+            if scheduled_raw is not None:
+                scheduled_dt = timezone.make_aware(
+                    datetime.datetime.combine(scheduled_raw, datetime.time.min)
+                )
+            else:
+                scheduled_dt = None
+
+            backjob_cycle_start = (
+                getattr(dispute_for_dispatch, 'workerScheduleConfirmedAt', None)
+                or scheduled_dt
+                or getattr(dispute_for_dispatch, 'in_negotiation_at', None)
+                or dispute_for_dispatch.openedDate
+            )
+
+        can_redispatch_for_backjob = False
+        if assignment.dispatched and backjob_cycle_start:
+            if not assignment.dispatchedAt:
+                can_redispatch_for_backjob = True
+            else:
+                can_redispatch_for_backjob = assignment.dispatchedAt < backjob_cycle_start
         
-        # Check if already dispatched
-        if assignment.dispatched:
+        # Check if already dispatched (unless this is a new backjob cycle)
+        if assignment.dispatched and not can_redispatch_for_backjob:
             return Response({
                 'success': False,
                 'error': f'{employee.fullName} has already been dispatched',
                 'dispatched_at': assignment.dispatchedAt.isoformat() if assignment.dispatchedAt else None
             }, status=400)
+
+        if can_redispatch_for_backjob:
+            assignment.clientConfirmedArrival = False
+            assignment.clientConfirmedArrivalAt = None
+            assignment.agencyMarkedComplete = False
+            assignment.agencyMarkedCompleteAt = None
+            if hasattr(assignment, 'employeeMarkedComplete'):
+                assignment.employeeMarkedComplete = False
+            if hasattr(assignment, 'employeeMarkedCompleteAt'):
+                assignment.employeeMarkedCompleteAt = None
         
         # Mark as dispatched
         assignment.dispatched = True

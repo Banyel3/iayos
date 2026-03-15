@@ -173,7 +173,7 @@ export default function AgencyJobsPage() {
   const [tabLoading, setTabLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<number | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [, setSuccessMessage] = useState<string | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedJobForReject, setSelectedJobForReject] = useState<Job | null>(
     null,
@@ -254,6 +254,10 @@ export default function AgencyJobsPage() {
         } else {
           setPendingInvites(apiJobs);
         }
+      } else if (response.status === 401 || response.status === 403) {
+        // Auth/session can briefly lag during navigation. Don't raise noisy runtime errors.
+        setPendingInvites([]);
+        return;
       } else {
         throw new Error(
           `Failed to fetch pending invites: ${response.statusText}`,
@@ -999,16 +1003,6 @@ export default function AgencyJobsPage() {
         </div>
       </div>
 
-      {/* Success Message */}
-      {successMessage && (
-        <Alert className="mb-6 bg-green-50 border-green-200">
-          <AlertCircle className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">
-            {successMessage}
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Error Message */}
       {error && (
         <Alert className="mb-6 bg-red-50 border-red-200">
@@ -1121,13 +1115,6 @@ export default function AgencyJobsPage() {
                               >
                                 {job.urgency}
                               </span>
-                            )}
-                            {job.is_team_job && (
-                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                                <Users size={12} className="mr-1" />
-                                Team Job ({job.total_workers_assigned || 0}/
-                                {job.total_workers_needed || 0})
-                              </Badge>
                             )}
                           </div>
                           <p className="text-gray-600 leading-relaxed line-clamp-2">
@@ -1558,6 +1545,19 @@ export default function AgencyJobsPage() {
                           <Eye className="h-4 w-4 mr-2" />
                           Details
                         </Button>
+                        {job.conversation_id && (
+                          <Button
+                            variant="outline"
+                            className="flex-1 h-10 border-2 border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50 transition-all text-sm font-semibold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/agency/messages/${job.conversation_id}`);
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            View Chat
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>

@@ -121,7 +121,7 @@ class WebSocketService {
       };
 
       this.ws.onerror = (error) => {
-        console.error("[WebSocket] ❌ Error:", error);
+        console.warn("[WebSocket] Error event:", error);
         this.connectionState = "error";
         this.notifyErrorListeners({ error: "WebSocket error occurred" });
       };

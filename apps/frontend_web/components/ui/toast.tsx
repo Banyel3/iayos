@@ -161,16 +161,58 @@ function ToastItem({
 export function useAuthToast() {
   const { showToast } = useToast();
 
+  const sanitizeAuthMessage = useCallback((message: string, title?: string) => {
+    const raw = typeof message === "string" ? message.trim() : "";
+    const normalized = raw.toLowerCase();
+
+    if (!raw) {
+      return "Something went wrong. Please try again.";
+    }
+
+    if (
+      normalized.includes("rate limit") ||
+      normalized.includes("too many requests") ||
+      normalized.includes("retry_after")
+    ) {
+      return "Too many attempts. Please wait a minute and try again.";
+    }
+
+    if (
+      normalized.includes("invalid") ||
+      normalized.includes("incorrect") ||
+      normalized.includes("wrong password") ||
+      normalized.includes("credentials")
+    ) {
+      return "Invalid email or password.";
+    }
+
+    if (normalized.includes("verify") && normalized.includes("email")) {
+      return "Please verify your email before signing in.";
+    }
+
+    const looksLikeRawJson = /^[\[{]/.test(raw) || (raw.includes("{") && raw.includes("}"));
+    const looksLikeTransportError = normalized.includes("http error") || normalized.includes("failed to fetch");
+
+    if (looksLikeRawJson || looksLikeTransportError || raw.length > 180) {
+      if ((title || "").toLowerCase().includes("login")) {
+        return "Unable to sign in right now. Please try again.";
+      }
+      return "Something went wrong. Please try again.";
+    }
+
+    return raw;
+  }, []);
+
   const showAuthError = useCallback(
     (message: string, title?: string) => {
       showToast({
         type: "error",
         title: title || "Authentication Error",
-        message,
+        message: sanitizeAuthMessage(message, title),
         duration: 6000, // Longer duration for auth errors
       });
     },
-    [showToast]
+    [showToast, sanitizeAuthMessage]
   );
 
   const showAuthSuccess = useCallback(
