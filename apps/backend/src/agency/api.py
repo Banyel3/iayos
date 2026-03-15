@@ -195,6 +195,29 @@ def agency_kyc_status(request):
         return Response({"error": "Internal server error"}, status=500)
 
 
+@router.get("/reviews/pending", auth=cookie_auth)
+def get_agency_pending_reviews(request):
+    """
+    Return pending review obligations for the authenticated agency account.
+
+    Uses shared review-chain logic so web and mobile enforce the same gate.
+    """
+    from accounts.mobile_services import get_pending_reviews_mobile
+
+    try:
+        result = get_pending_reviews_mobile(user=request.auth)
+        if result.get("success"):
+            return result.get("data", {"pending_reviews": [], "count": 0})
+
+        return Response(
+            {"error": result.get("error", "Failed to fetch pending reviews")},
+            status=400,
+        )
+    except Exception as e:
+        print(f"Error fetching agency pending reviews: {str(e)}")
+        return Response({"error": "Internal server error"}, status=500)
+
+
 @router.delete("/kyc/files", auth=cookie_auth)
 def delete_agency_kyc_files(request):
     """

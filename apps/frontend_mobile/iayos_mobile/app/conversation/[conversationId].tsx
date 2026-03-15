@@ -410,7 +410,20 @@ export default function ChatScreen() {
 
   const editableReviewTargets: EditableReviewTarget[] = (
     conversation?.my_editable_reviews || []
-  ).filter((review): review is EditableReviewTarget => !!review?.can_edit);
+  )
+    .filter((review) => !!review?.can_edit)
+    .map((review) => ({
+      review_id: review.review_id,
+      target_type: review.target_type,
+      target_id: review.target_id,
+      target_name: review.target_name,
+      can_edit: review.can_edit,
+      rating_quality: review.rating_quality,
+      rating_communication: review.rating_communication,
+      rating_punctuality: review.rating_punctuality,
+      rating_professionalism: review.rating_professionalism,
+      comment: review.comment,
+    }));
 
   const activeEditableReview: EditableReviewTarget | null =
     reviewModalMode === "edit"
@@ -3035,7 +3048,7 @@ export default function ChatScreen() {
                 [
                   {
                     text: "Leave Review",
-                    onPress: () => setShowReviewModal(true),
+                    onPress: () => openReviewModalSafely("submit"),
                   },
                 ],
                 { cancelable: false },

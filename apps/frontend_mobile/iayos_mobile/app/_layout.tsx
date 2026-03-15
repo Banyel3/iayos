@@ -256,6 +256,7 @@ export default function RootLayout() {
                             headerShown: false,
                             presentation: "card",
                             animation: "slide_from_right",
+                            gestureEnabled: false,
                           }}
                         />
                         <Stack.Screen
