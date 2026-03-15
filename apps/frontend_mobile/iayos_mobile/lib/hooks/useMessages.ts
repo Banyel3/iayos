@@ -372,16 +372,18 @@ export function useMessages(
           ? {
               ...data.client_review,
               reviewer_avatar:
-                getAbsoluteMediaUrl(data.client_review.reviewer_avatar || null) ||
-                "",
+                getAbsoluteMediaUrl(
+                  data.client_review.reviewer_avatar || null,
+                ) || "",
             }
           : null,
         worker_review: data.worker_review
           ? {
               ...data.worker_review,
               reviewer_avatar:
-                getAbsoluteMediaUrl(data.worker_review.reviewer_avatar || null) ||
-                "",
+                getAbsoluteMediaUrl(
+                  data.worker_review.reviewer_avatar || null,
+                ) || "",
             }
           : null,
         counterparty_reviews: data.counterparty_reviews?.map((review: any) => ({

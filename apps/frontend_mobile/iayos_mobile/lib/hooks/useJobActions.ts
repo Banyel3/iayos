@@ -480,9 +480,12 @@ export function useProjectExtendOneDay() {
 
   return useMutation({
     mutationFn: async ({ jobId }: { jobId: number }) => {
-      const response = await apiRequest(ENDPOINTS.PROJECT_EXTEND_ONE_DAY(jobId), {
-        method: "POST",
-      });
+      const response = await apiRequest(
+        ENDPOINTS.PROJECT_EXTEND_ONE_DAY(jobId),
+        {
+          method: "POST",
+        },
+      );
 
       if (!response.ok) {
         const error = (await response.json()) as { error?: string };
