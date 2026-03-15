@@ -1,4 +1,5 @@
 import json
+import re
 from ninja import Router, File, Form
 from ninja.responses import Response
 from ninja.files import UploadedFile
@@ -185,6 +186,94 @@ def broadcast_job_status_update(job_id, update_data):
         print(f"❌ Error broadcasting job status: {str(e)}")
         import traceback
         traceback.print_exc()
+
+
+def _parse_expected_duration_days(expected_duration: Optional[str]) -> int:
+    """Best-effort parser for expectedDuration text (e.g., '2 days', '1 week')."""
+    if not expected_duration:
+        return 1
+
+    text = str(expected_duration).strip().lower()
+    if not text:
+        return 1
+
+    # Prefer explicit day/week units to avoid false positives in free text.
+    unit_match = re.search(r"(\d+)\s*(day|days|week|weeks|wk|wks)\b", text)
+    if unit_match:
+        value = int(unit_match.group(1))
+        unit = unit_match.group(2)
+        if unit.startswith("week") or unit.startswith("wk"):
+            return max(1, value * 7)
+        return max(1, value)
+
+    # Hours imply same-day work.
+    hour_match = re.search(r"(\d+)\s*(hour|hours|hr|hrs)\b", text)
+    if hour_match:
+        return 1
+
+    return 1
+
+
+def _get_required_project_days(job: JobPosting) -> int:
+    """Resolve required project days from structured field or expectedDuration fallback."""
+    structured_days = getattr(job, "duration_days", None)
+    try:
+        if structured_days is not None:
+            parsed = int(structured_days)
+            if parsed > 0:
+                return parsed
+    except (TypeError, ValueError):
+        pass
+
+    return _parse_expected_duration_days(getattr(job, "expectedDuration", None))
+
+
+def _get_elapsed_project_days(job: JobPosting) -> int:
+    """Compute elapsed work days since client confirmed start (inclusive)."""
+    if not job.clientConfirmedWorkStartedAt:
+        return 0
+
+    start_date = timezone.localtime(job.clientConfirmedWorkStartedAt).date()
+    today = timezone.localdate()
+    elapsed = (today - start_date).days + 1
+
+    # Honor QA fast-forward offset when present on environments that have it.
+    qa_day_offset = getattr(job, "qa_day_offset", 0) or 0
+    try:
+        elapsed += int(qa_day_offset)
+    except (TypeError, ValueError):
+        pass
+
+    return max(0, elapsed)
+
+
+def _project_multi_day_gate_error(job: JobPosting):
+    """
+    Return error payload if PROJECT multi-day completion is attempted too early.
+    Returns None when completion is allowed.
+    """
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "PROJECT":
+        return None
+
+    required_days = _get_required_project_days(job)
+    if required_days <= 1:
+        return None
+
+    elapsed_days = _get_elapsed_project_days(job)
+    if elapsed_days >= required_days:
+        return None
+
+    return {
+        "error": (
+            f"This is a {required_days}-day project job. "
+            f"Final completion and payment are only allowed on day {required_days}."
+        ),
+        "required_days": required_days,
+        "elapsed_days": elapsed_days,
+        "remaining_days": required_days - elapsed_days,
+        "payment_model": payment_model,
+    }
 
 
 @router.post("/create", auth=jwt_auth, response=JobPostingResponseSchema)
@@ -4046,6 +4135,11 @@ def worker_mark_job_complete(request, job_id: int):
                         {"error": "You must mark job started before marking it complete"},
                         status=400
                     )
+
+        # PROJECT multi-day safeguard: prevent day-1 final completion on multi-day jobs.
+        project_gate_error = _project_multi_day_gate_error(job)
+        if project_gate_error:
+            return Response(project_gate_error, status=400)
         
         # Check if already marked complete by worker
         if job.workerMarkedComplete:
@@ -4269,6 +4363,11 @@ def client_approve_job_completion(
                 {"error": "Worker must mark the job as complete first"},
                 status=400
             )
+
+        # PROJECT multi-day safeguard: client cannot approve/pay before final day.
+        project_gate_error = _project_multi_day_gate_error(job)
+        if project_gate_error:
+            return Response(project_gate_error, status=400)
         
         # Verify job is still in progress
         if job.status not in ["IN_PROGRESS", "COMPLETED"]:
