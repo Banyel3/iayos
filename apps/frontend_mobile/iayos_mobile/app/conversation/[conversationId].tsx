@@ -420,10 +420,13 @@ export default function ChatScreen() {
         ? "EMPLOYEE"
         : reviewStep;
 
-  const editableReviewTargets: EditableReviewTarget[] = (
+  const canUnlockBackjobEditWindow =
+    conversation?.backjob?.status === "COMPLETED";
+
+  const editableReviewTargetsFromApi: EditableReviewTarget[] = (
     conversation?.my_editable_reviews || []
   )
-    .filter((review) => !!review?.can_edit)
+    .filter((review) => !!review && (!!review.can_edit || canUnlockBackjobEditWindow))
     .map((review) => ({
       review_id: review.review_id,
       target_type: review.target_type,
@@ -436,6 +439,45 @@ export default function ChatScreen() {
       rating_professionalism: review.rating_professionalism,
       comment: review.comment,
     }));
+
+  const myOwnReviewForBackjobEdit =
+    conversation?.my_role === "CLIENT"
+      ? conversation?.client_review
+      : conversation?.worker_review;
+
+  const canUseOwnReviewFallbackForEdit =
+    canUnlockBackjobEditWindow && !!myOwnReviewForBackjobEdit?.review_id;
+
+  const ownReviewFallbackTarget: EditableReviewTarget | null =
+    canUseOwnReviewFallbackForEdit && myOwnReviewForBackjobEdit?.review_id
+      ? {
+          review_id: myOwnReviewForBackjobEdit.review_id,
+          target_type: "USER",
+          target_id: null,
+          target_name:
+            conversation?.other_participant?.name ||
+            (conversation?.my_role === "CLIENT" ? "Worker" : "Client"),
+          can_edit: true,
+          rating_quality: myOwnReviewForBackjobEdit.rating_quality || 0,
+          rating_communication:
+            myOwnReviewForBackjobEdit.rating_communication || 0,
+          rating_punctuality: myOwnReviewForBackjobEdit.rating_punctuality || 0,
+          rating_professionalism:
+            myOwnReviewForBackjobEdit.rating_professionalism || 0,
+          comment: myOwnReviewForBackjobEdit.comment || "",
+        }
+      : null;
+
+  const editableReviewTargets: EditableReviewTarget[] =
+    !!ownReviewFallbackTarget &&
+    !editableReviewTargetsFromApi.some(
+      (review) => review.review_id === myOwnReviewForBackjobEdit?.review_id,
+    )
+      ? [
+          ...editableReviewTargetsFromApi,
+          ownReviewFallbackTarget,
+        ]
+      : editableReviewTargetsFromApi;
 
   const activeEditableReview: EditableReviewTarget | null =
     reviewModalMode === "edit"
