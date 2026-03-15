@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated exported PDF receipt to use whole-transaction summary for team jobs (single receipt perspective for all parties).
   - **Impact**: Team receipts now consistently explain where funds go, who receives what, and where platform fee is applied, while preserving one shared transaction view.
 
+- **Unified Job Receipt Model (Client + Worker Single View)**
+  - Removed role-dependent total labels/values from job receipt modal for non-team jobs.
+  - Job receipts now consistently show both sides in one settlement view: `Total Client Paid`, `Worker Earnings`, and `Platform Fee`.
+  - Updated job receipt share text and PDF export to the same single-job unified structure.
+  - **Impact**: Receipts are now tied to a single job ledger view for both client and worker, instead of separate perspective-based totals.
+
 - **PROJECT Multi-Day Worked-Day Counter Sync + Dialog Accuracy**
   - Synced backend PROJECT multi-day progress tracking with confirmed attendance rows by updating `job.total_days_worked` after client confirmation and no-work confirmations.
   - Updated conversation end-action cards to display effective worked progress (`Worked X/Y day(s)`) using fallback duration and QA offset in TESTING mode.

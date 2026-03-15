@@ -128,7 +128,8 @@ Status: ${receipt.status}
 💰 Payment Summary:
 • Budget: ${formatCurrency(receipt.payment.budget)}
 • Platform Fee (${receipt.payment.platform_fee_rate}): ${formatCurrency(receipt.payment.platform_fee)}
-• Total Paid: ${formatCurrency(receipt.payment.total_client_paid)}
+    • Total Client Paid: ${formatCurrency(receipt.payment.total_client_paid)}
+    • Worker Earnings: ${formatCurrency(receipt.payment.worker_earnings)}
 
 📅 Completed: ${formatReceiptDate(receipt.completed_at)}
 
@@ -561,30 +562,38 @@ ${RECEIPT_DISCLAIMER_TEXT}
                   </View>
                 </>
               ) : (
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>
-                    {isCancelledReceipt
-                      ? userRole === "CLIENT"
-                        ? "Net Paid After Refund"
-                        : "Earnings For This Job"
-                      : userRole === "CLIENT"
-                        ? "Total You Paid"
-                        : "Your Earnings"}
-                  </Text>
-                  <Text style={styles.totalValue}>
-                    {formatCurrency(
-                      isCancelledReceipt
-                        ? userRole === "CLIENT"
+                <>
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>
+                      {isCancelledReceipt
+                        ? "Net Client Paid After Refund"
+                        : "Total Client Paid"}
+                    </Text>
+                    <Text style={styles.totalValue}>
+                      {formatCurrency(
+                        isCancelledReceipt
                           ? (receipt.payment.actual_client_paid ??
                             receipt.payment.total_client_paid)
-                          : (receipt.payment.actual_worker_earnings ??
+                          : receipt.payment.total_client_paid,
+                      )}
+                    </Text>
+                  </View>
+                  <View style={styles.totalRowSecondary}>
+                    <Text style={styles.totalLabelSecondary}>
+                      {isCancelledReceipt
+                        ? "Actual Worker Earnings"
+                        : "Worker Earnings"}
+                    </Text>
+                    <Text style={styles.totalValueSecondary}>
+                      {formatCurrency(
+                        isCancelledReceipt
+                          ? (receipt.payment.actual_worker_earnings ??
                             receipt.payment.worker_earnings)
-                        : userRole === "CLIENT"
-                          ? receipt.payment.total_client_paid
                           : receipt.payment.worker_earnings,
-                    )}
-                  </Text>
-                </View>
+                      )}
+                    </Text>
+                  </View>
+                </>
               )}
 
               {isCancelledReceipt && (
