@@ -2580,8 +2580,8 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 from decimal import Decimal
                 from .models import Wallet, Transaction, Notification
                 
-                # Get client's wallet
-                wallet = Wallet.objects.get(accountFK=request.auth)
+                # Get and lock client's wallet for charge conversion
+                wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
                 
                 # Calculate the total to charge (50% escrow + 10% platform fee)
                 escrow_amount = job.escrowAmount
@@ -2616,9 +2616,32 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                             status=400
                         )
                 
+                # Final reserved-aware guard before deduction
+                if wallet.availableBalance < total_to_charge:
+                    wallet.reservedBalance += original_reserved
+                    return Response(
+                        {
+                            "error": "Insufficient balance while processing payment",
+                            "required": float(total_to_charge),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                        },
+                        status=400
+                    )
+
                 # Deduct the actual amount from balance
                 wallet.balance -= total_to_charge
-                wallet.save()
+                try:
+                    wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+                except Exception:
+                    wallet.reservedBalance += original_reserved
+                    return Response(
+                        {
+                            "error": "Payment failed due to reserved wallet constraints",
+                            "message": "Please retry, deposit more funds, or use another payment method."
+                        },
+                        status=400
+                    )
                 
                 print(f"💸 [MOBILE] Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}")
                 
@@ -4750,12 +4773,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 status=404
             )
         
-        # Check sufficient balance
-        if wallet.balance < Decimal(str(amount)):
-            return Response(
-                {"error": f"Insufficient balance. Available: ₱{wallet.balance}"},
-                status=400
-            )
+        amount_decimal = Decimal(str(amount))
         
         # Get payment method
         try:
@@ -4800,10 +4818,32 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
         
         # Use atomic transaction to ensure consistency
         with db_transaction.atomic():
+            # Lock wallet row and re-check balance to prevent concurrent overdraft
+            wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+
+            if wallet.availableBalance < amount_decimal:
+                return Response(
+                    {
+                        "error": (
+                            f"Insufficient balance. Available: ₱{wallet.availableBalance} "
+                            f"(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved)"
+                        )
+                    },
+                    status=400
+                )
+
             # Deduct balance immediately
             old_balance = wallet.balance
-            wallet.balance -= Decimal(str(amount))
-            wallet.save()
+            wallet.balance -= amount_decimal
+            try:
+                wallet.save(update_fields=['balance', 'updatedAt'])
+            except Exception:
+                return Response(
+                    {
+                        "error": "Withdrawal failed due to reserved wallet constraints. Please retry."
+                    },
+                    status=400
+                )
             
             # Create pending withdrawal transaction
             method_display = {
@@ -4818,7 +4858,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             transaction = Transaction.objects.create(
                 walletID=wallet,
                 transactionType=Transaction.TransactionType.WITHDRAWAL,
-                amount=Decimal(str(amount)),
+                amount=amount_decimal,
                 balanceAfter=wallet.balance,
                 status=Transaction.TransactionStatus.PENDING,
                 description=f"Withdrawal to {method_display}",
@@ -4909,6 +4949,8 @@ def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optio
                 'PAYMENT': Transaction.TransactionType.PAYMENT,
                 'WITHDRAWAL': Transaction.TransactionType.WITHDRAWAL,
                 'EARNING': Transaction.TransactionType.EARNING,
+                'PENDING_EARNING': Transaction.TransactionType.PENDING_EARNING,
+                'PENDING': Transaction.TransactionType.PENDING_EARNING,
                 'REFUND': Transaction.TransactionType.REFUND,
             }
             if type.upper() in type_mapping:
@@ -5460,12 +5502,12 @@ def mobile_get_review_stats(request, worker_id: int):
 def mobile_edit_review(
     request,
     review_id: int,
-    rating: int,
+    rating: float,
     comment: str,
-    rating_quality: Optional[int] = None,
-    rating_communication: Optional[int] = None,
-    rating_punctuality: Optional[int] = None,
-    rating_professionalism: Optional[int] = None,
+    rating_quality: Optional[float] = None,
+    rating_communication: Optional[float] = None,
+    rating_punctuality: Optional[float] = None,
+    rating_professionalism: Optional[float] = None,
 ):
     """
     Edit an existing review.
@@ -6634,18 +6676,25 @@ def mobile_create_escrow_payment(request):
             # Calculate escrow amount (50% of budget)
             escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
             
-            # Check wallet balance
-            if wallet.balance < escrow_amount:
+            # Check available wallet balance (balance - reserved)
+            if wallet.availableBalance < escrow_amount:
                 return Response({
                     "error": "Insufficient wallet balance",
                     "required": float(escrow_amount),
-                    "available": float(wallet.balance)
+                    "available": float(wallet.availableBalance),
+                    "reserved": float(wallet.reservedBalance),
                 }, status=400)
             
             # Deduct from wallet and add to reserved
             wallet.balance -= escrow_amount
             wallet.reservedBalance += escrow_amount
-            wallet.save()
+            try:
+                wallet.save()
+            except Exception:
+                return Response({
+                    "error": "Escrow payment failed due to reserved wallet constraints",
+                    "message": "Please retry or add more available wallet funds."
+                }, status=400)
             
             # Update job escrow status
             job.escrowAmount = escrow_amount
@@ -7035,16 +7084,23 @@ def mobile_create_final_payment(request):
                     defaults={'balance': Decimal('0.00')}
                 )
                 
-                if wallet.balance < final_amount:
+                if wallet.availableBalance < final_amount:
                     return Response({
                         "error": "Insufficient wallet balance",
                         "required": float(final_amount),
-                        "available": float(wallet.balance)
+                        "available": float(wallet.availableBalance),
+                        "reserved": float(wallet.reservedBalance),
                     }, status=400)
                 
                 # Deduct from wallet
                 wallet.balance -= final_amount
-                wallet.save()
+                try:
+                    wallet.save()
+                except Exception:
+                    return Response({
+                        "error": "Final payment failed due to reserved wallet constraints",
+                        "message": "Please retry or choose another payment method."
+                    }, status=400)
                 
                 # Create transaction
                 Transaction.objects.create(
@@ -7545,6 +7601,112 @@ def cleanup_maestro_test_data(request):
 # Auto-payment triggers when client confirms worker has gone home.
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date):
+    """
+    Release DAILY pending earnings from previous days once worker checks in again.
+
+    Trigger rule:
+    - On successful worker check-in for a DAILY job
+    - Release this worker's pending daily payouts for the same job where
+      pending transaction date is before check-in date
+    """
+    from decimal import Decimal
+    from django.db import transaction as db_transaction
+    from django.db.models import Q
+    from .models import Wallet, Transaction, Notification
+
+    # Only DAILY jobs use this next-day auto-release path.
+    if str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() != 'DAILY':
+        return {
+            'released_amount': Decimal('0.00'),
+            'released_count': 0,
+        }
+
+    with db_transaction.atomic():
+        wallet = Wallet.objects.select_for_update().filter(accountFK=worker_account).first()
+        if not wallet:
+            return {
+                'released_amount': Decimal('0.00'),
+                'released_count': 0,
+            }
+
+        pending_txns = list(
+            Transaction.objects.filter(
+                Q(paymentMethod=Transaction.PaymentMethod.WALLET) | Q(paymentMethod__isnull=True),
+                walletID=wallet,
+                relatedJobPosting=job,
+                transactionType=Transaction.TransactionType.PENDING_EARNING,
+                createdAt__date__lt=checkin_date,
+            ).order_by('transactionID')
+        )
+
+        if not pending_txns:
+            return {
+                'released_amount': Decimal('0.00'),
+                'released_count': 0,
+            }
+
+        released_total = Decimal('0.00')
+        released_count = 0
+
+        for pending_txn in pending_txns:
+            release_ref = f"DAILY-AUTO-REL-{pending_txn.transactionID}"
+            already_released = Transaction.objects.filter(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.EARNING,
+                referenceNumber=release_ref,
+            ).exists()
+            if already_released:
+                continue
+
+            amount = Decimal(str(pending_txn.amount or Decimal('0.00')))
+            if amount <= 0:
+                continue
+
+            if wallet.pendingEarnings >= amount:
+                wallet.pendingEarnings -= amount
+            else:
+                wallet.pendingEarnings = Decimal('0.00')
+
+            wallet.balance += amount
+            wallet.save(update_fields=['balance', 'pendingEarnings', 'updatedAt'])
+
+            Transaction.objects.create(
+                walletID=wallet,
+                transactionType=Transaction.TransactionType.EARNING,
+                amount=amount,
+                balanceAfter=wallet.balance,
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f"Daily pending payout released on next-day check-in - Job #{job.jobID}",
+                relatedJobPosting=job,
+                paymentMethod=Transaction.PaymentMethod.WALLET,
+                referenceNumber=release_ref,
+                completedAt=timezone.now(),
+            )
+
+            released_total += amount
+            released_count += 1
+
+        if released_count > 0:
+            try:
+                Notification.objects.create(
+                    accountFK=worker_account,
+                    notificationType='PAYMENT_RELEASED',
+                    title='Daily Payout Released',
+                    message=(
+                        f"₱{released_total:,.2f} from previous day payout(s) for '{job.title}' "
+                        "has been moved to your available wallet balance after today\'s check-in."
+                    ),
+                    relatedJobID=job.jobID,
+                )
+            except Exception as notify_err:
+                print(f"⚠️ [MOBILE] Auto-release notification failed: {notify_err}")
+
+        return {
+            'released_amount': released_total,
+            'released_count': released_count,
+        }
+
 @mobile_router.post("/daily-attendance/{job_id}/worker-check-in", auth=dual_auth)
 @require_kyc
 def worker_check_in(request, job_id: int):
@@ -7685,6 +7847,46 @@ def worker_check_in(request, job_id: int):
             })
         except Exception as ws_error:
             print(f"⚠️ [MOBILE] Worker on-the-way websocket broadcast failed: {str(ws_error)}")
+
+        auto_release = _release_previous_daily_pending_on_checkin(
+            job=job,
+            worker_account=request.auth,
+            checkin_date=today,
+        )
+
+        released_amount = auto_release.get('released_amount')
+        released_count = int(auto_release.get('released_count') or 0)
+        released_amount_float = float(released_amount) if released_amount else 0.0
+
+        if job.is_team_job and released_count > 0:
+            try:
+                from profiles.models import Conversation, Message
+
+                team_conversation = Conversation.objects.filter(
+                    relatedJobPosting=job,
+                    conversation_type='TEAM_GROUP',
+                ).first()
+
+                if team_conversation:
+                    Message.objects.create(
+                        conversationID=team_conversation,
+                        sender=None,
+                        senderAgency=None,
+                        messageType='SYSTEM',
+                        messageText=(
+                            f"💰 Daily payout update: ₱{released_amount_float:,.2f} from previous day "
+                            "pending earnings has been released to wallet balance after today's check-in."
+                        ),
+                    )
+            except Exception as msg_error:
+                print(f"⚠️ [MOBILE] Team daily payout system note failed: {msg_error}")
+
+        response_message = "Marked on the way. Ask the client to verify arrival."
+        if released_count > 0:
+            response_message = (
+                f"Marked on the way. ₱{released_amount_float:,.2f} from previous day pending payout(s) "
+                "was released to your wallet balance."
+            )
         
         return {
             "success": True,
@@ -7694,7 +7896,9 @@ def worker_check_in(request, job_id: int):
             "time_in": None,
             "date": str(today),
             "status": attendance.status,
-            "message": "Marked on the way. Ask the client to verify arrival.",
+            "message": response_message,
+            "released_previous_pending_amount": released_amount_float,
+            "released_previous_pending_count": released_count,
             "awaiting_client_confirmation": True
         }
         
@@ -7888,7 +8092,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
     - DAILY jobs: uses DailyPaymentService and can process per-day payout.
     - PROJECT multi-day jobs: records attendance only (no per-day payout).
     """
+    import uuid
     from django.utils import timezone
+    from django.core.files.storage import default_storage
     from .models import DailyAttendance
     from jobs.daily_payment_service import DailyPaymentService
     
@@ -7911,6 +8117,30 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
         if job.clientID.profileID.accountFK != request.auth:
             return Response({"error": "Only the job client can confirm attendance"}, status=403)
         
+        # Support both query/body payloads for backwards compatibility.
+        approved_status = (
+            request.POST.get('approved_status')
+            or approved_status
+            or request.GET.get('approved_status')
+        )
+        payment_method = (
+            request.POST.get('payment_method')
+            or request.GET.get('payment_method')
+            or 'WALLET'
+        )
+        payment_method = str(payment_method).upper()
+        cash_proof_image = request.FILES.get('cash_proof_image')
+        cash_proof_url = None
+
+        if payment_method not in ['WALLET', 'CASH']:
+            return Response({"error": "Invalid payment method. Choose WALLET or CASH"}, status=400)
+
+        if payment_method == 'CASH' and cash_proof_image:
+            file_ext = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+            file_name = f"daily_cash_proofs/job_{job.jobID}/attendance_{attendance.attendanceID}_{uuid.uuid4().hex[:8]}.{file_ext}"
+            saved_path = default_storage.save(file_name, cash_proof_image)
+            cash_proof_url = default_storage.url(saved_path)
+
         # Check if already confirmed
         if attendance.client_confirmed:
             return Response({
@@ -7953,7 +8183,9 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             result = DailyPaymentService.confirm_attendance_client(
                 attendance,
                 request.auth,
-                approved_status=approved_status
+                approved_status=approved_status,
+                payment_method=payment_method,
+                cash_proof_url=cash_proof_url,
             )
 
             if not result.get('success'):
@@ -7980,6 +8212,8 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "status": attendance.status,
             "amount_earned": float(attendance.amount_earned),
             "payment_processed": attendance.payment_processed,
+            "payment_method": attendance.payment_method,
+            "cash_payment_proof_url": attendance.cash_payment_proof_url,
             "total_days_worked": synced_days_worked,
             "message": (
                 "Attendance confirmed. Day recorded for final project payout."

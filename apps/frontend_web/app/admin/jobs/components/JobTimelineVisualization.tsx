@@ -36,11 +36,19 @@ interface JobTimeline {
   client_reviewed: string | null;
   worker_reviewed: string | null;
   reviews_complete: boolean;
+  worker_completed?: string | null;
+  reviews_submitted?: string | null;
 }
 
 interface JobTimelineVisualizationProps {
   timeline: JobTimeline;
   jobStatus: string;
+  paymentModel?: string;
+  isTeamJob?: boolean;
+  totalWorkersNeeded?: number;
+  totalWorkersAssigned?: number;
+  durationDays?: number | null;
+  totalDaysWorked?: number;
 }
 
 // Helper function to calculate time elapsed between timestamps
@@ -91,8 +99,36 @@ function formatRelativeTime(timestamp: string): string {
 export function JobTimelineVisualization({
   timeline,
   jobStatus,
+  paymentModel,
+  isTeamJob,
+  totalWorkersNeeded,
+  totalWorkersAssigned,
+  durationDays,
+  totalDaysWorked,
 }: JobTimelineVisualizationProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  const paymentModelUpper = (paymentModel || "PROJECT").toUpperCase();
+  const effectiveWorkerMarkedComplete =
+    timeline.worker_marked_complete || timeline.worker_completed || null;
+  const effectiveReviewsTimestamp = timeline.reviews_complete
+    ? timeline.client_reviewed || timeline.worker_reviewed || timeline.reviews_submitted || null
+    : null;
+  const assignmentLabel = isTeamJob ? "Workers Assigned" : "Worker Assigned";
+  const assignmentSubtitle = isTeamJob
+    ? timeline.worker_name ||
+      `${totalWorkersAssigned ?? 0}/${totalWorkersNeeded ?? 0} workers assigned`
+    : timeline.worker_name;
+  const startLabel = paymentModelUpper === "DAILY" ? "Workday Started" : "Client Initiated Start";
+  const arrivalLabel = isTeamJob ? "Workers Arrival Confirmed" : "Worker Arrived On-Site";
+  const completionLabel = isTeamJob ? "Workers Marked Complete" : "Worker Marked Complete";
+  const reviewsSubtitle = timeline.reviews_complete
+    ? "Both parties reviewed"
+    : timeline.client_reviewed
+      ? "Client reviewed"
+      : timeline.worker_reviewed
+        ? "Worker reviewed"
+        : "Awaiting reviews";
 
   const milestones = [
     {
@@ -105,16 +141,16 @@ export function JobTimelineVisualization({
     },
     {
       id: 2,
-      label: "Worker Assigned",
+      label: assignmentLabel,
       timestamp: timeline.worker_assigned,
       icon: UserCheck,
       status: timeline.worker_assigned ? "completed" : "pending",
       color: timeline.worker_assigned ? "green" : "gray",
-      subtitle: timeline.worker_name,
+      subtitle: assignmentSubtitle,
     },
     {
       id: 3,
-      label: "Client Initiated Start",
+      label: startLabel,
       timestamp: timeline.start_initiated,
       icon: Play,
       status: timeline.start_initiated
@@ -130,7 +166,7 @@ export function JobTimelineVisualization({
     },
     {
       id: 4,
-      label: "Worker Arrived On-Site",
+      label: arrivalLabel,
       timestamp: timeline.worker_arrived,
       icon: MapPin,
       status: timeline.worker_arrived
@@ -146,15 +182,15 @@ export function JobTimelineVisualization({
     },
     {
       id: 5,
-      label: "Worker Marked Complete",
-      timestamp: timeline.worker_marked_complete,
+      label: completionLabel,
+      timestamp: effectiveWorkerMarkedComplete,
       icon: CheckCircle,
-      status: timeline.worker_marked_complete
+      status: effectiveWorkerMarkedComplete
         ? "completed"
         : timeline.worker_arrived
           ? "pending"
           : "locked",
-      color: timeline.worker_marked_complete
+      color: effectiveWorkerMarkedComplete
         ? "green"
         : timeline.worker_arrived
           ? "blue"
@@ -168,21 +204,19 @@ export function JobTimelineVisualization({
       icon: CheckCircle2,
       status: timeline.client_confirmed
         ? "completed"
-        : timeline.worker_marked_complete
+        : effectiveWorkerMarkedComplete
           ? "pending"
           : "locked",
       color: timeline.client_confirmed
         ? "green"
-        : timeline.worker_marked_complete
+        : effectiveWorkerMarkedComplete
           ? "blue"
           : "gray",
     },
     {
       id: 7,
       label: "Reviews Submitted",
-      timestamp: timeline.reviews_complete
-        ? timeline.client_reviewed || timeline.worker_reviewed
-        : null,
+      timestamp: effectiveReviewsTimestamp,
       icon: Star,
       status: timeline.reviews_complete
         ? "completed"
@@ -194,13 +228,7 @@ export function JobTimelineVisualization({
         : timeline.client_confirmed
           ? "blue"
           : "gray",
-      subtitle: timeline.reviews_complete
-        ? "Both parties reviewed"
-        : timeline.client_reviewed
-          ? "Client reviewed"
-          : timeline.worker_reviewed
-            ? "Worker reviewed"
-            : "Awaiting reviews",
+      subtitle: reviewsSubtitle,
     },
   ];
 

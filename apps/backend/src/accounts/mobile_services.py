@@ -3917,12 +3917,12 @@ def get_review_stats_mobile(worker_id: int) -> Dict[str, Any]:
 def edit_review_mobile(
     user: Accounts,
     review_id: int,
-    rating: int,
+    rating: float,
     comment: str,
-    rating_quality: int = None,
-    rating_communication: int = None,
-    rating_punctuality: int = None,
-    rating_professionalism: int = None,
+    rating_quality: Optional[float] = None,
+    rating_communication: Optional[float] = None,
+    rating_punctuality: Optional[float] = None,
+    rating_professionalism: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Edit an existing review.

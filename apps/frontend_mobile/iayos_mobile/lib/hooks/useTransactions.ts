@@ -7,11 +7,22 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest } from "@/lib/api/config";
 
-export type TransactionType = "all" | "deposit" | "payment" | "withdrawal";
+export type TransactionType =
+  | "all"
+  | "deposit"
+  | "payment"
+  | "withdrawal"
+  | "pending";
 
 export interface Transaction {
   id: number;
-  type: "DEPOSIT" | "PAYMENT" | "WITHDRAWAL" | "REFUND";
+  type:
+    | "DEPOSIT"
+    | "PAYMENT"
+    | "WITHDRAWAL"
+    | "REFUND"
+    | "EARNING"
+    | "PENDING_EARNING";
   title: string;
   description: string;
   amount: number;
@@ -45,7 +56,13 @@ export function useTransactions(type: TransactionType = "all") {
       });
 
       if (type !== "all") {
-        params.append("type", type.toUpperCase());
+        const typeParamMap: Record<Exclude<TransactionType, "all">, string> = {
+          deposit: "DEPOSIT",
+          payment: "PAYMENT",
+          withdrawal: "WITHDRAWAL",
+          pending: "PENDING_EARNING",
+        };
+        params.append("type", typeParamMap[type]);
       }
 
       const url = `${ENDPOINTS.WALLET_TRANSACTIONS}?${params.toString()}`;

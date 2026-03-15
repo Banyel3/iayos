@@ -14,6 +14,7 @@ from .schemas import (
 from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
 from django.utils import timezone
+from django.db import transaction as db_transaction
 from django.db.models import Q
 from django.conf import settings
 from datetime import timedelta
@@ -363,12 +364,7 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
                 status=404
             )
         
-        # Check sufficient balance
-        if wallet.balance < Decimal(str(amount)):
-            return Response(
-                {"error": "Insufficient balance"},
-                status=400
-            )
+        amount_decimal = Decimal(str(amount))
         
         # Get payment method details
         try:
@@ -393,9 +389,18 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
         print(f"   Current balance: ₱{wallet.balance}")
         print(f"   Withdrawing to: ***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'}")
         
-        # TEST MODE: Deduct funds immediately
-        wallet.balance -= Decimal(str(amount))
-        wallet.save()
+        # Deduct funds with row-level lock to prevent concurrent overdraft
+        with db_transaction.atomic():
+            wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+
+            if wallet.balance < amount_decimal:
+                return Response(
+                    {"error": "Insufficient balance"},
+                    status=400
+                )
+
+            wallet.balance -= amount_decimal
+            wallet.save(update_fields=['balance', 'updatedAt'])
         
         # Create completed transaction
         description = f"Withdrawal to {payment_method.accountName} ({payment_method.accountNumber})"
@@ -405,7 +410,7 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.WITHDRAWAL,
-            amount=Decimal(str(amount)),
+            amount=amount_decimal,
             balanceAfter=wallet.balance,
             status=Transaction.TransactionStatus.COMPLETED,
             description=description,
@@ -2280,6 +2285,9 @@ def get_conversation_messages(request, conversation_id: int):
                     "client_confirmed_at": record.client_confirmed_at.isoformat() if record.client_confirmed_at else None,
                     "amount_earned": float(record.amount_earned) if record.amount_earned else 0.0,
                     "payment_processed": record.payment_processed,
+                    "payment_method": record.payment_method,
+                    "cash_payment_proof_url": record.cash_payment_proof_url,
+                    "cash_payment_verified": record.cash_payment_verified,
                     "notes": record.notes or "",
                 })
             
@@ -2355,7 +2363,8 @@ def get_conversation_messages(request, conversation_id: int):
             # Get client's review of worker/employee
             client_review_qs = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=client_account
+                reviewerID=client_account,
+                status='ACTIVE'
             )
 
             # Team job worker view: return the review addressed to the current worker account.
@@ -2365,7 +2374,7 @@ def get_conversation_messages(request, conversation_id: int):
                     revieweeID=request.auth
                 )
 
-            client_review = client_review_qs.order_by('-createdAt').first()
+            client_review = client_review_qs.order_by('-updatedAt', '-createdAt').first()
             
             if client_review:
                 client_reviewer_identity = resolve_reviewer_identity(client_review)
@@ -2387,8 +2396,9 @@ def get_conversation_messages(request, conversation_id: int):
             # Get worker's review of client
             worker_review = JobReview.objects.filter(
                 jobID=job,
-                reviewerID=worker_account
-            ).first()
+                reviewerID=worker_account,
+                status='ACTIVE'
+            ).order_by('-updatedAt', '-createdAt').first()
             
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
@@ -2411,8 +2421,9 @@ def get_conversation_messages(request, conversation_id: int):
             worker_review = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=request.auth,
-                reviewerType="WORKER"
-            ).first()
+                reviewerType="WORKER",
+                status='ACTIVE'
+            ).order_by('-updatedAt', '-createdAt').first()
             
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
@@ -2444,11 +2455,24 @@ def get_conversation_messages(request, conversation_id: int):
             review_qs = JobReview.objects.filter(
                 jobID=job,
                 reviewerType__in=["WORKER", "AGENCY"],
-            ).select_related("reviewerID").order_by("createdAt")
+                status='ACTIVE'
+            ).select_related("reviewerID").order_by("-updatedAt", "-createdAt")
+
+            seen_counterparty_reviewer_keys = set()
 
             for review in review_qs:
                 reviewer_identity = resolve_reviewer_identity(review)
                 reviewer_account_id = reviewer_identity["reviewer_account_id"]
+
+                reviewer_key = (
+                    reviewer_identity.get("reviewer_type"),
+                    reviewer_account_id,
+                )
+                if reviewer_key in seen_counterparty_reviewer_keys:
+                    # Keep only the most recent review per reviewer in conversation payload.
+                    continue
+                seen_counterparty_reviewer_keys.add(reviewer_key)
+
                 worker_meta = account_to_worker_meta.get(reviewer_account_id, {})
 
                 reviewer_name = worker_meta.get("name") or reviewer_identity["reviewer_name"]
@@ -2474,7 +2498,9 @@ def get_conversation_messages(request, conversation_id: int):
             jobID=job,
             reviewerID=request.auth,
             status='ACTIVE'
-        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('createdAt')
+        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('-updatedAt', '-createdAt')
+
+        seen_editable_targets = set()
 
         for authored_review in my_reviews_qs:
             within_24h = (now - authored_review.createdAt) <= timedelta(hours=24)
@@ -2506,6 +2532,12 @@ def get_conversation_messages(request, conversation_id: int):
                 if reviewee_profile:
                     profile_name = f"{reviewee_profile.firstName or ''} {reviewee_profile.lastName or ''}".strip()
                     target_name = profile_name or target_name
+
+            target_key = (target_type, target_id)
+            if target_key in seen_editable_targets:
+                # Keep only the newest editable review per target.
+                continue
+            seen_editable_targets.add(target_key)
 
             my_editable_reviews_data.append({
                 'review_id': authored_review.reviewID,

@@ -44,7 +44,12 @@ import SkeletonCard from "@/components/ui/SkeletonCard";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 
-type TransactionFilter = "all" | "deposit" | "payment" | "withdrawal";
+type TransactionFilter =
+  | "all"
+  | "deposit"
+  | "payment"
+  | "withdrawal"
+  | "pending";
 
 export default function WalletScreen() {
   const router = useRouter();
@@ -382,7 +387,7 @@ export default function WalletScreen() {
           contentContainerStyle={styles.filterTabs}
         >
           {(
-            ["all", "deposit", "payment", "withdrawal"] as TransactionFilter[]
+            ["all", "deposit", "payment", "withdrawal", "pending"] as TransactionFilter[]
           ).map((filter) => (
             <TouchableOpacity
               key={filter}

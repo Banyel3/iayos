@@ -2,10 +2,10 @@
 # TEAM JOB SERVICES - Multi-Skill Multi-Worker Business Logic
 # ===========================================================================
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 
@@ -14,6 +14,88 @@ from accounts.models import (
     Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet, workerSpecialization
 )
 from profiles.models import Conversation, ConversationParticipant
+
+
+def _calculate_team_pending_payouts(job: Job, total_pending_pool: Decimal) -> dict:
+    """
+    Split pending payout pool across assigned team workers.
+
+    PROJECT jobs use slot budget-per-worker as weight.
+    DAILY jobs use assignment earnings/rate as weight.
+    """
+    assignments = list(
+        JobWorkerAssignment.objects.select_related(
+            'workerID__profileID__accountFK',
+            'skillSlotID'
+        ).filter(
+            jobID=job,
+            assignment_status__in=['ACTIVE', 'COMPLETED']
+        )
+    )
+
+    if not assignments:
+        return {}
+
+    pool = Decimal(total_pending_pool or Decimal('0.00'))
+    if pool <= 0:
+        return {}
+
+    payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+    weighted_accounts = []
+
+    for assignment in assignments:
+        worker_account = assignment.workerID.profileID.accountFK
+        base_amount = Decimal('0.00')
+
+        if payment_model == 'DAILY':
+            if assignment.total_earned and assignment.total_earned > 0:
+                base_amount = assignment.total_earned
+            else:
+                daily_rate = assignment.daily_rate_at_assignment or job.daily_rate_agreed or Decimal('0.00')
+                days_worked = assignment.days_worked or int(getattr(job, 'total_days_worked', 0) or 0) or 1
+                base_amount = Decimal(daily_rate) * Decimal(days_worked)
+        else:
+            if assignment.skillSlotID is not None:
+                base_amount = Decimal(assignment.skillSlotID.budget_per_worker or Decimal('0.00'))
+
+        if base_amount < 0:
+            base_amount = Decimal('0.00')
+
+        weighted_accounts.append((worker_account, base_amount))
+
+    if not weighted_accounts:
+        return {}
+
+    total_base = sum(base for _, base in weighted_accounts)
+    payouts = {}
+
+    if total_base <= 0:
+        split_count = len(weighted_accounts)
+        equal_share = (pool / Decimal(split_count)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        distributed = Decimal('0.00')
+
+        for index, (account, _) in enumerate(weighted_accounts):
+            if index == split_count - 1:
+                amount = pool - distributed
+            else:
+                amount = equal_share
+                distributed += amount
+            payouts[account] = payouts.get(account, Decimal('0.00')) + amount
+        return payouts
+
+    distributed = Decimal('0.00')
+    last_index = len(weighted_accounts) - 1
+    for index, (account, base) in enumerate(weighted_accounts):
+        if index == last_index:
+            amount = pool - distributed
+        else:
+            ratio = (base / total_base) if total_base > 0 else Decimal('0.00')
+            amount = (pool * ratio).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            distributed += amount
+
+        payouts[account] = payouts.get(account, Decimal('0.00')) + amount
+
+    return payouts
 
 
 def _get_required_project_days(job: Job) -> int:
@@ -436,11 +518,16 @@ def create_team_job(
     
     if payment_method_upper == 'WALLET':
         try:
-            wallet = Wallet.objects.get(accountFK=client_profile_obj.accountFK)
-            if wallet.balance < total_needed:
+            wallet = Wallet.objects.select_for_update().get(accountFK=client_profile_obj.accountFK)
+            available_balance = wallet.availableBalance
+            if available_balance < total_needed:
                 return {
                     'success': False,
-                    'error': f'Insufficient wallet balance. Need ₱{total_needed}, have ₱{wallet.balance}',
+                    'error': (
+                        f'Insufficient wallet balance. Need ₱{total_needed}, '
+                        f'have ₱{available_balance} available '
+                        f'(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved).'
+                    ),
                     'requires_deposit': True,
                     'amount_needed': float(total_needed)
                 }
@@ -510,9 +597,32 @@ def create_team_job(
         # Deduct from wallet
         if wallet is None:
             return {'success': False, 'error': 'Wallet not found'}
+
+        available_balance = wallet.availableBalance
+        if available_balance < total_needed:
+            return {
+                'success': False,
+                'error': (
+                    f'Insufficient wallet balance. Need ₱{total_needed}, '
+                    f'have ₱{available_balance} available '
+                    f'(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved).'
+                ),
+                'requires_deposit': True,
+                'amount_needed': float(total_needed)
+            }
+
         wallet.balance -= total_needed
         wallet.reservedBalance += escrow_amount  # Hold escrow
-        wallet.save()
+        try:
+            wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+        except IntegrityError:
+            return {
+                'success': False,
+                'error': (
+                    'Unable to reserve/deduct wallet funds due to reserved-balance constraint. '
+                    'Please retry, deposit more funds, or choose a different payment flow.'
+                )
+            }
         
         # Create transaction record
         Transaction.objects.create(
@@ -1456,6 +1566,24 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             'error': 'Team DAILY jobs must be finished via /jobs/{job_id}/daily/finish after attendance settlement.'
         }
 
+    required_project_days = _get_required_project_days(job)
+    payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
+
+    # Backward-compat detector for PROJECT multi-day flows:
+    # some legacy jobs may not have reliable duration metadata, but they still
+    # run attendance/day-tracking paths (total_days_worked / qa_day_offset).
+    total_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
+    qa_day_offset = int(getattr(job, 'qa_day_offset', 0) or 0)
+    has_project_day_tracking_signals = total_days_worked > 0 or qa_day_offset > 0
+
+    is_project_multiday = (
+        payment_model == 'PROJECT'
+        and (
+            required_project_days > 1
+            or has_project_day_tracking_signals
+        )
+    )
+
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
         return project_gate_error
@@ -1470,23 +1598,30 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         worker_marked_complete=False
     )
     
+    unresolved_incomplete_count = 0
+    unresolved_incomplete_sample = []
     if incomplete_workers.exists():
-        incomplete_count = incomplete_workers.count()
-        incomplete_sample = [
+        unresolved_incomplete_count = incomplete_workers.count()
+        unresolved_incomplete_sample = [
             {
                 'assignment_id': a.assignmentID,
-                'worker_id': a.workerID.id,
+                'worker_id': getattr(a.workerID, 'workerProfileID', None),
                 'worker_name': f"{a.workerID.profileID.firstName} {a.workerID.profileID.lastName}".strip(),
                 'client_confirmed_arrival': bool(a.client_confirmed_arrival),
             }
             for a in incomplete_workers.select_related('workerID__profileID')[:5]
         ]
-        return {
-            'success': False, 
-            'error': f'{incomplete_count} worker(s) have not yet marked their work as complete',
-            'healed_assignments': healed_assignments,
-            'incomplete_assignments': incomplete_sample,
-        }
+
+        # Backward-compat parity with single-job PROJECT multi-day finish:
+        # once duration gate passes, don't block client completion on stale
+        # assignment worker_marked_complete flags.
+        if not is_project_multiday:
+            return {
+                'success': False,
+                'error': f'{unresolved_incomplete_count} worker(s) have not yet marked their work as complete',
+                'healed_assignments': healed_assignments,
+                'incomplete_assignments': unresolved_incomplete_sample,
+            }
     
     payment_method_upper = (payment_method or 'WALLET').upper()
     if payment_method_upper not in ['WALLET', 'CASH']:
@@ -1500,21 +1635,49 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     if remaining_amount <= 0:
         return {'success': False, 'error': 'No remaining payment is due for this team job'}
 
+    # Team jobs must create pending earnings per assigned worker so both
+    # auto-release and "Release Payment Now" work for multi-recipient payouts.
+    from jobs.payment_buffer_service import add_pending_earnings, get_payment_buffer_days
+
+    if payment_method_upper == 'WALLET':
+        pending_pool = (job.budget or Decimal('0.00')) + (job.materialsCost or Decimal('0.00'))
+    else:
+        # For cash completion, only escrow/downpayment portion is buffered.
+        pending_pool = (job.budget or Decimal('0.00')) * Decimal('0.50')
+
+    pending_payouts = _calculate_team_pending_payouts(job, pending_pool)
+    if not pending_payouts:
+        return {
+            'success': False,
+            'error': 'No assigned workers found to receive team payout'
+        }
+
+    buffer_days = get_payment_buffer_days()
+
     # Pre-validate wallet balance BEFORE updating job flags.
+    # Use available balance (balance - reserved) to avoid violating
+    # wallet_balance_gte_reserved DB constraint on deduction.
     if payment_method_upper == 'WALLET':
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user,
             defaults={'balance': Decimal('0.00')}
         )
-        if wallet.balance < remaining_amount:
+        available_balance = wallet.availableBalance
+        if available_balance < remaining_amount:
             return {
                 'success': False,
-                'error': f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} but only have ₱{wallet.balance:,.2f}. Please deposit more funds or choose CASH payment.'
+                'error': (
+                    f'Insufficient wallet balance. You need ₱{remaining_amount:,.2f} '
+                    f'but only have ₱{available_balance:,.2f} available '
+                    f'(₱{wallet.balance:,.2f} balance, ₱{wallet.reservedBalance:,.2f} reserved). '
+                    'Please deposit more funds or choose CASH payment.'
+                )
             }
 
     old_status = job.status
     now = timezone.now()
 
+    first_pending_result = None
     with transaction.atomic():
         client_wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user,
@@ -1523,15 +1686,41 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
 
         if payment_method_upper == 'WALLET':
             client_wallet = Wallet.objects.select_for_update().get(accountFK=client_user)
-            # Re-validate balance after acquiring the row lock to prevent races
-            if client_wallet.balance < remaining_amount:
-                raise ValueError(
-                    f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
-                    f'but only have ₱{client_wallet.balance:,.2f}. '
-                    'Please deposit more funds or choose CASH payment.'
-                )
+            # Re-validate available balance after acquiring row lock to prevent races.
+            available_balance = client_wallet.availableBalance
+            if available_balance < remaining_amount:
+                return {
+                    'success': False,
+                    'error': (
+                        f'Insufficient wallet balance. Need ₱{remaining_amount:,.2f} '
+                        f'but only have ₱{available_balance:,.2f} available '
+                        f'(₱{client_wallet.balance:,.2f} balance, '
+                        f'₱{client_wallet.reservedBalance:,.2f} reserved). '
+                        'Please deposit more funds or choose CASH payment.'
+                    )
+                }
+
+            new_balance = client_wallet.balance - remaining_amount
+            if new_balance < client_wallet.reservedBalance:
+                return {
+                    'success': False,
+                    'error': (
+                        'Insufficient available wallet funds after considering reserved balance. '
+                        f'Available: ₱{available_balance:,.2f}, required: ₱{remaining_amount:,.2f}.'
+                    )
+                }
+
             client_wallet.balance -= remaining_amount
-            client_wallet.save(update_fields=['balance'])
+            try:
+                client_wallet.save(update_fields=['balance'])
+            except IntegrityError:
+                return {
+                    'success': False,
+                    'error': (
+                        'Payment could not be completed because wallet funds are reserved by other pending jobs. '
+                        'Please retry, deposit more funds, or choose CASH payment.'
+                    )
+                }
 
         Transaction.objects.create(
             walletID=client_wallet,
@@ -1543,6 +1732,18 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
             relatedJobPosting=job,
             paymentMethod=payment_method_upper,
         )
+
+        for worker_account, worker_amount in pending_payouts.items():
+            if worker_amount <= 0:
+                continue
+            pending_result = add_pending_earnings(
+                job=job,
+                recipient_account=worker_account,
+                amount=worker_amount,
+                recipient_type='worker'
+            )
+            if first_pending_result is None:
+                first_pending_result = pending_result
 
         job.status = 'COMPLETED'
         job.clientMarkedComplete = True
@@ -1564,11 +1765,17 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
     # NOTE: Keep conversation ACTIVE after approval, consistent with single-job flow.
     # Conversation should only close after both parties submit reviews.
     
-    # Update all assignments to COMPLETED status
+    # Update all active assignments to completed state for backward-compat.
+    # This mirrors single-job PROJECT multi-day finish behavior where client
+    # completion finalizes worker completion flags.
     JobWorkerAssignment.objects.filter(
         jobID=job,
         assignment_status='ACTIVE'
-    ).update(assignment_status='COMPLETED')
+    ).update(
+        assignment_status='COMPLETED',
+        worker_marked_complete=True,
+        worker_marked_complete_at=now,
+    )
     
     # Create completion log
     from accounts.models import JobLog
@@ -1599,6 +1806,12 @@ def client_approve_team_job(job_id: int, client_user, payment_method: Optional[s
         'job_id': job_id,
         'payment_method': payment_method_upper,
         'amount_paid': float(remaining_amount),
+        'pending_payout_total': float(pending_pool),
+        'pending_recipients_count': len(pending_payouts),
+        'payment_buffer_days': buffer_days,
+        'worker_payment_pending': True,
+        'worker_payment_release_date': first_pending_result['release_date'].isoformat() if first_pending_result else None,
+        'worker_payment_release_date_formatted': first_pending_result['release_date_str'] if first_pending_result else None,
         'workers_completed': job.total_workers_assigned,
         'healed_assignments': healed_assignments,
         'message': 'Team job completed successfully',

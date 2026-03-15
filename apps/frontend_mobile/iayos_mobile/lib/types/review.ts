@@ -82,6 +82,10 @@ export interface SubmitReviewRequest {
 export interface EditReviewRequest {
   comment: string;
   rating: number;
+  rating_quality?: number;
+  rating_communication?: number;
+  rating_punctuality?: number;
+  rating_professionalism?: number;
 }
 
 export interface ReportReviewRequest {

@@ -2693,13 +2693,6 @@ def withdraw_funds(request, amount: float, payment_method: str = "GCASH", gcash_
                 status=404
             )
         
-        # Check sufficient balance
-        if wallet.balance < Decimal(str(amount)):
-            return Response(
-                {"error": "Insufficient balance"},
-                status=400
-            )
-        
         # Get user profile for details
         try:
             profile = Profile.objects.filter(accountFK=request.auth).first()
@@ -2707,21 +2700,35 @@ def withdraw_funds(request, amount: float, payment_method: str = "GCASH", gcash_
         except Exception:
             user_name = request.auth.email.split('@')[0]
         
-        # Deduct balance first
-        old_balance = wallet.balance
-        wallet.balance -= Decimal(str(amount))
-        wallet.save()
-        
-        # Create pending withdrawal transaction
-        transaction = Transaction.objects.create(
-            walletID=wallet,
-            transactionType="WITHDRAWAL",
-            amount=Decimal(str(amount)),
-            balanceAfter=wallet.balance,
-            status="PENDING",
-            description=f"Withdrawal to {payment_method} - {gcash_number}",
-            paymentMethod=payment_method,
-        )
+        from django.db import transaction as db_transaction
+
+        amount_decimal = Decimal(str(amount))
+        with db_transaction.atomic():
+            locked_wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
+
+            if locked_wallet.balance < amount_decimal:
+                return Response(
+                    {"error": "Insufficient balance"},
+                    status=400
+                )
+
+            # Deduct balance first (inside lock)
+            old_balance = locked_wallet.balance
+            locked_wallet.balance -= amount_decimal
+            locked_wallet.save(update_fields=['balance', 'updatedAt'])
+
+            # Create pending withdrawal transaction
+            transaction = Transaction.objects.create(
+                walletID=locked_wallet,
+                transactionType="WITHDRAWAL",
+                amount=amount_decimal,
+                balanceAfter=locked_wallet.balance,
+                status="PENDING",
+                description=f"Withdrawal to {payment_method} - {gcash_number}",
+                paymentMethod=payment_method,
+            )
+
+            wallet = locked_wallet
         
         print(f"💸 Processing withdrawal for {user_name}: ₱{amount}")
         print(f"   Old balance: ₱{old_balance} → New balance: ₱{wallet.balance}")

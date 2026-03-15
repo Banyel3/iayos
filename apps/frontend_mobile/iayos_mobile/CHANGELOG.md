@@ -9,6 +9,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wallet Pending Filter Tab for Worker Payout Visibility**
+  - Added a new `Pending` transaction filter tab in wallet/profile transactions.
+  - Wired mobile filter mapping to request `PENDING_EARNING` transactions from backend.
+  - Updated backend mobile transaction type mapping to accept `PENDING_EARNING` (and `PENDING` alias).
+  - DAILY jobs now auto-release previous day pending payout(s) to wallet balance when worker checks in the following day.
+  - Added a system note in team job conversation when that next-day auto-release happens so workers can see it in-chat.
+  - Removed `Release Payment Now` action for DAILY jobs in conversation screen (kept for non-DAILY flows).
+  - **Impact**: Worker day payouts held in buffer are now easy to find in transaction history and clearly follow the pending-earnings flow.
+
+- **Team DAILY Client Waiting Status Card (On-The-Way Visibility)**
+  - Extended team attendance row merging for client view to include DAILY team jobs, not just PROJECT multi-day.
+  - Added placeholder team worker rows for DAILY when no attendance has been logged yet.
+  - Added client-facing waiting card: `Awaiting workers to mark as on the way...` when all workers are still pending.
+  - **Impact**: Clients can now see clear pre-arrival team status in DAILY jobs, matching PROJECT visibility.
+
+- **DAILY Per-Click Payment Method Selection (Wallet or Cash Proof)**
+  - Added per-attendance client prompt in conversation flow for DAILY jobs to choose `Wallet` or `Cash` when confirming a checked-out worker.
+  - Added cash-proof image capture/upload support in DAILY attendance confirmation (`cash_proof_image` multipart payload).
+  - Updated backend DAILY attendance confirmation to accept payment method + optional cash proof, and to persist payment metadata per attendance row.
+  - Added attendance-level payout tracking fields (`payment_method`, `cash_payment_proof_url`, `cash_payment_verified`, timestamps) with migration.
+  - **Impact**: DAILY payouts now support explicit method choice per worker/day confirmation while preserving existing wallet flow and backwards compatibility.
+
+- **Team PROJECT Repeated-Backjob Review Freshness Parity**
+  - Hardened conversation review refresh after edit by awaiting conversation refetch before advancing to the next editable review target.
+  - Added conversation/messages cache invalidation on review edit success.
+  - Updated backend conversation review selection to prioritize latest edited records (`updatedAt` then `createdAt`) for repeated backjob cycles.
+  - **Impact**: In team PROJECT jobs, second-backjob review edits now reflect immediately and consistently instead of showing stale old review values.
+
+- **Team Review List Scroll in View Reviews Modal**
+  - Removed the review section height cap in the conversation review modal so long team worker review lists are no longer clipped.
+  - Keeps modal scrolling handled by the existing outer `ScrollView`, allowing clients to scroll through all worker reviews.
+  - **Impact**: Clients can now view the complete team review list (not just the first review card) in `View Reviews`.
+
+- **Team DAILY Date-Range Duration Auto-Calc + Release-Now Stability**
+  - Fixed team DAILY job creation to auto-calculate `duration_days` from selected start and end dates (inclusive), matching single-job DAILY behavior.
+  - One-day team jobs now consistently set duration to `1` when one-day mode is enabled.
+  - Fixed backend release-payment-now failure caused by updating a non-existent `updatedAt` field on `Transaction` during pending-earning release.
+  - **Impact**: Team DAILY posts now compute duration correctly from dates, and release button no longer throws a 500 for valid jobs.
+
+- **Team PROJECT Worker Helper Guidance Messages**
+  - Added clearer worker-side helper guidance in conversation attendance UI for team PROJECT flows.
+  - Added pre-action guidance before tapping `On The Way` so workers understand arrival verification and check-out dependencies.
+  - Improved post check-out helper copy to explicitly explain waiting states:
+    - waiting for client to confirm workday,
+    - waiting for client to extend or finish+pay when configured duration is reached,
+    - next-step guidance after confirmed day/payment.
+  - **Impact**: Workers now see actionable next-step messages at each attendance stage, reducing confusion in team PROJECT rate workflows.
+
+- **Backjob Schedule Date Picker Stability + Change Review Submit Fix**
+  - Fixed backjob schedule modal date handling to normalize date-only values and avoid picker reversion while selecting dates.
+  - Improved Android date picker event handling so only confirmed selections are applied (dismiss events no longer overwrite state).
+  - Updated mobile review edit flow to submit full multi-criteria ratings and decimal overall rating for backjob review changes.
+  - Updated mobile backend review edit endpoint/service typing to accept decimal ratings consistently.
+  - Improved mobile API error parsing for Django Ninja `detail` validation arrays to prevent generic "unexpected error" messaging.
+  - **Impact**: Clients can reliably set backjob schedule dates without snap-back behavior, and post-backjob "Yes, Change Review" submits successfully with clear error messaging when validation fails.
+
 - **Team DAILY Completion Parity with Single DAILY Flow**
   - Updated active team job actions to block PROJECT-only team completion paths when the job is `DAILY`.
   - Routed client team DAILY end action to the daily finish flow so settlement follows the same attendance-driven model as single DAILY jobs.
