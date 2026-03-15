@@ -8301,6 +8301,7 @@ def get_job_receipt(request, job_id: int):
         transactions = []
         earning_amount_from_transactions = Decimal('0.00')
         pending_earning_amount_from_transactions = Decimal('0.00')
+        platform_fee_retained = Decimal('0.00')
         try:
             # Get all transactions related to this job (from any wallet)
             from accounts.models import Transaction, Profile
@@ -8399,6 +8400,12 @@ def get_job_receipt(request, job_id: int):
                     elif txn.transactionType == Transaction.TransactionType.PENDING_EARNING:
                         pending_earning_amount_from_transactions += Decimal(str(txn.amount))
 
+                if (
+                    txn.transactionType == Transaction.TransactionType.FEE
+                    and txn.status == Transaction.TransactionStatus.COMPLETED
+                ):
+                    platform_fee_retained += Decimal(str(txn.amount))
+
             # Legacy fallback: synthesize receipt timeline rows for old cancelled jobs
             # when no linked transactions exist yet.
             if is_cancelled_job and not transactions:
@@ -8468,6 +8475,27 @@ def get_job_receipt(request, job_id: int):
                         'created_at': timeline_ts,
                         'completed_at': timeline_ts,
                     })
+                    synthetic_id -= 1
+
+                if platform_fee > Decimal('0.00'):
+                    transactions.append({
+                        'id': synthetic_id,
+                        'type': 'FEE',
+                        'amount': float(platform_fee),
+                        'status': 'COMPLETED',
+                        'description': 'Legacy cancellation settlement platform fee retained',
+                        'reference_number': None,
+                        'payment_method': 'WALLET',
+                        'affected_account_id': job.clientID.profileID.accountFK.accountID,
+                        'affected_role': 'CLIENT',
+                        'affected_name': resolve_account_name(job.clientID.profileID.accountFK),
+                        'impact': 'DEBIT',
+                        'created_at': timeline_ts,
+                        'completed_at': timeline_ts,
+                    })
+
+                if platform_fee_retained == Decimal('0.00'):
+                    platform_fee_retained = platform_fee
         except Exception as e:
             print(f"⚠️ Error fetching transactions for receipt: {e}")
 
@@ -8478,12 +8506,9 @@ def get_job_receipt(request, job_id: int):
             elif pending_earning_amount_from_transactions > Decimal('0.00'):
                 actual_worker_earnings = pending_earning_amount_from_transactions
 
-        platform_fee_retained = Decimal('0.00')
-        if is_cancelled_job and job.escrowPaid:
-            platform_fee_retained = max(
-                Decimal('0.00'),
-                actual_client_paid - actual_worker_earnings - materials_cost,
-            )
+        if is_cancelled_job and job.escrowPaid and platform_fee_retained == Decimal('0.00'):
+            # Fallback for older jobs without linked FEE transactions.
+            platform_fee_retained = platform_fee
         
         # Build worker/agency info
         worker_info = None
@@ -8547,6 +8572,7 @@ def get_job_receipt(request, job_id: int):
             'receipt': {
                 # Job info
                 'job_id': job.jobID,
+                'receipt_id': f"JOB-{job.jobID}",
                 'title': job.title,
                 'description': job.description,
                 'category': job.categoryID.specializationName if job.categoryID else None,

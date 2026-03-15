@@ -241,6 +241,17 @@ ${RECEIPT_DISCLAIMER_TEXT}
               </View>
             </View>
 
+            <View style={styles.receiptIdRow}>
+              <Ionicons
+                name="document-text-outline"
+                size={14}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.receiptIdText}>
+                Receipt ID: {receipt.receipt_id || `JOB-${receipt.job_id}`}
+              </Text>
+            </View>
+
             {/* Cancellation Settlement Card */}
             {receipt.status === "CANCELLED" && receipt.cancellation?.is_cancelled && (
               <View style={styles.card}>
@@ -742,7 +753,7 @@ ${RECEIPT_DISCLAIMER_TEXT}
             {/* Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                Receipt ID: JOB-{receipt.job_id}
+                Receipt ID: {receipt.receipt_id || `JOB-${receipt.job_id}`}
               </Text>
               <Text style={styles.footerText}>
                 Generated on {new Date().toLocaleDateString("en-PH")}
@@ -928,6 +939,19 @@ const styles = StyleSheet.create({
   receiptBadgeText: {
     ...Typography.body.small,
     fontWeight: "600",
+  },
+  receiptIdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.xs,
+  },
+  receiptIdText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontFamily: "monospace",
   },
   completedText: {
     color: Colors.success,

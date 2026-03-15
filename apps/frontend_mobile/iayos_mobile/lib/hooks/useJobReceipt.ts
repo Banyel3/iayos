@@ -96,6 +96,7 @@ export interface ReceiptMaterial {
 export interface JobReceipt {
   // Job info
   job_id: number;
+  receipt_id?: string;
   title: string;
   description: string;
   category: string | null;
