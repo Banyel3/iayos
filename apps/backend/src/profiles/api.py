@@ -2372,7 +2372,21 @@ def get_conversation_messages(request, conversation_id: int):
                         except Exception:
                             arrived_at = None
 
+                    # PROJECT multi-day requires daily dispatch. Only auto-heal
+                    # attendance rows for the current effective day when dispatch
+                    # (and arrival, if present) happened on this same day.
+                    dispatched_on_today = bool(
+                        dispatched_at and timezone.localtime(dispatched_at).date() == today
+                    )
+                    if not dispatched_on_today:
+                        continue
+
                     client_confirmed_arrival = bool(employee_payload.get('clientConfirmedArrival'))
+                    if client_confirmed_arrival and arrived_at:
+                        arrived_on_today = timezone.localtime(arrived_at).date() == today
+                        if not arrived_on_today:
+                            client_confirmed_arrival = False
+
                     healed_status = 'PENDING' if client_confirmed_arrival else 'DISPATCHED'
 
                     healed_record, _ = DailyAttendance.objects.update_or_create(
