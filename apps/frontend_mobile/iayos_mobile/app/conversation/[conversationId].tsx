@@ -3221,24 +3221,69 @@ export default function ChatScreen() {
     );
   }
 
-  const myWorkerAttendanceToday = conversation.attendance_today?.find((a) => {
-    const attendanceWorkerId = Number(a?.worker_id);
-    const attendanceWorkerAccountId = Number(a?.worker_account_id);
-    const myWorkerProfileId = Number(user?.profile_data?.workerProfileId);
-    const myAccountId = Number(user?.accountID);
+  const myWorkerProfileId = Number(user?.profile_data?.workerProfileId);
+  const myAccountId = Number(user?.accountID);
+  const myTeamAssignment = Array.isArray(conversation.team_worker_assignments)
+    ? conversation.team_worker_assignments.find((assignment: any) => {
+        const assignmentAccountId = Number(assignment?.account_id);
+        const assignmentWorkerId = Number(assignment?.worker_id);
+        const accountIdMatch =
+          Number.isFinite(assignmentAccountId) &&
+          Number.isFinite(myAccountId) &&
+          assignmentAccountId === myAccountId;
+        const profileIdMatch =
+          Number.isFinite(assignmentWorkerId) &&
+          Number.isFinite(myWorkerProfileId) &&
+          assignmentWorkerId === myWorkerProfileId;
+        return accountIdMatch || profileIdMatch;
+      })
+    : null;
 
-    const profileIdMatch =
-      Number.isFinite(attendanceWorkerId) &&
-      Number.isFinite(myWorkerProfileId) &&
-      attendanceWorkerId === myWorkerProfileId;
+  const myWorkerAttendanceToday = (() => {
+    const attendanceRows = Array.isArray(conversation.attendance_today)
+      ? conversation.attendance_today
+      : [];
 
-    const accountIdMatch =
-      Number.isFinite(attendanceWorkerAccountId) &&
-      Number.isFinite(myAccountId) &&
-      attendanceWorkerAccountId === myAccountId;
+    const matched = attendanceRows.find((a) => {
+      const attendanceWorkerId = Number(a?.worker_id);
+      const attendanceWorkerAccountId = Number(a?.worker_account_id);
+      const attendanceAssignmentId = Number(a?.assignment_id);
+      const myAssignmentId = Number(myTeamAssignment?.assignment_id);
 
-    return profileIdMatch || accountIdMatch;
-  });
+      const profileIdMatch =
+        Number.isFinite(attendanceWorkerId) &&
+        Number.isFinite(myWorkerProfileId) &&
+        attendanceWorkerId === myWorkerProfileId;
+
+      const accountIdMatch =
+        Number.isFinite(attendanceWorkerAccountId) &&
+        Number.isFinite(myAccountId) &&
+        attendanceWorkerAccountId === myAccountId;
+
+      const assignmentIdMatch =
+        Number.isFinite(attendanceAssignmentId) &&
+        Number.isFinite(myAssignmentId) &&
+        attendanceAssignmentId === myAssignmentId;
+
+      return profileIdMatch || accountIdMatch || assignmentIdMatch;
+    });
+
+    if (matched) {
+      return matched;
+    }
+
+    // Fallback for team-worker payloads that can temporarily miss worker/account IDs.
+    if (
+      isWorkerSideRole &&
+      isTeamAttendanceFlow &&
+      attendanceRows.length === 1 &&
+      myTeamAssignment
+    ) {
+      return attendanceRows[0];
+    }
+
+    return undefined;
+  })();
   const hasCheckedInToday = Boolean(myWorkerAttendanceToday?.time_in);
   const hasCheckedOutToday = Boolean(myWorkerAttendanceToday?.time_out);
   const hasMarkedOnTheWayToday = Boolean(
