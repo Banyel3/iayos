@@ -1532,12 +1532,47 @@ export default function ChatScreen() {
         employee.marked_complete ||
         employee.status === "COMPLETED";
 
+      const hasLegacyAttendanceSignal = (employeeIdRaw: any) => {
+        const employeeId = Number(employeeIdRaw);
+        if (!Number.isFinite(employeeId)) return null;
+
+        const attendanceForEmployee = attendanceRows.find((row: any) => {
+          const rowWorkerId = Number(row?.worker_id);
+          return Number.isFinite(rowWorkerId) && rowWorkerId === employeeId;
+        });
+
+        if (!attendanceForEmployee) return null;
+
+        const rowStatus = String(attendanceForEmployee?.status || "").toUpperCase();
+        return {
+          dispatched:
+            Boolean(attendanceForEmployee?.is_dispatched) ||
+            Boolean(attendanceForEmployee?.worker_confirmed) ||
+            Boolean(attendanceForEmployee?.worker_confirmed_at) ||
+            Boolean(attendanceForEmployee?.time_in) ||
+            Boolean(attendanceForEmployee?.time_out) ||
+            Boolean(attendanceForEmployee?.client_confirmed) ||
+            ["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"].includes(rowStatus),
+          arrived:
+            Boolean(attendanceForEmployee?.client_confirmed) ||
+            Boolean(attendanceForEmployee?.time_in) ||
+            Boolean(attendanceForEmployee?.time_out),
+          completed:
+            Boolean(attendanceForEmployee?.time_out) ||
+            ["PRESENT", "HALF_DAY", "COMPLETED"].includes(rowStatus),
+        };
+      };
+
       const assignedEmployees = conversation.assigned_employees || [];
       const incompleteWorkflowEmployees = assignedEmployees.filter(
-        (employee) =>
-          !employee.dispatched ||
-          !employee.clientConfirmedArrival ||
-          !isEmployeeComplete(employee),
+        (employee) => {
+          const legacySignals = hasLegacyAttendanceSignal(employee?.id);
+          const dispatched = Boolean(employee.dispatched) || Boolean(legacySignals?.dispatched);
+          const arrived = Boolean(employee.clientConfirmedArrival) || Boolean(legacySignals?.arrived);
+          const completed = isEmployeeComplete(employee) || Boolean(legacySignals?.completed);
+
+          return !dispatched || !arrived || !completed;
+        },
       );
 
       // Defensive guard: keep client-side approval gate aligned with backend workflow validation.
@@ -4433,6 +4468,21 @@ export default function ChatScreen() {
                               return;
                             }
 
+                            if (conversation.is_agency_job) {
+                              Alert.alert(
+                                "Finish Agency Project & Pay",
+                                "All required workdays are done. Continue to choose payment method (Wallet or Cash) and close this job for reviews/backjob flow.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Continue",
+                                    onPress: () => handleApproveCompletion(),
+                                  },
+                                ],
+                              );
+                              return;
+                            }
+
                             Alert.alert(
                               "Finish Project Job",
                               "Mark this PROJECT multi-day job as finished now? This will move it into review/backjob flow.",
@@ -4451,12 +4501,19 @@ export default function ChatScreen() {
                           }}
                           disabled={
                             approveTeamJobCompletionMutation.isPending ||
+                            approveAgencyProjectJobMutation.isPending ||
                             projectFinishJobMutation.isPending ||
                             projectExtendOneDayMutation.isPending
                           }
                         >
                           {conversation.is_team_job &&
                           approveTeamJobCompletionMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : conversation.is_agency_job &&
+                            approveAgencyProjectJobMutation.isPending ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
