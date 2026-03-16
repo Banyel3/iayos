@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team DAILY Backjob Completion Compatibility + Idempotent UX**
+  - Enabled team assignment completion for DAILY jobs during active backjob cycles so `Mark Assignment Complete` works in TEAM DAILY backjob flow.
+  - Kept normal DAILY non-backjob behavior unchanged (still attendance-based outside active backjob cycles).
+  - Updated team assignment completion UX to treat duplicate taps as idempotent success (`Already Marked Complete`) instead of error-like behavior.
+  - **Impact**: TEAM DAILY backjobs now follow required per-worker completion flow consistently without repeat-tap confusion.
+
 - **Team Backjob PROJECT RATE Completion Flow (Per-Worker Assignment)**
   - Fixed team PROJECT/FIXED backjob `Mark My Assignment Complete` button to use per-assignment completion endpoint instead of dispute-level mark-complete, preventing one worker from completing the entire backjob.
   - Updated worker waiting-for-approval and client approve-completion conditions to use `isTeamBackjobFlow` (all team types) instead of `isTeamDailyBackjobFlow` (DAILY only).

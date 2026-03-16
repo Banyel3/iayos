@@ -381,8 +381,12 @@ export function useMarkTeamAssignmentComplete() {
 
       Toast.show({
         type: "success",
-        text1: "Assignment Marked Complete",
-        text2: "Client will review your work",
+        text1: data?.already_processed
+          ? "Already Marked Complete"
+          : "Assignment Marked Complete",
+        text2: data?.already_processed
+          ? "Your completion was already recorded"
+          : "Client will review your work",
       });
 
       // Invalidate messages to refetch with updated completion status

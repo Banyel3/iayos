@@ -11,7 +11,8 @@ from django.utils import timezone
 
 from accounts.models import (
     Job, JobSkillSlot, JobWorkerAssignment, JobApplication,
-    Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet, workerSpecialization
+    Specializations, Profile, WorkerProfile, ClientProfile, Notification, Transaction, Wallet, workerSpecialization,
+    JobDispute,
 )
 from profiles.models import Conversation, ConversationParticipant
 
@@ -1455,7 +1456,7 @@ def start_team_job(job_id: int, client_user, force_start: bool = False) -> dict:
 
 
 @transaction.atomic
-def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str = None) -> dict:
+def worker_complete_team_assignment(assignment_id: int, worker_user, notes: Optional[str] = None) -> dict:
     """
     Worker marks their individual assignment as complete in a team job.
     """
@@ -1473,18 +1474,38 @@ def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str 
     if assignment.assignment_status != 'ACTIVE':
         return {'success': False, 'error': f'Assignment is not active (status: {assignment.assignment_status})'}
     
+    existing_completed_at = assignment.worker_marked_complete_at
     if assignment.worker_marked_complete:
-        return {'success': False, 'error': 'Already marked as complete'}
+        all_complete = not JobWorkerAssignment.objects.filter(
+            jobID=assignment.jobID,
+            assignment_status='ACTIVE',
+            worker_marked_complete=False,
+        ).exists()
+        return {
+            'success': True,
+            'already_processed': True,
+            'assignment_id': assignment.assignmentID,
+            'all_workers_complete': all_complete,
+            'message': 'Assignment already marked as complete',
+            'completed_at': existing_completed_at.isoformat() if existing_completed_at else None,
+        }
     
     job = assignment.jobID
     if job.status != 'IN_PROGRESS':
         return {'success': False, 'error': 'Job is not in progress'}
 
-    if str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() == 'DAILY':
-        return {
-            'success': False,
-            'error': 'Team DAILY jobs use attendance check-in/check-out flow. Assignment completion is not used.'
-        }
+    is_daily_job = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() == 'DAILY'
+    if is_daily_job:
+        active_backjob_exists = JobDispute.objects.filter(
+            jobID=job,
+            status__in=[JobDispute.DisputeStatus.IN_NEGOTIATION, JobDispute.DisputeStatus.UNDER_REVIEW],
+            backjobStarted=True,
+        ).exists()
+        if not active_backjob_exists:
+            return {
+                'success': False,
+                'error': 'Team DAILY jobs use attendance check-in/check-out flow. Assignment completion is only allowed during active backjob cycles.'
+            }
 
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
@@ -1514,10 +1535,13 @@ def worker_complete_team_assignment(assignment_id: int, worker_user, notes: str 
         worker_marked_complete=False
     ).exists()
     
+    completed_at = assignment.worker_marked_complete_at
     return {
         'success': True,
+        'already_processed': False,
         'assignment_id': assignment.assignmentID,
         'all_workers_complete': all_complete,
+        'completed_at': completed_at.isoformat() if completed_at else None,
         'message': 'Marked your work as complete'
     }
 
