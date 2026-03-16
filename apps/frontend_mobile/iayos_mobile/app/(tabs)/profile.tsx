@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Modal,
   Switch,
+  Animated,
+  Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -111,11 +113,43 @@ export default function ProfileScreen() {
   // Availability toast
   const [availabilityToast, setAvailabilityToast] = React.useState<string | null>(null);
   const availabilityToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const availabilityToastAnim = React.useRef(new Animated.Value(0)).current;
+
+  const hideAvailabilityToast = React.useCallback(() => {
+    Animated.timing(availabilityToastAnim, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setAvailabilityToast(null);
+      }
+    });
+  }, [availabilityToastAnim]);
+
   const showAvailabilityToast = (isAvailable: boolean) => {
     if (availabilityToastTimer.current) clearTimeout(availabilityToastTimer.current);
     setAvailabilityToast(isAvailable ? "Visible in client search" : "Hidden from client search");
-    availabilityToastTimer.current = setTimeout(() => setAvailabilityToast(null), 2000);
+    availabilityToastAnim.stopAnimation(() => {
+      availabilityToastAnim.setValue(0);
+      Animated.timing(availabilityToastAnim, {
+        toValue: 1,
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    });
+    availabilityToastTimer.current = setTimeout(() => hideAvailabilityToast(), 1900);
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (availabilityToastTimer.current) {
+        clearTimeout(availabilityToastTimer.current);
+      }
+    };
+  }, []);
 
   const [showFirstTimeWorkerModal, setShowFirstTimeWorkerModal] =
     React.useState(false);
@@ -370,6 +404,7 @@ export default function ProfileScreen() {
       {/* Availability pill — top left, worker only */}
       {isWorker && (
         <View style={styles.availabilityPillWrapper}>
+          <Text style={styles.availabilitySectionLabel}>Availability</Text>
           <View
             style={[
               styles.availabilityPill,
@@ -387,27 +422,45 @@ export default function ProfileScreen() {
                   updateAvailability.mutate(val, {
                     onError: () => {
                       setLocalIsAvailable(!val);
-                      setAvailabilityToast(null);
+                      if (availabilityToastTimer.current) {
+                        clearTimeout(availabilityToastTimer.current);
+                      }
+                      hideAvailabilityToast();
                     },
                   });
                 }}
                 trackColor={{ false: "#ccc", true: Colors.success + "90" }}
                 thumbColor={effectiveIsAvailable ? Colors.success : "#888"}
                 disabled={updateAvailability.isPending}
-                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }] }}
               />
             )}
-            <Text style={[
-              styles.availabilityPillLabel,
-              effectiveIsAvailable ? styles.availabilityPillLabelOn : styles.availabilityPillLabelOff,
-            ]}>
-              {effectiveIsAvailable ? "Available" : "Unavailable"}
-            </Text>
           </View>
           {availabilityToast !== null && (
-            <View style={styles.availabilityToast}>
+            <Animated.View
+              style={[
+                styles.availabilityToast,
+                {
+                  opacity: availabilityToastAnim,
+                  transform: [
+                    {
+                      translateY: availabilityToastAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-8, 0],
+                      }),
+                    },
+                    {
+                      scale: availabilityToastAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.96, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
               <Text style={styles.availabilityToastText}>{availabilityToast}</Text>
-            </View>
+            </Animated.View>
           )}
         </View>
       )}
@@ -1229,46 +1282,46 @@ const styles = StyleSheet.create({
     zIndex: 100,
     alignItems: "flex-start",
   },
+  availabilitySectionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginLeft: 6,
+    letterSpacing: 0.1,
+  },
   availabilityPill: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 22,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+    borderRadius: 999,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
     ...Shadows.sm,
   },
   availabilityPillOn: {
-    backgroundColor: "#E6F9EE",
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.success + "50",
+    borderColor: Colors.success + "55",
   },
   availabilityPillOff: {
-    backgroundColor: "#fff",
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  availabilityPillLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    marginLeft: 2,
-    marginRight: 4,
-  },
-  availabilityPillLabelOn: {
-    color: Colors.success,
-  },
-  availabilityPillLabelOff: {
-    color: Colors.textSecondary,
+    borderColor: Colors.border + "CC",
   },
   availabilityToast: {
     marginTop: 6,
-    backgroundColor: "rgba(0,0,0,0.72)",
-    borderRadius: 10,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    maxWidth: 220,
+    ...Shadows.sm,
   },
   availabilityToastText: {
-    color: "#fff",
-    fontSize: 11,
+    color: Colors.textPrimary,
+    fontSize: 12,
     fontWeight: "600",
   },
   actionButton: {
