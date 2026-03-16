@@ -3,7 +3,7 @@
  *
  * Features:
  * - Amount input with validation (min ₱100)
- * - Payment account selection (GCash, Bank, PayPal, Visa, Mastercard, GrabPay, Maya)
+ * - Payment account selection (GCash, Bank, PayPal, GrabPay, Maya)
  * - Balance check and display
  * - Optional notes field
  * - Immediate balance deduction
@@ -43,7 +43,7 @@ import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
-type PaymentMethodType = "GCASH" | "BANK" | "PAYPAL" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA";
+type PaymentMethodType = "GCASH" | "BANK" | "PAYPAL" | "GRABPAY" | "MAYA";
 
 interface PaymentMethod {
   id: number;
@@ -80,9 +80,6 @@ const getMethodIconHelper = (type: string): string => {
       return "business";
     case "PAYPAL":
       return "globe";
-    case "VISA":
-    case "MASTERCARD":
-      return "card";
     default:
       return "card";
   }
@@ -96,10 +93,6 @@ const getMethodLabelHelper = (type: string): string => {
       return "Bank";
     case "PAYPAL":
       return "PayPal";
-    case "VISA":
-      return "Visa";
-    case "MASTERCARD":
-      return "Mastercard";
     case "GRABPAY":
       return "GrabPay";
     case "MAYA":

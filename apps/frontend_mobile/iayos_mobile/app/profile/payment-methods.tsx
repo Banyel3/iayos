@@ -23,7 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 import * as WebBrowser from "expo-web-browser";
 
-type PaymentMethodType = "GCASH" | "BANK" | "MAYA" | "VISA" | "MASTERCARD" | "PAYPAL" | "GRAB_PAY";
+type PaymentMethodType = "GCASH" | "BANK" | "MAYA" | "PAYPAL" | "GRAB_PAY";
 
 interface PaymentMethod {
   id: number;
@@ -117,10 +117,6 @@ export default function PaymentMethodsScreen() {
       account_number: string;
       bank_name?: string;
       bank_code?: string;
-      card_number?: string;
-      card_expiry_month?: number;
-      card_expiry_year?: number;
-      card_cvv?: string;
     }): Promise<AddPaymentMethodResponse> => {
       const response = await apiRequest(ENDPOINTS.ADD_PAYMENT_METHOD, {
         method: "POST",
@@ -291,7 +287,6 @@ export default function PaymentMethodsScreen() {
       const fieldLabel =
         selectedType === "BANK" ? "bank account number"
         : selectedType === "PAYPAL" ? "PayPal email"
-        : ["VISA", "MASTERCARD"].includes(selectedType) ? "card number"
         : "mobile number";
       Alert.alert("Error", `Please enter ${fieldLabel}`);
       return;
@@ -309,12 +304,6 @@ export default function PaymentMethodsScreen() {
           "Error",
           `Invalid ${getMethodLabel(selectedType)} number format (e.g., 09123456789)`,
         );
-        return;
-      }
-    } else if (["VISA", "MASTERCARD"].includes(selectedType)) {
-      cleanAccountNumber = cleanAccountNumber.replace(/\D/g, "");
-      if (cleanAccountNumber.length < 13 || cleanAccountNumber.length > 19) {
-        Alert.alert("Error", "Invalid card number (13-19 digits)");
         return;
       }
     } else if (selectedType === "PAYPAL") {
@@ -361,10 +350,6 @@ export default function PaymentMethodsScreen() {
         return "Bank account";
       case "MAYA":
         return "Maya account";
-      case "VISA":
-        return "Visa card";
-      case "MASTERCARD":
-        return "Mastercard";
       case "PAYPAL":
         return "PayPal account";
       case "GRAB_PAY":
@@ -414,10 +399,6 @@ export default function PaymentMethodsScreen() {
         return "business";
       case "MAYA":
         return "phone-portrait";
-      case "VISA":
-        return "card";
-      case "MASTERCARD":
-        return "card";
       case "PAYPAL":
         return "logo-paypal";
       case "GRAB_PAY":
@@ -435,10 +416,6 @@ export default function PaymentMethodsScreen() {
         return "Bank";
       case "MAYA":
         return "Maya";
-      case "VISA":
-        return "Visa";
-      case "MASTERCARD":
-        return "Mastercard";
       case "PAYPAL":
         return "PayPal";
       case "GRAB_PAY":
@@ -483,8 +460,6 @@ export default function PaymentMethodsScreen() {
           <Text style={styles.methodNumber}>
             {["GCASH", "MAYA", "GRAB_PAY"].includes(method.type)
               ? method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")
-              : ["VISA", "MASTERCARD"].includes(method.type)
-              ? "•••• •••• •••• " + method.account_number.slice(-4)
               : method.account_number}
           </Text>
           {method.type === "BANK" && method.bank_name && (
@@ -543,9 +518,8 @@ export default function PaymentMethodsScreen() {
           <View style={styles.infoBanner}>
             <Ionicons name="information-circle" size={20} color={Colors.info} />
             <Text style={styles.infoText}>
-              Add your payout account. Supported: GCash, Bank, Maya, Visa,
-              Mastercard, PayPal, and GrabPay. All withdrawals are processed
-              after admin approval.
+              Add your payout account. Supported: GCash, Bank, Maya, PayPal,
+              and GrabPay. All withdrawals are processed after admin approval.
             </Text>
           </View>
 
@@ -613,8 +587,6 @@ export default function PaymentMethodsScreen() {
                     { key: "GCASH" as PaymentMethodType, label: "GCash", icon: "phone-portrait" },
                     { key: "BANK" as PaymentMethodType, label: "Bank", icon: "business" },
                     { key: "MAYA" as PaymentMethodType, label: "Maya", icon: "phone-portrait" },
-                    { key: "VISA" as PaymentMethodType, label: "Visa", icon: "card" },
-                    { key: "MASTERCARD" as PaymentMethodType, label: "Mastercard", icon: "card" },
                     { key: "PAYPAL" as PaymentMethodType, label: "PayPal", icon: "logo-paypal" },
                     { key: "GRAB_PAY" as PaymentMethodType, label: "GrabPay", icon: "car" },
                   ]).map((opt) => (
@@ -712,8 +684,6 @@ export default function PaymentMethodsScreen() {
                     ? "Bank Account Number"
                     : selectedType === "PAYPAL"
                     ? "PayPal Email"
-                    : ["VISA", "MASTERCARD"].includes(selectedType)
-                    ? "Card Number"
                     : "Mobile Number"}
                 </Text>
                 <TextInput
@@ -723,8 +693,6 @@ export default function PaymentMethodsScreen() {
                       ? "Enter account number"
                       : selectedType === "PAYPAL"
                       ? "email@example.com"
-                      : ["VISA", "MASTERCARD"].includes(selectedType)
-                      ? "Enter card number"
                       : "09123456789"
                   }
                   placeholderTextColor={Colors.textHint}
@@ -736,7 +704,6 @@ export default function PaymentMethodsScreen() {
                       const digitsOnly = value.replace(/\D/g, "");
                       const maxLen =
                         selectedType === "BANK" ? 20
-                        : ["VISA", "MASTERCARD"].includes(selectedType) ? 19
                         : 11;
                       setAccountNumber(digitsOnly.slice(0, maxLen));
                     }
@@ -747,7 +714,6 @@ export default function PaymentMethodsScreen() {
                   maxLength={
                     selectedType === "PAYPAL" ? 100
                     : selectedType === "BANK" ? 20
-                    : ["VISA", "MASTERCARD"].includes(selectedType) ? 19
                     : 11
                   }
                   autoCapitalize="none"
@@ -757,8 +723,6 @@ export default function PaymentMethodsScreen() {
                     ? `${accountNumber.length}/20 digits (minimum 8)`
                     : selectedType === "PAYPAL"
                     ? "Enter your PayPal email address"
-                    : ["VISA", "MASTERCARD"].includes(selectedType)
-                    ? `${accountNumber.length}/19 digits (minimum 13)`
                     : `${accountNumber.length}/11 digits (must start with 09)`}
                 </Text>
               </View>

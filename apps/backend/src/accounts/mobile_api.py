@@ -6134,14 +6134,14 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
     """
     Add a new payment method for withdrawals.
 
-    Supports GCASH, BANK, MAYA, VISA, MASTERCARD, PAYPAL, and GRAB_PAY methods.
+    Supports GCASH, BANK, MAYA, PAYPAL, and GRAB_PAY methods.
     """
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
         import re
 
-        VALID_TYPES = ['GCASH', 'BANK', 'MAYA', 'VISA', 'MASTERCARD', 'PAYPAL', 'GRAB_PAY']
+        VALID_TYPES = ['GCASH', 'BANK', 'MAYA', 'PAYPAL', 'GRAB_PAY']
         method_type = (payload.type or 'GCASH').upper()
 
         # Validate method type
@@ -6184,15 +6184,6 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                     {"error": "Invalid GrabPay number format (must be 11 digits starting with 09)"},
                     status=400
                 )
-        elif method_type in ('VISA', 'MASTERCARD'):
-            # Card-based: validate card number (13-19 digits)
-            card_digits = re.sub(r'\D', '', clean_number)
-            if len(card_digits) < 13 or len(card_digits) > 19:
-                return Response(
-                    {"error": "Invalid card number (must be 13-19 digits)"},
-                    status=400
-                )
-            clean_number = card_digits
         elif method_type == 'PAYPAL':
             # PayPal uses email address as account identifier
             if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', clean_number):
