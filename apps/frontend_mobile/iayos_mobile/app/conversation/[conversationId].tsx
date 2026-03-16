@@ -3365,6 +3365,8 @@ export default function ChatScreen() {
     conversation.job?.payment_model === "PROJECT";
   const isProjectMultiDayJob =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const shouldChargePerAttendance =
+    conversation.job?.payment_model === "DAILY";
   const canShowQASkipNextDay =
     conversation.my_role === "CLIENT" &&
     isTestingModeEnabled &&
@@ -5160,7 +5162,7 @@ export default function ChatScreen() {
                                         styles.confirmArrivalButtonSmall,
                                       ]}
                                       onPress={() =>
-                                        isProjectMultiDayJob
+                                        !shouldChargePerAttendance
                                           ? setCountdownConfig({
                                               visible: true,
                                               title: "Confirm Attendance",
@@ -5197,7 +5199,7 @@ export default function ChatScreen() {
                                             styles.confirmArrivalButtonTextSmall
                                           }
                                         >
-                                          {isProjectMultiDayJob
+                                          {!shouldChargePerAttendance
                                             ? "Confirm"
                                             : "Pay"}
                                         </Text>
@@ -5232,7 +5234,7 @@ export default function ChatScreen() {
                                         <Text
                                           style={styles.attendanceRightStatusText}
                                         >
-                                          {isProjectMultiDayJob
+                                          {!shouldChargePerAttendance
                                             ? "Confirmed"
                                             : `₱${Number(attendance.amount_earned || 0).toLocaleString()}`}
                                         </Text>
