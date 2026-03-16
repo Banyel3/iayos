@@ -6127,10 +6127,11 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
     Add a new payment method for withdrawals.
     
     Supported types:
-    - GCASH: Requires ₱1 PayMongo verification
-    - BANK: Bank account (InstaPay/PESONet via PayMongo)
-    - PAYPAL: PayPal account (manual processing)
-    - VISA / MASTERCARD: Card destination using last 4 digits (manual processing)
+    - GCASH: Mobile wallet number (requires ₱1 PayMongo verification)
+    - MAYA / GRABPAY: Mobile wallet number (manual processing)
+    - BANK: Bank name + account number (manual processing)
+    - PAYPAL: PayPal email (manual processing)
+    - VISA / MASTERCARD: Full card details are validated; only last4 is stored (CVV is never stored)
     
     GCASH Flow:
     1. User submits GCash account details
@@ -6140,7 +6141,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
     5. ₱1 is credited to user's wallet as bonus
     6. Payment method is marked as verified
     
-    BANK/PAYPAL Flow:
+    BANK/PAYPAL/CARD Flow:
     1. User submits bank/PayPal account details
     2. Account is added in unverified state
     3. Admin manually verifies on first withdrawal
@@ -6162,16 +6163,32 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             )
         
         # Validate required fields
-        if not payload.account_name or not payload.account_number:
+        if not payload.account_name:
             return Response(
-                {"error": "Account name and number are required"},
+                {"error": "Account name is required"},
                 status=400
             )
 
+        raw_account_number = (payload.account_number or '').strip()
+
+        def is_luhn_valid(card_number: str) -> bool:
+            digits = [int(d) for d in card_number if d.isdigit()]
+            checksum = 0
+            parity = len(digits) % 2
+            for i, digit in enumerate(digits):
+                value = digit
+                if i % 2 == parity:
+                    value *= 2
+                    if value > 9:
+                        value -= 9
+                checksum += value
+            return checksum % 10 == 0
+
         # Type-specific validation
+        normalized_bank_name = None
         if method_type in ['GCASH', 'MAYA', 'GRABPAY']:
             # Validate and clean mobile wallet number format
-            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            clean_number = raw_account_number.replace(' ', '').replace('-', '')
             if not clean_number.startswith('09') or len(clean_number) != 11:
                 return Response(
                     {"error": f"Invalid {method_type} number format (must be 11 digits starting with 09)"},
@@ -6179,7 +6196,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 )
         elif method_type == 'BANK':
             # Validate bank account number format (alphanumeric, 5-20 chars)
-            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            clean_number = raw_account_number.replace(' ', '').replace('-', '')
             if not re.match(r'^[0-9]{5,20}$', clean_number):
                 return Response(
                     {"error": "Invalid bank account number format (5-20 digits)"},
@@ -6199,7 +6216,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 )
         elif method_type == 'PAYPAL':
             # Validate PayPal email format
-            clean_number = payload.account_number.strip().lower()
+            clean_number = raw_account_number.strip().lower()
             email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
             if not re.match(email_regex, clean_number):
                 return Response(
@@ -6207,15 +6224,56 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                     status=400
                 )
         elif method_type in ['VISA', 'MASTERCARD']:
-            # Validate card ending digits (last 4) used for manual withdrawal destination
-            clean_number = payload.account_number.replace(' ', '').replace('-', '')
-            if not re.match(r'^\d{4}$', clean_number):
+            # Validate full card details; persist only last4 for manual payouts.
+            card_number = (payload.card_number or '').replace(' ', '').replace('-', '')
+            if not re.match(r'^\d{13,19}$', card_number):
                 return Response(
-                    {"error": "Invalid card digits format (enter last 4 digits)"},
+                    {"error": "Invalid card number format"},
                     status=400
                 )
+            if not is_luhn_valid(card_number):
+                return Response(
+                    {"error": "Invalid card number"},
+                    status=400
+                )
+
+            cvv = (payload.card_cvv or '').strip()
+            if not re.match(r'^\d{3,4}$', cvv):
+                return Response(
+                    {"error": "Invalid CVV format (3-4 digits)"},
+                    status=400
+                )
+
+            month = payload.card_expiry_month
+            year = payload.card_expiry_year
+            if month is None or year is None:
+                return Response(
+                    {"error": "Card expiry month and year are required"},
+                    status=400
+                )
+            if month < 1 or month > 12:
+                return Response(
+                    {"error": "Invalid card expiry month"},
+                    status=400
+                )
+
+            from django.utils import timezone
+            now = timezone.now()
+            if year < now.year or (year == now.year and month < now.month):
+                return Response(
+                    {"error": "Card is expired"},
+                    status=400
+                )
+
+            clean_number = card_number[-4:]
         else:
-            clean_number = payload.account_number
+            clean_number = raw_account_number
+
+        if not clean_number:
+            return Response(
+                {"error": "Account number is required"},
+                status=400
+            )
         
         # Check for duplicate account number
         existing = UserPaymentMethod.objects.filter(
@@ -6240,8 +6298,8 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             is_first = not has_existing
             
             # Create payment method
-            # Only GCASH requires verification, BANK and PAYPAL are manually verified by admin
-            is_verified = (method_type in ['BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA'])
+            # Only GCASH requires verification; other destinations are manual payout methods.
+            is_verified = (method_type in ['BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA', 'MASTERCARD'])
             
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
@@ -6263,7 +6321,13 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 'method_id': method.id,
                 'verification_required': False,
                 'is_verified': is_verified,
-                'note': 'Your account will be verified on your first withdrawal request' if method_type in ['BANK', 'PAYPAL'] else None
+                'note': (
+                    'Only your card last4 is stored for security. CVV is never stored.'
+                    if method_type in ['VISA', 'MASTERCARD']
+                    else 'Your account will be verified on your first withdrawal request'
+                    if method_type in ['BANK', 'PAYPAL']
+                    else None
+                )
             }
         
         # Create PayMongo verification checkout for GCASH

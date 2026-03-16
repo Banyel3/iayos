@@ -25,7 +25,7 @@ import { Picker } from "@react-native-picker/picker";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA";
+  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA";
   account_name: string;
   account_number: string;
   bank_name?: string;
@@ -68,11 +68,15 @@ export default function PaymentMethodsScreen() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedType, setSelectedType] = useState<
-    "GCASH" | "BANK" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA"
+    "GCASH" | "BANK" | "PAYPAL" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA"
   >("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [bankName, setBankName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiryMonth, setCardExpiryMonth] = useState("");
+  const [cardExpiryYear, setCardExpiryYear] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
 
   // Fetch payment methods
   const {
@@ -110,6 +114,10 @@ export default function PaymentMethodsScreen() {
       account_name: string;
       account_number: string;
       bank_name?: string;
+      card_number?: string;
+      card_expiry_month?: number;
+      card_expiry_year?: number;
+      card_cvv?: string;
     }): Promise<AddPaymentMethodResponse> => {
       const response = await apiRequest(ENDPOINTS.ADD_PAYMENT_METHOD, {
         method: "POST",
@@ -245,6 +253,10 @@ export default function PaymentMethodsScreen() {
     setAccountName("");
     setAccountNumber("");
     setBankName("");
+    setCardNumber("");
+    setCardExpiryMonth("");
+    setCardExpiryYear("");
+    setCardCvv("");
   };
 
   const handleAddMethod = () => {
@@ -252,15 +264,28 @@ export default function PaymentMethodsScreen() {
       Alert.alert("Error", "Please enter account name");
       return;
     }
-    if (!accountNumber.trim()) {
-      Alert.alert("Error", "Please enter account number");
-      return;
-    }
-
     let cleanAccountNumber = accountNumber.trim();
+    const payload: {
+      type: string;
+      account_name: string;
+      account_number: string;
+      bank_name?: string;
+      card_number?: string;
+      card_expiry_month?: number;
+      card_expiry_year?: number;
+      card_cvv?: string;
+    } = {
+      type: selectedType,
+      account_name: accountName.trim(),
+      account_number: cleanAccountNumber,
+    };
 
     // Type-specific validation
-    if (selectedType === "GCASH" || selectedType === "MAYA") {
+    if (selectedType === "GCASH" || selectedType === "MAYA" || selectedType === "GRABPAY") {
+      if (!accountNumber.trim()) {
+        Alert.alert("Error", "Please enter mobile number");
+        return;
+      }
       // Remove spaces/dashes
       cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
 
@@ -270,6 +295,10 @@ export default function PaymentMethodsScreen() {
         return;
       }
     } else if (selectedType === "BANK") {
+      if (!accountNumber.trim()) {
+        Alert.alert("Error", "Please enter account number");
+        return;
+      }
       if (!bankName.trim()) {
         Alert.alert("Error", "Please select bank name");
         return;
@@ -283,20 +312,51 @@ export default function PaymentMethodsScreen() {
         Alert.alert("Error", "Invalid bank account number (5-20 digits)");
         return;
       }
-    } else if (selectedType === "VISA" || selectedType === "MASTERCARD") {
-      cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
-      if (!/^\d{4}$/.test(cleanAccountNumber)) {
-        Alert.alert("Error", "Enter the last 4 card digits");
+      payload.bank_name = bankName.trim();
+    } else if (selectedType === "PAYPAL") {
+      if (!accountNumber.trim()) {
+        Alert.alert("Error", "Please enter PayPal email");
         return;
       }
+      const email = cleanAccountNumber.toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        Alert.alert("Error", "Please enter a valid PayPal email");
+        return;
+      }
+      cleanAccountNumber = email;
+    } else if (selectedType === "VISA" || selectedType === "MASTERCARD") {
+      const card = cardNumber.replace(/[\s-]/g, "");
+      const month = cardExpiryMonth.replace(/\D/g, "");
+      const year = cardExpiryYear.replace(/\D/g, "");
+      const cvv = cardCvv.replace(/\D/g, "");
+
+      if (!/^\d{13,19}$/.test(card)) {
+        Alert.alert("Error", "Enter a valid card number");
+        return;
+      }
+      if (!/^\d{2}$/.test(month) || Number(month) < 1 || Number(month) > 12) {
+        Alert.alert("Error", "Enter a valid expiry month (MM)");
+        return;
+      }
+      if (!/^\d{4}$/.test(year)) {
+        Alert.alert("Error", "Enter a valid expiry year (YYYY)");
+        return;
+      }
+      if (!/^\d{3,4}$/.test(cvv)) {
+        Alert.alert("Error", "Enter a valid CVV (3-4 digits)");
+        return;
+      }
+
+      cleanAccountNumber = card.slice(-4);
+      payload.card_number = card;
+      payload.card_expiry_month = Number(month);
+      payload.card_expiry_year = Number(year);
+      payload.card_cvv = cvv;
     }
 
-    addMethodMutation.mutate({
-      type: selectedType,
-      account_name: accountName,
-      account_number: cleanAccountNumber,
-      bank_name: selectedType === "BANK" ? bankName : undefined,
-    });
+    payload.account_number = cleanAccountNumber;
+    addMethodMutation.mutate(payload);
   };
 
   const getTypeLabel = (type: string) => {
@@ -307,6 +367,8 @@ export default function PaymentMethodsScreen() {
         return "Maya account";
       case "BANK":
         return "bank account";
+      case "PAYPAL":
+        return "PayPal account";
       case "VISA":
         return "Visa/card account";
       case "MASTERCARD":
@@ -358,6 +420,8 @@ export default function PaymentMethodsScreen() {
         return "wallet";
       case "BANK":
         return "business";
+      case "PAYPAL":
+        return "logo-paypal";
       case "VISA":
         return "card";
       case "MASTERCARD":
@@ -377,6 +441,8 @@ export default function PaymentMethodsScreen() {
         return "Maya";
       case "BANK":
         return "Bank Account";
+      case "PAYPAL":
+        return "PayPal";
       case "VISA":
         return "Visa/Card";
       case "MASTERCARD":
@@ -483,7 +549,7 @@ export default function PaymentMethodsScreen() {
               color={Colors.info}
             />
             <Text style={styles.infoText}>
-              Add your payment accounts for withdrawals (GCash, Maya, Bank,
+              Add your payout accounts (GCash, Maya, GrabPay, Bank, PayPal,
               Visa, or Mastercard). Your primary method will be used by
               default.
             </Text>
@@ -622,6 +688,48 @@ export default function PaymentMethodsScreen() {
                   <TouchableOpacity
                     style={[
                       styles.typeButton,
+                      selectedType === "PAYPAL" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("PAYPAL")}
+                  >
+                    <Ionicons
+                      name="logo-paypal"
+                      size={20}
+                      color={selectedType === "PAYPAL" ? Colors.white : Colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "PAYPAL" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      PayPal
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "GRABPAY" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("GRABPAY")}
+                  >
+                    <Ionicons
+                      name="phone-portrait"
+                      size={20}
+                      color={selectedType === "GRABPAY" ? Colors.white : Colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "GRABPAY" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      GrabPay
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
                       selectedType === "VISA" && styles.typeButtonActive,
                     ]}
                     onPress={() => setSelectedType("VISA")}
@@ -670,6 +778,7 @@ export default function PaymentMethodsScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., Juan Dela Cruz"
+                  placeholderTextColor={Colors.textHint}
                   value={accountName}
                   onChangeText={setAccountName}
                   autoCapitalize="words"
@@ -681,9 +790,11 @@ export default function PaymentMethodsScreen() {
                   <Text style={styles.inputLabel}>Bank Name</Text>
                   <View style={styles.pickerContainer}>
                     <Picker
+                      mode="dropdown"
                       selectedValue={bankName}
                       onValueChange={(value) => setBankName(String(value || ""))}
                       style={styles.picker}
+                      itemStyle={styles.pickerItem}
                       dropdownIconColor={Colors.textSecondary}
                     >
                       <Picker.Item label="Select your bank" value="" />
@@ -695,42 +806,111 @@ export default function PaymentMethodsScreen() {
                 </View>
               )}
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  {selectedType === "GCASH" ||
-                    selectedType === "MAYA" ||
-                    selectedType === "GRABPAY"
-                    ? "Mobile Number"
-                    : selectedType === "BANK"
-                      ? "Account Number"
-                      : "Card Number (last 4 digits)"}
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={
-                    selectedType === "GCASH" ||
-                      selectedType === "MAYA" ||
-                      selectedType === "GRABPAY"
-                      ? "09123456789"
-                      : selectedType === "BANK"
-                        ? "1234567890"
-                        : "1234"
-                  }
-                  value={accountNumber}
-                  onChangeText={setAccountNumber}
-                  keyboardType="numeric"
-                  maxLength={
-                    selectedType === "GCASH" ||
-                      selectedType === "MAYA" ||
-                      selectedType === "GRABPAY"
-                      ? 11
-                      : selectedType === "BANK"
-                        ? 20
-                        : 4
-                  }
-                  autoCapitalize="none"
-                />
-              </View>
+              {(selectedType === "GCASH" || selectedType === "MAYA" || selectedType === "GRABPAY") && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Mobile Number</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="09123456789"
+                    placeholderTextColor={Colors.textHint}
+                    value={accountNumber}
+                    onChangeText={setAccountNumber}
+                    keyboardType="numeric"
+                    maxLength={11}
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+
+              {selectedType === "BANK" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Account Number</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="1234567890"
+                    placeholderTextColor={Colors.textHint}
+                    value={accountNumber}
+                    onChangeText={setAccountNumber}
+                    keyboardType="numeric"
+                    maxLength={20}
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+
+              {selectedType === "PAYPAL" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>PayPal Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="name@example.com"
+                    placeholderTextColor={Colors.textHint}
+                    value={accountNumber}
+                    onChangeText={setAccountNumber}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+
+              {(selectedType === "VISA" || selectedType === "MASTERCARD") && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Card Number</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="4111 1111 1111 1111"
+                      placeholderTextColor={Colors.textHint}
+                      value={cardNumber}
+                      onChangeText={setCardNumber}
+                      keyboardType="numeric"
+                      maxLength={19}
+                    />
+                  </View>
+                  <View style={styles.cardRow}>
+                    <View style={[styles.inputGroup, styles.cardField]}>
+                      <Text style={styles.inputLabel}>Exp. Month</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="MM"
+                        placeholderTextColor={Colors.textHint}
+                        value={cardExpiryMonth}
+                        onChangeText={setCardExpiryMonth}
+                        keyboardType="numeric"
+                        maxLength={2}
+                      />
+                    </View>
+                    <View style={[styles.inputGroup, styles.cardField]}>
+                      <Text style={styles.inputLabel}>Exp. Year</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="YYYY"
+                        placeholderTextColor={Colors.textHint}
+                        value={cardExpiryYear}
+                        onChangeText={setCardExpiryYear}
+                        keyboardType="numeric"
+                        maxLength={4}
+                      />
+                    </View>
+                    <View style={[styles.inputGroup, styles.cardField]}>
+                      <Text style={styles.inputLabel}>CVV</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="123"
+                        placeholderTextColor={Colors.textHint}
+                        value={cardCvv}
+                        onChangeText={setCardCvv}
+                        keyboardType="numeric"
+                        maxLength={4}
+                        secureTextEntry
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.cardSecurityNote}>
+                    For security, CVV is only used for validation and is never stored. We only store the card last4.
+                  </Text>
+                </>
+              )}
 
               {/* Submit Button */}
               <TouchableOpacity
@@ -1033,17 +1213,34 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: BorderRadius.medium,
     padding: 12,
+    backgroundColor: Colors.white,
     color: Colors.textPrimary,
   },
   pickerContainer: {
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1.5,
+    borderColor: Colors.primaryLight,
     borderRadius: BorderRadius.medium,
     backgroundColor: Colors.white,
     overflow: "hidden",
   },
   picker: {
     color: Colors.textPrimary,
+    minHeight: 50,
+  },
+  pickerItem: {
+    color: Colors.textPrimary,
+  },
+  cardRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  cardField: {
+    flex: 1,
+  },
+  cardSecurityNote: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
   submitButton: {
     flexDirection: "row",
