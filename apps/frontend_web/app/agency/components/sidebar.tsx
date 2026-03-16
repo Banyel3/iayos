@@ -80,12 +80,10 @@ export default function AgencySidebar({
   const derivedUnreadCount = unreadNotifs.length;
 
   const REVIEW_TYPES = ["REVIEW", "NEW_REVIEW", "REVIEW_RECEIVED"];
-  const TRANSACTION_TYPES = ["PAYMENT_PENDING", "PAYMENT_RELEASED", "DAILY_PAYMENT", "EXTENSION_REQUEST", "EXTENSION_APPROVED", "RATE_CHANGE_REQUEST", "RATE_CHANGE_APPROVED"];
   const WALLET_TYPES = ["WALLET", "AUTO_WITHDRAW", "DEPOSIT", "WITHDRAW", "WALLET_FUNDED", "WITHDRAWAL_PROCESSED", "AUTO_WITHDRAWAL"];
   const SUPPORT_TYPES = ["SUPPORT", "TICKET", "KYC", "CERTIFICATION", "KYC_APPROVED", "KYC_REJECTED", "CERTIFICATION_APPROVED", "CERTIFICATION_REJECTED", "SYSTEM"];
 
   const reviewsCount = unreadNotifs.filter((n) => REVIEW_TYPES.some((t) => n.type?.toUpperCase().includes(t))).length;
-  const transactionsCount = unreadNotifs.filter((n) => TRANSACTION_TYPES.some((t) => n.type?.toUpperCase() === t)).length;
   const walletCount = unreadNotifs.filter((n) => WALLET_TYPES.some((t) => n.type?.toUpperCase().includes(t))).length;
   const supportCount = unreadNotifs.filter((n) => SUPPORT_TYPES.some((t) => n.type?.toUpperCase().includes(t))).length;
 
@@ -316,7 +314,6 @@ export default function AgencySidebar({
             label="Transactions"
             isActive={isActive("/agency/transactions")}
             expanded={showExpanded}
-            count={transactionsCount}
           />
 
           <NavItem

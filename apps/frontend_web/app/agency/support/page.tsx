@@ -1,34 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/generic_button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  ArrowLeft,
   HelpCircle,
-  MessageSquare,
-  FileText,
-  Mail,
-  Phone,
   ChevronDown,
   ChevronUp,
-  Send,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Building2,
   Shield,
   CreditCard,
   Users,
   LifeBuoy,
 } from "lucide-react";
-import { API_BASE } from "@/lib/api/config";
-import { Badge } from "@/components/ui/badge";
 
 // FAQ Data
 const FAQ_CATEGORIES = [
@@ -83,64 +65,9 @@ const FAQ_CATEGORIES = [
   },
 ];
 
-interface TicketFormData {
-  subject: string;
-  category: string;
-  description: string;
-  email: string;
-}
-
 export default function AgencySupportPage() {
-  const router = useRouter();
   const [expandedCategory, setExpandedCategory] = useState<string | null>("kyc");
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [ticketSubmitted, setTicketSubmitted] = useState(false);
-  const [ticketId, setTicketId] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState<TicketFormData>({
-    subject: "",
-    category: "kyc",
-    description: "",
-    email: "",
-  });
-
-  const handleSubmitTicket = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.description.trim().length < 20) {
-      toast.error("Please provide at least 20 characters in the description");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch(`${API_BASE}/api/agency/support/ticket`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: formData.subject,
-          category: formData.category,
-          description: formData.description,
-          contact_email: formData.email || undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(getErrorMessage(errorData, "Failed to submit ticket"));
-      }
-
-      const data = await response.json();
-      setTicketId(data.ticket_id || "TKT-" + Date.now());
-      setTicketSubmitted(true);
-      toast.success("Support ticket submitted!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to submit ticket");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const toggleCategory = (categoryId: string) => {
     setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
@@ -161,13 +88,6 @@ export default function AgencySupportPage() {
                </p>
              </div>
           </div>
-          <Button
-            onClick={() => router.push("/agency/support/tickets")}
-            className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white border-0 rounded-xl px-5 font-bold text-[10px] uppercase tracking-wider h-11 shadow-lg shadow-sky-100"
-          >
-            <FileText className="h-3 w-3 mr-2" />
-            My Support Tickets
-          </Button>
         </div>
       </div>
 
@@ -238,86 +158,8 @@ export default function AgencySupportPage() {
 
         </div>
 
-        {/* Right: Contact Form */}
+        {/* Right: Quick Contact */}
         <div className="space-y-8">
-           <div>
-              <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">
-                Open a Ticket
-              </h3>
-              {ticketSubmitted ? (
-                <Card className="border-0 shadow-2xl overflow-hidden rounded-2xl bg-white text-center p-8">
-                   <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <CheckCircle className="h-8 w-8 text-emerald-500" />
-                   </div>
-                   <h3 className="text-lg font-bold text-gray-900 mb-2">Request Received</h3>
-                   <p className="text-sm font-medium text-gray-500 mb-6 leading-relaxed">
-                       We've assigned ID <span className="text-[#00BAF1] font-bold">{ticketId?.includes('-') ? ticketId.split('-')[1] : ticketId}</span> to your ticket. A support agent will respond within 24 hours.
-                   </p>
-                   <Button
-                      onClick={() => setTicketSubmitted(false)}
-                      className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white rounded-xl h-12 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
-                   >
-                      Submit Another
-                   </Button>
-                </Card>
-              ) : (
-                <Card className="border-0 shadow-2xl overflow-hidden rounded-2xl bg-white">
-                  <CardHeader className="p-6 border-b border-gray-50">
-                    <CardTitle className="text-lg font-bold">Contact Support</CardTitle>
-                    <CardDescription className="text-xs font-medium">We usually respond within 24 hours</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <form onSubmit={handleSubmitTicket} className="space-y-5">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inquiry Category</label>
-                        <select
-                          value={formData.category}
-                          onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                          className="w-full h-12 bg-gray-50 border-gray-100 rounded-xl px-4 text-sm font-bold focus:bg-white focus:ring-2 focus:ring-[#00BAF1]/20 transition-all outline-none"
-                        >
-                          <option value="kyc">KYC Verification</option>
-                          <option value="employees">Employee Management</option>
-                          <option value="payments">Payments & Wallet</option>
-                          <option value="account">Account Access</option>
-                          <option value="other">Other Inquiry</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Subject</label>
-                        <Input
-                          value={formData.subject}
-                          onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                          placeholder="What do you need help with?"
-                          className="h-12 bg-gray-50 border-gray-100 focus:bg-white rounded-xl font-bold"
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Details</label>
-                        <Textarea
-                          value={formData.description}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          placeholder="Describe the issue in detail..."
-                          className="min-h-[120px] bg-gray-50 border-gray-100 focus:bg-white rounded-xl p-4 font-bold text-sm resize-none"
-                          required
-                        />
-                      </div>
-
-                      <Button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white h-13 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
-                      >
-                        {isSubmitting ? "Sending..." : "Send Request"}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-           </div>
-
            {/* Stats/Quick Tips */}
            <div className="bg-gray-50/50 rounded-3xl p-6 border border-gray-100 space-y-4">
               <div className="flex items-center gap-3">
@@ -331,6 +173,10 @@ export default function AgencySupportPage() {
                     <span className="text-xs font-bold text-gray-400">Email Response</span>
                     <span className="text-xs font-bold text-gray-900">~24 Hours</span>
                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-400">Support Email</span>
+                    <span className="text-xs font-bold text-gray-900">support@iayos.com</span>
+                  </div>
                  <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-gray-400">Operating Hours</span>
                     <span className="text-xs font-bold text-gray-900">Mon-Fri, 9AM-6PM</span>
