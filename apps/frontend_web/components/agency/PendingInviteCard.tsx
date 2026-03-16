@@ -5,7 +5,6 @@ import {
   Banknote,
   Calendar,
   MapPin,
-  Users,
   Clock,
   Package,
   CheckCircle,
@@ -115,7 +114,6 @@ interface PendingInviteCardProps {
 
 export default function PendingInviteCard({
   job,
-  availableWorkers = [],
   onAccept,
   onReject,
   accepting = false,
@@ -306,54 +304,6 @@ export default function PendingInviteCard({
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
-
-            {/* Suggested Workers */}
-            {availableWorkers.length > 0 && (
-              <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100">
-                <h4 className="font-semibold text-slate-900 mb-3 flex items-center text-sm">
-                  <Users className="h-4 w-4 text-[#00BAF1] mr-2" />
-                  Available Workers Match ({availableWorkers.length})
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {availableWorkers.slice(0, 4).map((worker) => (
-                    <div
-                      key={worker.id}
-                      className="flex items-center justify-between gap-3 p-2 bg-white rounded border border-blue-50 hover:bg-blue-50 transition-colors shadow-sm"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-slate-900 text-xs truncate">
-                            {worker.name}
-                          </p>
-                          {worker.isVerified && (
-                            <span className="text-[9px] font-bold px-1 rounded-sm bg-green-100 text-green-700">
-                              VERIFIED
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                          {worker.specialization || "General Services"}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="flex items-center justify-end gap-1">
-                          <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded font-medium">⭐ {worker.rating?.toFixed?.(1) ?? "0.0"}</span>
-                          <span className="text-[10px] text-slate-500">{worker.completedJobs} jobs</span>
-                        </div>
-                        <p className="text-[10px] font-bold text-[#00BAF1] mt-0.5">
-                          {worker.hourlyRate}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {availableWorkers.length > 4 && (
-                    <div className="flex items-center justify-center p-2 bg-slate-50/50 rounded border border-dashed border-slate-200 text-xs text-slate-500 font-medium">
-                      + {availableWorkers.length - 4} more
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 

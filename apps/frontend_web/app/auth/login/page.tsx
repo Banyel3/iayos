@@ -71,16 +71,21 @@ const Login = () => {
   // Function to check actual rate limit status from backend
   const checkRateLimitStatus = async () => {
     try {
-      const response = await fetch("/api/auth/check-rate-limit");
+      const response = await fetch("/api/auth/check-rate-limit", {
+        cache: "no-store",
+      });
 
-      // Check if response is ok and content-type is JSON
+      // In some local/dev setups this endpoint may be unavailable.
+      // Treat non-OK as a soft fallback instead of throwing noisy errors.
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        checkLocalStorageRateLimit();
+        return;
       }
 
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Response is not JSON");
+        checkLocalStorageRateLimit();
+        return;
       }
 
       const data = await response.json();
@@ -98,7 +103,6 @@ const Login = () => {
         localStorage.removeItem("rateLimitEndTime");
       }
     } catch (error) {
-      console.error("Failed to check rate limit status:", error);
       // Fallback to localStorage check
       checkLocalStorageRateLimit();
     }
