@@ -45,6 +45,30 @@ CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
 MAX_WORKER_SKILLS = 5
 
+PHILIPPINE_BANKS = {
+    "AllBank (A Thrift Bank), Inc.",
+    "Asia United Bank (AUB)",
+    "BDO Unibank, Inc.",
+    "BPI (Bank of the Philippine Islands)",
+    "Bank of Commerce",
+    "China Banking Corporation (Chinabank)",
+    "CTBC Bank (Philippines) Corp.",
+    "Development Bank of the Philippines (DBP)",
+    "EastWest Bank",
+    "Land Bank of the Philippines",
+    "Maybank Philippines, Inc.",
+    "Metrobank (Metropolitan Bank & Trust Co.)",
+    "Philippine Bank of Communications (PBCom)",
+    "Philippine National Bank (PNB)",
+    "PSBank (Philippine Savings Bank)",
+    "RCBC (Rizal Commercial Banking Corporation)",
+    "Robinsons Bank Corporation",
+    "Security Bank Corporation",
+    "Union Bank of the Philippines (UnionBank)",
+    "United Coconut Planters Bank (UCPB)",
+    "Veterans Bank",
+}
+
 
 def _get_ph_current_time():
     """Return current wall-clock time in Philippines regardless of Django TZ config."""
@@ -6164,6 +6188,12 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                     {"error": "Bank name is required for bank accounts"},
                     status=400
                 )
+            normalized_bank_name = payload.bank_name.strip()
+            if normalized_bank_name not in PHILIPPINE_BANKS:
+                return Response(
+                    {"error": "Invalid bank name. Please select a supported Philippine bank."},
+                    status=400
+                )
         elif method_type == 'PAYPAL':
             # Validate PayPal email format
             clean_number = payload.account_number.strip().lower()
@@ -6207,7 +6237,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 methodType=method_type,
                 accountName=payload.account_name,
                 accountNumber=clean_number,
-                bankName=payload.bank_name if method_type == 'BANK' else None,
+                bankName=normalized_bank_name if method_type == 'BANK' else None,
                 isPrimary=is_first,
                 isVerified=is_verified
             )

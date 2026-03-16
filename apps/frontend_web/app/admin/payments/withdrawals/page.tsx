@@ -52,6 +52,7 @@ interface WithdrawalRequest {
     type: string;
     account_name: string;
     account_number: string;
+    bank_name?: string;
   };
   recipient_name?: string;
   account_number?: string;
@@ -649,11 +650,11 @@ export default function WithdrawalsPage() {
                               {withdrawal.payment_method?.account_number || withdrawal.account_number || "N/A"}
                             </p>
                           </div>
-                          {withdrawal.bank_name && (
+                          {(withdrawal.payment_method?.bank_name || withdrawal.bank_name) && (
                             <div>
                               <p className="text-gray-500 mb-0.5">Bank Name</p>
                               <p className="font-medium text-gray-900 truncate">
-                                {withdrawal.bank_name}
+                                {withdrawal.payment_method?.bank_name || withdrawal.bank_name}
                               </p>
                             </div>
                           )}

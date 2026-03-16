@@ -21,6 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 import * as WebBrowser from "expo-web-browser";
+import { Picker } from "@react-native-picker/picker";
 
 interface PaymentMethod {
   id: number;
@@ -36,6 +37,30 @@ interface PaymentMethod {
 interface PaymentMethodsResponse {
   payment_methods: PaymentMethod[];
 }
+
+const PHILIPPINE_BANK_OPTIONS: string[] = [
+  "AllBank (A Thrift Bank), Inc.",
+  "Asia United Bank (AUB)",
+  "BDO Unibank, Inc.",
+  "BPI (Bank of the Philippine Islands)",
+  "Bank of Commerce",
+  "China Banking Corporation (Chinabank)",
+  "CTBC Bank (Philippines) Corp.",
+  "Development Bank of the Philippines (DBP)",
+  "EastWest Bank",
+  "Land Bank of the Philippines",
+  "Maybank Philippines, Inc.",
+  "Metrobank (Metropolitan Bank & Trust Co.)",
+  "Philippine Bank of Communications (PBCom)",
+  "Philippine National Bank (PNB)",
+  "PSBank (Philippine Savings Bank)",
+  "RCBC (Rizal Commercial Banking Corporation)",
+  "Robinsons Bank Corporation",
+  "Security Bank Corporation",
+  "Union Bank of the Philippines (UnionBank)",
+  "United Coconut Planters Bank (UCPB)",
+  "Veterans Bank",
+];
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
@@ -246,7 +271,11 @@ export default function PaymentMethodsScreen() {
       }
     } else if (selectedType === "BANK") {
       if (!bankName.trim()) {
-        Alert.alert("Error", "Please enter bank name");
+        Alert.alert("Error", "Please select bank name");
+        return;
+      }
+      if (!PHILIPPINE_BANK_OPTIONS.includes(bankName.trim())) {
+        Alert.alert("Error", "Please select a valid Philippine bank from the dropdown");
         return;
       }
       // Validate bank account number (5-20 digits)
@@ -596,13 +625,19 @@ export default function PaymentMethodsScreen() {
               {selectedType === "BANK" && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Bank Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., BPI, BDO, Metrobank"
-                    value={bankName}
-                    onChangeText={setBankName}
-                    autoCapitalize="words"
-                  />
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={bankName}
+                      onValueChange={(value) => setBankName(String(value || ""))}
+                      style={styles.picker}
+                      dropdownIconColor={Colors.textSecondary}
+                    >
+                      <Picker.Item label="Select your bank" value="" />
+                      {PHILIPPINE_BANK_OPTIONS.map((bank) => (
+                        <Picker.Item key={bank} label={bank} value={bank} />
+                      ))}
+                    </Picker>
+                  </View>
                 </View>
               )}
 
@@ -942,6 +977,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: BorderRadius.medium,
     padding: 12,
+    color: Colors.textPrimary,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.white,
+    overflow: "hidden",
+  },
+  picker: {
     color: Colors.textPrimary,
   },
   submitButton: {
