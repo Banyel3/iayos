@@ -56,10 +56,36 @@ interface JobInfo {
   } | null;
 }
 
+interface BackjobListItem {
+  dispute_id: number;
+  job_id: number;
+  reason: string;
+  description: string;
+  status: string;
+  priority: string;
+  opened_date: string | null;
+  resolution: string | null;
+  resolved_date: string | null;
+  scheduled_date: string | null;
+  evidence_images: string[];
+  client: {
+    id: number;
+    name: string;
+    avatar: string | null;
+  } | null;
+}
+
+const parseNumericParam = (value: string | string[] | undefined): number | null => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 export default function BackjobDetailScreen() {
   const params = useLocalSearchParams();
-  const disputeId = params.disputeId as string;
-  const jobId = params.jobId as string;
+  const disputeIdParam = parseNumericParam(params.disputeId as string | string[] | undefined);
+  const jobIdParam = parseNumericParam(params.jobId as string | string[] | undefined);
 
   const [backjob, setBackjob] = useState<BackjobDetail | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
@@ -72,45 +98,121 @@ export default function BackjobDetailScreen() {
 
   useEffect(() => {
     fetchBackjobDetails();
-  }, [jobId]);
+  }, [jobIdParam, disputeIdParam]);
+
+  const mapListItemToBackjob = (item: BackjobListItem): BackjobDetail => {
+    return {
+      has_backjob: true,
+      dispute: {
+        dispute_id: item.dispute_id,
+        reason: item.reason,
+        description: item.description,
+        status: item.status,
+        priority: item.priority,
+        opened_date: item.opened_date,
+        resolution: item.resolution,
+        resolved_date: item.resolved_date,
+        scheduled_date: item.scheduled_date,
+        evidence_images: (item.evidence_images || []).map((img) => getAbsoluteMediaUrl(img)) as string[],
+        backjob_started: false,
+        worker_marked_complete: false,
+        client_confirmed: false,
+        worker_schedule_confirmed: false,
+        worker_schedule_confirmed_at: null,
+        admin_rejected_at: null,
+        admin_rejection_reason: null,
+      },
+    };
+  };
 
   const fetchBackjobDetails = async () => {
     setIsLoading(true);
     try {
-      if (__DEV__) console.log(`[BackjobDetail] Fetching backjob status for jobId: ${jobId}`);
-
-      // Fetch backjob status
-      const backjobResponse = await apiRequest(
-        ENDPOINTS.BACKJOB_STATUS(parseInt(jobId))
-      );
-
-      if (backjobResponse.status === 404) {
-        if (__DEV__) console.warn(`[BackjobDetail] Backjob 404 Not Found for jobId: ${jobId}`);
+      if (!jobIdParam && !disputeIdParam) {
+        console.error("[BackjobDetail] Missing both jobId and disputeId route params");
         setBackjob({ has_backjob: false, dispute: null });
-      } else if (backjobResponse.ok) {
-        const result = (await backjobResponse.json()) as any;
-        const data = (result.data || result) as BackjobDetail;
+        return;
+      }
 
-        if (__DEV__) console.log(`[BackjobDetail] Backjob status loaded:`, data.has_backjob);
+      let resolvedJobId = jobIdParam;
+      let resolvedBackjob: BackjobDetail | null = null;
 
-        // Process absolute URLs for evidence images
-        if (data.dispute?.evidence_images) {
-          data.dispute.evidence_images = data.dispute.evidence_images.map(img =>
-            getAbsoluteMediaUrl(img)
-          ) as string[];
+      // Primary path: fetch by job ID.
+      if (resolvedJobId) {
+        if (__DEV__) console.log(`[BackjobDetail] Fetching backjob status for jobId: ${resolvedJobId}`);
+        const backjobResponse = await apiRequest(ENDPOINTS.BACKJOB_STATUS(resolvedJobId));
+
+        if (backjobResponse.ok) {
+          const result = (await backjobResponse.json()) as any;
+          const data = (result.data || result) as BackjobDetail;
+
+          if (data.dispute?.evidence_images) {
+            data.dispute.evidence_images = data.dispute.evidence_images.map((img) =>
+              getAbsoluteMediaUrl(img),
+            ) as string[];
+          }
+
+          if (data.has_backjob && data.dispute) {
+            resolvedBackjob = data;
+          }
+        } else if (__DEV__) {
+          console.warn(
+            `[BackjobDetail] Primary status lookup failed for job ${resolvedJobId}: ${backjobResponse.status}`,
+          );
+        }
+      }
+
+      // Fallback path: resolve via my-backjobs list using disputeId/jobId.
+      if (!resolvedBackjob) {
+        if (__DEV__) {
+          console.log(
+            `[BackjobDetail] Attempting fallback lookup via my-backjobs (jobId=${resolvedJobId}, disputeId=${disputeIdParam})`,
+          );
         }
 
-        setBackjob(data);
+        const fallbackResponse = await apiRequest(ENDPOINTS.MY_BACKJOBS);
+        if (fallbackResponse.ok) {
+          const fallbackData = (await fallbackResponse.json()) as {
+            backjobs?: BackjobListItem[];
+          };
+          const backjobs = fallbackData.backjobs || [];
+
+          const matched = backjobs.find((item) => {
+            if (disputeIdParam && item.dispute_id === disputeIdParam) return true;
+            if (resolvedJobId && item.job_id === resolvedJobId) return true;
+            return false;
+          });
+
+          if (matched) {
+            resolvedJobId = resolvedJobId || matched.job_id;
+            resolvedBackjob = mapListItemToBackjob(matched);
+            if (__DEV__) {
+              console.log(
+                `[BackjobDetail] Fallback matched dispute=${matched.dispute_id}, job=${matched.job_id}`,
+              );
+            }
+          }
+        } else if (__DEV__) {
+          console.warn(
+            `[BackjobDetail] Fallback my-backjobs lookup failed: ${fallbackResponse.status}`,
+          );
+        }
+      }
+
+      if (resolvedBackjob) {
+        setBackjob(resolvedBackjob);
       } else {
-        console.error(`[BackjobDetail] Backjob status fetch failed: ${backjobResponse.status}`);
         setBackjob({ has_backjob: false, dispute: null });
       }
 
-      // Fetch job details
-      if (__DEV__) console.log(`[BackjobDetail] Fetching job details for jobId: ${jobId}`);
-      const jobResponse = await apiRequest(
-        ENDPOINTS.JOB_DETAILS(parseInt(jobId))
-      );
+      // Fetch job details only when we have a resolvable job ID.
+      if (!resolvedJobId) {
+        console.warn("[BackjobDetail] Unable to resolve job ID for job detail fetch");
+        return;
+      }
+
+      if (__DEV__) console.log(`[BackjobDetail] Fetching job details for jobId: ${resolvedJobId}`);
+      const jobResponse = await apiRequest(ENDPOINTS.JOB_DETAILS(resolvedJobId));
 
       if (jobResponse.ok) {
         const result = (await jobResponse.json()) as any;
