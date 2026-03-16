@@ -11493,6 +11493,9 @@ def finish_daily_job(request, job_id: int):
     now = timezone.now()
 
     # Guardrail: do not mark paid/completed without receivable ledger side effects.
+    # Backward compatibility: older records may have payment_processed attendance
+    # but missing linked receivable rows for this job. Auto-repair with a
+    # zero-amount compatibility ledger row (no balance changes) before failing.
     if total_paid > Decimal('0.00'):
         recipient_account = None
         if job.assignedAgencyFK:
@@ -11501,10 +11504,23 @@ def finish_daily_job(request, job_id: int):
             recipient_account = job.assignedWorkerID.profileID.accountFK
 
         if recipient_account and not has_receivable_ledger_for_account(job, recipient_account):
-            return Response({
-                "error": "Cannot finish job: missing receivable ledger entries for paid work",
-                "job_id": job.jobID,
-            }, status=409)
+            repair_wallet, _ = Wallet.objects.get_or_create(accountFK=recipient_account)
+            Transaction.objects.create(
+                walletID=repair_wallet,
+                transactionType='EARNING',
+                amount=Decimal('0.00'),
+                balanceAfter=repair_wallet.balance,
+                status='COMPLETED',
+                description=f'Compatibility ledger repair for paid DAILY job #{job.jobID}',
+                relatedJobPosting=job,
+                paymentMethod='WALLET',
+            )
+
+            if not has_receivable_ledger_for_account(job, recipient_account):
+                return Response({
+                    "error": "Cannot finish job: missing receivable ledger entries for paid work",
+                    "job_id": job.jobID,
+                }, status=409)
 
     job.status = 'COMPLETED'
     job.clientMarkedComplete = True

@@ -778,27 +778,26 @@ class PayMongoService(PaymentProviderInterface):
             }
 
             amount_centavos = int(float(amount) * 100)
+            # PayMongo POST /v2/batch_transfers uses a flat top-level payload
+            # (no JSON:API data/attributes envelope).
             payload = {
-                "data": {
-                    "attributes": {
-                        "transfers": [
-                            {
-                                "destination_account": {
-                                    "number": normalized_account,
-                                    "name": recipient_name,
-                                    "bic": clean_bank_code,
-                                },
-                                "amount": amount_centavos,
-                                "currency": "PHP",
-                                "provider": (transfer_provider or "instapay").lower(),
-                                "reference_number": external_id,
-                                "description": description,
-                                "metadata": transfer_metadata,
-                            }
-                        ]
+                "transfers": [
+                    {
+                        "destination_account": {
+                            "number": normalized_account,
+                            "name": recipient_name,
+                            "bic": clean_bank_code,
+                        },
+                        "amount": amount_centavos,
+                        "currency": "PHP",
+                        "provider": (transfer_provider or "instapay").lower(),
+                        "reference_number": external_id,
+                        "description": description,
+                        "metadata": transfer_metadata,
                     }
-                }
+                ]
             }
+            logger.info("🏦 batch_transfers request: url=%s payload=%s", f"{self.TRANSFER_V2_BASE_URL}/batch_transfers", payload)
 
             response = requests.post(
                 f"{self.TRANSFER_V2_BASE_URL}/batch_transfers",
@@ -807,10 +806,13 @@ class PayMongoService(PaymentProviderInterface):
                 timeout=30,
             )
 
+            logger.info("🏦 batch_transfers response: status=%s body=%s", response.status_code, response.text[:500])
             if response.status_code in (200, 201):
-                resp_data = response.json().get("data", {})
-                resp_attrs = resp_data.get("attributes", resp_data)  # V2 uses data.attributes
-                transfers = resp_attrs.get("transfers", [])
+                resp_json = response.json()
+                # V2 flat response: {"transfers": [...], "id": "..."}
+                # or wrapped: {"data": {"transfers": [...]}}
+                resp_data = resp_json.get("data", resp_json)
+                transfers = resp_data.get("transfers", [])
                 first_transfer = transfers[0] if transfers else {}
                 status = self._map_transfer_status(first_transfer.get("status", "pending"))
                 return {
@@ -825,7 +827,7 @@ class PayMongoService(PaymentProviderInterface):
             error_data = response.json() if response.text else {}
             errors = error_data.get("errors", [{}])
             detail = errors[0].get("detail", f"HTTP {response.status_code}") if errors else f"HTTP {response.status_code}"
-            logger.error(f"❌ PayMongo batch_transfer failed: {detail}")
+            logger.error("❌ PayMongo batch_transfer failed (status=%s): %s | full=%s", response.status_code, detail, response.text[:1000])
             return {
                 "success": False,
                 "error": detail,

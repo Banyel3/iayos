@@ -2012,7 +2012,8 @@ def get_agency_conversations(request, filter: str = "all"):
             # Show conversations where work has been agreed upon:
             # 1. Jobs IN_PROGRESS (work started)
             # 2. Jobs ACTIVE with employee assigned (agreed but not started)
-            # 3. Jobs with active backjob pipeline status (conversation context still needed)
+            # 3. Jobs with active backjob pipeline status (conversation context still needed),
+            #    even when the conversation/job still carries legacy COMPLETED state.
             conversations_query = conversations_query.filter(
                 archivedByWorker=False
             ).filter(
@@ -2022,8 +2023,6 @@ def get_agency_conversations(request, filter: str = "all"):
                     relatedJobPosting__assignedEmployeeID__isnull=False
                 ) |
                 Q(  # Backjob pipeline - keep conversation visible in active tab
-                    status='ACTIVE',
-                    relatedJobPosting__status='COMPLETED',
                     relatedJobPosting__disputes__status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
                 )
             )
