@@ -903,6 +903,9 @@ export default function ChatScreen() {
   const teamAssignedWorkers = conversation?.is_team_job
     ? conversation?.team_worker_assignments || []
     : [];
+  const backjobAttendanceRows = Array.isArray(conversation?.attendance_today)
+    ? conversation.attendance_today
+    : [];
 
   const isClientBackjobStartFlow =
     conversation?.my_role === "CLIENT" &&
@@ -981,6 +984,75 @@ export default function ChatScreen() {
     return Number.isFinite(arrivedMs) && arrivedMs >= backjobCycleStartMs;
   };
 
+  const getTeamAttendanceBackjobSignals = (worker: any) => {
+    const matchedAttendance = backjobAttendanceRows.find((row: any) => {
+      if (row?.awaiting_worker) {
+        return false;
+      }
+
+      const rowAccountId = Number(row?.worker_account_id);
+      const rowWorkerId = Number(row?.worker_id);
+      const workerAccountId = Number(worker?.account_id);
+      const workerId = Number(worker?.worker_id);
+
+      const accountMatch =
+        Number.isFinite(rowAccountId) &&
+        Number.isFinite(workerAccountId) &&
+        rowAccountId === workerAccountId;
+      const workerMatch =
+        Number.isFinite(rowWorkerId) &&
+        Number.isFinite(workerId) &&
+        rowWorkerId === workerId;
+
+      return accountMatch || workerMatch;
+    });
+
+    if (!matchedAttendance) {
+      return null;
+    }
+
+    const rowStatus = String(matchedAttendance?.status || "").toUpperCase();
+    return {
+      arrived:
+        Boolean(matchedAttendance?.client_confirmed) ||
+        Boolean(matchedAttendance?.time_in) ||
+        Boolean(matchedAttendance?.time_out) ||
+        ["PENDING", "PRESENT", "HALF_DAY", "COMPLETED"].includes(rowStatus),
+      completed:
+        Boolean(matchedAttendance?.time_out) ||
+        ["PRESENT", "HALF_DAY", "COMPLETED"].includes(rowStatus),
+    };
+  };
+
+  const isTeamCompletionInCurrentBackjobCycle = (
+    workerMarkedComplete?: boolean,
+    workerMarkedCompleteAt?: string | null,
+    attendanceCompleted?: boolean,
+  ) => {
+    const hasCompletionSignal =
+      Boolean(workerMarkedComplete) || Boolean(attendanceCompleted);
+    if (!hasCompletionSignal) return false;
+
+    if (!isClientBackjobStartFlow) {
+      return true;
+    }
+
+    if (!backjobCycleStartMs) {
+      return true;
+    }
+
+    if (!workerMarkedCompleteAt) {
+      return true;
+    }
+
+    const completeMs = new Date(workerMarkedCompleteAt).getTime();
+    if (!Number.isFinite(completeMs)) {
+      return true;
+    }
+
+    return completeMs >= backjobCycleStartMs;
+  };
+
   const dispatchedAgencyEmployees = agencyAssignedEmployees.filter(
     (employee) =>
       isAgencyStatusInCurrentBackjobCycle(
@@ -996,17 +1068,33 @@ export default function ChatScreen() {
       ),
   );
   const pendingTeamArrivalWorkers = teamAssignedWorkers.filter(
-    (worker) =>
-      !isTeamArrivalInCurrentBackjobCycle(
+    (worker) => {
+      const attendanceSignals = getTeamAttendanceBackjobSignals(worker);
+      const hasAssignmentArrival = isTeamArrivalInCurrentBackjobCycle(
         worker.client_confirmed_arrival,
         worker.client_confirmed_arrival_at,
         worker.worker_marked_complete,
         worker.worker_marked_complete_at,
-      ),
+      );
+      const hasAttendanceArrival = Boolean(attendanceSignals?.arrived);
+
+      return !(hasAssignmentArrival || hasAttendanceArrival);
+    },
   );
 
+  const pendingTeamCompletionWorkers = teamAssignedWorkers.filter((worker) => {
+    const attendanceSignals = getTeamAttendanceBackjobSignals(worker);
+    return !isTeamCompletionInCurrentBackjobCycle(
+      worker.worker_marked_complete,
+      worker.worker_marked_complete_at,
+      attendanceSignals?.completed,
+    );
+  });
+
   const hasTrackedWorkerStateForBackjob =
-    agencyAssignedEmployees.length > 0 || teamAssignedWorkers.length > 0;
+    agencyAssignedEmployees.length > 0 ||
+    teamAssignedWorkers.length > 0 ||
+    backjobAttendanceRows.length > 0;
 
   const usesArrivalDispatchBackjobGate =
     conversation?.is_agency_job || conversation?.is_team_job;
@@ -1017,6 +1105,43 @@ export default function ChatScreen() {
 
   const canClientConfirmBackjobStartedForTeam =
     teamAssignedWorkers.length > 0 && pendingTeamArrivalWorkers.length === 0;
+  const isTeamDailyBackjobFlow =
+    conversation?.is_team_job &&
+    conversation?.job?.payment_model === "DAILY" &&
+    Boolean(conversation?.backjob?.has_backjob);
+  const teamBackjobAllWorkersComplete =
+    teamAssignedWorkers.length > 0 && pendingTeamCompletionWorkers.length === 0;
+  const myTeamBackjobAssignment =
+    conversation?.my_role === "WORKER" && Array.isArray(teamAssignedWorkers)
+      ? teamAssignedWorkers.find((assignment: any) => {
+          const assignmentWorkerId = Number(assignment?.worker_id);
+          const assignmentAccountId = Number(assignment?.account_id);
+          const meWorkerId = Number(user?.workerProfile?.workerID);
+          const meAccountId = Number(user?.accountID);
+
+          const workerIdMatch =
+            Number.isFinite(assignmentWorkerId) &&
+            Number.isFinite(meWorkerId) &&
+            assignmentWorkerId === meWorkerId;
+          const accountIdMatch =
+            Number.isFinite(assignmentAccountId) &&
+            Number.isFinite(meAccountId) &&
+            assignmentAccountId === meAccountId;
+
+          return workerIdMatch || accountIdMatch;
+        })
+      : null;
+  const myTeamBackjobMarkedComplete = myTeamBackjobAssignment
+    ? !pendingTeamCompletionWorkers.some((worker: any) => {
+        const pendingAssignmentId = Number(worker?.assignment_id);
+        const myAssignmentId = Number(myTeamBackjobAssignment?.assignment_id);
+        return (
+          Number.isFinite(pendingAssignmentId) &&
+          Number.isFinite(myAssignmentId) &&
+          pendingAssignmentId === myAssignmentId
+        );
+      })
+    : false;
 
   const canClientConfirmBackjobStartedByArrival =
     !isClientBackjobStartFlow
@@ -8808,7 +8933,10 @@ export default function ChatScreen() {
                     {/* CLIENT: Waiting for Worker to Complete Backjob */}
                     {conversation.my_role === "CLIENT" &&
                       conversation.backjob?.backjob_started &&
-                      !conversation.backjob?.worker_marked_complete && (
+                      ((isTeamDailyBackjobFlow &&
+                        !teamBackjobAllWorkersComplete) ||
+                        (!isTeamDailyBackjobFlow &&
+                          !conversation.backjob?.worker_marked_complete)) && (
                         <View style={styles.backjobWaitingBadge}>
                           <Ionicons
                             name="time-outline"
@@ -8816,7 +8944,9 @@ export default function ChatScreen() {
                             color={Colors.textSecondary}
                           />
                           <Text style={styles.backjobWaitingText}>
-                            Waiting for worker...
+                            {isTeamDailyBackjobFlow
+                              ? `Waiting for workers to finish (${teamAssignedWorkers.length - pendingTeamCompletionWorkers.length}/${teamAssignedWorkers.length})...`
+                              : "Waiting for worker..."}
                           </Text>
                         </View>
                       )}
@@ -8837,7 +8967,49 @@ export default function ChatScreen() {
                       )}
 
                     {/* WORKER/AGENCY: Mark Backjob Complete Button */}
+                    {conversation.my_role === "WORKER" &&
+                      isTeamDailyBackjobFlow &&
+                      conversation.backjob?.backjob_started &&
+                      myTeamBackjobAssignment &&
+                      !myTeamBackjobMarkedComplete && (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.warning },
+                          ]}
+                          onPress={() =>
+                            handleMarkTeamAssignmentComplete(
+                              myTeamBackjobAssignment.assignment_id,
+                            )
+                          }
+                          disabled={markTeamAssignmentCompleteMutation.isPending}
+                        >
+                          {markTeamAssignmentCompleteMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-done"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Mark Assignment Complete
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
                     {isWorkerSideBackjobActor &&
+                      !(
+                        conversation.my_role === "WORKER" &&
+                        isTeamDailyBackjobFlow &&
+                        !!myTeamBackjobAssignment
+                      ) &&
                       conversation.backjob?.backjob_started &&
                       !conversation.backjob?.worker_marked_complete && (
                         <TouchableOpacity
@@ -8870,7 +9042,9 @@ export default function ChatScreen() {
 
                     {/* WORKER: Waiting for Client Approval */}
                     {conversation.my_role === "WORKER" &&
-                      conversation.backjob?.worker_marked_complete &&
+                      ((isTeamDailyBackjobFlow && myTeamBackjobMarkedComplete) ||
+                        (!isTeamDailyBackjobFlow &&
+                          conversation.backjob?.worker_marked_complete)) &&
                       !conversation.backjob?.client_confirmed_complete && (
                         <View style={styles.backjobWaitingBadge}>
                           <Ionicons
@@ -8886,7 +9060,10 @@ export default function ChatScreen() {
 
                     {/* CLIENT: Approve Backjob Completion Button */}
                     {conversation.my_role === "CLIENT" &&
-                      conversation.backjob?.worker_marked_complete &&
+                      ((isTeamDailyBackjobFlow &&
+                        teamBackjobAllWorkersComplete) ||
+                        (!isTeamDailyBackjobFlow &&
+                          conversation.backjob?.worker_marked_complete)) &&
                       !conversation.backjob?.client_confirmed_complete && (
                         <TouchableOpacity
                           style={[
