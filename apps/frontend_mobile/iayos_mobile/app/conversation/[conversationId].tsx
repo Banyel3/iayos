@@ -4218,27 +4218,32 @@ export default function ChatScreen() {
                           </TouchableOpacity>
                         </>
                       ) : (
-                        <Text style={styles.attendanceBannerHint}>
-                          {isAttendanceExpanded
-                            ? "Recorded attendance"
-                            : "Tap to view recorded attendance"}
-                        </Text>
+                        <View style={styles.attendanceClientRightSpacer} />
                       )}
                     </View>
                   </View>
 
-                  <View style={styles.attendanceToggleRow}>
+                  {(conversation.my_role === "CLIENT" ||
+                    conversation.my_role === "AGENCY") && (
                     <TouchableOpacity
-                      style={styles.attendanceToggleButton}
+                      style={styles.attendanceClientStatusRow}
                       onPress={() => setIsAttendanceExpanded((prev) => !prev)}
                       activeOpacity={0.8}
                     >
+                      <Text style={styles.attendanceBannerHint}>
+                        Waiting for agency to dispatch employees (
+                        {Array.isArray(conversation.assigned_employees)
+                          ? conversation.assigned_employees.filter(
+                              (e) => e.dispatched,
+                            ).length
+                          : 0} of {Array.isArray(conversation.assigned_employees)
+                          ? conversation.assigned_employees.length
+                          : 0} dispatched)
+                      </Text>
                       <View style={styles.attendanceToggleInner}>
                         <Ionicons
                           name={
-                            isAttendanceExpanded
-                              ? "chevron-up"
-                              : "chevron-down"
+                            isAttendanceExpanded ? "chevron-up" : "chevron-down"
                           }
                           size={18}
                           color={Colors.textSecondary}
@@ -4248,7 +4253,35 @@ export default function ChatScreen() {
                         )}
                       </View>
                     </TouchableOpacity>
-                  </View>
+                  )}
+
+                  {conversation.my_role !== "CLIENT" &&
+                    conversation.my_role !== "AGENCY" && (
+                      <View style={styles.attendanceToggleRow}>
+                        <TouchableOpacity
+                          style={styles.attendanceToggleButton}
+                          onPress={() =>
+                            setIsAttendanceExpanded((prev) => !prev)
+                          }
+                          activeOpacity={0.8}
+                        >
+                          <View style={styles.attendanceToggleInner}>
+                            <Ionicons
+                              name={
+                                isAttendanceExpanded
+                                  ? "chevron-up"
+                                  : "chevron-down"
+                              }
+                              size={18}
+                              color={Colors.textSecondary}
+                            />
+                            {!isAttendanceExpanded && hasClientWorkerOnTheWay && (
+                              <View style={styles.attendanceOnTheWayDot} />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    )}
 
                   {/* Worker View: On-the-way / attendance status */}
                   {isAttendanceExpanded && isWorkerSideRole && (
@@ -6825,9 +6858,6 @@ export default function ChatScreen() {
                   const allWorkflowComplete =
                     allDispatched && allArrived && allComplete;
 
-                  const notDispatchedEmployees =
-                    conversation.assigned_employees.filter((e) => !e.dispatched);
-
                   // Employees dispatched but not arrived yet
                   const pendingArrival = conversation.assigned_employees.filter(
                     (e) => e.dispatched && !e.clientConfirmedArrival,
@@ -6843,45 +6873,6 @@ export default function ChatScreen() {
 
                   return (
                     <>
-                      {/* Waiting for agency to dispatch */}
-                      {!allDispatched && (
-                        <View style={styles.employeeActionsSection}>
-                          <View
-                            style={[styles.actionButton, styles.waitingButton]}
-                          >
-                            <Ionicons
-                              name="time-outline"
-                              size={20}
-                              color={Colors.textSecondary}
-                            />
-                            <Text style={styles.waitingButtonText}>
-                              Waiting for agency to dispatch employees (
-                              {
-                                conversation.assigned_employees.filter(
-                                  (e) => e.dispatched,
-                                ).length
-                              }{" "}
-                              of {conversation.assigned_employees.length}{" "}
-                              dispatched)
-                            </Text>
-                          </View>
-
-                          {notDispatchedEmployees.map((employee) => (
-                            <View
-                              key={`not-dispatched-${employee.id}`}
-                              style={styles.confirmArrivalWorkerRow}
-                            >
-                              <Text
-                                style={styles.confirmArrivalWorkerName}
-                                numberOfLines={1}
-                              >
-                                {employee.name} has not been dispatched.
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-
                       {/* Confirm arrivals section */}
                       {allDispatched && pendingArrival.length > 0 && (
                         <View style={styles.employeeActionsSection}>
@@ -10238,7 +10229,28 @@ const styles = StyleSheet.create({
   },
   attendanceBannerHint: {
     ...Typography.body.small,
+    fontSize: 12,
     color: Colors.textSecondary,
+    fontStyle: "italic",
+    flex: 1,
+    lineHeight: 18,
+  },
+  attendanceClientRightSpacer: {
+    width: 24,
+    marginLeft: Spacing.xs,
+  },
+  attendanceClientStatusRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginTop: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  attendanceBannerToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: Spacing.xs,
   },
   attendanceToggleButton: {
     alignItems: "center",
