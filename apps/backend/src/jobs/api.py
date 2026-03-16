@@ -7312,7 +7312,7 @@ def get_backjob_status(request, job_id: int):
             return Response({"error": "Only job participants can view backjob status"}, status=403)
 
         # Check if dispute exists
-        dispute = JobDispute.objects.filter(jobID=job).prefetch_related('evidence').first()
+        dispute = JobDispute.objects.filter(jobID=job).prefetch_related('evidence').order_by('-openedDate').first()
         
         if not dispute:
             return {

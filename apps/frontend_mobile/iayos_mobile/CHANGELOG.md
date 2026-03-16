@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added fallback lookup via `GET /api/mobile/jobs/my-backjobs` when primary `backjob-status` lookup fails, then resolves the dispute by `dispute_id` (or `job_id`) and continues loading details.
   - **Impact**: Workers opening backjob detail from conversation/list routes no longer hit false `Backjob Not Found` screens when primary lookup fails on legacy/edge payloads.
 
+- **Team Backjob On-The-Way State Sync + Worker Detail Visibility**
+  - Added `assignment_id` to conversation attendance payload rows and updated mobile team attendance matching to use `assignment_id` in addition to worker/account IDs.
+  - Updated mobile backjobs filtering for workers to include team assignments (not only direct assignedWorker jobs), with dual-profile fallback by account.
+  - Updated backjob status lookup to consistently use the latest dispute cycle (`openedDate` desc).
+  - **Impact**: Team workers no longer see `Mark On The Way` reappear after dispatch, client-side pending-arrival state updates reliably, and worker-side backjob detail no longer disappears in team flows.
+
 - **GCash-Only Withdrawal Methods Enforcement**
   - Updated mobile payment methods management to only allow adding and displaying GCash accounts for payouts.
   - Updated mobile wallet withdrawal flow to only show verified GCash accounts and updated all prompts/copy accordingly.
