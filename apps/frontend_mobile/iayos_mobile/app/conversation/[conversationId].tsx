@@ -3825,8 +3825,9 @@ export default function ChatScreen() {
                   );
                 })()}
 
-              {/* Attendance Tracking Section (DAILY + PROJECT multi-day) */}
+              {/* Attendance Tracking Section (DAILY + TEAM PROJECT) */}
               {(conversation.job?.payment_model === "DAILY" ||
+                isTeamProjectAttendance ||
                 isProjectMultiDayJob) && (
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.attendanceTopRow}>
@@ -5193,7 +5194,8 @@ export default function ChatScreen() {
                   )}
 
                   {/* Daily rate info (DAILY-only) */}
-                  {isAttendanceExpanded && !isProjectMultiDayJob && (
+                  {isAttendanceExpanded &&
+                    conversation.job?.payment_model === "DAILY" && (
                     <View style={styles.dailyRateInfo}>
                       <Text style={styles.dailyRateLabel}>Daily Rate:</Text>
                       <Text style={styles.dailyRateAmount}>
@@ -5209,6 +5211,7 @@ export default function ChatScreen() {
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
+                !isTeamProjectAttendance &&
                 conversation.job?.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
@@ -5381,6 +5384,7 @@ export default function ChatScreen() {
               {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
               {conversation.is_team_job &&
                 conversation.job?.payment_model !== "DAILY" &&
+                !isTeamProjectAttendance &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
                 !conversation.is_agency_job &&
@@ -5478,6 +5482,7 @@ export default function ChatScreen() {
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
+                !isTeamProjectAttendance &&
                 conversation.job.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
                 conversation.team_worker_assignments &&
