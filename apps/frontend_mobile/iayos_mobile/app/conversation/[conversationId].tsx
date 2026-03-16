@@ -8732,7 +8732,8 @@ export default function ChatScreen() {
           isJobCompleted &&
           conversation.job.remainingPaymentPaid &&
           !conversation.job.paymentBuffer?.is_payment_released &&
-          !conversation.backjob?.has_backjob && (
+          !conversation.backjob?.has_backjob &&
+          (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 && (
             <TouchableOpacity
               style={styles.releasePaymentNowButtonInline}
               onPress={handleReleasePaymentNow}

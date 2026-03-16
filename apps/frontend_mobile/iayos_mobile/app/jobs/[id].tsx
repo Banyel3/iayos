@@ -609,11 +609,29 @@ export default function JobDetailScreen() {
     const resolvePreferredProfile = (): "CLIENT" | "WORKER" | null => {
       if (!job || !user) return null;
 
-      if (job.postedBy?.id === user.accountID) {
+      const userIdCandidates = new Set(
+        [
+          user.accountID,
+          user.profile_data?.id,
+          user.profile_data?.workerProfileId,
+          (user.profile_data as any)?.profileID,
+          (user.profile_data as any)?.workerID,
+        ]
+          .filter((v) => v !== null && v !== undefined && v !== "")
+          .map((v) => String(v)),
+      );
+
+      if (
+        job.postedBy?.id !== undefined &&
+        userIdCandidates.has(String(job.postedBy.id))
+      ) {
         return "CLIENT";
       }
 
-      if (job.assignedWorker?.id === user.accountID) {
+      if (
+        job.assignedWorker?.id !== undefined &&
+        userIdCandidates.has(String(job.assignedWorker.id))
+      ) {
         return "WORKER";
       }
 
