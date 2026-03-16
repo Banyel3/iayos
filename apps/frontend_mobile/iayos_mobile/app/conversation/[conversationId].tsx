@@ -1013,6 +1013,13 @@ export default function ChatScreen() {
 
     const rowStatus = String(matchedAttendance?.status || "").toUpperCase();
     return {
+      dispatched:
+        Boolean(matchedAttendance?.is_dispatched) ||
+        Boolean(matchedAttendance?.worker_confirmed) ||
+        Boolean(matchedAttendance?.worker_confirmed_at) ||
+        ["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY", "COMPLETED"].includes(
+          rowStatus,
+        ),
       arrived:
         Boolean(matchedAttendance?.client_confirmed) ||
         Boolean(matchedAttendance?.time_in) ||
@@ -1081,6 +1088,15 @@ export default function ChatScreen() {
       return !(hasAssignmentArrival || hasAttendanceArrival);
     },
   );
+  const pendingTeamDispatchWorkers = teamAssignedWorkers.filter((worker) => {
+    const attendanceSignals = getTeamAttendanceBackjobSignals(worker);
+    const hasAssignmentProgress =
+      Boolean(worker?.client_confirmed_arrival) ||
+      Boolean(worker?.worker_marked_complete);
+    const hasAttendanceDispatch = Boolean(attendanceSignals?.dispatched);
+
+    return !(hasAssignmentProgress || hasAttendanceDispatch);
+  });
 
   const pendingTeamCompletionWorkers = teamAssignedWorkers.filter((worker) => {
     const attendanceSignals = getTeamAttendanceBackjobSignals(worker);
@@ -1166,7 +1182,10 @@ export default function ChatScreen() {
             : conversation?.is_agency_job &&
                 dispatchedAgencyEmployees.length < agencyAssignedEmployees.length
               ? `Waiting for agency to dispatch workers (${dispatchedAgencyEmployees.length} of ${agencyAssignedEmployees.length}).`
-              : conversation?.is_team_job && pendingTeamArrivalWorkers.length > 0
+              : conversation?.is_team_job &&
+                  pendingTeamDispatchWorkers.length > 0
+                ? `Waiting for workers to mark on the way (${pendingTeamDispatchWorkers.length} pending).`
+                : conversation?.is_team_job && pendingTeamArrivalWorkers.length > 0
                 ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
                 : null;
 
@@ -5727,8 +5746,43 @@ export default function ChatScreen() {
                     return null;
                   }
 
-                  // Check if arrival was confirmed
+                  // Worker should mark on-the-way first for team backjob flow.
                   if (!myAssignment.client_confirmed_arrival) {
+                    const hasWorkerOnTheWaySignal = Boolean(
+                      myWorkerAttendanceToday?.is_dispatched &&
+                        !myWorkerAttendanceToday?.time_in,
+                    );
+
+                    if (!hasWorkerOnTheWaySignal) {
+                      return (
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.onTheWayButton]}
+                          onPress={() =>
+                            workerCheckInMutation.mutate(conversation.job.id)
+                          }
+                          disabled={workerCheckInMutation.isPending}
+                        >
+                          {workerCheckInMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="navigate"
+                                size={20}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.actionButtonText}>
+                                Mark On The Way
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }
+
                     return (
                       <View style={[styles.actionButton, styles.waitingButton]}>
                         <Ionicons

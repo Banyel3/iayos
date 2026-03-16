@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Backjob On-The-Way Sequence + Legacy Cycle Compatibility**
+  - Updated team backjob gating to separate `dispatch/on-the-way` from `arrival` so clients now see `Waiting for workers to mark on the way` before `Confirm arrivals first`.
+  - Updated worker-side team backjob UI to render `Mark On The Way` in legacy team project branches instead of immediately showing `Waiting for client to confirm your arrival`.
+  - Added backend compatibility for existing jobs/backjobs where base job status remains `COMPLETED`: worker check-in now supports active confirmed backjob cycles.
+  - Expanded conversation attendance payload inclusion to active backjob cycles so existing records reflect dispatch/arrival updates without creating a new job.
+  - **Impact**: Existing TEAM DAILY and TEAM PROJECT/FIXED backjobs can follow the intended flow: schedule confirm -> worker marks on the way -> client confirms arrival -> start/complete steps.
+
 - **Direct Hire Category Selection Fallback (Worker + Agency)**
   - Fixed direct-hire job creation category loading when worker/agency skill mapping returns an empty set.
   - Worker direct-hire now falls back to full category list if worker-scoped categories are empty.
