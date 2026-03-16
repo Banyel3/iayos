@@ -274,6 +274,47 @@ export default function PaymentMethodsScreen() {
     setCardCvv("");
   };
 
+  const formatCardNumberInput = (input: string) => {
+    const digitsOnly = input.replace(/\D/g, "").slice(0, 16);
+    return digitsOnly.replace(/(.{4})/g, "$1 ").trim();
+  };
+
+  const handleCardNumberChange = (value: string) => {
+    setCardNumber(formatCardNumberInput(value));
+  };
+
+  const handleCardCvvChange = (value: string) => {
+    setCardCvv(value.replace(/\D/g, "").slice(0, 3));
+  };
+
+  const handleExpiryMonthChange = (value: string) => {
+    setCardExpiryMonth(value.replace(/\D/g, "").slice(0, 2));
+  };
+
+  const handleExpiryYearChange = (value: string) => {
+    setCardExpiryYear(value.replace(/\D/g, "").slice(0, 4));
+  };
+
+  const isLuhnValid = (cardNumberValue: string) => {
+    let sum = 0;
+    let shouldDouble = false;
+
+    for (let i = cardNumberValue.length - 1; i >= 0; i--) {
+      let digit = Number(cardNumberValue[i]);
+      if (Number.isNaN(digit)) return false;
+
+      if (shouldDouble) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+
+      sum += digit;
+      shouldDouble = !shouldDouble;
+    }
+
+    return sum % 10 === 0;
+  };
+
   const handleAddMethod = () => {
     if (!accountName.trim()) {
       Alert.alert("Error", "Please enter account name");
@@ -356,8 +397,15 @@ export default function PaymentMethodsScreen() {
       const year = cardExpiryYear.replace(/\D/g, "");
       const cvv = cardCvv.replace(/\D/g, "");
 
-      if (!/^\d{13,19}$/.test(card)) {
-        Alert.alert("Error", "Enter a valid card number");
+      if (!/^\d{16}$/.test(card)) {
+        Alert.alert("Error", "Card number must be 16 digits");
+        return;
+      }
+      if (!isLuhnValid(card)) {
+        Alert.alert(
+          "Error",
+          "Invalid card number. Random 16-digit numbers are not accepted. Use a real card number or a Luhn-valid test number.",
+        );
         return;
       }
       if (!/^\d{2}$/.test(month) || Number(month) < 1 || Number(month) > 12) {
@@ -368,8 +416,8 @@ export default function PaymentMethodsScreen() {
         Alert.alert("Error", "Enter a valid expiry year (YYYY)");
         return;
       }
-      if (!/^\d{3,4}$/.test(cvv)) {
-        Alert.alert("Error", "Enter a valid CVV (3-4 digits)");
+      if (!/^\d{3}$/.test(cvv)) {
+        Alert.alert("Error", "CVV must be exactly 3 digits");
         return;
       }
 
@@ -908,7 +956,7 @@ export default function PaymentMethodsScreen() {
                       placeholder="4111 1111 1111 1111"
                       placeholderTextColor={Colors.textHint}
                       value={cardNumber}
-                      onChangeText={setCardNumber}
+                      onChangeText={handleCardNumberChange}
                       keyboardType="numeric"
                       maxLength={19}
                     />
@@ -921,7 +969,7 @@ export default function PaymentMethodsScreen() {
                         placeholder="MM"
                         placeholderTextColor={Colors.textHint}
                         value={cardExpiryMonth}
-                        onChangeText={setCardExpiryMonth}
+                        onChangeText={handleExpiryMonthChange}
                         keyboardType="numeric"
                         maxLength={2}
                       />
@@ -933,7 +981,7 @@ export default function PaymentMethodsScreen() {
                         placeholder="YYYY"
                         placeholderTextColor={Colors.textHint}
                         value={cardExpiryYear}
-                        onChangeText={setCardExpiryYear}
+                        onChangeText={handleExpiryYearChange}
                         keyboardType="numeric"
                         maxLength={4}
                       />
@@ -945,16 +993,17 @@ export default function PaymentMethodsScreen() {
                         placeholder="123"
                         placeholderTextColor={Colors.textHint}
                         value={cardCvv}
-                        onChangeText={setCardCvv}
+                        onChangeText={handleCardCvvChange}
                         keyboardType="numeric"
-                        maxLength={4}
+                        maxLength={3}
                         secureTextEntry
                       />
                     </View>
                   </View>
                   <Text style={styles.cardSecurityNote}>
                     For security, CVV is only used for validation and is never
-                    stored. We only store the card last4.
+                    stored. We only store the card last4. Use a real card
+                    number or a Luhn-valid test card (not random digits).
                   </Text>
                 </>
               )}

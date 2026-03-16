@@ -122,7 +122,7 @@ export default function AgencyWalletPage() {
   const recentTransactions = transactions.slice(0, 5);
 
   const totalEarned = transactions
-    .filter((t: any) => ["EARNING", "PENDING_EARNING", "DEPOSIT", "REFUND"].includes(t.type))
+    .filter((t: any) => ["EARNING", "DEPOSIT", "REFUND"].includes(t.type))
     .filter((t: any) => t.status === "COMPLETED")
     .reduce((sum: number, t: any) => sum + t.amount, 0);
 
