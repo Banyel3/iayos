@@ -1171,6 +1171,10 @@ export default function AgencyChatScreen() {
                   );
                 }
                 if (!allComplete) {
+                  if (isBackjobProjectFlow) {
+                    return null;
+                  }
+
                   if (isProjectMultiDayFlow && !hasActiveBackjobCycle) {
                     const effectiveWorkedDays =
                       allArrived && totalDaysWorked < 1 ? 1 : totalDaysWorked;

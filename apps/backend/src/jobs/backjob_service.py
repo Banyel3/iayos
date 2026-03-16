@@ -6,6 +6,42 @@ from django.conf import settings
 from django.utils import timezone
 
 
+def _all_assigned_agency_employees_dispatched_for_cycle(job, dispute) -> bool:
+    """Require assigned agency employees to be dispatched for this backjob cycle."""
+    from accounts.models import JobEmployeeAssignment
+
+    assignments = JobEmployeeAssignment.objects.filter(
+        job=job,
+        status__in=["ASSIGNED", "IN_PROGRESS"],
+    )
+
+    if not assignments.exists():
+        return True
+
+    backjob_cycle_start = getattr(dispute, "workerScheduleConfirmedAt", None)
+
+    for assignment in assignments:
+        is_dispatched = bool(getattr(assignment, "dispatched", False))
+        if not is_dispatched:
+            return False
+
+        if not backjob_cycle_start:
+            continue
+
+        dispatched_at = getattr(assignment, "dispatchedAt", None)
+        if dispatched_at and dispatched_at >= backjob_cycle_start:
+            continue
+
+        has_legacy_progress_signal = (
+            getattr(assignment, "status", None) == "IN_PROGRESS"
+            or bool(getattr(assignment, "clientConfirmedArrival", False))
+        )
+        if not has_legacy_progress_signal:
+            return False
+
+    return True
+
+
 def get_business_local_date() -> Any:
     """Return business-local date used for backjob schedule checks."""
     from zoneinfo import ZoneInfo
@@ -40,6 +76,9 @@ def auto_start_agency_backjob_if_ready(job, dispute, reason: str = "") -> bool:
 
     business_today = get_business_local_date()
     if business_today < scheduled_date:
+        return False
+
+    if not _all_assigned_agency_employees_dispatched_for_cycle(job, dispute):
         return False
 
     dispute.backjobStarted = True

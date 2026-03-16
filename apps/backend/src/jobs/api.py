@@ -2227,7 +2227,7 @@ def get_my_backjobs(request, status: Optional[str] = None):
         agency = Agency.objects.filter(accountFK=request.auth).first()
         
         if not profile and not agency:
-            return Response({"error": "Profile not found"}, status=404)
+            return {"backjobs": [], "total": 0}
         
         # Build query for disputes where the related job was assigned to this worker/agency
         disputes_query = JobDispute.objects.select_related(
