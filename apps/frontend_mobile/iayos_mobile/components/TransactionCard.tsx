@@ -60,10 +60,11 @@ export default function TransactionCard({
   transaction,
   onPress,
 }: TransactionCardProps) {
+  const paymentMethodKey = (transaction.payment_method || "wallet").toLowerCase();
   const methodIcon =
-    paymentMethodIcons[transaction.payment_method.toLowerCase()] || "card";
+    paymentMethodIcons[paymentMethodKey] || "card";
   const methodColor =
-    paymentMethodColors[transaction.payment_method.toLowerCase()] ||
+    paymentMethodColors[paymentMethodKey] ||
     Colors.primary;
 
   const formatDate = (dateString: string) => {
@@ -86,7 +87,25 @@ export default function TransactionCard({
     });
   };
 
-  const isPositive = transaction.amount > 0;
+  const directionHints = `${transaction.type || ""} ${transaction.transaction_type_label || ""} ${transaction.description || ""}`.toLowerCase();
+  const isIncoming =
+    directionHints.includes("deposit") ||
+    directionHints.includes("refund") ||
+    directionHints.includes("earning") ||
+    directionHints.includes("credit");
+  const isOutgoing =
+    directionHints.includes("withdraw") ||
+    directionHints.includes("payment") ||
+    directionHints.includes("debit") ||
+    directionHints.includes("charge") ||
+    directionHints.includes("fee");
+
+  const amountPrefix = isIncoming ? "+" : isOutgoing ? "-" : transaction.amount < 0 ? "-" : "";
+  const amountColorStyle = isIncoming
+    ? styles.amountPositive
+    : isOutgoing || transaction.amount < 0
+      ? styles.amountNegative
+      : undefined;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
@@ -103,9 +122,9 @@ export default function TransactionCard({
           <Text style={styles.jobTitle} numberOfLines={1}>
             {transaction.transaction_type_label || transaction.job?.title || "Payment"}
           </Text>
-          <Text style={[styles.amount, isPositive && styles.amountPositive]}>
-            {isPositive ? "+" : ""}
-            {formatCurrency(transaction.amount)}
+          <Text style={[styles.amount, amountColorStyle]}>
+            {amountPrefix}
+            {formatCurrency(Math.abs(transaction.amount || 0))}
           </Text>
         </View>
 
@@ -119,7 +138,7 @@ export default function TransactionCard({
         <View style={styles.bottomRow}>
           <View style={styles.metaContainer}>
             <Text style={styles.method}>
-              {transaction.payment_method.toUpperCase()}
+              {(transaction.payment_method || "wallet").toUpperCase()}
             </Text>
             <Text style={styles.dot}>•</Text>
             <Text style={styles.date}>
@@ -185,6 +204,9 @@ const styles = StyleSheet.create({
   },
   amountPositive: {
     color: Colors.success,
+  },
+  amountNegative: {
+    color: Colors.error,
   },
   jobContext: {
     fontSize: Typography.fontSize.xs,

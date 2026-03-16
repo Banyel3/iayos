@@ -137,6 +137,7 @@ export default function ActiveJobDetailScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedAssignment, setSelectedAssignment] =
     useState<WorkerAssignment | null>(null);
+  const [isOpeningChat, setIsOpeningChat] = useState(false);
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const currentWorkerId = user?.profile_data?.profileID;
@@ -517,6 +518,33 @@ export default function ActiveJobDetailScreen() {
         },
       ],
     );
+  };
+
+  const handleViewChat = async () => {
+    try {
+      setIsOpeningChat(true);
+      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(Number(id)));
+      const data = (await response.json()) as any;
+
+      if (data?.success && data?.conversation_id) {
+        router.push((`/conversation/${data.conversation_id}` as any));
+        return;
+      }
+
+      Alert.alert(
+        "No Conversation",
+        "Could not find a chat for this job yet. Please try again in a moment.",
+      );
+    } catch (error) {
+      Alert.alert(
+        "Connection Error",
+        error instanceof Error
+          ? error.message
+          : "Failed to open job chat.",
+      );
+    } finally {
+      setIsOpeningChat(false);
+    }
   };
 
   // ============================================================================
@@ -1271,8 +1299,29 @@ export default function ActiveJobDetailScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      {isWorker && !job.worker_marked_complete && (
+      {isWorker && !job.client_marked_complete && (
         <View style={styles.actionContainer}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleViewChat}
+            activeOpacity={0.8}
+            disabled={isOpeningChat}
+          >
+            {isOpeningChat ? (
+              <ActivityIndicator color={Colors.primary} />
+            ) : (
+              <>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={20}
+                  color={Colors.primary}
+                />
+                <Text style={styles.secondaryButtonText}>View Chat</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {!job.worker_marked_complete && (
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => setShowCompletionModal(true)}
@@ -1285,6 +1334,7 @@ export default function ActiveJobDetailScreen() {
             />
             <Text style={styles.primaryButtonText}>Mark as Complete</Text>
           </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -1625,7 +1675,24 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    gap: Spacing.sm,
     ...Shadows.medium,
+  },
+  secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  secondaryButtonText: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: "700",
+    color: Colors.primary,
   },
   primaryButton: {
     flexDirection: "row",

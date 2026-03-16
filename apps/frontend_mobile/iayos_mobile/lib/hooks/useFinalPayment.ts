@@ -92,6 +92,7 @@ export const useCreateFinalPayment = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
       queryClient.invalidateQueries({ queryKey: ["activeJobs"] });
     },

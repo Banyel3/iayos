@@ -245,7 +245,7 @@ const WORKER_PAYMENT_INFO_ITEMS = [
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, switchProfile, checkAuth } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -297,13 +297,6 @@ export default function JobDetailScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
-
-  // Bug 1 fix: detect if the current worker is already assigned to this job
-  // Used to hide the Apply button for assigned workers (e.g. coming from Calendar)
-  const isCurrentWorkerAssigned =
-    String(job?.assignedWorker?.id ?? "") ===
-      String(user?.profile_data?.id ?? "") &&
-    String(job?.assignedWorker?.id ?? "") !== "";
 
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
@@ -503,37 +496,61 @@ export default function JobDetailScreen() {
   // Check if already applied and track which skill slots
   const { data: applicationStatus } = useQuery<{
     hasApplied: boolean;
+    hasAcceptedApplication: boolean;
     appliedSlotIds: number[];
   }>({
     queryKey: ["jobs", id, "applied"],
     queryFn: async (): Promise<{
       hasApplied: boolean;
+      hasAcceptedApplication: boolean;
       appliedSlotIds: number[];
     }> => {
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
         method: "GET",
       });
 
-      if (!response.ok) return { hasApplied: false, appliedSlotIds: [] };
+      if (!response.ok) {
+        return {
+          hasApplied: false,
+          hasAcceptedApplication: false,
+          appliedSlotIds: [],
+        };
+      }
 
       const data = (await response.json()) as any;
-      if (data.success && data.applications) {
-        const jobApplications = data.applications.filter(
-          (app: any) => app.job_id.toString() === id,
-        );
+      const rawApplications =
+        data?.applications || data?.data?.applications || [];
+
+      if (Array.isArray(rawApplications)) {
+        const jobApplications = rawApplications.filter((app: any) => {
+          const appJobId =
+            app?.job_id ?? app?.jobId ?? app?.job?.id ?? app?.job?.job_id;
+          return String(appJobId) === String(id);
+        });
         const hasApplied = jobApplications.length > 0;
+        const hasAcceptedApplication = jobApplications.some(
+          (app: any) =>
+            String(app?.status || app?.application_status || "").toUpperCase() ===
+            "ACCEPTED",
+        );
         const appliedSlotIds = jobApplications
           .filter((app: any) => app.applied_skill_slot_id !== null)
           .map((app: any) => app.applied_skill_slot_id);
-        return { hasApplied, appliedSlotIds };
+        return { hasApplied, hasAcceptedApplication, appliedSlotIds };
       }
-      return { hasApplied: false, appliedSlotIds: [] };
+      return {
+        hasApplied: false,
+        hasAcceptedApplication: false,
+        appliedSlotIds: [],
+      };
     },
     enabled: isWorker,
   });
 
   // Destructure for easier access
   const hasApplied = applicationStatus?.hasApplied ?? false;
+  const hasAcceptedApplication =
+    applicationStatus?.hasAcceptedApplication ?? false;
   const appliedSlotIds = applicationStatus?.appliedSlotIds ?? [];
 
   // Submit application mutation
@@ -583,6 +600,44 @@ export default function JobDetailScreen() {
   });
 
   const handleViewChat = async () => {
+    const fetchConversationByJob = async () => {
+      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
+      const data = (await response.json().catch(() => null)) as any;
+      return { response, data };
+    };
+
+    const resolvePreferredProfile = (): "CLIENT" | "WORKER" | null => {
+      if (!job || !user) return null;
+
+      const userIdCandidates = new Set(
+        [
+          user.accountID,
+          user.profile_data?.id,
+          user.profile_data?.workerProfileId,
+          (user.profile_data as any)?.profileID,
+          (user.profile_data as any)?.workerID,
+        ]
+          .filter((v) => v !== null && v !== undefined && v !== "")
+          .map((v) => String(v)),
+      );
+
+      if (
+        job.postedBy?.id !== undefined &&
+        userIdCandidates.has(String(job.postedBy.id))
+      ) {
+        return "CLIENT";
+      }
+
+      if (
+        job.assignedWorker?.id !== undefined &&
+        userIdCandidates.has(String(job.assignedWorker.id))
+      ) {
+        return "WORKER";
+      }
+
+      return null;
+    };
+
     try {
       console.log("[VIEW CHAT] Button pressed for job:", jobId);
       console.log(
@@ -590,8 +645,7 @@ export default function JobDetailScreen() {
         ENDPOINTS.CONVERSATION_BY_JOB(jobId),
       );
 
-      const response = await apiRequest(ENDPOINTS.CONVERSATION_BY_JOB(jobId));
-      const data = await response.json();
+      let { response, data } = await fetchConversationByJob();
 
       console.log(
         "[VIEW CHAT] Backend response:",
@@ -600,15 +654,59 @@ export default function JobDetailScreen() {
       console.log("[VIEW CHAT] Success:", data.success);
       console.log("[VIEW CHAT] Conversation ID:", data.conversation_id);
 
-      if (data.success && data.conversation_id) {
+      if (response.ok && data?.success && data?.conversation_id) {
         const route = `/conversation/${data.conversation_id}`;
         console.log("[VIEW CHAT] Navigating to:", route);
         router.push(route as any);
-      } else {
+        return;
+      }
+
+      if (response.status === 401) {
+        const currentProfile = user?.profile_data?.profileType;
+        const preferredProfile = resolvePreferredProfile();
+
+        if (preferredProfile && currentProfile !== preferredProfile) {
+          console.log(
+            "[VIEW CHAT] 401 received. Switching profile from",
+            currentProfile,
+            "to",
+            preferredProfile,
+            "and retrying...",
+          );
+
+          await switchProfile(preferredProfile);
+          ({ response, data } = await fetchConversationByJob());
+
+          if (response.ok && data?.success && data?.conversation_id) {
+            const route = `/conversation/${data.conversation_id}`;
+            console.log("[VIEW CHAT] Navigating to after retry:", route);
+            router.push(route as any);
+            return;
+          }
+        } else {
+          // Refresh auth state in case cached session/token drifted.
+          await checkAuth();
+        }
+
+        Alert.alert(
+          "Session Required",
+          "Please make sure you are signed in with the correct profile, then try opening chat again.",
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        const message =
+          data?.detail || data?.error || `Request failed (HTTP ${response.status})`;
+        Alert.alert("Chat Unavailable", String(message));
+        return;
+      }
+
+      {
         console.log("[VIEW CHAT] No conversation found - showing alert");
         Alert.alert(
           "No Conversation",
-          `Could not find conversation for this job.\n\nResponse: ${JSON.stringify(data)}`,
+          "Could not find a chat for this job yet. Please try again in a moment.",
         );
       }
     } catch (error) {
@@ -1048,6 +1146,24 @@ export default function JobDetailScreen() {
   const currentWorkerAssignment = job?.worker_assignments?.find(
     (assignment) => assignment.worker_id === user?.profile_data?.id,
   );
+
+  // Detect worker assignment across possible ID shapes returned by APIs
+  const currentUserIdCandidates = new Set(
+    [
+      user?.accountID,
+      user?.profile_data?.id,
+      user?.profile_data?.workerProfileId,
+      (user?.profile_data as any)?.profileID,
+      (user?.profile_data as any)?.workerID,
+    ]
+      .filter((value) => value !== null && value !== undefined && value !== "")
+      .map((value) => String(value)),
+  );
+
+  const assignedWorkerId = String(job?.assignedWorker?.id ?? "");
+  const isCurrentWorkerAssigned =
+    (assignedWorkerId !== "" && currentUserIdCandidates.has(assignedWorkerId)) ||
+    !!currentWorkerAssignment;
 
   const canAccessTeamGroupChat =
     isTeamJob && isTeamFilled && (isClient || !!currentWorkerAssignment);
@@ -1577,32 +1693,32 @@ export default function JobDetailScreen() {
             </View>
           </View>
           <View style={styles.jobMetaRow}>
-            <Ionicons
-              name="pricetag-outline"
-              size={16}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.jobCategory}>
-              {typeof job.category === "object"
-                ? job.category.name
-                : job.category}
-            </Text>
-          </View>
-          <View style={styles.jobMetaRow}>
-            <Ionicons
-              name="calendar-outline"
-              size={16}
-              color={Colors.primary}
-            />
-            <Text style={styles.jobStartDate}>
-              {job.preferred_start_date
-                ? `Start: ${new Date(job.preferred_start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` +
-                  (dailyEndDate
-                    ? ` | End: ${dailyEndDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-                    : "") +
-                  (dayProgress ? ` | Day ${dayProgress}/${dailyDuration}` : "")
-                : `Posted ${job.postedAt}`}
-            </Text>
+            {job.preferred_start_date ? (
+              <View style={styles.jobDateBubblesRow}>
+                <View style={styles.jobDateBubble}>
+                  <Text style={styles.jobDateBubbleText}>
+                    <Text style={styles.jobDateBubbleLabel}>Start</Text>
+                    {` ${new Date(job.preferred_start_date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}`}
+                  </Text>
+                </View>
+                {dailyEndDate && (
+                  <View style={styles.jobDateBubble}>
+                    <Text style={styles.jobDateBubbleText}>
+                      <Text style={styles.jobDateBubbleLabel}>End</Text>
+                      {` ${dailyEndDate.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.jobStartDate}>{`Posted ${job.postedAt}`}</Text>
+            )}
           </View>
 
           {/* Team Job Header Badge - Prominent indicator at top */}
@@ -1676,9 +1792,21 @@ export default function JobDetailScreen() {
         )}
 
         {/* Description */}
-        <View style={styles.section}>
+        <View style={[styles.section, styles.descriptionSection]}>
           <Text style={styles.sectionTitle}>Job Description</Text>
           <Text style={styles.description}>{job.description}</Text>
+          <View style={[styles.jobMetaRow, { marginTop: Spacing.md }]}>
+            <Ionicons
+              name="pricetag-outline"
+              size={16}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.jobCategory}>
+              {typeof job.category === "object"
+                ? job.category.name
+                : job.category}
+            </Text>
+          </View>
         </View>
 
         {/* Budget & Location */}
@@ -2979,6 +3107,32 @@ export default function JobDetailScreen() {
               )}
             </View>
 
+            {/* View Chat - Worker POV (non-sticky, above profile section) */}
+            {isWorker &&
+              !job?.is_team_job &&
+              (!!job?.assignedWorker ||
+                isCurrentWorkerAssigned ||
+                hasAcceptedApplication ||
+                job?.status === "IN_PROGRESS" ||
+                (hasApplied && job?.status === "ACTIVE")) &&
+              job?.status !== "COMPLETED" &&
+              job?.status !== "CANCELLED" && (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={[styles.viewChatButton, { marginTop: 0 }]}
+                    onPress={handleViewChat}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={18}
+                      color={Colors.white}
+                    />
+                    <Text style={styles.viewChatButtonText}>View Chat</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
             {/* Agency Section - Show if assigned */}
             {job.assignedAgency && (
               <View style={styles.section}>
@@ -3294,7 +3448,36 @@ export default function JobDetailScreen() {
           </View>
         )}
 
-        <View style={{ height: 100 }} />
+        {/* Cancel Button - Below Posted By/Assigned Worker, non-sticky */}
+        {user?.accountID === job.postedBy?.id &&
+          job.status !== "COMPLETED" &&
+          job.status !== "CANCELLED" && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                onPress={handleCancelJob}
+                style={styles.bottomCancelButton}
+                disabled={cancelJobMutation.isPending}
+                activeOpacity={0.85}
+              >
+                {cancelJobMutation.isPending ? (
+                  <ActivityIndicator size="small" color={Colors.error} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color={Colors.error}
+                    />
+                    <Text style={styles.bottomCancelButtonText}>
+                      {job.is_team_job ? "Cancel Team Job" : "Cancel Job"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Apply Button (Fixed at bottom) - Only for non-team LISTING jobs */}
@@ -3316,20 +3499,6 @@ export default function JobDetailScreen() {
                     You have already applied to this job
                   </Text>
                 </View>
-                {job?.status === "IN_PROGRESS" && !job?.is_team_job && (
-                  <TouchableOpacity
-                    style={styles.viewChatButton}
-                    onPress={handleViewChat}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="chatbubble-outline"
-                      size={18}
-                      color={Colors.white}
-                    />
-                    <Text style={styles.viewChatButtonText}>View Chat</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             ) : (
               <TouchableOpacity
@@ -3357,35 +3526,6 @@ export default function JobDetailScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-          </View>
-        )}
-
-      {/* Cancel Button (Fixed at bottom) - Only for job owner on non-terminal jobs */}
-      {user?.accountID === job.postedBy?.id &&
-        job.status !== "COMPLETED" &&
-        job.status !== "CANCELLED" && (
-          <View style={styles.bottomActionContainer} pointerEvents="box-none">
-            <TouchableOpacity
-              onPress={handleCancelJob}
-              style={styles.bottomCancelButton}
-              disabled={cancelJobMutation.isPending}
-              activeOpacity={0.85}
-            >
-              {cancelJobMutation.isPending ? (
-                <ActivityIndicator size="small" color={Colors.error} />
-              ) : (
-                <>
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color={Colors.error}
-                  />
-                  <Text style={styles.bottomCancelButtonText}>
-                    {job.is_team_job ? "Cancel Team Job" : "Cancel Job"}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
         )}
 
@@ -3876,7 +4016,9 @@ const styles = StyleSheet.create({
   },
   jobHeader: {
     backgroundColor: Colors.white,
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
@@ -3932,7 +4074,9 @@ const styles = StyleSheet.create({
   },
   detailsSection: {
     flexDirection: "row",
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
   detailCard: {
@@ -3969,7 +4113,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   section: {
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing.lg,
+  },
+  descriptionSection: {
+    paddingTop: Spacing.lg,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.lg,
@@ -4098,6 +4247,30 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   // Job Details
+  jobDateBubblesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+    alignItems: "center",
+    flex: 1,
+  },
+  jobDateBubble: {
+    borderWidth: 1,
+    borderColor: "#00BAF1",
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    backgroundColor: Colors.white,
+  },
+  jobDateBubbleText: {
+    fontSize: Typography.fontSize.sm,
+    color: "#00BAF1",
+    fontWeight: "500",
+  },
+  jobDateBubbleLabel: {
+    color: "#00BAF1",
+    fontWeight: "700",
+  },
   jobStartDate: {
     fontSize: Typography.fontSize.base,
     color: Colors.primary,
@@ -4144,17 +4317,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   applyButtonContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    ...Shadows.medium,
-  },
-  bottomActionContainer: {
     position: "absolute",
     bottom: 0,
     left: 0,
@@ -4833,31 +4995,31 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   conversationLockText: {
-    startAnywayButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginTop: Spacing.sm,
-      marginBottom: Spacing.sm,
-      padding: Spacing.md,
-      borderRadius: BorderRadius.md,
-      borderWidth: 1,
-      borderColor: Colors.primary,
-      backgroundColor: Colors.primary + "10",
-    },
-    startAnywayButtonTitle: {
-      ...Typography.body.medium,
-      fontWeight: "700",
-      color: Colors.primary,
-    },
-    startAnywayButtonSubtitle: {
-      ...Typography.body.small,
-      color: Colors.textSecondary,
-      marginTop: 2,
-    },
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     lineHeight: 18,
+  },
+  startAnywayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + "10",
+  },
+  startAnywayButtonTitle: {
+    ...Typography.body.medium,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  startAnywayButtonSubtitle: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   conversationReadyTitle: {
     fontSize: Typography.fontSize.sm,
