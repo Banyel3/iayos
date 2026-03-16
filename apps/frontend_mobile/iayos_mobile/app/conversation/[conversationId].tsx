@@ -880,12 +880,14 @@ export default function ChatScreen() {
   const isBackjobScheduledForFuture =
     !!hasApprovedBackjob &&
     !!scheduledBackjobDate &&
-    !conversation?.backjob?.backjob_started &&
     todayLocal < scheduledBackjobDate;
   const isBackjobScheduleMissing =
     !!hasApprovedBackjob &&
     !scheduledBackjobDate &&
     !conversation?.backjob?.backjob_started;
+  const scheduledBackjobDateLabel = scheduledBackjobDate
+    ? format(scheduledBackjobDate, "MMMM d, yyyy")
+    : null;
   const teamScheduleTotalWorkers =
     conversation?.backjob?.team_schedule_total_workers ?? 0;
   const teamScheduleConfirmedCount =
@@ -4154,6 +4156,13 @@ export default function ChatScreen() {
                               ]}
                               onPress={() => {
                                 if (isWorkerAlreadyCheckedIn) return;
+                                if (isBackjobScheduledForFuture && scheduledBackjobDateLabel) {
+                                  Alert.alert(
+                                    "Scheduled Backjob",
+                                    `Scheduled backjob is on ${scheduledBackjobDateLabel}.`,
+                                  );
+                                  return;
+                                }
                                 workerCheckInMutation.mutate(conversation.job.id);
                               }}
                               disabled={
@@ -8950,7 +8959,7 @@ export default function ChatScreen() {
                       </Text>
                     </View>
                     <Text style={styles.backjobScheduledNoticeText}>
-                      Workflow actions will activate on the scheduled date.
+                      Scheduled backjob is on {scheduledBackjobDateLabel}. Workflow actions will activate on that date.
                     </Text>
                     <TouchableOpacity
                       style={styles.backjobRenegotiateButton}
@@ -9122,7 +9131,13 @@ export default function ChatScreen() {
                             { backgroundColor: Colors.primary },
                           ]}
                           onPress={() =>
-                            workerCheckInMutation.mutate(conversation.job.id)
+                            isBackjobScheduledForFuture &&
+                            scheduledBackjobDateLabel
+                              ? Alert.alert(
+                                  "Scheduled Backjob",
+                                  `Scheduled backjob is on ${scheduledBackjobDateLabel}.`,
+                                )
+                              : workerCheckInMutation.mutate(conversation.job.id)
                           }
                           disabled={workerCheckInMutation.isPending}
                         >
