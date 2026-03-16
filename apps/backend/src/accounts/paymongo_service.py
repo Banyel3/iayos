@@ -549,19 +549,22 @@ class PayMongoService(PaymentProviderInterface):
         cache_key = "paymongo_supported_banks_v2"
         cached = cache.get(cache_key)
         if cached:
-            return cached
+            sanitized_cached = [
+                bank
+                for bank in cached
+                if str(bank.get("code", "")).strip() and str(bank.get("name", "")).strip()
+            ]
+            if sanitized_cached:
+                return sanitized_cached
+            # Clear stale/invalid cache entries (e.g., legacy empty-code fallbacks)
+            cache.delete(cache_key)
 
         banks = self._fetch_supported_banks()
         if not banks:
-            # Keep a safe fallback list so UI can still render.
-            banks = [
-                {"code": "", "name": "BDO Unibank, Inc."},
-                {"code": "", "name": "BPI (Bank of the Philippine Islands)"},
-                {"code": "", "name": "Land Bank of the Philippines"},
-                {"code": "", "name": "Philippine National Bank (PNB)"},
-                {"code": "", "name": "Security Bank Corporation"},
-                {"code": "", "name": "Union Bank of the Philippines (UnionBank)"},
-            ]
+            # Do not return fallback banks with empty codes because BANK setup/transfer
+            # requires a valid provider bank code.
+            logger.warning("⚠️ PayMongo bank directory unavailable; returning empty list")
+            banks = []
 
         cache.set(cache_key, banks, timeout=ttl_seconds)
         return banks
