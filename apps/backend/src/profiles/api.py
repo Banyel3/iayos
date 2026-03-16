@@ -71,6 +71,55 @@ def _derive_duration_days(job) -> int:
     3) preferredStartDate -> scheduled_end_date date span
     """
     configured = int(getattr(job, "duration_days", 0) or 0)
+    payment_model = str(getattr(job, "payment_model", "") or "").upper()
+
+    # For PROJECT jobs, legacy records can carry stale duration_days=1 while
+    # schedule/progression clearly indicates multi-day execution. Prefer the
+    # strongest positive signal to avoid prematurely unlocking end-of-job actions.
+    if payment_model == "PROJECT":
+        duration_candidates = []
+        if configured > 0:
+            duration_candidates.append(configured)
+
+        preferred_start = getattr(job, "preferredStartDate", None)
+        scheduled_end = getattr(job, "scheduled_end_date", None)
+        if preferred_start and scheduled_end:
+            span_days = (scheduled_end - preferred_start).days + 1
+            if span_days > 0:
+                duration_candidates.append(span_days)
+
+        expected_duration = str(getattr(job, "expectedDuration", "") or "").strip().lower()
+        if expected_duration:
+            unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration)
+            if unit_match:
+                value = int(unit_match.group(1) or 1)
+                unit = unit_match.group(2) or "day"
+                parsed_days = value * 7 if unit.startswith("week") or unit.startswith("wk") else value
+                duration_candidates.append(max(1, parsed_days))
+            else:
+                plain_number = re.search(r"^\d+$", expected_duration)
+                if plain_number:
+                    duration_candidates.append(max(1, int(expected_duration)))
+
+        try:
+            qa_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+            if qa_offset > 0:
+                duration_candidates.append(qa_offset + 1)
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            worked_days = int(getattr(job, "total_days_worked", 0) or 0)
+            if worked_days > 1:
+                duration_candidates.append(worked_days)
+        except (TypeError, ValueError):
+            pass
+
+        if duration_candidates:
+            return max(duration_candidates)
+
+        return 1
+
     if configured > 0:
         return configured
 
