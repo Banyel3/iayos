@@ -2085,26 +2085,27 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
         # Filter by jobs assigned to this user
         if agency:
             disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
-        elif profile and profile.profileType == "WORKER":
-            worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+        else:
+            # Backward compatibility: resolve worker profile by account so dual-profile
+            # users still see worker backjobs even if currently switched to CLIENT mode.
+            worker_profile = None
+            if profile and profile.profileType == "WORKER":
+                worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
             if not worker_profile:
-                # Dual-profile compatibility: resolve worker profile by account even
-                # when currently-selected Profile row is not WORKER.
                 worker_profile = WorkerProfile.objects.filter(
                     profileID__accountFK=request.auth
                 ).first()
-            if worker_profile:
-                disputes_query = disputes_query.filter(
-                    Q(jobID__assignedWorkerID=worker_profile)
-                    | Q(
-                        jobID__worker_assignments__workerID=worker_profile,
-                        jobID__worker_assignments__assignment_status__in=['ACTIVE', 'COMPLETED'],
-                    )
-                ).distinct()
-            else:
+
+            if not worker_profile:
                 return {"backjobs": [], "total": 0}
-        else:
-            return {"backjobs": [], "total": 0}
+
+            disputes_query = disputes_query.filter(
+                Q(jobID__assignedWorkerID=worker_profile)
+                | Q(
+                    jobID__worker_assignments__workerID=worker_profile,
+                    jobID__worker_assignments__assignment_status__in=['ACTIVE', 'COMPLETED'],
+                )
+            ).distinct()
         
         # OPEN and IN_NEGOTIATION are visible for awareness; execution actions
         # remain guarded by existing status checks in workflow endpoints.
