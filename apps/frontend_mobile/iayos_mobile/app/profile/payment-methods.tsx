@@ -295,6 +295,26 @@ export default function PaymentMethodsScreen() {
     setCardExpiryYear(value.replace(/\D/g, "").slice(0, 4));
   };
 
+  const isLuhnValid = (cardNumberValue: string) => {
+    let sum = 0;
+    let shouldDouble = false;
+
+    for (let i = cardNumberValue.length - 1; i >= 0; i--) {
+      let digit = Number(cardNumberValue[i]);
+      if (Number.isNaN(digit)) return false;
+
+      if (shouldDouble) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+
+      sum += digit;
+      shouldDouble = !shouldDouble;
+    }
+
+    return sum % 10 === 0;
+  };
+
   const handleAddMethod = () => {
     if (!accountName.trim()) {
       Alert.alert("Error", "Please enter account name");
@@ -379,6 +399,13 @@ export default function PaymentMethodsScreen() {
 
       if (!/^\d{16}$/.test(card)) {
         Alert.alert("Error", "Card number must be 16 digits");
+        return;
+      }
+      if (!isLuhnValid(card)) {
+        Alert.alert(
+          "Error",
+          "Invalid card number. Random 16-digit numbers are not accepted. Use a real card number or a Luhn-valid test number.",
+        );
         return;
       }
       if (!/^\d{2}$/.test(month) || Number(month) < 1 || Number(month) > 12) {
@@ -975,7 +1002,8 @@ export default function PaymentMethodsScreen() {
                   </View>
                   <Text style={styles.cardSecurityNote}>
                     For security, CVV is only used for validation and is never
-                    stored. We only store the card last4.
+                    stored. We only store the card last4. Use a real card
+                    number or a Luhn-valid test card (not random digits).
                   </Text>
                 </>
               )}

@@ -6230,7 +6230,9 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 )
             if not is_luhn_valid(card_number):
                 return Response(
-                    {"error": "Invalid card number"},
+                    {
+                        "error": "Invalid card number. Random 16-digit numbers are not accepted. Use a real card number or a Luhn-valid test number."
+                    },
                     status=400
                 )
 
