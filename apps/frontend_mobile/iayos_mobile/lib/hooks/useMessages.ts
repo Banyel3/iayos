@@ -233,6 +233,7 @@ export type ConversationDetail = {
   // Daily attendance tracking for DAILY payment model jobs
   attendance_today?: Array<{
     attendance_id: number;
+    assignment_id?: number;
     worker_id?: number;
     worker_account_id?: number;
     worker_name?: string;

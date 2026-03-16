@@ -997,8 +997,10 @@ export default function ChatScreen() {
 
       const rowAccountId = Number(row?.worker_account_id);
       const rowWorkerId = Number(row?.worker_id);
+      const rowAssignmentId = Number(row?.assignment_id);
       const workerAccountId = Number(worker?.account_id);
       const workerId = Number(worker?.worker_id);
+      const workerAssignmentId = Number(worker?.assignment_id);
 
       const accountMatch =
         Number.isFinite(rowAccountId) &&
@@ -1008,8 +1010,12 @@ export default function ChatScreen() {
         Number.isFinite(rowWorkerId) &&
         Number.isFinite(workerId) &&
         rowWorkerId === workerId;
+      const assignmentMatch =
+        Number.isFinite(rowAssignmentId) &&
+        Number.isFinite(workerAssignmentId) &&
+        rowAssignmentId === workerAssignmentId;
 
-      return accountMatch || workerMatch;
+      return accountMatch || workerMatch || assignmentMatch;
     });
 
     if (!matchedAttendance) {
@@ -3605,8 +3611,10 @@ export default function ChatScreen() {
 
                 const rowAccountId = Number(row?.worker_account_id);
                 const rowWorkerId = Number(row?.worker_id);
+                const rowAssignmentId = Number(row?.assignment_id);
                 const assignmentAccountId = Number(assignment?.account_id);
                 const assignmentWorkerId = Number(assignment?.worker_id);
+                const assignmentId = Number(assignment?.assignment_id);
 
                 const accountMatch =
                   Number.isFinite(rowAccountId) &&
@@ -3618,7 +3626,12 @@ export default function ChatScreen() {
                   Number.isFinite(assignmentWorkerId) &&
                   rowWorkerId === assignmentWorkerId;
 
-                return accountMatch || workerMatch;
+                const assignmentMatch =
+                  Number.isFinite(rowAssignmentId) &&
+                  Number.isFinite(assignmentId) &&
+                  rowAssignmentId === assignmentId;
+
+                return accountMatch || workerMatch || assignmentMatch;
               },
             );
 

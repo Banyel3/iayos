@@ -2061,6 +2061,7 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
     NOTE: This route MUST be defined before /jobs/{job_id} to avoid route matching conflict!
     """
     from .models import Profile, WorkerProfile, Agency, Job, JobDispute
+    from django.db.models import Q
     
     try:
         print(f"📋 [MOBILE] Fetching backjobs for user {request.auth.email}")
@@ -2086,8 +2087,20 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
             disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
         elif profile and profile.profileType == "WORKER":
             worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+            if not worker_profile:
+                # Dual-profile compatibility: resolve worker profile by account even
+                # when currently-selected Profile row is not WORKER.
+                worker_profile = WorkerProfile.objects.filter(
+                    profileID__accountFK=request.auth
+                ).first()
             if worker_profile:
-                disputes_query = disputes_query.filter(jobID__assignedWorkerID=worker_profile)
+                disputes_query = disputes_query.filter(
+                    Q(jobID__assignedWorkerID=worker_profile)
+                    | Q(
+                        jobID__worker_assignments__workerID=worker_profile,
+                        jobID__worker_assignments__assignment_status__in=['ACTIVE', 'COMPLETED'],
+                    )
+                ).distinct()
             else:
                 return {"backjobs": [], "total": 0}
         else:
