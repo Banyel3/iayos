@@ -4459,11 +4459,18 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             return Response({'success': False, 'error': 'Job not found'}, status=404)
         
         # Verify this is a PROJECT job (not DAILY - that uses DailyAttendance)
+        # Exception: DAILY jobs with an active backjob dispute and confirmed schedule
         if job.payment_model == 'DAILY':
-            return Response({
-                'success': False,
-                'error': 'This endpoint is for PROJECT jobs only. Use /dispatch for daily-rate jobs.'
-            }, status=400)
+            active_backjob_dispatch = JobDispute.objects.filter(
+                jobID=job,
+                status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION'],
+                workerScheduleConfirmed=True,
+            ).exists()
+            if not active_backjob_dispatch:
+                return Response({
+                    'success': False,
+                    'error': 'This endpoint is for PROJECT jobs only. Use /dispatch for daily-rate jobs.'
+                }, status=400)
 
         configured_duration_days = int(getattr(job, 'duration_days', 0) or 0)
         if configured_duration_days <= 0:
@@ -4795,7 +4802,7 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
     - Client must have confirmed employee arrival
     """
     try:
-        from accounts.models import Job, JobEmployeeAssignment
+        from accounts.models import Job, JobEmployeeAssignment, JobDispute
         from agency.models import AgencyEmployee
         from django.utils import timezone
         
@@ -4809,12 +4816,18 @@ def mark_project_employee_complete(request, job_id: int, employee_id: int, notes
         except Job.DoesNotExist:
             return Response({'success': False, 'error': 'Job not found'}, status=404)
         
-        # Verify this is a PROJECT job
+        # Verify this is a PROJECT job (exception: DAILY backjobs with confirmed schedule)
         if job.payment_model == 'DAILY':
-            return Response({
-                'success': False,
-                'error': 'This endpoint is for PROJECT jobs only. Use daily endpoints for daily-rate jobs.'
-            }, status=400)
+            active_backjob_dispatch = JobDispute.objects.filter(
+                jobID=job,
+                status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION'],
+                workerScheduleConfirmed=True,
+            ).exists()
+            if not active_backjob_dispatch:
+                return Response({
+                    'success': False,
+                    'error': 'This endpoint is for PROJECT jobs only. Use daily endpoints for daily-rate jobs.'
+                }, status=400)
 
         project_gate_error = _project_multi_day_gate_error(job)
         if project_gate_error:
