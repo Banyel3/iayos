@@ -11241,6 +11241,101 @@ def get_daily_escrow_estimate(request, job_id: int = None, daily_rate: float = N
 # Agency-side endpoints (dispatch, mark-complete) are in agency/api.py
 
 
+def _resolve_agency_project_assignment_workflow(job: Job, assignment: JobEmployeeAssignment):
+    """
+    Resolve workflow flags for agency PROJECT approvals with legacy compatibility.
+
+    Some older in-progress jobs may have attendance records populated but miss the
+    newer assignment flags. For those jobs, derive workflow truth from attendance
+    and self-heal assignment flags so downstream UI/API checks stay consistent.
+    """
+    from accounts.models import DailyAttendance
+
+    effective_day = get_effective_work_date(job)
+    attendance = DailyAttendance.objects.filter(
+        jobID=job,
+        employeeID=assignment.employee,
+        date=effective_day,
+    ).order_by('-attendanceID').first()
+
+    if not attendance:
+        attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            employeeID=assignment.employee,
+        ).order_by('-date', '-attendanceID').first()
+
+    is_dispatched = bool(getattr(assignment, 'dispatched', False))
+    is_arrived = bool(getattr(assignment, 'clientConfirmedArrival', False))
+    is_completed = bool(
+        getattr(assignment, 'agencyMarkedComplete', False)
+        or getattr(assignment, 'employeeMarkedComplete', False)
+        or getattr(assignment, 'status', '') == 'COMPLETED'
+    )
+
+    dispatch_time = getattr(assignment, 'dispatchedAt', None)
+    arrival_time = getattr(assignment, 'clientConfirmedArrivalAt', None)
+    completion_time = getattr(assignment, 'agencyMarkedCompleteAt', None)
+
+    if attendance:
+        attendance_status = str(getattr(attendance, 'status', '') or '')
+        dispatch_signal = bool(
+            getattr(attendance, 'worker_confirmed', False)
+            or getattr(attendance, 'worker_confirmed_at', None)
+            or getattr(attendance, 'time_in', None)
+            or getattr(attendance, 'time_out', None)
+            or getattr(attendance, 'client_confirmed', False)
+            or attendance_status in ['DISPATCHED', 'PENDING', 'PRESENT', 'HALF_DAY']
+        )
+        arrival_signal = bool(
+            getattr(attendance, 'client_confirmed', False)
+            or getattr(attendance, 'client_confirmed_at', None)
+            or getattr(attendance, 'time_in', None)
+            or getattr(attendance, 'time_out', None)
+        )
+        completion_signal = bool(
+            getattr(attendance, 'time_out', None)
+            or attendance_status in ['PRESENT', 'HALF_DAY']
+        )
+
+        if dispatch_signal:
+            is_dispatched = True
+            dispatch_time = dispatch_time or getattr(attendance, 'worker_confirmed_at', None) or getattr(attendance, 'time_in', None)
+        if arrival_signal:
+            is_arrived = True
+            arrival_time = arrival_time or getattr(attendance, 'client_confirmed_at', None) or getattr(attendance, 'time_in', None)
+        if completion_signal:
+            is_completed = True
+            completion_time = completion_time or getattr(attendance, 'time_out', None)
+
+    healed_fields = []
+    now = timezone.now()
+
+    if is_dispatched and not assignment.dispatched:
+        assignment.dispatched = True
+        assignment.dispatchedAt = dispatch_time or now
+        healed_fields.extend(['dispatched', 'dispatchedAt'])
+
+    if is_arrived and not assignment.clientConfirmedArrival:
+        assignment.clientConfirmedArrival = True
+        assignment.clientConfirmedArrivalAt = arrival_time or now
+        healed_fields.extend(['clientConfirmedArrival', 'clientConfirmedArrivalAt'])
+
+    if is_completed and not assignment.agencyMarkedComplete:
+        assignment.agencyMarkedComplete = True
+        assignment.agencyMarkedCompleteAt = completion_time or now
+        healed_fields.extend(['agencyMarkedComplete', 'agencyMarkedCompleteAt'])
+
+    if is_completed and not assignment.employeeMarkedComplete:
+        assignment.employeeMarkedComplete = True
+        assignment.employeeMarkedCompleteAt = completion_time or now
+        healed_fields.extend(['employeeMarkedComplete', 'employeeMarkedCompleteAt'])
+
+    if healed_fields:
+        assignment.save(update_fields=list(dict.fromkeys(healed_fields)))
+
+    return is_dispatched, is_arrived, is_completed
+
+
 @router.post("/{job_id}/employees/{employee_id}/confirm-arrival-project", auth=dual_auth)
 @require_kyc
 def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
@@ -11471,12 +11566,14 @@ def approve_agency_project_employee(
         except JobEmployeeAssignment.DoesNotExist:
             return Response({"error": f"{employee.fullName} is not assigned to this job"}, status=404)
         
-        # Verify employee workflow is complete
-        if not assignment.dispatched:
+        # Verify employee workflow is complete (with legacy attendance fallback)
+        is_dispatched, is_arrived, is_completed = _resolve_agency_project_assignment_workflow(job, assignment)
+
+        if not is_dispatched:
             return Response({"error": f"{employee.fullName} has not been dispatched"}, status=400)
-        if not assignment.clientConfirmedArrival:
+        if not is_arrived:
             return Response({"error": f"You haven't confirmed {employee.fullName}'s arrival"}, status=400)
-        if not assignment.agencyMarkedComplete:
+        if not is_completed:
             return Response({"error": f"Agency hasn't marked {employee.fullName}'s work as complete"}, status=400)
         if assignment.clientApproved:
             return Response({"error": f"{employee.fullName}'s work has already been approved"}, status=400)
@@ -11734,15 +11831,18 @@ def approve_agency_project_job(
         if not assignments.exists():
             return Response({"error": "No employees assigned to this job"}, status=400)
         
-        # Verify ALL employees have completed the full workflow
+        # Verify ALL employees have completed the full workflow.
+        # Use legacy attendance fallback so pre-workflow in-progress jobs can still close.
         workflow_errors = []
         for assignment in assignments:
             emp_name = assignment.employee.fullName
-            if not assignment.dispatched:
+            is_dispatched, is_arrived, is_completed = _resolve_agency_project_assignment_workflow(job, assignment)
+
+            if not is_dispatched:
                 workflow_errors.append(f"{emp_name} has not been dispatched")
-            elif not assignment.clientConfirmedArrival:
+            elif not is_arrived:
                 workflow_errors.append(f"You haven't confirmed {emp_name}'s arrival")
-            elif not assignment.agencyMarkedComplete:
+            elif not is_completed:
                 workflow_errors.append(f"Agency hasn't marked {emp_name}'s work as complete")
         
         if workflow_errors:

@@ -461,6 +461,10 @@ export function useApproveTeamJobCompletion() {
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -556,6 +560,9 @@ export function useProjectFinishJob() {
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -684,6 +691,9 @@ export function useApproveCompletion() {
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
     },
     onError: (error: Error) => {
       Toast.show({

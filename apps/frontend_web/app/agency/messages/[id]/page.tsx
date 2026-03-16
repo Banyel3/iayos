@@ -379,74 +379,6 @@ export default function AgencyChatScreen() {
     return 1;
   };
 
-  const handleExtendProjectOneDay = async () => {
-    if (!conversation?.job?.id) return;
-
-    const confirmed = window.confirm(
-      "Extend project duration by 1 day? This keeps the job active for one more work day.",
-    );
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/jobs/${conversation.job.id}/project/extend-one-day`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          getErrorMessage(data, "Failed to extend project by one day"),
-        );
-      }
-
-      toast.success(data?.message || "Project extended by 1 day");
-      refetch();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to extend project by one day",
-      );
-    }
-  };
-
-  const handleFinishProjectNow = async () => {
-    if (!conversation?.job?.id) return;
-
-    const confirmed = window.confirm(
-      "Finish this project now? This action starts project completion and settlement.",
-    );
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/jobs/${conversation.job.id}/project/finish`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(getErrorMessage(data, "Failed to finish project"));
-      }
-
-      toast.success(data?.message || "Project marked as finished");
-      refetch();
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to finish project",
-      );
-    }
-  };
-
   // Handle submit review
   const handleSubmitReview = () => {
     if (!conversation?.job.id) return;
@@ -872,6 +804,47 @@ export default function AgencyChatScreen() {
       )
     : false;
 
+  const shouldShowDailyWorkflow =
+    (job.status === "IN_PROGRESS" ||
+      job.status === "COMPLETED" ||
+      job.clientMarkedComplete ||
+      job.workerMarkedComplete) &&
+    job.payment_model === "DAILY" &&
+    assigned_employees?.length > 0;
+
+  const isProjectMultiDayAttendanceFlow =
+    shouldShowProjectWorkflow && isProjectMultiDayFlow;
+
+  const dailyAttendanceDispatchedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => {
+        const status = String(record.status || "").toUpperCase();
+        return status === "DISPATCHED" || Boolean(record.time_in);
+      })
+      .map((record) => record.employee_id),
+  );
+
+  const dailyDispatchedCount = shouldShowDailyWorkflow
+    ? assigned_employees.filter((e: AssignedEmployee) =>
+        dailyAttendanceDispatchedIds.has(e.employeeId),
+      ).length
+    : 0;
+
+  const projectAttendanceDispatchedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => {
+        const status = String(record.status || "").toUpperCase();
+        return status === "DISPATCHED" || Boolean(record.time_in);
+      })
+      .map((record) => record.employee_id),
+  );
+
+  const projectAttendanceArrivedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => Boolean(record.time_in))
+      .map((record) => record.employee_id),
+  );
+
   const canMarkBackjobCompleteNow =
     isAgencyBackjob &&
     isBackjobExecutionPhase &&
@@ -1042,9 +1015,19 @@ export default function AgencyChatScreen() {
 
             {shouldShowProjectWorkflow &&
               (() => {
-                const allDispatched = allEmployeesDispatched;
+                const allDispatched = isProjectMultiDayAttendanceFlow
+                  ? assigned_employees.every((e: AssignedEmployee) =>
+                      projectAttendanceDispatchedIds.has(e.employeeId),
+                    )
+                  : allEmployeesDispatched;
                 const isBackjobProjectFlow = hasActiveBackjobCycle;
-                const allArrived = isBackjobProjectFlow ? true : allEmployeesArrived;
+                const allArrived = isBackjobProjectFlow
+                  ? true
+                  : isProjectMultiDayAttendanceFlow
+                    ? assigned_employees.every((e: AssignedEmployee) =>
+                        projectAttendanceArrivedIds.has(e.employeeId),
+                      )
+                    : allEmployeesArrived;
                 const allComplete = assigned_employees.every(
                   (e: AssignedEmployee) =>
                     isStatusInActiveBackjobCycle(
@@ -1057,14 +1040,18 @@ export default function AgencyChatScreen() {
                   (job.workerMarkedComplete && !hasActiveBackjobCycle);
                 const dispatchedCount = assigned_employees.filter(
                   (e: AssignedEmployee) =>
-                    isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
+                    isProjectMultiDayAttendanceFlow
+                      ? projectAttendanceDispatchedIds.has(e.employeeId)
+                      : isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
                 ).length;
                 const arrivedCount = assigned_employees.filter(
                   (e: AssignedEmployee) =>
-                    isStatusInActiveBackjobCycle(
-                      e.clientConfirmedArrival,
-                      e.clientConfirmedArrivalAt,
-                    ),
+                    isProjectMultiDayAttendanceFlow
+                      ? projectAttendanceArrivedIds.has(e.employeeId)
+                      : isStatusInActiveBackjobCycle(
+                          e.clientConfirmedArrival,
+                          e.clientConfirmedArrivalAt,
+                        ),
                 ).length;
                 const totalCount = assigned_employees.length;
 
@@ -1081,6 +1068,16 @@ export default function AgencyChatScreen() {
                 }
 
                 if (!allDispatched) {
+                  const pendingDispatchEmployees = assigned_employees.filter(
+                    (e: AssignedEmployee) =>
+                      isProjectMultiDayAttendanceFlow
+                        ? !projectAttendanceDispatchedIds.has(e.employeeId)
+                        : !isStatusInActiveBackjobCycle(
+                            e.dispatched,
+                            e.dispatchedAt,
+                          ),
+                  );
+
                   return (
                     <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
                       <CardContent className="p-3">
@@ -1089,13 +1086,15 @@ export default function AgencyChatScreen() {
                             Dispatch Pending ({dispatchedCount}/{totalCount})
                           </span>
                         </div>
+                        {pendingDispatchEmployees.length > 0 && (
+                          <p className="text-[11px] text-blue-700 mb-2">
+                            Awaiting employee{pendingDispatchEmployees.length > 1 ? "s" : ""} to be dispatched: {pendingDispatchEmployees.map((e: AssignedEmployee) => e.name).join(", ")}
+                          </p>
+                        )}
                         <div className="space-y-1.5 text-xs">
-                          {assigned_employees.map(
+                          {pendingDispatchEmployees.map(
                             (e: AssignedEmployee) =>
-                              !isStatusInActiveBackjobCycle(
-                                e.dispatched,
-                                e.dispatchedAt,
-                              ) && (
+                              (
                                 <div
                                   key={e.employeeId}
                                   className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
@@ -1174,24 +1173,8 @@ export default function AgencyChatScreen() {
                               </Badge>
                             </div>
                             <p className="text-xs text-blue-800 font-medium">
-                              Extend by 1 day to continue work, or finish the job now.
+                              Waiting for client to decide whether to extend the project or mark it finished.
                             </p>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-[10px] bg-[#00BAF1] hover:bg-[#00a8d8]"
-                                onClick={handleExtendProjectOneDay}
-                              >
-                                Extend +1 Day
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-[10px] bg-red-600 hover:bg-red-700"
-                                onClick={handleFinishProjectNow}
-                              >
-                                Job Finished
-                              </Button>
-                            </div>
                           </CardContent>
                         </Card>
                       );
@@ -1235,6 +1218,65 @@ export default function AgencyChatScreen() {
                   );
                 }
                 return null;
+              })()}
+
+            {shouldShowDailyWorkflow &&
+              (() => {
+                const totalCount = assigned_employees.length;
+                const pendingDispatch = assigned_employees.filter(
+                  (e: AssignedEmployee) =>
+                    !dailyAttendanceDispatchedIds.has(e.employeeId),
+                );
+
+                if (job.clientMarkedComplete && !hasActiveBackjobCycle) {
+                  return null;
+                }
+
+                if (pendingDispatch.length === 0) {
+                  return (
+                    <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-700 font-medium">
+                      All employees marked on the way ({dailyDispatchedCount}/
+                      {totalCount}). Waiting for client arrival confirmations.
+                    </div>
+                  );
+                }
+
+                return (
+                  <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-blue-900">
+                          Mark On The Way Pending ({pendingDispatch.length}/
+                          {totalCount})
+                        </span>
+                      </div>
+                      <div className="space-y-1.5 text-xs">
+                        {pendingDispatch.map((employee: AssignedEmployee) => (
+                          <div
+                            key={`daily-dispatch-${employee.employeeId}`}
+                            className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                          >
+                            <span>{employee.name}</span>
+                            <Button
+                              size="sm"
+                              className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                dispatchEmployeeMutation.mutate({
+                                  jobId: job.id,
+                                  employeeId: employee.employeeId,
+                                });
+                              }}
+                              disabled={dispatchEmployeeMutation.isPending}
+                            >
+                              Mark On The Way
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
               })()}
 
             {/* Message Map */}

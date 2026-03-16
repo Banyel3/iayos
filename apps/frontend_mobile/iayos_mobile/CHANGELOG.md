@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency PROJECT Finish Flow + Legacy Workflow Compatibility (Existing In-Progress Jobs)**
+  - Updated client `Finish Job` behavior for agency PROJECT multi-day jobs to continue into payment method selection (Wallet/Cash) before closing.
+  - Added legacy attendance fallback in client-side workflow checks so older in-progress jobs with valid attendance signals are not falsely blocked.
+  - **Impact**: Existing agency PROJECT jobs can complete with the expected flow: dispatch → arrival confirmation → checkout/complete → payment method selection → job closes (reviews/backjob enabled).
+
+- **Agency PROJECT Client Approval Workflow Guard (Prevents False 'Workflow Incomplete')**
+  - Tightened client-side `Approve & Pay Agency` visibility to require full employee workflow completion: dispatched + arrival confirmed + agency marked complete.
+  - Added a defensive pre-submit check before agency approval mutation so stale/partial workflow states are blocked client-side with a clear message.
+  - **Impact**: Prevents backend rejection `Cannot approve - workflow incomplete` when client attempts to finish/approve before all agency workflow steps are truly complete.
+
+- **Client Arrival Gating Requires Full Agency Dispatch (Team PROJECT)**
+  - Updated client-side conversation flow so `Confirm Arrival` actions are hidden until all assigned agency employees are dispatched.
+  - Added explicit per-employee pending dispatch messaging (e.g., `Employee X has not been dispatched.`) when dispatch is incomplete.
+  - **Impact**: Clients now follow the intended workflow strictly: agency dispatches all assigned employees first, then client arrival confirmation becomes available.
+
 - **Archived Agency Job Review Gate Recovery + Legacy Compatibility**
   - Fixed conversation review modal recovery when employee review submit returns duplicate (`already reviewed/rated`) so users are no longer trapped in a required-review dialog.
   - Added fallback state handling to close/sync the modal when no remaining employee reviews are pending after a duplicate response.

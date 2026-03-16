@@ -1583,6 +1583,65 @@ export default function ChatScreen() {
         ],
       );
     } else if (conversation.is_agency_job) {
+      const isEmployeeComplete = (employee: any) =>
+        employee.agencyMarkedComplete ||
+        employee.employeeMarkedComplete ||
+        employee.marked_complete ||
+        employee.status === "COMPLETED";
+
+      const hasLegacyAttendanceSignal = (employeeIdRaw: any) => {
+        const employeeId = Number(employeeIdRaw);
+        if (!Number.isFinite(employeeId)) return null;
+
+        const attendanceForEmployee = attendanceRows.find((row: any) => {
+          const rowWorkerId = Number(row?.worker_id);
+          return Number.isFinite(rowWorkerId) && rowWorkerId === employeeId;
+        });
+
+        if (!attendanceForEmployee) return null;
+
+        const rowStatus = String(attendanceForEmployee?.status || "").toUpperCase();
+        return {
+          dispatched:
+            Boolean(attendanceForEmployee?.is_dispatched) ||
+            Boolean(attendanceForEmployee?.worker_confirmed) ||
+            Boolean(attendanceForEmployee?.worker_confirmed_at) ||
+            Boolean(attendanceForEmployee?.time_in) ||
+            Boolean(attendanceForEmployee?.time_out) ||
+            Boolean(attendanceForEmployee?.client_confirmed) ||
+            ["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"].includes(rowStatus),
+          arrived:
+            Boolean(attendanceForEmployee?.client_confirmed) ||
+            Boolean(attendanceForEmployee?.time_in) ||
+            Boolean(attendanceForEmployee?.time_out),
+          completed:
+            Boolean(attendanceForEmployee?.time_out) ||
+            ["PRESENT", "HALF_DAY", "COMPLETED"].includes(rowStatus),
+        };
+      };
+
+      const assignedEmployees = conversation.assigned_employees || [];
+      const incompleteWorkflowEmployees = assignedEmployees.filter(
+        (employee) => {
+          const legacySignals = hasLegacyAttendanceSignal(employee?.id);
+          const dispatched = Boolean(employee.dispatched) || Boolean(legacySignals?.dispatched);
+          const arrived = Boolean(employee.clientConfirmedArrival) || Boolean(legacySignals?.arrived);
+          const completed = isEmployeeComplete(employee) || Boolean(legacySignals?.completed);
+
+          return !dispatched || !arrived || !completed;
+        },
+      );
+
+      // Defensive guard: keep client-side approval gate aligned with backend workflow validation.
+      if (incompleteWorkflowEmployees.length > 0) {
+        Alert.alert(
+          "Cannot Approve Yet",
+          "Some assigned employees have not completed the full workflow (dispatch, arrival confirmation, and agency completion).",
+          [{ text: "OK" }],
+        );
+        return;
+      }
+
       // Agency PROJECT job approval
       approveAgencyProjectJobMutation.mutate({
         jobId: conversation.job.id,
@@ -3347,6 +3406,34 @@ export default function ChatScreen() {
         !attendance.client_confirmed,
     );
 
+  const pendingAgencyDispatchNames =
+    conversation.my_role === "CLIENT" &&
+    conversation.is_agency_job &&
+    (conversation.job?.payment_model === "DAILY" || isProjectMultiDayJob)
+      ? (conversation.assigned_employees || [])
+          .filter((employee: any) => {
+            const employeeId = Number(employee?.id);
+            if (!Number.isFinite(employeeId)) {
+              return false;
+            }
+
+            const hasAttendanceSignal = attendanceRows.some((row: any) => {
+              const rowWorkerId = Number(row?.worker_id);
+              return (
+                Number.isFinite(rowWorkerId) &&
+                rowWorkerId === employeeId &&
+                (Boolean(row?.is_dispatched) ||
+                  Boolean(row?.time_in) ||
+                  Boolean(row?.time_out) ||
+                  Boolean(row?.client_confirmed))
+              );
+            });
+
+            return !hasAttendanceSignal;
+          })
+            .map((employee: any) => employee?.name || "Worker")
+          : [];
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Custom Header */}
@@ -4666,6 +4753,21 @@ export default function ChatScreen() {
                               return;
                             }
 
+                            if (conversation.is_agency_job) {
+                              Alert.alert(
+                                "Finish Agency Project & Pay",
+                                "All required workdays are done. Continue to choose payment method (Wallet or Cash) and close this job for reviews/backjob flow.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Continue",
+                                    onPress: () => handleApproveCompletion(),
+                                  },
+                                ],
+                              );
+                              return;
+                            }
+
                             Alert.alert(
                               "Finish Project Job",
                               "Mark this PROJECT multi-day job as finished now? This will move it into review/backjob flow.",
@@ -4684,12 +4786,19 @@ export default function ChatScreen() {
                           }}
                           disabled={
                             approveTeamJobCompletionMutation.isPending ||
+                            approveAgencyProjectJobMutation.isPending ||
                             projectFinishJobMutation.isPending ||
                             projectExtendOneDayMutation.isPending
                           }
                         >
                           {conversation.is_team_job &&
                           approveTeamJobCompletionMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : conversation.is_agency_job &&
+                            approveAgencyProjectJobMutation.isPending ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
@@ -4738,8 +4847,10 @@ export default function ChatScreen() {
                   {/* Client View: Confirm attendance for each worker */}
                   {isAttendanceExpanded && conversation.my_role === "CLIENT" && (
                     <>
-                      {conversation.job?.payment_model === "DAILY" &&
-                        clientAttendanceRows.length > 0 &&
+                      {(conversation.job?.payment_model === "DAILY" ||
+                        (conversation.is_agency_job && isProjectMultiDayJob)) &&
+                        (clientAttendanceRows.length > 0 ||
+                          pendingAgencyDispatchNames.length > 0) &&
                         clientAttendanceRows.every(
                           (attendance: any) => attendance.awaiting_worker,
                         ) && (
@@ -4750,7 +4861,9 @@ export default function ChatScreen() {
                               color={Colors.textSecondary}
                             />
                             <Text style={styles.waitingButtonText}>
-                              Awaiting workers to mark as on the way...
+                              {pendingAgencyDispatchNames.length > 0
+                                ? `Awaiting ${pendingAgencyDispatchNames.join(", ")} to be dispatched...`
+                                : "Awaiting workers to mark as on the way..."}
                             </Text>
                           </View>
                         )}
@@ -6085,14 +6198,15 @@ export default function ChatScreen() {
                 )}
 
               {/* ================================================================ */}
-              {/* AGENCY PROJECT JOB WORKFLOW (PROJECT payment_model only) */}
+              {/* AGENCY PROJECT JOB WORKFLOW (LEGACY SINGLE-DAY PROJECT ONLY) */}
               {/* ================================================================ */}
               {/* Workflow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays */}
 
               {/* AGENCY VIEW: Dispatch and Mark Complete buttons */}
               {conversation.is_agency_job &&
                 conversation.my_role === "AGENCY" &&
-                conversation.job.payment_model !== "DAILY" &&
+                conversation.job.payment_model === "PROJECT" &&
+                !isProjectMultiDayJob &&
                 conversation.assigned_employees &&
                 conversation.assigned_employees.length > 0 &&
                 (() => {
@@ -6288,7 +6402,8 @@ export default function ChatScreen() {
               {/* CLIENT VIEW: Confirm arrivals and Approve & Pay */}
               {conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job.payment_model !== "DAILY" &&
+                conversation.job.payment_model === "PROJECT" &&
+                !isProjectMultiDayJob &&
                 conversation.assigned_employees &&
                 conversation.assigned_employees.length > 0 &&
                 (() => {
@@ -6307,6 +6422,11 @@ export default function ChatScreen() {
                   const allComplete = conversation.assigned_employees.every(
                     (e) => isEmployeeComplete(e),
                   );
+                  const allWorkflowComplete =
+                    allDispatched && allArrived && allComplete;
+
+                  const notDispatchedEmployees =
+                    conversation.assigned_employees.filter((e) => !e.dispatched);
 
                   // Employees dispatched but not arrived yet
                   const pendingArrival = conversation.assigned_employees.filter(
@@ -6325,29 +6445,45 @@ export default function ChatScreen() {
                     <>
                       {/* Waiting for agency to dispatch */}
                       {!allDispatched && (
-                        <View
-                          style={[styles.actionButton, styles.waitingButton]}
-                        >
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.waitingButtonText}>
-                            Waiting for agency to dispatch employees (
-                            {
-                              conversation.assigned_employees.filter(
-                                (e) => e.dispatched,
-                              ).length
-                            }{" "}
-                            of {conversation.assigned_employees.length}{" "}
-                            dispatched)
-                          </Text>
+                        <View style={styles.employeeActionsSection}>
+                          <View
+                            style={[styles.actionButton, styles.waitingButton]}
+                          >
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.waitingButtonText}>
+                              Waiting for agency to dispatch employees (
+                              {
+                                conversation.assigned_employees.filter(
+                                  (e) => e.dispatched,
+                                ).length
+                              }{" "}
+                              of {conversation.assigned_employees.length}{" "}
+                              dispatched)
+                            </Text>
+                          </View>
+
+                          {notDispatchedEmployees.map((employee) => (
+                            <View
+                              key={`not-dispatched-${employee.id}`}
+                              style={styles.confirmArrivalWorkerRow}
+                            >
+                              <Text
+                                style={styles.confirmArrivalWorkerName}
+                                numberOfLines={1}
+                              >
+                                {employee.name} has not been dispatched.
+                              </Text>
+                            </View>
+                          ))}
                         </View>
                       )}
 
                       {/* Confirm arrivals section */}
-                      {pendingArrival.length > 0 && (
+                      {allDispatched && pendingArrival.length > 0 && (
                         <View style={styles.employeeActionsSection}>
                           <TouchableOpacity
                             style={styles.confirmArrivalsCollapseHeader}
@@ -6484,7 +6620,7 @@ export default function ChatScreen() {
                       )}
 
                       {/* Single agency-level approve & pay button */}
-                      {allComplete &&
+                      {allWorkflowComplete &&
                         !conversation.job.clientMarkedComplete && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>
