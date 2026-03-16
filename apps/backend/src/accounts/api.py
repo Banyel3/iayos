@@ -2272,7 +2272,7 @@ def get_worker_by_id_endpoint(request, user_id: int, latitude: float = None, lon
         )
 
 
-@router.patch("/workers/availability", auth=cookie_auth)
+@router.patch("/workers/availability", auth=dual_auth)
 def update_worker_availability_endpoint(request, is_available: bool):
     """
     Update the authenticated worker's availability status.
@@ -2305,7 +2305,7 @@ def update_worker_availability_endpoint(request, is_available: bool):
         )
 
 
-@router.get("/workers/availability", auth=cookie_auth)
+@router.get("/workers/availability", auth=dual_auth)
 def get_worker_availability_endpoint(request):
     """
     Get the authenticated worker's current availability status.
