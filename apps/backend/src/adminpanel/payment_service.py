@@ -2070,14 +2070,20 @@ def process_withdrawal_approval(
                         bank_code_candidates = [resolved_code]
                     else:
                         if bank_code_to_use.startswith('fallback:'):
-                            # Best effort fallback: try derived codes so provider can validate.
+                            # derive_fallback_bank_code maps slug → short code (e.g. "bdo", "bpi")
+                            # which is the format PayMongo Transfer V2 /recipients accepts.
+                            derived_code = paymongo.derive_fallback_bank_code(
+                                bank_code_to_use, payment_method.bankName
+                            )
                             fallback_slug = bank_code_to_use.split('fallback:', 1)[1]
-                            bank_code_candidates = [
-                                fallback_slug,
-                                fallback_slug.replace('-', '_'),
-                                fallback_slug.replace('-', ''),
-                                fallback_slug.upper().replace('-', '_'),
-                            ]
+                            bank_code_candidates = list(filter(None, [
+                                derived_code,                                    # "bdo" — most likely valid
+                                derived_code.upper() if derived_code else None,  # "BDO" — uppercase variant
+                                fallback_slug,                                   # "bdo-unibank-inc"
+                                fallback_slug.replace('-', '_'),                 # "bdo_unibank_inc"
+                                fallback_slug.replace('-', ''),                  # "bdounibankink"
+                                fallback_slug.upper().replace('-', '_'),         # "BDO_UNIBANK_INC"
+                            ]))
                         else:
                             # Legacy institutions ID (ins_xxx) is not a transfer bank code.
                             # Try resolving by bank name; if not available, let provider reject and refund path handle safely.
