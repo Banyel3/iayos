@@ -21,7 +21,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 import * as WebBrowser from "expo-web-browser";
-import { Picker } from "@react-native-picker/picker";
 
 interface PaymentMethod {
   id: number;
@@ -45,30 +44,6 @@ interface PaymentMethodsResponse {
   payment_methods: PaymentMethod[];
 }
 
-const PHILIPPINE_BANK_OPTIONS: string[] = [
-  "AllBank (A Thrift Bank), Inc.",
-  "Asia United Bank (AUB)",
-  "BDO Unibank, Inc.",
-  "BPI (Bank of the Philippine Islands)",
-  "Bank of Commerce",
-  "China Banking Corporation (Chinabank)",
-  "CTBC Bank (Philippines) Corp.",
-  "Development Bank of the Philippines (DBP)",
-  "EastWest Bank",
-  "Land Bank of the Philippines",
-  "Maybank Philippines, Inc.",
-  "Metrobank (Metropolitan Bank & Trust Co.)",
-  "Philippine Bank of Communications (PBCom)",
-  "Philippine National Bank (PNB)",
-  "PSBank (Philippine Savings Bank)",
-  "RCBC (Rizal Commercial Banking Corporation)",
-  "Robinsons Bank Corporation",
-  "Security Bank Corporation",
-  "Union Bank of the Philippines (UnionBank)",
-  "United Coconut Planters Bank (UCPB)",
-  "Veterans Bank",
-];
-
 export default function PaymentMethodsScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -79,11 +54,6 @@ export default function PaymentMethodsScreen() {
   >("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [bankName, setBankName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiryMonth, setCardExpiryMonth] = useState("");
-  const [cardExpiryYear, setCardExpiryYear] = useState("");
-  const [cardCvv, setCardCvv] = useState("");
 
   // Fetch payment methods
   const {
@@ -267,52 +237,6 @@ export default function PaymentMethodsScreen() {
     setSelectedType("GCASH");
     setAccountName("");
     setAccountNumber("");
-    setBankName("");
-    setCardNumber("");
-    setCardExpiryMonth("");
-    setCardExpiryYear("");
-    setCardCvv("");
-  };
-
-  const formatCardNumberInput = (input: string) => {
-    const digitsOnly = input.replace(/\D/g, "").slice(0, 16);
-    return digitsOnly.replace(/(.{4})/g, "$1 ").trim();
-  };
-
-  const handleCardNumberChange = (value: string) => {
-    setCardNumber(formatCardNumberInput(value));
-  };
-
-  const handleCardCvvChange = (value: string) => {
-    setCardCvv(value.replace(/\D/g, "").slice(0, 3));
-  };
-
-  const handleExpiryMonthChange = (value: string) => {
-    setCardExpiryMonth(value.replace(/\D/g, "").slice(0, 2));
-  };
-
-  const handleExpiryYearChange = (value: string) => {
-    setCardExpiryYear(value.replace(/\D/g, "").slice(0, 4));
-  };
-
-  const isLuhnValid = (cardNumberValue: string) => {
-    let sum = 0;
-    let shouldDouble = false;
-
-    for (let i = cardNumberValue.length - 1; i >= 0; i--) {
-      let digit = Number(cardNumberValue[i]);
-      if (Number.isNaN(digit)) return false;
-
-      if (shouldDouble) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
-
-      sum += digit;
-      shouldDouble = !shouldDouble;
-    }
-
-    return sum % 10 === 0;
   };
 
   const handleAddMethod = () => {
@@ -325,28 +249,11 @@ export default function PaymentMethodsScreen() {
       type: string;
       account_name: string;
       account_number: string;
-      bank_name?: string;
-      card_number?: string;
-      card_expiry_month?: number;
-      card_expiry_year?: number;
-      card_cvv?: string;
     } = {
       type: selectedType,
       account_name: accountName.trim(),
       account_number: cleanAccountNumber,
     };
-
-    if (
-      selectedType === "BANK" ||
-      selectedType === "VISA" ||
-      selectedType === "MASTERCARD"
-    ) {
-      Alert.alert(
-        "Not Supported",
-        "Bank and card withdrawals are temporarily unavailable. Please use GCash, Maya, GrabPay, or PayPal.",
-      );
-      return;
-    }
 
     // Type-specific validation
     if (
@@ -789,22 +696,6 @@ export default function PaymentMethodsScreen() {
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
-                </View>
-              )}
-
-              {(selectedType === "BANK" ||
-                selectedType === "VISA" ||
-                selectedType === "MASTERCARD") && (
-                <View style={styles.infoBanner}>
-                  <Ionicons
-                    name="alert-circle"
-                    size={20}
-                    color={Colors.warning}
-                  />
-                  <Text style={styles.infoText}>
-                    Bank and card withdrawals are temporarily unavailable.
-                    Please use GCash, Maya, GrabPay, or PayPal.
-                  </Text>
                 </View>
               )}
 
