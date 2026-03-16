@@ -2252,16 +2252,19 @@ def get_conversation_messages(request, conversation_id: int):
                 "remaining_days": remaining_days,
             }
 
-        # Get today's attendance for daily-rate jobs and team PROJECT multi-day jobs.
+        # Get today's attendance for DAILY jobs and all attendance-tracked PROJECT team flows.
         attendance_today = []
         daily_skip_requests_today = []
         effective_work_date = timezone.now().date()
         qa_day_offset = _get_clamped_qa_day_offset(job)
         is_daily_job = hasattr(job, 'payment_model') and job.payment_model == "DAILY"
+        is_team_project_attendance = bool(
+            getattr(job, 'payment_model', None) == "PROJECT" and getattr(job, 'is_team_job', False)
+        )
         is_project_multiday = bool(
             getattr(job, 'payment_model', None) == "PROJECT" and _derive_duration_days(job) > 1
         )
-        if (is_daily_job or is_project_multiday) and job.status == "IN_PROGRESS":
+        if (is_daily_job or is_project_multiday or is_team_project_attendance) and job.status == "IN_PROGRESS":
             from accounts.models import DailyAttendance, DailySkipDayRequest
             today = _get_effective_work_date(job)
             effective_work_date = today
