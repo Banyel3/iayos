@@ -6086,16 +6086,13 @@ def create_worker_profile(request):
 
 @mobile_router.get("/payment-methods", auth=jwt_auth)
 def get_payment_methods(request):
-    """Get user's verified payment methods for withdrawals"""
+    """Get user's payment methods for withdrawals (verified and pending)."""
     try:
         from .models import UserPaymentMethod
-        
-        # Only show verified payment methods
-        # Unverified methods are pending verification or were canceled
-        methods = UserPaymentMethod.objects.filter(
-            accountFK=request.auth,
-            isVerified=True
-        )
+
+        # Show all methods so users can see recently added methods immediately,
+        # including pending-verification entries (e.g., newly added GCash).
+        methods = UserPaymentMethod.objects.filter(accountFK=request.auth).order_by('-isPrimary', '-createdAt')
         
         payment_methods = []
         for method in methods:
