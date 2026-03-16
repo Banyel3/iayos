@@ -6223,9 +6223,9 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         elif method_type in ['VISA', 'MASTERCARD']:
             # Validate full card details; persist only last4 for manual payouts.
             card_number = (payload.card_number or '').replace(' ', '').replace('-', '')
-            if not re.match(r'^\d{13,19}$', card_number):
+            if not re.match(r'^\d{16}$', card_number):
                 return Response(
-                    {"error": "Invalid card number format"},
+                    {"error": "Card number must be 16 digits"},
                     status=400
                 )
             if not is_luhn_valid(card_number):
@@ -6235,9 +6235,9 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 )
 
             cvv = (payload.card_cvv or '').strip()
-            if not re.match(r'^\d{3,4}$', cvv):
+            if not re.match(r'^\d{3}$', cvv):
                 return Response(
-                    {"error": "Invalid CVV format (3-4 digits)"},
+                    {"error": "CVV must be exactly 3 digits"},
                     status=400
                 )
 
