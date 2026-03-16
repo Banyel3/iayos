@@ -10,6 +10,8 @@ This module handles all payment-related operations for the admin panel:
 - Revenue trends and analytics
 """
 
+import logging
+
 from django.db.models import Sum, Count, Avg, Q, F, DecimalField, Value
 from django.db.models.functions import TruncDate, TruncWeek, TruncMonth, Coalesce
 from django.db import transaction
@@ -18,6 +20,8 @@ from django.conf import settings
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Dict, List, Any
+
+logger = logging.getLogger(__name__)
 
 from accounts.models import (
     Transaction, Job, Profile, Wallet, JobDispute, 
