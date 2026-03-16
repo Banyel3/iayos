@@ -3,7 +3,7 @@
  *
  * Features:
  * - Amount input with validation (min ₱100)
- * - Payment account selection (GCash, PayPal, GrabPay, Maya)
+ * - Payment account selection (GCash only)
  * - Balance check and display
  * - Optional notes field
  * - Immediate balance deduction
@@ -45,7 +45,7 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "PAYPAL" | "GRABPAY" | "MAYA" | "BANK" | "VISA" | "MASTERCARD";
+  type: "GCASH";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -103,8 +103,7 @@ export default function WithdrawScreen() {
 
   // Show only allowed, verified payment methods
   const verifiedMethods = paymentMethods.filter(
-    (m: PaymentMethod) =>
-      m.is_verified && ["GCASH", "PAYPAL", "GRABPAY", "MAYA"].includes(m.type),
+    (m: PaymentMethod) => m.is_verified && m.type === "GCASH",
   );
 
   // Check if user has payment method on mount
@@ -112,7 +111,7 @@ export default function WithdrawScreen() {
     if (!methodsLoading && paymentMethodsData && verifiedMethods.length === 0) {
       Alert.alert(
         "Payment Account Required",
-        "You need to add a payment account (GCash, Maya, GrabPay, or PayPal) before you can withdraw funds. Would you like to add one now?",
+        "You need to add a verified GCash account before you can withdraw funds. Would you like to add one now?",
         [
           {
             text: "Cancel",
@@ -186,12 +185,6 @@ export default function WithdrawScreen() {
       switch (type) {
         case "GCASH":
           return "GCash";
-        case "PAYPAL":
-          return "PayPal";
-        case "GRABPAY":
-          return "GrabPay";
-        case "MAYA":
-          return "Maya";
         default:
           return type;
       }
@@ -427,14 +420,14 @@ export default function WithdrawScreen() {
                   color={Colors.textLight}
                 />
                 <Text style={styles.noMethodsText}>
-                  No payment accounts found
+                  No GCash accounts found
                 </Text>
                 <TouchableOpacity
                   style={styles.addMethodBtn}
                   onPress={() => router.push("/profile/payment-methods" as any)}
                 >
                   <Text style={styles.addMethodBtnText}>
-                    Add Payment Account
+                    Add GCash Account
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -444,18 +437,6 @@ export default function WithdrawScreen() {
                   switch (type) {
                     case "GCASH":
                       return "phone-portrait";
-                    case "BANK":
-                      return "business";
-                    case "PAYPAL":
-                      return "logo-paypal";
-                    case "VISA":
-                      return "card";
-                    case "MASTERCARD":
-                      return "card";
-                    case "GRABPAY":
-                      return "phone-portrait";
-                    case "MAYA":
-                      return "wallet";
                     default:
                       return "card";
                   }
@@ -464,18 +445,6 @@ export default function WithdrawScreen() {
                   switch (type) {
                     case "GCASH":
                       return "GCash";
-                    case "BANK":
-                      return method.bank_name || "Bank";
-                    case "PAYPAL":
-                      return "PayPal";
-                    case "VISA":
-                      return "Visa/Card";
-                    case "MASTERCARD":
-                      return "Mastercard/Card";
-                    case "GRABPAY":
-                      return "GrabPay";
-                    case "MAYA":
-                      return "Maya";
                     default:
                       return type;
                   }

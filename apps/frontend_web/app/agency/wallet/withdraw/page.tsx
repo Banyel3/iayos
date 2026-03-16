@@ -28,7 +28,7 @@ import { useWalletBalance } from "@/lib/hooks/useHomeData";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "PAYPAL" | "GRABPAY" | "MAYA" | "BANK" | "VISA";
+  type: "GCASH";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -71,7 +71,7 @@ export default function AgencyWithdrawPage() {
       if (res.ok) {
         const data = await res.json();
         const methods = (data.payment_methods || []).filter((m: PaymentMethod) =>
-          ["GCASH", "PAYPAL", "GRABPAY", "MAYA"].includes(m.type),
+          m.type === "GCASH",
         );
         setPaymentMethods(methods);
         // Auto-select primary method
@@ -109,12 +109,6 @@ export default function AgencyWithdrawPage() {
     switch (type) {
       case "GCASH":
         return <Smartphone className="h-5 w-5 text-[#00BAF1]" />;
-      case "PAYPAL":
-        return <CreditCard className="h-5 w-5 text-blue-500" />;
-      case "GRABPAY":
-        return <Smartphone className="h-5 w-5 text-green-600" />;
-      case "MAYA":
-        return <Smartphone className="h-5 w-5 text-green-500" />;
       default:
         return <CreditCard className="h-5 w-5 text-gray-600" />;
     }
@@ -124,12 +118,6 @@ export default function AgencyWithdrawPage() {
     switch (method.type) {
       case "GCASH":
         return "GCash";
-      case "PAYPAL":
-        return "PayPal";
-      case "GRABPAY":
-        return "GrabPay";
-      case "MAYA":
-        return "Maya";
       default:
         return method.type;
     }
@@ -358,7 +346,7 @@ export default function AgencyWithdrawPage() {
                     <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
                        <AlertCircle className="h-10 w-10 text-gray-200 mx-auto mb-3" />
                        <h3 className="text-sm font-bold text-gray-900">No payment accounts</h3>
-                       <p className="text-[10px] text-gray-400 mt-1 max-w-xs mx-auto">Add a GCash or Bank account in your profile settings to enable withdrawals.</p>
+                       <p className="text-[10px] text-gray-400 mt-1 max-w-xs mx-auto">Add and verify your GCash account in profile settings to enable withdrawals.</p>
                        <Button
                           variant="outline"
                           size="sm"

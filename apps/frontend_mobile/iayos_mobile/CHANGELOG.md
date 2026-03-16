@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **GCash-Only Withdrawal Methods Enforcement**
+  - Updated mobile payment methods management to only allow adding and displaying GCash accounts for payouts.
+  - Updated mobile wallet withdrawal flow to only show verified GCash accounts and updated all prompts/copy accordingly.
+  - **Impact**: Users can no longer select unsupported withdrawal destinations (Bank/Card/PayPal/Maya/GrabPay) from the mobile app.
+
 - **Team Backjob On-The-Way Sequence + Legacy Cycle Compatibility**
   - Updated team backjob gating to separate `dispatch/on-the-way` from `arrival` so clients now see `Waiting for workers to mark on the way` before `Confirm arrivals first`.
   - Updated worker-side team backjob UI to render `Mark On The Way` in legacy team project branches instead of immediately showing `Waiting for client to confirm your arrival`.
