@@ -4845,10 +4845,16 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 status=404
             )
         
-        # Validate payment method type - GCash only
-        if payment_method.methodType != 'GCASH':
+        # Validate payment method type
+        if payment_method.methodType not in ['GCASH', 'BANK']:
             return Response(
-                {"error": "Only GCash withdrawals are currently supported"},
+                {"error": "Unsupported payment method for withdrawal"},
+                status=400
+            )
+
+        if payment_method.methodType == 'BANK' and not payment_method.bankCode:
+            return Response(
+                {"error": "Bank payout method is missing bank code. Please re-add this bank account."},
                 status=400
             )
         
@@ -4903,7 +4909,10 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 )
             
             # Create pending withdrawal transaction
-            method_display = f'GCash - {payment_method.accountNumber}'
+            if payment_method.methodType == 'BANK':
+                method_display = f"Bank ({payment_method.bankName or 'BANK'}) - {payment_method.accountNumber}"
+            else:
+                method_display = f'GCash - {payment_method.accountNumber}'
             
             transaction = Transaction.objects.create(
                 walletID=wallet,
@@ -4933,7 +4942,11 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             print(f"   Recipient: {payment_method.accountName} (***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'})")
             print(f"   Method: {payment_method.methodType}")
 
-        success_message = "Your funds will be transferred to your GCash within 1-3 business days after verification."
+        success_message = (
+            "Your funds will be transferred to your bank account within 1-3 business days after verification."
+            if payment_method.methodType == 'BANK'
+            else "Your funds will be transferred to your GCash within 1-3 business days after verification."
+        )
         
         # Build response (no receipt_url for manual processing)
         response_data = {
@@ -4946,6 +4959,8 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             "recipient": payment_method.accountNumber,
             "recipient_name": payment_method.accountName,
             "payment_method_type": payment_method.methodType,
+            "bank_name": payment_method.bankName,
+            "bank_code": payment_method.bankCode,
             "message": f"Withdrawal request submitted successfully. {success_message}",
             "estimated_arrival": "1-3 business days"
         }
@@ -6072,8 +6087,7 @@ def get_payment_methods(request):
         # Show all methods so users can see recently added methods immediately,
         # including pending-verification entries (e.g., newly added GCash).
         methods = UserPaymentMethod.objects.filter(
-            accountFK=request.auth,
-            methodType='GCASH'
+            accountFK=request.auth
         ).order_by('-isPrimary', '-createdAt')
         
         payment_methods = []
@@ -6084,6 +6098,7 @@ def get_payment_methods(request):
                 'account_name': method.accountName,
                 'account_number': method.accountNumber,
                 'bank_name': method.bankName,
+                'bank_code': method.bankCode,
                 'is_primary': method.isPrimary,
                 'is_verified': method.isVerified,
                 'created_at': method.createdAt.isoformat() if method.createdAt else None
@@ -6103,26 +6118,21 @@ def get_payment_methods(request):
 @mobile_router.post("/payment-methods", auth=jwt_auth)
 def add_payment_method(request, payload: AddPaymentMethodSchema):
     """
-    Add a new GCash payment method for withdrawals.
-    
-    Current flow:
-    1. User submits payment method details
-    2. GCash validation is applied
-    3. Payment method is added and marked verified immediately
+    Add a new payment method for withdrawals.
+
+    Supports GCASH and BANK methods.
     """
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
         import re
-        
-        method_type = payload.type or 'GCASH'
+
+        method_type = (payload.type or 'GCASH').upper()
 
         # Validate method type
-        if method_type != 'GCASH':
+        if method_type not in ['GCASH', 'BANK']:
             return Response(
-                {
-                    "error": "Invalid payment method type. Only GCash is supported."
-                },
+                {"error": "Invalid payment method type"},
                 status=400
             )
         
@@ -6134,14 +6144,38 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             )
 
         raw_account_number = (payload.account_number or '').strip()
-
-        # Validate and clean GCash number format
         clean_number = raw_account_number.replace(' ', '').replace('-', '')
-        if not re.match(r'^09\d{9}$', clean_number):
-            return Response(
-                {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
-                status=400
-            )
+        bank_name = None
+        bank_code = None
+
+        if method_type == 'GCASH':
+            # Validate and clean GCash number format
+            if not re.match(r'^09\d{9}$', clean_number):
+                return Response(
+                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                    status=400
+                )
+        else:
+            # BANK validation
+            clean_number = ''.join(ch for ch in clean_number if ch.isdigit())
+            if len(clean_number) < 8 or len(clean_number) > 20:
+                return Response(
+                    {"error": "Invalid bank account number (must be 8-20 digits)"},
+                    status=400
+                )
+
+            bank_name = (payload.bank_name or '').strip()
+            bank_code = (payload.bank_code or '').strip()
+            if not bank_name:
+                return Response(
+                    {"error": "Bank name is required for BANK payment method"},
+                    status=400
+                )
+            if not bank_code:
+                return Response(
+                    {"error": "Bank code is required for BANK payment method"},
+                    status=400
+                )
 
         if not clean_number:
             return Response(
@@ -6180,7 +6214,8 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 methodType=method_type,
                 accountName=payload.account_name,
                 accountNumber=clean_number,
-                bankName=None,
+                bankName=bank_name,
+                bankCode=bank_code,
                 isPrimary=is_first,
                 isVerified=is_verified
             )
@@ -6202,6 +6237,26 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         traceback.print_exc()
         return Response(
             {"error": "Failed to add payment method"},
+            status=500
+        )
+
+
+@mobile_router.get("/payment-methods/banks", auth=jwt_auth)
+def get_supported_banks(request):
+    """Get PayMongo-supported banks for BANK payout methods."""
+    try:
+        from .paymongo_service import PayMongoService
+
+        service = PayMongoService()
+        banks = service.get_supported_banks_cached()
+        return {
+            'banks': banks,
+            'count': len(banks),
+        }
+    except Exception as e:
+        print(f"❌ Get supported banks error: {str(e)}")
+        return Response(
+            {"error": "Failed to fetch supported banks"},
             status=500
         )
 
@@ -7725,6 +7780,27 @@ def worker_check_in(request, job_id: int):
                     "error": "Backjob workday has not started yet. Wait for the scheduled date.",
                     "scheduled_date": active_backjob_cycle.scheduled_date.isoformat(),
                 }, status=400)
+
+        # For backjob cycles, avoid blocking today's dispatch with stale attendance
+        # rows from a previous backjob cycle on the same date.
+        cycle_anchor_at = None
+        if allow_backjob_checkin and active_backjob_cycle:
+            cycle_anchor_at = (
+                active_backjob_cycle.workerScheduleConfirmedAt
+                or active_backjob_cycle.backjobStartedAt
+            )
+
+            if not cycle_anchor_at and active_backjob_cycle.scheduled_date:
+                try:
+                    cycle_anchor_at = timezone.make_aware(
+                        dt_datetime.combine(
+                            active_backjob_cycle.scheduled_date,
+                            dt_datetime.min.time(),
+                        ),
+                        timezone=PH_TIMEZONE,
+                    )
+                except Exception:
+                    cycle_anchor_at = None
         
         # Get worker's profile
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
@@ -7772,6 +7848,25 @@ def worker_check_in(request, job_id: int):
             attendance_filter['assignmentID'] = team_assignment
 
         existing_attendance = DailyAttendance.objects.filter(**attendance_filter).first()
+
+        if existing_attendance and cycle_anchor_at:
+            cycle_signals = [
+                existing_attendance.worker_confirmed_at,
+                existing_attendance.time_in,
+                existing_attendance.time_out,
+                existing_attendance.client_confirmed_at,
+            ]
+            has_current_cycle_signal = any(
+                signal and signal >= cycle_anchor_at for signal in cycle_signals
+            )
+
+            # Stale same-day row from an earlier cycle; let update_or_create refresh it.
+            if not has_current_cycle_signal:
+                print(
+                    "⚠️ [MOBILE] Ignoring stale same-day attendance from prior cycle "
+                    f"(attendance_id={existing_attendance.attendanceID}, anchor={cycle_anchor_at})"
+                )
+                existing_attendance = None
         
         # Already on the way
         if existing_attendance and existing_attendance.status == 'DISPATCHED' and not existing_attendance.time_in:
