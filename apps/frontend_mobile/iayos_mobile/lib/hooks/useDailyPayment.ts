@@ -38,6 +38,7 @@ function patchConversationOnTheWay(
 
             return {
               ...row,
+              assignment_id: row?.assignment_id || payload?.assignment_id,
               status: "DISPATCHED",
               is_dispatched: true,
               worker_confirmed: true,
@@ -52,6 +53,7 @@ function patchConversationOnTheWay(
         : [
             {
               attendance_id: attendanceId,
+              assignment_id: payload?.assignment_id,
               worker_id: payload?.worker_id,
               worker_account_id: payload?.worker_account_id,
               worker_name: "Worker",
@@ -982,6 +984,7 @@ export const useCancelDailyJob = () => {
 export interface CheckInOutResponse {
   success: boolean;
   attendance_id: number;
+  assignment_id?: number;
   worker_id?: number;
   worker_account_id?: number;
   time_in?: string;
