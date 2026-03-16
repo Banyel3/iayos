@@ -76,11 +76,19 @@ export default function PaymentMethodsScreen() {
   // Extract payment methods array with safe access
   const paymentMethods = methodsData?.payment_methods || [];
 
-  const { data: banksData } = useQuery<{ banks: BankOption[] }>({
+  const {
+    data: banksData,
+    isLoading: isLoadingBanks,
+    isError: isBanksError,
+    refetch: refetchBanks,
+  } = useQuery<{ banks: BankOption[] }>({
     queryKey: ["payment-method-banks"],
     enabled: showAddForm && selectedType === "BANK",
     queryFn: async () => {
       const response = await apiRequest(ENDPOINTS.PAYMENT_METHOD_BANKS);
+      if (!response.ok) {
+        throw new Error("Failed to fetch supported banks");
+      }
       const data = (await response.json()) as { banks: BankOption[] };
       return data;
     },
@@ -604,7 +612,7 @@ export default function PaymentMethodsScreen() {
                   <TouchableOpacity
                     style={styles.pickerButton}
                     onPress={() => setShowBankPickerModal(true)}
-                    disabled={!banksData?.banks || banksData.banks.length === 0}
+                    disabled={isLoadingBanks || !banksData?.banks || banksData.banks.length === 0}
                   >
                     <Text
                       style={[
@@ -614,9 +622,11 @@ export default function PaymentMethodsScreen() {
                       numberOfLines={1}
                     >
                       {selectedBankName ||
-                        (banksData?.banks?.length
+                        (isLoadingBanks
+                          ? "Loading supported banks..."
+                          : banksData?.banks?.length
                           ? "Select bank"
-                          : "Loading supported banks...")}
+                          : "No supported banks available")}
                     </Text>
                     <Ionicons
                       name="chevron-down"
@@ -624,6 +634,18 @@ export default function PaymentMethodsScreen() {
                       color={Colors.textSecondary}
                     />
                   </TouchableOpacity>
+                  {isBanksError && (
+                    <TouchableOpacity
+                      style={styles.retryBanksButton}
+                      onPress={() => refetchBanks()}
+                    >
+                      <Ionicons name="refresh" size={14} color={Colors.error} />
+                      <Text style={styles.retryBanksText}>Failed to load banks. Tap to retry.</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!isLoadingBanks && !isBanksError && (!banksData?.banks || banksData.banks.length === 0) && (
+                    <Text style={styles.helperText}>No banks were returned by the provider right now. Please retry later.</Text>
+                  )}
                   {!!selectedBankName && <Text style={styles.helperText}>Selected: {selectedBankName}</Text>}
                 </View>
               )}
@@ -996,6 +1018,16 @@ const styles = StyleSheet.create({
   helperText: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+  },
+  retryBanksButton: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  retryBanksText: {
+    ...Typography.body.small,
+    color: Colors.error,
   },
   inputLabel: {
     ...Typography.body.medium,
