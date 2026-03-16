@@ -3025,7 +3025,8 @@ def get_agency_payment_methods(request):
         # Unverified methods are pending verification or were canceled
         methods = UserPaymentMethod.objects.filter(
             accountFK=account,
-            isVerified=True
+            isVerified=True,
+            methodType='GCASH'
         )
         
         payment_methods = []
