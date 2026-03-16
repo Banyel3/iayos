@@ -195,6 +195,8 @@ export default function ChatScreen() {
   });
   const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
   const [isMarkOnTheWayLocked, setIsMarkOnTheWayLocked] = useState(false);
+  const [localBackjobScheduleConfirmed, setLocalBackjobScheduleConfirmed] =
+    useState(false);
 
   // Review state - Multi-criteria ratings
   const [ratingQuality, setRatingQuality] = useState(0);
@@ -251,6 +253,29 @@ export default function ChatScreen() {
   useEffect(() => {
     setLocalAgencyClientReviewSubmitted(false);
   }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversation?.backjob?.has_backjob) {
+      setLocalBackjobScheduleConfirmed(false);
+      return;
+    }
+
+    if (
+      conversation.backjob.worker_schedule_confirmed ||
+      conversation.backjob.my_schedule_confirmed
+    ) {
+      setLocalBackjobScheduleConfirmed(true);
+      return;
+    }
+
+    setLocalBackjobScheduleConfirmed(false);
+  }, [
+    conversation?.backjob?.has_backjob,
+    conversation?.backjob?.dispute_id,
+    conversation?.backjob?.scheduled_date,
+    conversation?.backjob?.worker_schedule_confirmed,
+    conversation?.backjob?.my_schedule_confirmed,
+  ]);
 
   const formatPossessive = (name: string) => {
     if (!name) {
@@ -865,8 +890,12 @@ export default function ChatScreen() {
     conversation?.backjob?.team_schedule_total_workers ?? 0;
   const teamScheduleConfirmedCount =
     conversation?.backjob?.team_schedule_confirmed_count ?? 0;
+  const effectiveWorkerScheduleConfirmed =
+    conversation?.backjob?.worker_schedule_confirmed === true ||
+    localBackjobScheduleConfirmed;
   const myBackjobScheduleConfirmed =
-    conversation?.backjob?.my_schedule_confirmed === true;
+    conversation?.backjob?.my_schedule_confirmed === true ||
+    localBackjobScheduleConfirmed;
 
   const agencyAssignedEmployees = conversation?.is_agency_job
     ? conversation?.assigned_employees || []
@@ -1949,8 +1978,17 @@ export default function ChatScreen() {
         {
           text: "Confirm",
           onPress: () => {
+            setLocalBackjobScheduleConfirmed(true);
             confirmBackjobScheduledDateMutation.mutate({
               jobId: conversation.job.id,
+            }, {
+              onSuccess: () => {
+                setLocalBackjobScheduleConfirmed(true);
+                refetch();
+              },
+              onError: () => {
+                setLocalBackjobScheduleConfirmed(false);
+              },
             });
           },
         },
@@ -8422,7 +8460,7 @@ export default function ChatScreen() {
                               )}
                             </Text>
                             {!conversation.backjob
-                              .worker_schedule_confirmed && (
+                              .worker_schedule_confirmed && !effectiveWorkerScheduleConfirmed && (
                               <Text
                                 style={[
                                   styles.backjobActionButtonText,
@@ -8484,7 +8522,7 @@ export default function ChatScreen() {
 
                 {conversation.my_role !== "CLIENT" &&
                   !!conversation.backjob?.scheduled_date &&
-                  !conversation.backjob?.worker_schedule_confirmed &&
+                  !effectiveWorkerScheduleConfirmed &&
                   !myBackjobScheduleConfirmed && (
                     <TouchableOpacity
                       style={[
@@ -8546,7 +8584,7 @@ export default function ChatScreen() {
 
                 {conversation.my_role !== "CLIENT" &&
                   !!conversation.backjob?.scheduled_date &&
-                  !conversation.backjob?.worker_schedule_confirmed &&
+                  !effectiveWorkerScheduleConfirmed &&
                   myBackjobScheduleConfirmed && (
                     <View style={styles.backjobWaitingBadge}>
                       <Ionicons
