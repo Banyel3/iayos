@@ -45,10 +45,11 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH";
+  type: "GCASH" | "BANK";
   account_name: string;
   account_number: string;
   bank_name: string | null;
+  bank_code?: string | null;
   is_primary: boolean;
   is_verified: boolean;
   created_at: string;
@@ -85,7 +86,10 @@ export default function WithdrawScreen() {
       queryKey: ["payment-methods"],
       queryFn: async () => {
         const response = await apiRequest(ENDPOINTS.PAYMENT_METHODS);
-        if (!response.ok) throw new Error(await response.text() || "Failed to fetch payment methods");
+        if (!response.ok)
+          throw new Error(
+            (await response.text()) || "Failed to fetch payment methods",
+          );
         const data = (await response.json()) as PaymentMethodsResponse;
         return data;
       },
@@ -103,7 +107,8 @@ export default function WithdrawScreen() {
 
   // Show only allowed, verified payment methods
   const verifiedMethods = paymentMethods.filter(
-    (m: PaymentMethod) => m.is_verified && m.type === "GCASH",
+    (m: PaymentMethod) =>
+      m.is_verified && (m.type === "GCASH" || m.type === "BANK"),
   );
 
   // Check if user has payment method on mount
@@ -111,7 +116,7 @@ export default function WithdrawScreen() {
     if (!methodsLoading && paymentMethodsData && verifiedMethods.length === 0) {
       Alert.alert(
         "Payment Account Required",
-        "You need to add a verified GCash account before you can withdraw funds. Would you like to add one now?",
+        "You need to add a verified payout account (GCash or bank) before you can withdraw funds. Would you like to add one now?",
         [
           {
             text: "Cancel",
@@ -185,6 +190,8 @@ export default function WithdrawScreen() {
       switch (type) {
         case "GCASH":
           return "GCash";
+        case "BANK":
+          return "Bank";
         default:
           return type;
       }
@@ -194,7 +201,7 @@ export default function WithdrawScreen() {
     const accountDisplay = selectedMethod?.account_number;
 
     setWithdrawConfirmMessage(
-      `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`
+      `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`,
     );
     setShowWithdrawConfirm(true);
   };
@@ -210,9 +217,7 @@ export default function WithdrawScreen() {
         notes: notes || undefined,
       });
 
-      Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Success,
-      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Show success modal directly (manual processing, no receipt URL)
       setShowSuccess(true);
@@ -317,7 +322,8 @@ export default function WithdrawScreen() {
           <View style={styles.processingInfoBanner}>
             <Ionicons name="information-circle" size={16} color="#2563eb" />
             <Text style={styles.processingInfoText}>
-              Your withdrawal will be processed within 1-3 business days. You'll receive the funds via your selected payment method.
+              Your withdrawal will be processed within 1-3 business days. You'll
+              receive the funds via your selected payment method.
             </Text>
           </View>
 
@@ -420,15 +426,13 @@ export default function WithdrawScreen() {
                   color={Colors.textLight}
                 />
                 <Text style={styles.noMethodsText}>
-                  No GCash accounts found
+                  No payout accounts found
                 </Text>
                 <TouchableOpacity
                   style={styles.addMethodBtn}
                   onPress={() => router.push("/profile/payment-methods" as any)}
                 >
-                  <Text style={styles.addMethodBtnText}>
-                    Add GCash Account
-                  </Text>
+                  <Text style={styles.addMethodBtnText}>Add Payout Account</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -437,6 +441,8 @@ export default function WithdrawScreen() {
                   switch (type) {
                     case "GCASH":
                       return "phone-portrait";
+                    case "BANK":
+                      return "business";
                     default:
                       return "card";
                   }
@@ -445,6 +451,8 @@ export default function WithdrawScreen() {
                   switch (type) {
                     case "GCASH":
                       return "GCash";
+                    case "BANK":
+                      return "Bank";
                     default:
                       return type;
                   }
@@ -458,7 +466,7 @@ export default function WithdrawScreen() {
                     style={[
                       styles.methodCard,
                       selectedMethodId === method.id &&
-                      styles.methodCardSelected,
+                        styles.methodCardSelected,
                     ]}
                     onPress={() => {
                       setSelectedMethodId(method.id);
@@ -487,11 +495,14 @@ export default function WithdrawScreen() {
                       <Text style={styles.methodNumber}>
                         {method.type === "GCASH"
                           ? method.account_number.replace(
-                            /(\d{4})(\d{3})(\d{4})/,
-                            "$1 $2 $3",
-                          )
+                              /(\d{4})(\d{3})(\d{4})/,
+                              "$1 $2 $3",
+                            )
                           : method.account_number}
                       </Text>
+                      {method.type === "BANK" && method.bank_name && (
+                        <Text style={styles.methodNumber}>{method.bank_name}</Text>
+                      )}
                     </View>
                     {method.is_verified && (
                       <View style={styles.verifiedBadge}>
@@ -560,7 +571,9 @@ export default function WithdrawScreen() {
             ) : (
               <>
                 <Ionicons
-                  name={amountNum > balance ? "alert-circle" : "arrow-down-circle"}
+                  name={
+                    amountNum > balance ? "alert-circle" : "arrow-down-circle"
+                  }
                   size={20}
                   color={
                     isWithdrawDisabled ? Colors.textSecondary : Colors.white

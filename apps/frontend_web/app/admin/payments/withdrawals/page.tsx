@@ -63,6 +63,7 @@ interface WithdrawalRequest {
   processed_at?: string;
   disbursement_id?: string;
   reference_number?: string;
+  withdrawal_request_id?: string;
   description?: string;
   notes?: string;
   admin_reference_number?: string;
@@ -80,6 +81,7 @@ interface ApproveModalState {
   transactionId: string | number | null;
   userName: string;
   amount: number;
+  paymentMethodType?: string;
 }
 
 interface RejectModalState {
@@ -112,6 +114,7 @@ export default function WithdrawalsPage() {
     transactionId: null,
     userName: "",
     amount: 0,
+    paymentMethodType: undefined,
   });
   const [rejectModal, setRejectModal] = useState<RejectModalState>({
     isOpen: false,
@@ -366,6 +369,8 @@ export default function WithdrawalsPage() {
       transactionId: withdrawal.id || withdrawal.transaction_id || null,
       userName: withdrawal.user?.name || withdrawal.user_name || "",
       amount: withdrawal.amount,
+      paymentMethodType:
+        withdrawal.payment_method?.type || withdrawal.payment_method_type,
     });
   };
 
@@ -375,6 +380,7 @@ export default function WithdrawalsPage() {
       transactionId: null,
       userName: "",
       amount: 0,
+      paymentMethodType: undefined,
     });
     setReferenceNumber("");
     setApproveNotes("");
@@ -389,12 +395,15 @@ export default function WithdrawalsPage() {
     }
 
     // Final confirmation dialog
+    const isBankApproval =
+      (approveModal.paymentMethodType || "").toUpperCase() === "BANK";
+
     const confirmed = confirm(
       `⚠️ FINAL CONFIRMATION\n\n` +
       `You are about to approve a withdrawal of ₱${(approveModal.amount ?? 0).toLocaleString()} to ${approveModal.userName}.\n\n` +
       `Reference: ${referenceNumber.trim()}\n` +
       `Notes: ${approveNotes || "(none)"}\n\n` +
-      `This action CANNOT be undone. The funds will be marked as paid.\n\n` +
+      `${isBankApproval ? "This will initiate a BANK transfer and final completion will be webhook-driven." : "This action marks payout as completed."}\n\n` +
       `Are you absolutely sure you want to proceed?`,
     );
 
@@ -722,7 +731,11 @@ export default function WithdrawalsPage() {
                           <div>
                             <p className="text-gray-500 mb-0.5">Reference</p>
                             <p className="font-mono text-[10px] text-gray-600 truncate">
-                              {withdrawal.reference_number || withdrawal.disbursement_id || "N/A"}
+                              {withdrawal.reference_number ||
+                                withdrawal.admin_reference_number ||
+                                withdrawal.withdrawal_request_id ||
+                                withdrawal.disbursement_id ||
+                                "N/A"}
                             </p>
                           </div>
                         </div>
@@ -752,7 +765,14 @@ export default function WithdrawalsPage() {
                               className="h-9 sm:h-10 bg-green-600 hover:bg-green-700 text-white flex items-center gap-1 sm:gap-2 px-3 sm:px-4 text-xs sm:text-sm"
                             >
                               <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">Mark</span> Completed
+                              <span className="hidden sm:inline">
+                                {(paymentType || "").toUpperCase() === "BANK"
+                                  ? "Approve"
+                                  : "Mark"}
+                              </span>{" "}
+                              {(paymentType || "").toUpperCase() === "BANK"
+                                ? "Initiate"
+                                : "Completed"}
                             </Button>
                             <Button
                               onClick={() => openRejectModal(withdrawal)}

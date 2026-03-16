@@ -79,13 +79,19 @@ interface AgencyProfile {
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH";
+  type: "GCASH" | "BANK";
   account_name: string;
   account_number: string;
   bank_name?: string;
+  bank_code?: string;
   is_primary: boolean;
   is_verified: boolean;
   created_at: string;
+}
+
+interface BankOption {
+  code: string;
+  name: string;
 }
 
 export default function AgencyProfilePage() {
@@ -101,8 +107,13 @@ export default function AgencyProfilePage() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [newMethodType, setNewMethodType] = useState<"GCASH" | "BANK">("GCASH");
   const [newAccountName, setNewAccountName] = useState("");
   const [newAccountNumber, setNewAccountNumber] = useState("");
+  const [newBankName, setNewBankName] = useState("");
+  const [newBankCode, setNewBankCode] = useState("");
+  const [supportedBanks, setSupportedBanks] = useState<BankOption[]>([]);
+  const [isLoadingBanks, setIsLoadingBanks] = useState(false);
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [pendingDeleteMethodId, setPendingDeleteMethodId] = useState<number | null>(null);
 
@@ -151,6 +162,12 @@ export default function AgencyProfilePage() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (showAddPaymentModal && newMethodType === "BANK") {
+      fetchSupportedBanks();
+    }
+  }, [showAddPaymentModal, newMethodType]);
+
   const fetchPaymentMethods = async () => {
     setIsLoadingPaymentMethods(true);
     try {
@@ -168,15 +185,61 @@ export default function AgencyProfilePage() {
     }
   };
 
+  const fetchSupportedBanks = async () => {
+    setIsLoadingBanks(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/agency/payment-methods/banks`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSupportedBanks(data.banks || []);
+      }
+    } catch (error) {
+      console.error("Error fetching supported banks:", error);
+    } finally {
+      setIsLoadingBanks(false);
+    }
+  };
+
   const handleAddPaymentMethod = async () => {
     const cleanNumber = newAccountNumber.replace(/\s/g, "").replace(/-/g, "");
-    if (!cleanNumber.startsWith("09") || cleanNumber.length !== 11) {
-      toast.error("Invalid GCash number (11 digits starting with 09)");
-      return;
-    }
     if (!newAccountName.trim()) {
       toast.error("Account name is required");
       return;
+    }
+
+    let accountNumber = cleanNumber;
+    const payload: {
+      type: "GCASH" | "BANK";
+      account_name: string;
+      account_number: string;
+      bank_name?: string;
+      bank_code?: string;
+    } = {
+      type: newMethodType,
+      account_name: newAccountName.trim(),
+      account_number: accountNumber,
+    };
+
+    if (newMethodType === "GCASH") {
+      if (!accountNumber.startsWith("09") || accountNumber.length !== 11) {
+        toast.error("Invalid GCash number (11 digits starting with 09)");
+        return;
+      }
+    } else {
+      accountNumber = accountNumber.replace(/\D/g, "");
+      if (accountNumber.length < 8 || accountNumber.length > 20) {
+        toast.error("Invalid bank account number (8-20 digits)");
+        return;
+      }
+      if (!newBankName || !newBankCode) {
+        toast.error("Please select a bank");
+        return;
+      }
+      payload.bank_name = newBankName;
+      payload.bank_code = newBankCode;
+      payload.account_number = accountNumber;
     }
 
     setIsAddingPaymentMethod(true);
@@ -185,11 +248,7 @@ export default function AgencyProfilePage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "GCASH",
-          account_name: newAccountName.trim(),
-          account_number: cleanNumber,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -199,10 +258,13 @@ export default function AgencyProfilePage() {
           toast.info("Redirecting for verification...");
           window.location.href = data.checkout_url;
         } else {
-          toast.success("Account added successfully");
+          toast.success(data.message || "Payout account added successfully");
           setShowAddPaymentModal(false);
+          setNewMethodType("GCASH");
           setNewAccountName("");
           setNewAccountNumber("");
+          setNewBankName("");
+          setNewBankCode("");
           fetchPaymentMethods();
         }
       } else {
@@ -250,9 +312,12 @@ export default function AgencyProfilePage() {
     }
   };
 
-  const formatGcashNumber = (number: string) => {
+  const formatAccountNumber = (number: string, type: "GCASH" | "BANK") => {
     if (!number) return "";
-    return `${number.slice(0, 4)} ${number.slice(4, 7)} ${number.slice(7)}`;
+    if (type === "GCASH") {
+      return `${number.slice(0, 4)} ${number.slice(4, 7)} ${number.slice(7)}`;
+    }
+    return number;
   };
 
   const handleSaveProfile = async () => {
@@ -561,7 +626,7 @@ export default function AgencyProfilePage() {
                      className="bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white rounded-xl h-12 px-6 font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
                   >
                      <Plus className="h-4 w-4 mr-2" />
-                     Add GCash
+                    Add Payout Method
                   </Button>
                </div>
 
@@ -575,13 +640,13 @@ export default function AgencyProfilePage() {
                         <Smartphone className="h-8 w-8 text-[#00BAF1]" />
                      </div>
                      <h3 className="text-lg font-bold text-gray-900">No payment methods found</h3>
-                     <p className="text-gray-400 text-sm mt-1">Connect your GCash account to start receiving earnings.</p>
+                    <p className="text-gray-400 text-sm mt-1">Connect your GCash or bank account to start receiving earnings.</p>
                      <Button 
                         variant="outline" 
                         onClick={() => setShowAddPaymentModal(true)}
                         className="mt-6 border-[#00BAF1] text-[#00BAF1] hover:bg-[#00BAF1]/5 rounded-xl px-8 h-12 font-bold text-[10px] uppercase tracking-widest"
                      >
-                        Link GCash Now
+                      Link Payout Method
                      </Button>
                   </div>
                ) : (
@@ -595,7 +660,7 @@ export default function AgencyProfilePage() {
                               <div className="flex items-center justify-between gap-6">
                                  <div className="flex items-center gap-5">
                                     <div className="w-16 h-16 bg-[#00BAF1] rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-sky-100">
-                                       G
+                                      {method.type === "BANK" ? "B" : "G"}
                                     </div>
                                     <div className="space-y-1">
                                        <div className="flex items-center gap-3">
@@ -604,7 +669,9 @@ export default function AgencyProfilePage() {
                                              <Badge className="bg-sky-50 text-[#00BAF1] border-sky-100 text-[8px] font-black tracking-tighter uppercase px-2 py-0.5">Primary</Badge>
                                           )}
                                        </div>
-                                       <p className="text-gray-500 font-bold tracking-widest text-[13px]">{formatGcashNumber(method.account_number)}</p>
+                                       <p className="text-gray-500 font-bold tracking-widest text-[13px]">
+                                         {method.type === "BANK" ? `Bank • ${method.bank_name || "Unknown"}` : "GCash"} • {formatAccountNumber(method.account_number, method.type)}
+                                       </p>
                                     </div>
                                  </div>
                                  <div className="flex items-center gap-3">
@@ -643,9 +710,13 @@ export default function AgencyProfilePage() {
                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                      <div className="p-2.5 bg-white/20 rounded-xl">
-                        <Smartphone className="h-5 w-5" />
+                        {newMethodType === "BANK" ? (
+                          <Building2 className="h-5 w-5" />
+                        ) : (
+                          <Smartphone className="h-5 w-5" />
+                        )}
                      </div>
-                     <CardTitle className="text-xl">Add GCash</CardTitle>
+                     <CardTitle className="text-xl">Add Payment Method</CardTitle>
                   </div>
                   <button onClick={() => setShowAddPaymentModal(false)} className="text-white/60 hover:text-white transition-colors">
                      <X className="h-5 w-5" />
@@ -653,6 +724,27 @@ export default function AgencyProfilePage() {
                </div>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewMethodType("GCASH");
+                    setNewBankName("");
+                    setNewBankCode("");
+                  }}
+                  className={`h-11 rounded-xl text-xs font-bold uppercase tracking-wider border ${newMethodType === "GCASH" ? "bg-[#00BAF1] text-white border-[#00BAF1]" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1]/40"}`}
+                >
+                  GCash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewMethodType("BANK")}
+                  className={`h-11 rounded-xl text-xs font-bold uppercase tracking-wider border ${newMethodType === "BANK" ? "bg-[#00BAF1] text-white border-[#00BAF1]" : "bg-white text-gray-600 border-gray-200 hover:border-[#00BAF1]/40"}`}
+                >
+                  Bank
+                </button>
+              </div>
+
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Account Holder Name</label>
@@ -660,36 +752,103 @@ export default function AgencyProfilePage() {
                     className="h-12 border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold"
                     value={newAccountName}
                     onChange={(e) => setNewAccountName(e.target.value)}
-                    placeholder="Full name on GCash"
+                    placeholder={newMethodType === "BANK" ? "Full name on bank account" : "Full name on GCash"}
                   />
                 </div>
+
+                {newMethodType === "BANK" && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Bank</label>
+                    <select
+                      className="w-full h-12 border border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold px-3 text-sm"
+                      value={newBankCode}
+                      disabled={isLoadingBanks || supportedBanks.length === 0}
+                      onChange={(e) => {
+                        const code = e.target.value;
+                        const selected = supportedBanks.find((bank) => bank.code === code);
+                        setNewBankCode(code);
+                        setNewBankName(selected?.name || "");
+                      }}
+                    >
+                      <option value="">
+                        {isLoadingBanks
+                          ? "Loading supported banks..."
+                          : supportedBanks.length === 0
+                            ? "No banks available"
+                            : "Select bank"}
+                      </option>
+                      {supportedBanks.map((bank) => (
+                        <option key={`${bank.code}-${bank.name}`} value={bank.code}>
+                          {bank.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!isLoadingBanks && supportedBanks.length === 0 && (
+                      <p className="text-[11px] text-amber-600 font-semibold">
+                        Unable to load PayMongo bank directory right now. Please retry in a moment.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">GCash Mobile Number</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {newMethodType === "BANK" ? "Bank Account Number" : "GCash Mobile Number"}
+                  </label>
                   <div className="relative">
-                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                    {newMethodType === "BANK" ? (
+                      <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                    ) : (
+                      <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                    )}
                     <Input
                       className="h-12 pl-11 border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold tracking-widest"
                       value={newAccountNumber}
-                      onChange={(e) => setNewAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                      placeholder="09XXXXXXXXX"
+                      inputMode="numeric"
+                      maxLength={newMethodType === "BANK" ? 20 : 11}
+                      onChange={(e) =>
+                        setNewAccountNumber(
+                          e.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, newMethodType === "BANK" ? 20 : 11),
+                        )
+                      }
+                      placeholder={newMethodType === "BANK" ? "Enter account number" : "09XXXXXXXXX"}
                     />
                   </div>
+                  <p className="text-[11px] text-gray-500 font-semibold">
+                    {newMethodType === "BANK"
+                      ? `${newAccountNumber.length}/20 digits (minimum 8)`
+                      : `${newAccountNumber.length}/11 digits (must start with 09)`}
+                  </p>
                 </div>
               </div>
 
               <div className="p-4 bg-sky-50 rounded-2xl border border-sky-100">
                  <p className="text-[11px] text-[#00BAF1] leading-relaxed font-bold">
-                    Ownership verification: You will be redirected to confirm a small ₱1 transaction which will be credited back to your balance.
+                    {newMethodType === "BANK"
+                      ? "Bank withdrawals are admin-approved and then settled via bank transfer provider webhook updates."
+                      : "Ownership verification: You will be redirected to confirm a small ₱1 transaction which will be credited back to your balance."}
                  </p>
               </div>
 
               <div className="flex flex-col gap-3 pt-4">
                 <Button
                   onClick={handleAddPaymentMethod}
-                  disabled={isAddingPaymentMethod || !newAccountName.trim() || newAccountNumber.length !== 11}
+                  disabled={
+                    isAddingPaymentMethod ||
+                    !newAccountName.trim() ||
+                    (newMethodType === "GCASH"
+                      ? newAccountNumber.length !== 11
+                      : newAccountNumber.length < 8 || !newBankCode || supportedBanks.length === 0)
+                  }
                   className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white h-12 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
                 >
-                  {isAddingPaymentMethod ? "Processing..." : "Verify & Add Account"}
+                  {isAddingPaymentMethod
+                    ? "Processing..."
+                    : newMethodType === "GCASH"
+                      ? "Verify & Add Account"
+                      : "Add Bank Account"}
                 </Button>
                 <Button
                   variant="ghost"
@@ -713,7 +872,7 @@ export default function AgencyProfilePage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-bold text-gray-900">Remove Account?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-500 font-medium">
-              Are you sure you want to remove this GCash account? You will need to re-verify it to use it again for payouts.
+              Are you sure you want to remove this payout account? You may need to verify it again before using it for withdrawals.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="pt-6">

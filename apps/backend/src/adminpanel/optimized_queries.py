@@ -1033,7 +1033,11 @@ def get_withdrawals_list_optimized(
         )
 
     if payment_method_filter:
-        queryset = queryset.filter(paymentMethod=str(payment_method_filter).upper())
+        method_upper = str(payment_method_filter).upper()
+        if method_upper == 'BANK':
+            queryset = queryset.filter(paymentMethod__in=['BANK', 'BANK_TRANSFER'])
+        else:
+            queryset = queryset.filter(paymentMethod=method_upper)
     
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)
@@ -1071,6 +1075,8 @@ def get_withdrawals_list_optimized(
             account = txn.walletID.accountFK
             profile = profile_map.get(account.accountID)
             txn_method_type = (txn.paymentMethod or '').upper().strip()
+            if txn_method_type == 'BANK_TRANSFER':
+                txn_method_type = 'BANK'
 
             # Backfill legacy rows where paymentMethod may be missing.
             if not txn_method_type and txn.description:
@@ -1104,6 +1110,7 @@ def get_withdrawals_list_optimized(
                     'account_name': pm.accountName,
                     'account_number': pm.accountNumber,
                     'bank_name': pm.bankName,
+                    'bank_code': pm.bankCode,
                 }
         
         withdrawals_list.append({
@@ -1119,6 +1126,10 @@ def get_withdrawals_list_optimized(
             'bank_name': payment_method.get('bank_name') if payment_method else None,
             'description': txn.description,
             'reference_number': txn.referenceNumber,
+            'withdrawal_request_id': txn.xenditExternalID,
+            'paymongo_transfer_id': txn.paymongoTransferId,
+            'paymongo_transfer_status': txn.paymongoTransferStatus,
+            'admin_reference_number': txn.adminReferenceNumber,
             'created_at': txn.createdAt.isoformat() if txn.createdAt else None,
             'processed_at': txn.processedAt.isoformat() if txn.processedAt else None,
         })

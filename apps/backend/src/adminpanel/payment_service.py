@@ -1983,10 +1983,9 @@ def process_withdrawal_approval(
     Process withdrawal approval or rejection by admin.
     
     For approved withdrawals:
-    - Mark transaction as COMPLETED
-    - Update completedAt timestamp
+    - GCASH and non-BANK methods: mark transaction as COMPLETED (manual payout confirmed by admin)
+    - BANK methods: initiate PayMongo Transfer V2 and wait for webhook settlement
     - Store admin reference number for audit trail
-    - Admin manually processes payment via PayMongo/Bank portal
     
     For rejected withdrawals:
     - Mark transaction as FAILED
@@ -2026,7 +2025,124 @@ def process_withdrawal_approval(
         user_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() if profile else user_email
         
         if action == 'approve':
-            # Mark as completed - admin will manually process the actual payment
+            payment_method_type = (transaction.paymentMethod or '').upper().strip()
+
+            # BANK payouts are initiated via PayMongo Transfer V2 and settled by webhook
+            if payment_method_type == 'BANK':
+                if transaction.paymongoTransferId:
+                    return {
+                        'success': False,
+                        'error': f'Bank transfer already initiated ({transaction.paymongoTransferId})'
+                    }
+
+                payment_method = (
+                    UserPaymentMethod.objects.filter(
+                        accountFK=user_account,
+                        methodType='BANK',
+                        isVerified=True,
+                    )
+                    .order_by('-isPrimary', '-createdAt')
+                    .first()
+                )
+
+                if not payment_method:
+                    return {
+                        'success': False,
+                        'error': 'No verified BANK payment method found for this user'
+                    }
+
+                if not payment_method.bankCode:
+                    return {
+                        'success': False,
+                        'error': 'BANK payment method is missing bank code'
+                    }
+
+                from accounts.paymongo_service import PayMongoService
+
+                paymongo = PayMongoService()
+                transfer_result = paymongo.create_bank_transfer_v2(
+                    amount=float(transaction.amount),
+                    recipient_name=payment_method.accountName,
+                    account_number=payment_method.accountNumber,
+                    bank_code=payment_method.bankCode,
+                    transaction_id=transaction.transactionID,
+                    description=admin_notes or f"Admin-approved BANK withdrawal #{transaction.transactionID}",
+                    metadata={
+                        'user_email': user_email,
+                        'admin_email': getattr(admin, 'email', None),
+                    },
+                    transfer_provider='instapay',
+                    paymongo_recipient_id=payment_method.paymongoRecipientId,
+                )
+
+                if not transfer_result.get('success'):
+                    return {
+                        'success': False,
+                        'error': transfer_result.get('error', 'Failed to initiate BANK transfer')
+                    }
+
+                if transfer_result.get('recipient_id') and transfer_result.get('recipient_id') != payment_method.paymongoRecipientId:
+                    payment_method.paymongoRecipientId = transfer_result.get('recipient_id')
+                    payment_method.save(update_fields=['paymongoRecipientId', 'updatedAt'])
+
+                transaction.paymongoTransferId = transfer_result.get('transfer_id')
+                transaction.paymongoTransferStatus = transfer_result.get('status')
+                transaction.xenditPaymentMethod = 'PAYMONGO_TRANSFER_V2'
+                transaction.processedAt = timezone.now()
+                if admin:
+                    transaction.processedByAdmin = admin
+                if reference_number:
+                    transaction.adminReferenceNumber = reference_number
+                if admin_notes:
+                    transaction.description = f"{transaction.description} | Admin: {admin_notes}"
+
+                # If transfer is instantly completed, complete now; otherwise wait for webhook.
+                if str(transfer_result.get('status', '')).lower() == 'completed':
+                    transaction.status = 'COMPLETED'
+                    transaction.completedAt = timezone.now()
+
+                transaction.save()
+
+                if user_account:
+                    Notification.objects.create(
+                        accountFK=user_account,
+                        notificationType='PAYMENT_PENDING',
+                        title='Bank Withdrawal Initiated',
+                        message=(
+                            f'Your bank withdrawal of ₱{transaction.amount:,.2f} has been initiated '
+                            f'and is awaiting settlement confirmation. Transfer ID: {transaction.paymongoTransferId}.'
+                        )
+                    )
+
+                if admin and request:
+                    log_action(
+                        admin=admin,
+                        action='APPROVE_WITHDRAWAL',
+                        entity_type='Transaction',
+                        entity_id=str(transaction_id),
+                        details={
+                            'amount': float(transaction.amount),
+                            'user': user_name,
+                            'payment_method': transaction.paymentMethod,
+                            'notes': admin_notes,
+                            'reference_number': reference_number,
+                            'paymongo_transfer_id': transaction.paymongoTransferId,
+                            'paymongo_transfer_status': transaction.paymongoTransferStatus,
+                        },
+                        request=request
+                    )
+
+                return {
+                    'success': True,
+                    'message': f'BANK transfer initiated for ₱{transaction.amount:,.2f} ({user_name})',
+                    'transaction_id': transaction_id,
+                    'new_status': transaction.status,
+                    'reference_number': reference_number,
+                    'paymongo_transfer_id': transaction.paymongoTransferId,
+                    'paymongo_transfer_status': transaction.paymongoTransferStatus,
+                }
+
+            # Non-BANK payout: mark as completed (manual payout confirmed by admin)
             transaction.status = 'COMPLETED'
             transaction.completedAt = timezone.now()
             transaction.processedAt = timezone.now()

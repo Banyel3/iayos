@@ -26,6 +26,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 from django.conf import settings
+from django.core.cache import cache
 
 from .payment_provider import (
     PaymentProviderInterface, 
@@ -539,6 +540,121 @@ class PayMongoService(PaymentProviderInterface):
                 "success": False,
                 "error": str(e)
             }
+
+    def get_supported_banks_cached(self, ttl_seconds: int = 86400) -> List[Dict[str, str]]:
+        """
+        Get PayMongo-supported bank directory for Transfer V2.
+        Cached to reduce API roundtrips for repeated UI dropdown fetches.
+        """
+        cache_key = "paymongo_supported_banks_v2"
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
+
+        banks = self._fetch_supported_banks()
+        if not banks:
+            # Keep a safe fallback list so UI can still render.
+            banks = [
+                {"code": "", "name": "BDO Unibank, Inc."},
+                {"code": "", "name": "BPI (Bank of the Philippine Islands)"},
+                {"code": "", "name": "Land Bank of the Philippines"},
+                {"code": "", "name": "Philippine National Bank (PNB)"},
+                {"code": "", "name": "Security Bank Corporation"},
+                {"code": "", "name": "Union Bank of the Philippines (UnionBank)"},
+            ]
+
+        cache.set(cache_key, banks, timeout=ttl_seconds)
+        return banks
+
+    def create_bank_transfer_v2(
+        self,
+        amount: float,
+        recipient_name: str,
+        account_number: str,
+        bank_code: str,
+        transaction_id: int,
+        description: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        transfer_provider: str = "instapay",
+        paymongo_recipient_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Create a PayMongo Transfer V2 payout for BANK withdrawals.
+        """
+        try:
+            normalized_account = self._normalize_bank_account_number(account_number)
+            if not normalized_account:
+                return {"success": False, "error": "Invalid bank account number"}
+
+            clean_bank_code = (bank_code or "").strip()
+            if not clean_bank_code:
+                return {"success": False, "error": "Missing bank code for BANK transfer"}
+
+            external_id = self._generate_external_id("BANKWD", transaction_id)
+            transfer_metadata = {
+                "transaction_id": str(transaction_id),
+                "external_id": external_id,
+                **(metadata or {}),
+            }
+
+            recipient_id = paymongo_recipient_id
+            if not recipient_id:
+                recipient_result = self._create_transfer_recipient_v2(
+                    recipient_name=recipient_name,
+                    account_number=normalized_account,
+                    bank_code=clean_bank_code,
+                    metadata=transfer_metadata,
+                )
+                if not recipient_result.get("success"):
+                    return recipient_result
+                recipient_id = recipient_result.get("recipient_id")
+
+            amount_centavos = int(float(amount) * 100)
+            transfer_payload = {
+                "data": {
+                    "attributes": {
+                        "amount": amount_centavos,
+                        "currency": "PHP",
+                        "recipient_id": recipient_id,
+                        "description": description,
+                        "transfer_provider": (transfer_provider or "instapay").lower(),
+                        "metadata": transfer_metadata,
+                    }
+                }
+            }
+
+            response = requests.post(
+                f"{self.BASE_URL}/transfers",
+                json=transfer_payload,
+                headers=self._get_headers(),
+                timeout=30,
+            )
+
+            if response.status_code in (200, 201):
+                data = response.json().get("data", {})
+                attrs = data.get("attributes", {})
+                status = self._map_transfer_status(attrs.get("status", "pending"))
+                return {
+                    "success": True,
+                    "transfer_id": data.get("id"),
+                    "recipient_id": recipient_id,
+                    "external_id": external_id,
+                    "status": status,
+                    "provider": "paymongo",
+                }
+
+            error_data = response.json() if response.text else {}
+            errors = error_data.get("errors", [{}])
+            detail = errors[0].get("detail", f"HTTP {response.status_code}") if errors else f"HTTP {response.status_code}"
+            logger.error(f"❌ PayMongo Transfer V2 failed: {detail}")
+            return {
+                "success": False,
+                "error": detail,
+                "error_details": error_data,
+            }
+        except Exception as e:
+            logger.error(f"❌ PayMongo Transfer V2 exception: {str(e)}")
+            return {"success": False, "error": str(e)}
     
     def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
         """
@@ -600,6 +716,21 @@ class PayMongoService(PaymentProviderInterface):
             # Get the nested resource data
             resource_data = attributes.get("data", {})
             resource_attributes = resource_data.get("attributes", {})
+
+            # Transfer webhook handling (Transfer V2)
+            if "transfer" in event_type.lower():
+                transfer_status = self._map_transfer_status(resource_attributes.get("status", "pending"))
+                transfer_metadata = resource_attributes.get("metadata", {}) or {}
+                return {
+                    "event_type": event_type,
+                    "transfer_id": resource_data.get("id"),
+                    "external_id": transfer_metadata.get("external_id"),
+                    "status": transfer_status,
+                    "amount": resource_attributes.get("amount", 0) / 100 if resource_attributes.get("amount") else 0,
+                    "metadata": transfer_metadata,
+                    "transaction_id": transfer_metadata.get("transaction_id"),
+                    "provider": "paymongo",
+                }
             
             # Extract payment info
             metadata = resource_attributes.get("metadata", {})
@@ -627,6 +758,90 @@ class PayMongoService(PaymentProviderInterface):
         except Exception as e:
             logger.error(f"❌ Failed to parse webhook payload: {str(e)}")
             return None
+
+    def _fetch_supported_banks(self) -> List[Dict[str, str]]:
+        """Fetch bank institutions from PayMongo; tolerant to endpoint shape changes."""
+        endpoints = [
+            f"{self.BASE_URL}/institutions",
+            f"{self.BASE_URL}/institutions?type=bank",
+            f"{self.BASE_URL}/institutions?transfer_provider=instapay",
+        ]
+
+        for endpoint in endpoints:
+            try:
+                response = requests.get(endpoint, headers=self._get_headers(), timeout=30)
+                if response.status_code != 200:
+                    continue
+
+                payload = response.json()
+                items = payload.get("data", []) if isinstance(payload, dict) else []
+                banks: List[Dict[str, str]] = []
+                for item in items:
+                    attributes = item.get("attributes", {}) if isinstance(item, dict) else {}
+                    code = (
+                        item.get("id")
+                        or attributes.get("code")
+                        or attributes.get("institution_code")
+                        or ""
+                    )
+                    name = attributes.get("name") or attributes.get("display_name") or ""
+                    if code and name:
+                        banks.append({"code": str(code), "name": str(name)})
+
+                if banks:
+                    banks.sort(key=lambda x: x["name"])
+                    return banks
+            except Exception:
+                continue
+
+        return []
+
+    def _create_transfer_recipient_v2(
+        self,
+        recipient_name: str,
+        account_number: str,
+        bank_code: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a Transfer V2 recipient for bank payouts."""
+        payload = {
+            "data": {
+                "attributes": {
+                    "type": "bank_account",
+                    "account_name": recipient_name,
+                    "account_number": account_number,
+                    "bank_code": bank_code,
+                    "currency": "PHP",
+                    "metadata": metadata or {},
+                }
+            }
+        }
+
+        try:
+            response = requests.post(
+                f"{self.BASE_URL}/recipients",
+                json=payload,
+                headers=self._get_headers(),
+                timeout=30,
+            )
+
+            if response.status_code in (200, 201):
+                data = response.json().get("data", {})
+                return {
+                    "success": True,
+                    "recipient_id": data.get("id"),
+                }
+
+            error_data = response.json() if response.text else {}
+            errors = error_data.get("errors", [{}])
+            detail = errors[0].get("detail", f"HTTP {response.status_code}") if errors else f"HTTP {response.status_code}"
+            return {
+                "success": False,
+                "error": f"Recipient creation failed: {detail}",
+                "error_details": error_data,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def get_checkout_session_payments(self, cs_id: str):
         """
@@ -853,6 +1068,24 @@ class PayMongoService(PaymentProviderInterface):
             return f"0{cleaned}"
         
         return None
+
+    def _normalize_bank_account_number(self, number: str) -> Optional[str]:
+        """Normalize bank account number to digits-only, 8-20 digits."""
+        if not number:
+            return None
+        cleaned = "".join(ch for ch in str(number).strip() if ch.isdigit())
+        if 8 <= len(cleaned) <= 20:
+            return cleaned
+        return None
+
+    def _map_transfer_status(self, provider_status: str) -> str:
+        """Map PayMongo transfer status to normalized disbursement status."""
+        value = (provider_status or "").lower().strip()
+        if value in {"paid", "completed", "succeeded", "success"}:
+            return DisbursementStatus.COMPLETED
+        if value in {"failed", "cancelled", "canceled", "reversed"}:
+            return DisbursementStatus.FAILED
+        return DisbursementStatus.PENDING
 
 
 # Convenience functions for backward compatibility with XenditService usage

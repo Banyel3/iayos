@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,13 +25,19 @@ import * as WebBrowser from "expo-web-browser";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH";
+  type: "GCASH" | "BANK";
   account_name: string;
   account_number: string;
   bank_name?: string;
+  bank_code?: string;
   is_primary: boolean;
   is_verified: boolean;
   created_at: string;
+}
+
+interface BankOption {
+  code: string;
+  name: string;
 }
 
 interface PaymentMethodsResponse {
@@ -42,9 +49,12 @@ export default function PaymentMethodsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedType, setSelectedType] = useState<"GCASH">("GCASH");
+  const [selectedType, setSelectedType] = useState<"GCASH" | "BANK">("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [selectedBankName, setSelectedBankName] = useState("");
+  const [selectedBankCode, setSelectedBankCode] = useState("");
+  const [showBankPickerModal, setShowBankPickerModal] = useState(false);
 
   // Fetch payment methods
   const {
@@ -66,6 +76,16 @@ export default function PaymentMethodsScreen() {
   // Extract payment methods array with safe access
   const paymentMethods = methodsData?.payment_methods || [];
 
+  const { data: banksData } = useQuery<{ banks: BankOption[] }>({
+    queryKey: ["payment-method-banks"],
+    enabled: showAddForm && selectedType === "BANK",
+    queryFn: async () => {
+      const response = await apiRequest(ENDPOINTS.PAYMENT_METHOD_BANKS);
+      const data = (await response.json()) as { banks: BankOption[] };
+      return data;
+    },
+  });
+
   // Add payment method mutation
   // Response type for add payment method
   interface AddPaymentMethodResponse {
@@ -82,6 +102,7 @@ export default function PaymentMethodsScreen() {
       account_name: string;
       account_number: string;
       bank_name?: string;
+      bank_code?: string;
       card_number?: string;
       card_expiry_month?: number;
       card_expiry_year?: number;
@@ -228,6 +249,9 @@ export default function PaymentMethodsScreen() {
     setSelectedType("GCASH");
     setAccountName("");
     setAccountNumber("");
+    setSelectedBankName("");
+    setSelectedBankCode("");
+    setShowBankPickerModal(false);
   };
 
   const handleAddMethod = () => {
@@ -240,6 +264,8 @@ export default function PaymentMethodsScreen() {
       type: string;
       account_name: string;
       account_number: string;
+      bank_name?: string;
+      bank_code?: string;
     } = {
       type: selectedType,
       account_name: accountName.trim(),
@@ -248,20 +274,42 @@ export default function PaymentMethodsScreen() {
 
     // Type-specific validation
     if (!accountNumber.trim()) {
-      Alert.alert("Error", "Please enter GCash mobile number");
+      Alert.alert(
+        "Error",
+        selectedType === "BANK"
+          ? "Please enter bank account number"
+          : "Please enter GCash mobile number",
+      );
       return;
     }
 
     // Remove spaces/dashes
     cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
 
-    // Validate PH mobile number format (11 digits starting with 09)
-    if (!/^09\d{9}$/.test(cleanAccountNumber)) {
-      Alert.alert(
-        "Error",
-        "Invalid GCash number format (e.g., 09123456789)",
-      );
-      return;
+    if (selectedType === "GCASH") {
+      // Validate PH mobile number format (11 digits starting with 09)
+      if (!/^09\d{9}$/.test(cleanAccountNumber)) {
+        Alert.alert(
+          "Error",
+          "Invalid GCash number format (e.g., 09123456789)",
+        );
+        return;
+      }
+    } else {
+      // BANK validation
+      cleanAccountNumber = cleanAccountNumber.replace(/\D/g, "");
+      if (cleanAccountNumber.length < 8 || cleanAccountNumber.length > 20) {
+        Alert.alert("Error", "Invalid bank account number (8-20 digits)");
+        return;
+      }
+
+      if (!selectedBankName || !selectedBankCode) {
+        Alert.alert("Error", "Please select a bank");
+        return;
+      }
+
+      payload.bank_name = selectedBankName;
+      payload.bank_code = selectedBankCode;
     }
 
     payload.account_number = cleanAccountNumber;
@@ -272,6 +320,8 @@ export default function PaymentMethodsScreen() {
     switch (type) {
       case "GCASH":
         return "GCash account";
+      case "BANK":
+        return "Bank account";
       default:
         return "account";
     }
@@ -313,6 +363,8 @@ export default function PaymentMethodsScreen() {
     switch (type) {
       case "GCASH":
         return "phone-portrait";
+      case "BANK":
+        return "business";
       default:
         return "card";
     }
@@ -322,6 +374,8 @@ export default function PaymentMethodsScreen() {
     switch (type) {
       case "GCASH":
         return "GCash";
+      case "BANK":
+        return "Bank";
       default:
         return type;
     }
@@ -360,8 +414,13 @@ export default function PaymentMethodsScreen() {
           </View>
           <Text style={styles.methodName}>{method.account_name}</Text>
           <Text style={styles.methodNumber}>
-            {method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")}
+            {method.type === "GCASH"
+              ? method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")
+              : method.account_number}
           </Text>
+          {method.type === "BANK" && method.bank_name && (
+            <Text style={styles.methodBankName}>{method.bank_name}</Text>
+          )}
         </View>
       </View>
       <View style={styles.methodActions}>
@@ -415,8 +474,8 @@ export default function PaymentMethodsScreen() {
           <View style={styles.infoBanner}>
             <Ionicons name="information-circle" size={20} color={Colors.info} />
             <Text style={styles.infoText}>
-              Add your GCash payout account. Withdrawals are processed through
-              verified GCash accounts only.
+              Add your payout account (GCash or bank). BANK withdrawals are
+              initiated after admin approval and settlement.
             </Text>
           </View>
 
@@ -462,7 +521,7 @@ export default function PaymentMethodsScreen() {
           {showAddForm ? (
             <View style={styles.addForm}>
               <View style={styles.formHeader}>
-                <Text style={styles.formTitle}>Add GCash Account</Text>
+                <Text style={styles.formTitle}>Add Payment Method</Text>
                 <TouchableOpacity
                   onPress={() => {
                     setShowAddForm(false);
@@ -478,6 +537,55 @@ export default function PaymentMethodsScreen() {
               </View>
 
               {/* Form Fields */}
+              <View style={styles.typeSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    selectedType === "GCASH" && styles.typeButtonActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedType("GCASH");
+                    setSelectedBankName("");
+                    setSelectedBankCode("");
+                  }}
+                >
+                  <Ionicons
+                    name="phone-portrait"
+                    size={16}
+                    color={selectedType === "GCASH" ? Colors.white : Colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.typeButtonText,
+                      selectedType === "GCASH" && styles.typeButtonTextActive,
+                    ]}
+                  >
+                    GCash
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.typeButton,
+                    selectedType === "BANK" && styles.typeButtonActive,
+                  ]}
+                  onPress={() => setSelectedType("BANK")}
+                >
+                  <Ionicons
+                    name="business"
+                    size={16}
+                    color={selectedType === "BANK" ? Colors.white : Colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.typeButtonText,
+                      selectedType === "BANK" && styles.typeButtonTextActive,
+                    ]}
+                  >
+                    Bank
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Name</Text>
                 <TextInput
@@ -490,18 +598,59 @@ export default function PaymentMethodsScreen() {
                 />
               </View>
 
+              {selectedType === "BANK" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Select Bank</Text>
+                  <TouchableOpacity
+                    style={styles.pickerButton}
+                    onPress={() => setShowBankPickerModal(true)}
+                    disabled={!banksData?.banks || banksData.banks.length === 0}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerButtonText,
+                        !selectedBankName && styles.pickerButtonTextPlaceholder,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedBankName ||
+                        (banksData?.banks?.length
+                          ? "Select bank"
+                          : "Loading supported banks...")}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={18}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  {!!selectedBankName && <Text style={styles.helperText}>Selected: {selectedBankName}</Text>}
+                </View>
+              )}
+
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>GCash Mobile Number</Text>
+                <Text style={styles.inputLabel}>
+                  {selectedType === "BANK" ? "Bank Account Number" : "GCash Mobile Number"}
+                </Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="09123456789"
+                  placeholder={selectedType === "BANK" ? "Enter account number" : "09123456789"}
                   placeholderTextColor={Colors.textHint}
                   value={accountNumber}
-                  onChangeText={setAccountNumber}
-                  keyboardType="numeric"
-                  maxLength={11}
+                  onChangeText={(value) => {
+                    const digitsOnly = value.replace(/\D/g, "");
+                    const maxLength = selectedType === "BANK" ? 20 : 11;
+                    setAccountNumber(digitsOnly.slice(0, maxLength));
+                  }}
+                  keyboardType={selectedType === "BANK" ? "number-pad" : "numeric"}
+                  maxLength={selectedType === "BANK" ? 20 : 11}
                   autoCapitalize="none"
                 />
+                <Text style={styles.helperText}>
+                  {selectedType === "BANK"
+                    ? `${accountNumber.length}/20 digits (minimum 8)`
+                    : `${accountNumber.length}/11 digits (must start with 09)`}
+                </Text>
               </View>
 
               {/* Submit Button */}
@@ -545,6 +694,44 @@ export default function PaymentMethodsScreen() {
 
           <View style={styles.bottomSpacing} />
         </ScrollView>
+
+        {showAddForm && selectedType === "BANK" && (
+          <Modal
+            visible={showBankPickerModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowBankPickerModal(false)}
+          >
+            <View style={styles.modalBackdrop}>
+              <View style={styles.modalCard}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Bank</Text>
+                  <TouchableOpacity onPress={() => setShowBankPickerModal(false)}>
+                    <Ionicons name="close" size={22} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.modalList}>
+                  {(banksData?.banks || []).map((bank) => (
+                    <TouchableOpacity
+                      key={`${bank.code}-${bank.name}`}
+                      style={styles.modalListItem}
+                      onPress={() => {
+                        setSelectedBankName(bank.name);
+                        setSelectedBankCode(bank.code);
+                        setShowBankPickerModal(false);
+                      }}
+                    >
+                      <Text style={styles.modalListItemText}>{bank.name}</Text>
+                      {selectedBankCode === bank.code && (
+                        <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -806,6 +993,10 @@ const styles = StyleSheet.create({
   inputGroup: {
     gap: 8,
   },
+  helperText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+  },
   inputLabel: {
     ...Typography.body.medium,
     color: Colors.textPrimary,
@@ -832,6 +1023,69 @@ const styles = StyleSheet.create({
   },
   pickerItem: {
     color: Colors.textPrimary,
+  },
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  pickerButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  pickerButtonTextPlaceholder: {
+    color: Colors.textHint,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    maxHeight: "70%",
+    paddingVertical: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+  },
+  modalList: {
+    maxHeight: 420,
+  },
+  modalListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalListItemText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: 8,
   },
   cardRow: {
     flexDirection: "row",

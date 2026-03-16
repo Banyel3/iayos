@@ -3131,7 +3131,7 @@ def paymongo_webhook(request):
     This endpoint must be registered in PayMongo dashboard under Webhooks.
     """
     try:
-        from .models import Transaction, Wallet, UserPaymentMethod
+        from .models import Transaction, Wallet, UserPaymentMethod, Notification
         from .paymongo_service import PayMongoService
         from django.utils import timezone
         import json
@@ -3172,6 +3172,95 @@ def paymongo_webhook(request):
         print(f"📤 PayMongo Event: {event_type}, Payment ID: {payment_id}, External ID: {external_id}")
         print(f"   Metadata: {metadata}")
         
+        # ============================================
+        # Handle Transfer V2 Webhooks (BANK withdrawals)
+        # ============================================
+        if 'transfer' in event_type.lower() or webhook_data.get('transfer_id'):
+            transfer_id = webhook_data.get('transfer_id')
+            transfer_status = str(webhook_data.get('status', '')).lower()
+
+            transaction = None
+            try:
+                tx_id = webhook_data.get('transaction_id')
+                if tx_id:
+                    transaction = Transaction.objects.filter(transactionID=int(tx_id)).first()
+            except Exception:
+                transaction = None
+
+            if not transaction and transfer_id:
+                transaction = Transaction.objects.filter(paymongoTransferId=transfer_id).first()
+
+            if not transaction:
+                ext_id = webhook_data.get('external_id')
+                if ext_id:
+                    transaction = Transaction.objects.filter(xenditExternalID=ext_id).first()
+
+            if not transaction:
+                print(f"⚠️ Transfer webhook transaction not found for transfer_id={transfer_id}")
+                return {"success": True, "message": "Transfer transaction not found, skipping"}
+
+            # Idempotency: if already terminal, skip duplicate webhook
+            if transaction.status in [Transaction.TransactionStatus.COMPLETED, Transaction.TransactionStatus.FAILED]:
+                print(f"⚠️ Transfer webhook duplicate ignored for txn={transaction.transactionID}, status={transaction.status}")
+                return {"success": True, "message": "Transfer transaction already settled"}
+
+            transaction.paymongoTransferId = transfer_id or transaction.paymongoTransferId
+            transaction.paymongoTransferStatus = transfer_status or transaction.paymongoTransferStatus
+
+            if transfer_status in ['completed', 'paid', 'succeeded', 'success']:
+                transaction.status = Transaction.TransactionStatus.COMPLETED
+                transaction.completedAt = timezone.now()
+                transaction.save()
+
+                wallet = transaction.walletID
+                if wallet and wallet.accountFK:
+                    Notification.objects.create(
+                        accountFK=wallet.accountFK,
+                        notificationType='PAYMENT_RELEASED',
+                        title='Bank Withdrawal Completed',
+                        message=f'Your bank withdrawal of ₱{transaction.amount:,.2f} has been completed.'
+                    )
+
+                return {"success": True, "message": "Transfer webhook processed (completed)"}
+
+            if transfer_status in ['failed', 'cancelled', 'canceled', 'reversed']:
+                wallet = transaction.walletID
+                if wallet:
+                    # Refund only when failing from non-terminal state
+                    wallet.balance += transaction.amount
+                    wallet.save(update_fields=['balance', 'updatedAt'])
+
+                    Transaction.objects.create(
+                        walletID=wallet,
+                        transactionType=Transaction.TransactionType.REFUND,
+                        amount=transaction.amount,
+                        balanceAfter=wallet.balance,
+                        status=Transaction.TransactionStatus.COMPLETED,
+                        description=f"BANK withdrawal transfer failure refund - Original txn #{transaction.transactionID}",
+                        referenceNumber=f"REFUND-BANK-WD-{transaction.transactionID}",
+                        completedAt=timezone.now(),
+                        paymentMethod=Transaction.PaymentMethod.WALLET,
+                    )
+
+                transaction.status = Transaction.TransactionStatus.FAILED
+                transaction.save()
+
+                if wallet and wallet.accountFK:
+                    Notification.objects.create(
+                        accountFK=wallet.accountFK,
+                        notificationType='SYSTEM',
+                        title='Bank Withdrawal Failed',
+                        message=(
+                            f'Your bank withdrawal of ₱{transaction.amount:,.2f} failed and was '
+                            'refunded to your wallet balance.'
+                        )
+                    )
+
+                return {"success": True, "message": "Transfer webhook processed (failed + refunded)"}
+
+            transaction.save()
+            return {"success": True, "message": "Transfer webhook processed (pending)"}
+
         # ============================================
         # Handle GCash Verification Checkout
         # ============================================
