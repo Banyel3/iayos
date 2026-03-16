@@ -2064,19 +2064,24 @@ def process_withdrawal_approval(
                 bank_code_candidates = [bank_code_to_use]
 
                 # If method was saved from fallback bank directory, resolve to a live code now.
-                if bank_code_to_use.startswith('fallback:'):
+                if bank_code_to_use.startswith('fallback:') or bank_code_to_use.lower().startswith('ins_'):
                     resolved_code = paymongo.resolve_bank_code(payment_method.bankName)
                     if resolved_code:
                         bank_code_candidates = [resolved_code]
                     else:
-                        # Best effort fallback: try derived codes so provider can validate.
-                        fallback_slug = bank_code_to_use.split('fallback:', 1)[1]
-                        bank_code_candidates = [
-                            fallback_slug,
-                            fallback_slug.replace('-', '_'),
-                            fallback_slug.replace('-', ''),
-                            fallback_slug.upper().replace('-', '_'),
-                        ]
+                        if bank_code_to_use.startswith('fallback:'):
+                            # Best effort fallback: try derived codes so provider can validate.
+                            fallback_slug = bank_code_to_use.split('fallback:', 1)[1]
+                            bank_code_candidates = [
+                                fallback_slug,
+                                fallback_slug.replace('-', '_'),
+                                fallback_slug.replace('-', ''),
+                                fallback_slug.upper().replace('-', '_'),
+                            ]
+                        else:
+                            # Legacy institutions ID (ins_xxx) is not a transfer bank code.
+                            # Try resolving by bank name; if not available, let provider reject and refund path handle safely.
+                            bank_code_candidates = [bank_code_to_use]
 
                 # Deduplicate candidates while preserving order and dropping empties.
                 seen_codes = set()
