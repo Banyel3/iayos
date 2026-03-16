@@ -108,6 +108,15 @@ export default function ProfileScreen() {
       ? localIsAvailable
       : (availabilityData?.isAvailable ?? false);
 
+  // Availability toast
+  const [availabilityToast, setAvailabilityToast] = React.useState<string | null>(null);
+  const availabilityToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showAvailabilityToast = (isAvailable: boolean) => {
+    if (availabilityToastTimer.current) clearTimeout(availabilityToastTimer.current);
+    setAvailabilityToast(isAvailable ? "Visible in client search" : "Hidden from client search");
+    availabilityToastTimer.current = setTimeout(() => setAvailabilityToast(null), 2000);
+  };
+
   const [showFirstTimeWorkerModal, setShowFirstTimeWorkerModal] =
     React.useState(false);
   const firstTimeWorkerStorageKey =
@@ -357,6 +366,51 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Availability pill — top left, worker only */}
+      {isWorker && (
+        <View style={styles.availabilityPillWrapper}>
+          <View
+            style={[
+              styles.availabilityPill,
+              effectiveIsAvailable ? styles.availabilityPillOn : styles.availabilityPillOff,
+            ]}
+          >
+            {isAvailabilityLoading ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 6 }} />
+            ) : (
+              <Switch
+                value={effectiveIsAvailable}
+                onValueChange={(val) => {
+                  setLocalIsAvailable(val);
+                  showAvailabilityToast(val);
+                  updateAvailability.mutate(val, {
+                    onError: () => {
+                      setLocalIsAvailable(!val);
+                      setAvailabilityToast(null);
+                    },
+                  });
+                }}
+                trackColor={{ false: "#ccc", true: Colors.success + "90" }}
+                thumbColor={effectiveIsAvailable ? Colors.success : "#888"}
+                disabled={updateAvailability.isPending}
+                style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+              />
+            )}
+            <Text style={[
+              styles.availabilityPillLabel,
+              effectiveIsAvailable ? styles.availabilityPillLabelOn : styles.availabilityPillLabelOff,
+            ]}>
+              {effectiveIsAvailable ? "Available" : "Unavailable"}
+            </Text>
+          </View>
+          {availabilityToast !== null && (
+            <View style={styles.availabilityToast}>
+              <Text style={styles.availabilityToastText}>{availabilityToast}</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -681,45 +735,7 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* Availability Toggle - Worker Only */}
-          {isWorker && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Availability</Text>
-              <View style={styles.availabilityCard}>
-                <View style={styles.availabilityIconContainer}>
-                  <Ionicons
-                    name={effectiveIsAvailable ? "power" : "power-outline"}
-                    size={24}
-                    color={effectiveIsAvailable ? Colors.success : Colors.textSecondary}
-                  />
-                </View>
-                <View style={styles.availabilityInfo}>
-                  <Text style={styles.availabilityTitle}>Available for Work</Text>
-                  <Text style={styles.availabilitySubtitle}>
-                    {effectiveIsAvailable
-                      ? "Clients can find and hire you"
-                      : "You are hidden from client search"}
-                  </Text>
-                </View>
-                {isAvailabilityLoading ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <Switch
-                    value={effectiveIsAvailable}
-                    onValueChange={(val) => {
-                      setLocalIsAvailable(val);
-                      updateAvailability.mutate(val, {
-                        onError: () => setLocalIsAvailable(!val),
-                      });
-                    }}
-                    trackColor={{ false: Colors.border, true: Colors.success + "60" }}
-                    thumbColor={effectiveIsAvailable ? Colors.success : Colors.textHint}
-                    disabled={updateAvailability.isPending}
-                  />
-                )}
-              </View>
-            </View>
-          )}
+
 
           {/* Wallet Section */}}
           <View style={styles.section}>
@@ -1206,6 +1222,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
+  availabilityPillWrapper: {
+    position: "absolute",
+    top: 70,
+    left: 16,
+    zIndex: 100,
+    alignItems: "flex-start",
+  },
+  availabilityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 22,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    ...Shadows.sm,
+  },
+  availabilityPillOn: {
+    backgroundColor: "#E6F9EE",
+    borderWidth: 1,
+    borderColor: Colors.success + "50",
+  },
+  availabilityPillOff: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  availabilityPillLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 2,
+    marginRight: 4,
+  },
+  availabilityPillLabelOn: {
+    color: Colors.success,
+  },
+  availabilityPillLabelOff: {
+    color: Colors.textSecondary,
+  },
+  availabilityToast: {
+    marginTop: 6,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderRadius: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  availabilityToastText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
   actionButton: {
     width: 44,
     height: 44,
@@ -1652,35 +1717,5 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontStyle: "italic",
     color: "#9AA0A6",
-  },
-  availabilityCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    ...Shadows.sm,
-  },
-  availabilityIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  availabilityInfo: {
-    flex: 1,
-  },
-  availabilityTitle: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semiBold,
-    color: Colors.textPrimary,
-    marginBottom: 2,
-  },
-  availabilitySubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
   },
 });
