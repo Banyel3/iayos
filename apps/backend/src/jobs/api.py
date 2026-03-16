@@ -10258,7 +10258,7 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
     This sets time_in and starts the work timer.
     Only works for DISPATCHED status (employee was sent by agency).
     """
-    from accounts.models import DailyAttendance
+    from accounts.models import DailyAttendance, JobEmployeeAssignment
     from django.utils import timezone
     
     try:
@@ -10303,6 +10303,26 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
     attendance.amount_earned = daily_rate
     
     attendance.save()
+
+    # Backward compatibility: PROJECT agency conversations can rely on
+    # JobEmployeeAssignment.clientConfirmedArrival flags in some UI branches.
+    # When arrival is confirmed through attendance flow, sync assignment flags
+    # so both attendance-driven and assignment-driven clients remain consistent.
+    if (
+        attendance.employeeID
+        and attendance.jobID
+        and str(getattr(attendance.jobID, 'payment_model', '') or '').upper() == 'PROJECT'
+        and getattr(attendance.jobID, 'assignedAgencyFK_id', None)
+    ):
+        assignment = JobEmployeeAssignment.objects.filter(
+            job=attendance.jobID,
+            employee=attendance.employeeID,
+            status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'],
+        ).first()
+        if assignment and not getattr(assignment, 'clientConfirmedArrival', False):
+            assignment.clientConfirmedArrival = True
+            assignment.clientConfirmedArrivalAt = attendance.time_in or timezone.now()
+            assignment.save(update_fields=['clientConfirmedArrival', 'clientConfirmedArrivalAt', 'updatedAt'])
     
     # Resolve actor name for agency employee / direct worker / team assignment worker.
     if attendance.employeeID:
