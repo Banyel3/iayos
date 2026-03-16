@@ -2444,6 +2444,8 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             profileID__accountFK__accountID__in=agency_owner_account_ids
         ).exclude(
             profileID__accountFK=user  # Exclude own worker profile
+        ).filter(
+            availability_status='AVAILABLE'
         ).order_by('-profileID__accountFK__verification_level', '-profileID__accountFK__createdAt')
 
         # Filter by category (specialization) if provided
