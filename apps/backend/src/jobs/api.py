@@ -10885,6 +10885,7 @@ def finish_daily_job(request, job_id: int):
     from decimal import Decimal
     from django.db.models import Sum
     from accounts.models import DailyAttendance, Wallet, Transaction, Notification
+    from jobs.payment_buffer_service import has_receivable_ledger_for_account
     from jobs.daily_payment_service import DailyPaymentService
 
     # Settle any fully confirmed and still-unprocessed attendance first.
@@ -10947,6 +10948,21 @@ def finish_daily_job(request, job_id: int):
 
     # Finish the job and unlock review flow for both parties.
     now = timezone.now()
+
+    # Guardrail: do not mark paid/completed without receivable ledger side effects.
+    if total_paid > Decimal('0.00'):
+        recipient_account = None
+        if job.assignedAgencyFK:
+            recipient_account = job.assignedAgencyFK.accountFK
+        elif job.assignedWorkerID and job.assignedWorkerID.profileID:
+            recipient_account = job.assignedWorkerID.profileID.accountFK
+
+        if recipient_account and not has_receivable_ledger_for_account(job, recipient_account):
+            return Response({
+                "error": "Cannot finish job: missing receivable ledger entries for paid work",
+                "job_id": job.jobID,
+            }, status=409)
+
     job.status = 'COMPLETED'
     job.clientMarkedComplete = True
     job.workerMarkedComplete = True
@@ -11051,22 +11067,57 @@ def finish_project_multiday_job(request, job_id: int):
     if project_gate_error:
         return Response(project_gate_error, status=400)
 
+    from jobs.payment_buffer_service import add_pending_earnings, has_receivable_ledger_for_account
+
     now = timezone.now()
     old_status = job.status
-    job.status = 'COMPLETED'
-    job.clientMarkedComplete = True
-    job.workerMarkedComplete = True
-    if not job.remainingPaymentPaid:
-        job.remainingPaymentPaid = True
-        job.remainingPaymentPaidAt = now
-    job.save(update_fields=[
-        'status',
-        'clientMarkedComplete',
-        'workerMarkedComplete',
-        'remainingPaymentPaid',
-        'remainingPaymentPaidAt',
-        'updatedAt',
-    ])
+
+    with db_transaction.atomic():
+        receivable_amount = Decimal(str(job.remainingPayment or Decimal('0.00'))) + Decimal(str(job.materialsCost or Decimal('0.00')))
+        recipient_account = None
+        recipient_type = None
+
+        if job.assignedAgencyFK:
+            recipient_account = job.assignedAgencyFK.accountFK
+            recipient_type = 'agency'
+        elif job.assignedWorkerID and job.assignedWorkerID.profileID:
+            recipient_account = job.assignedWorkerID.profileID.accountFK
+            recipient_type = 'worker'
+
+        if receivable_amount > Decimal('0.00') and recipient_account:
+            settlement_result = add_pending_earnings(
+                job=job,
+                recipient_account=recipient_account,
+                amount=receivable_amount,
+                recipient_type=recipient_type or 'worker',
+                idempotency_key=f"project-finish-{job.jobID}",
+            )
+            if not settlement_result.get('success'):
+                return Response({
+                    "error": "Failed to create pending earning ledger entry",
+                    "job_id": job.jobID,
+                }, status=500)
+
+        if receivable_amount > Decimal('0.00') and recipient_account and not has_receivable_ledger_for_account(job, recipient_account):
+            return Response({
+                "error": "Cannot finish project: receivable ledger missing",
+                "job_id": job.jobID,
+            }, status=409)
+
+        job.status = 'COMPLETED'
+        job.clientMarkedComplete = True
+        job.workerMarkedComplete = True
+        if not job.remainingPaymentPaid:
+            job.remainingPaymentPaid = True
+            job.remainingPaymentPaidAt = now
+        job.save(update_fields=[
+            'status',
+            'clientMarkedComplete',
+            'workerMarkedComplete',
+            'remainingPaymentPaid',
+            'remainingPaymentPaidAt',
+            'updatedAt',
+        ])
 
     if job.is_team_job:
         from accounts.models import JobWorkerAssignment
@@ -11591,6 +11642,8 @@ def approve_agency_project_employee(
             payment_amount = remaining / total_employees if total_employees > 0 else remaining
         
         with transaction.atomic():
+            from jobs.payment_buffer_service import add_pending_earnings
+
             # Keep a wallet transaction trail for all payment methods.
             client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
 
@@ -11651,6 +11704,21 @@ def approve_agency_project_employee(
                     relatedJobPosting=job,
                     paymentMethod='CASH',
                 )
+
+            # Canonical settlement: agency receivable must be ledgered to pending earnings first.
+            if payment_method in ['WALLET', 'CASH'] and payment_amount > Decimal('0.00'):
+                settlement_result = add_pending_earnings(
+                    job=job,
+                    recipient_account=job.assignedAgencyFK.accountFK,
+                    amount=payment_amount,
+                    recipient_type='agency',
+                    idempotency_key=f"agency-project-assignment-{assignment.assignmentID}",
+                )
+                if not settlement_result.get('success'):
+                    return Response({
+                        "error": "Failed to create agency pending earning ledger entry",
+                        "assignment_id": assignment.assignmentID,
+                    }, status=500)
             
             # Mark this employee as approved
             assignment.clientApproved = True
@@ -11861,6 +11929,8 @@ def approve_agency_project_job(
         remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
         
         with transaction.atomic():
+            from jobs.payment_buffer_service import add_pending_earnings
+
             # Keep a wallet transaction trail for all payment methods.
             client_wallet, _ = Wallet.objects.get_or_create(accountFK=request.auth)
 
@@ -11926,6 +11996,21 @@ def approve_agency_project_job(
                     relatedJobPosting=job,
                     paymentMethod='CASH',
                 )
+
+            # Canonical settlement: ledger agency receivable in pending earnings before job flags.
+            if payment_method in ['WALLET', 'CASH'] and remaining_balance > Decimal('0.00'):
+                settlement_result = add_pending_earnings(
+                    job=job,
+                    recipient_account=job.assignedAgencyFK.accountFK,
+                    amount=remaining_balance,
+                    recipient_type='agency',
+                    idempotency_key=f"agency-project-bulk-{job.jobID}",
+                )
+                if not settlement_result.get('success'):
+                    return Response({
+                        "error": "Failed to create agency pending earning ledger entry",
+                        "job_id": job.jobID,
+                    }, status=500)
             
             # Mark all assignments as completed
             assignments.update(status='COMPLETED')

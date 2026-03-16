@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import {
   useWalletBalance,
-  useWalletTransactions,
+  useWalletTransactionsPaginated,
 } from "@/lib/hooks/useHomeData";
 
 // Extended Transaction type for agency with balance_after field
@@ -66,19 +66,24 @@ export default function AgencyTransactionsPage() {
   } = useWalletBalance(true);
 
   const {
-    data: transactions = [],
+    data: paginatedData,
     isLoading: isLoadingTransactions,
     refetch: refetchTransactions,
-  } = useWalletTransactions(true);
+  } = useWalletTransactionsPaginated(
+    {
+      page: currentPage,
+      pageSize: itemsPerPage,
+      transactionType: typeFilter,
+      status: statusFilter,
+    },
+    true,
+  );
+
+  const transactions = paginatedData?.transactions || [];
+  const pagination = paginatedData?.pagination;
 
   // Filter transactions
   const filteredTransactions = transactions.filter((tx: AgencyTransaction) => {
-    // Type filter
-    if (typeFilter !== "all" && tx.type !== typeFilter) return false;
-
-    // Status filter
-    if (statusFilter !== "all" && tx.status !== statusFilter) return false;
-
     // Date range filter
     if (dateFrom && new Date(tx.created_at) < new Date(dateFrom)) return false;
     if (dateTo) {
@@ -99,12 +104,9 @@ export default function AgencyTransactionsPage() {
     return true;
   });
 
-  // Pagination
-  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
-  const paginatedTransactions = filteredTransactions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  // Backend pagination (type/status handled server-side); date/search are client-side on current page.
+  const totalPages = pagination?.total_pages || 1;
+  const paginatedTransactions = filteredTransactions;
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -201,17 +203,15 @@ export default function AgencyTransactionsPage() {
   };
 
   // Calculate summary stats
-  const totalReceived = transactions
-    .filter((t: AgencyTransaction) =>
-      ["DEPOSIT", "EARNING", "PENDING_EARNING", "REFUND"].includes(t.type),
-    )
+  const totalCompletedEarnings = transactions
+    .filter((t: AgencyTransaction) => t.type === "EARNING")
     .filter((t: AgencyTransaction) => t.status === "COMPLETED")
     .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
-  const totalWithdrawn = transactions
-    .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL")
-    .filter((t: AgencyTransaction) => t.status === "COMPLETED")
-    .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
+  const totalPendingEarnings = transactions
+    .filter((t: AgencyTransaction) => t.type === "PENDING_EARNING")
+    .filter((t: AgencyTransaction) => t.status === "PENDING")
+    .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
   const pendingWithdrawals = transactions
     .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL" && t.status === "PENDING")
@@ -286,8 +286,8 @@ export default function AgencyTransactionsPage() {
               <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><ArrowDownLeft className="h-5 w-5 text-[#00BAF1]" /></div>
               <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
             </div>
-            <p className="text-xs font-medium text-gray-500 mb-0.5">Total Received</p>
-            <p className="text-xl font-bold text-gray-900">₱{totalReceived.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Completed Earnings</p>
+            <p className="text-xl font-bold text-gray-900">₱{totalCompletedEarnings.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
 
@@ -297,8 +297,8 @@ export default function AgencyTransactionsPage() {
               <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><ArrowUpRight className="h-5 w-5 text-[#00BAF1]" /></div>
               <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full"></div>
             </div>
-            <p className="text-xs font-medium text-gray-500 mb-0.5">Total Withdrawn</p>
-            <p className="text-xl font-bold text-gray-900">₱{totalWithdrawn.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Earnings</p>
+            <p className="text-xl font-bold text-gray-900">₱{totalPendingEarnings.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
 
@@ -384,6 +384,7 @@ export default function AgencyTransactionsPage() {
           <CardTitle>Transaction History</CardTitle>
           <CardDescription>
             Overview of your wallet activity (Page {currentPage} of {totalPages || 1})
+            {pagination ? ` • ${pagination.total_items} total records` : ""}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -449,7 +450,9 @@ export default function AgencyTransactionsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="text-sm text-gray-600 font-medium">
-                          ₱{(tx.balance_after ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                          {typeof tx.balance_after === "number"
+                            ? `₱${tx.balance_after.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
+                            : "-"}
                         </span>
                       </td>
                     </tr>
