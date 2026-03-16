@@ -20,8 +20,8 @@ from agency.models import AgencyEmployee
 # -------------------------
 # Configuration
 # -------------------------
-DRY_RUN = True
-CONFIRM_TEXT = ""
+DRY_RUN = False
+CONFIRM_TEXT = "DELETE_ALL_EXCEPT_WHITELIST"
 REQUIRED_CONFIRM_TEXT = "DELETE_ALL_EXCEPT_WHITELIST"
 
 # If True, superusers are preserved even if not in whitelist.
@@ -41,6 +41,13 @@ USER_ACCOUNT_EMAILS = {
     "mike@gmail.com",
     "ravenesperat@gmail.com",
     "superadmin@gmail.com",
+    "marjorie.rojas@wmsu.edu.ph",
+    "boyabunda@gmail.com",
+    "ahmadyahiya@gmail.com",
+    "hz202300645@wmsu.edu.ph",
+    "hz202301459@wmsu.edu.ph",
+    "hz202301955@wmsu.edu.ph",
+    "hz202303373@wmsu.edu.ph",
 }
 
 AGENCY_ACCOUNT_EMAILS = {
