@@ -947,6 +947,8 @@ export default function ChatScreen() {
   const isTeamArrivalInCurrentBackjobCycle = (
     arrivedFlag?: boolean,
     arrivedAt?: string | null,
+    workerMarkedComplete?: boolean,
+    workerMarkedCompleteAt?: string | null,
   ) => {
     if (!arrivedFlag) return false;
 
@@ -954,8 +956,25 @@ export default function ChatScreen() {
       return true;
     }
 
-    if (!backjobCycleStartMs || !arrivedAt) {
-      return false;
+    if (!backjobCycleStartMs) {
+      return true;
+    }
+
+    // Backward compatibility: older team backjob rows can have boolean arrival
+    // without timestamps. If there is downstream progress, treat arrival as valid.
+    if (!arrivedAt) {
+      if (workerMarkedComplete) {
+        return true;
+      }
+
+      if (workerMarkedCompleteAt) {
+        const completeMs = new Date(workerMarkedCompleteAt).getTime();
+        if (Number.isFinite(completeMs) && completeMs >= backjobCycleStartMs) {
+          return true;
+        }
+      }
+
+      return true;
     }
 
     const arrivedMs = new Date(arrivedAt).getTime();
@@ -981,6 +1000,8 @@ export default function ChatScreen() {
       !isTeamArrivalInCurrentBackjobCycle(
         worker.client_confirmed_arrival,
         worker.client_confirmed_arrival_at,
+        worker.worker_marked_complete,
+        worker.worker_marked_complete_at,
       ),
   );
 
