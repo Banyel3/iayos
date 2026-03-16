@@ -893,17 +893,28 @@ class PayMongoService(PaymentProviderInterface):
                 banks: List[Dict[str, str]] = []
                 for item in items:
                     attributes = item.get("attributes", {}) if isinstance(item, dict) else {}
-                    code = (
-                        item.get("id")
-                        or attributes.get("code")
-                        or attributes.get("bank_code")
-                        or attributes.get("instapay_code")
-                        or attributes.get("pesonet_code")
-                        or attributes.get("short_code")
-                        or attributes.get("swift_code")
-                        or attributes.get("institution_code")
-                        or ""
-                    )
+                    # IMPORTANT: transfer recipient requires a real provider bank code,
+                    # not the institutions resource id (e.g., ins_xxx).
+                    code_candidates = [
+                        attributes.get("bank_code"),
+                        attributes.get("institution_code"),
+                        attributes.get("instapay_code"),
+                        attributes.get("pesonet_code"),
+                        attributes.get("code"),
+                        attributes.get("short_code"),
+                        attributes.get("swift_code"),
+                        item.get("id"),
+                    ]
+                    code = ""
+                    for candidate in code_candidates:
+                        raw = str(candidate or "").strip()
+                        if not raw:
+                            continue
+                        # Do not use institutions resource IDs as bank codes.
+                        if raw.lower().startswith("ins_"):
+                            continue
+                        code = raw
+                        break
                     name = (
                         attributes.get("name")
                         or attributes.get("display_name")
