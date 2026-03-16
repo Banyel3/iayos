@@ -47,7 +47,6 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
-  useStartTeamJobWithAvailable,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -1139,14 +1138,6 @@ export default function JobDetailScreen() {
   // Accept/reject team applications
   const acceptTeamApplication = useAcceptTeamApplication();
   const rejectTeamApplication = useRejectTeamApplication();
-  const startTeamJobWithAvailable = useStartTeamJobWithAvailable();
-  const hasUnfilledTeamSlots =
-    isTeamJob &&
-    (job?.skill_slots || []).some(
-      (slot) => (slot.workers_assigned || 0) < (slot.workers_needed || 0),
-    );
-  const showStartAnywayButton =
-    isTeamJob && isClient && job?.status === "ACTIVE" && hasUnfilledTeamSlots;
 
   // Check if current worker is assigned to this team job
   const currentWorkerAssignment = job?.worker_assignments?.find(
@@ -1316,19 +1307,6 @@ export default function JobDetailScreen() {
         return { bg: Colors.primary + "20", text: Colors.primary };
       default:
         return { bg: Colors.border, text: Colors.textSecondary };
-    }
-  };
-
-  const getSkillLevelEmoji = (level: string) => {
-    switch (level) {
-      case "ENTRY":
-        return "🌱";
-      case "INTERMEDIATE":
-        return "⭐";
-      case "EXPERT":
-        return "👑";
-      default:
-        return "";
     }
   };
 
@@ -1730,7 +1708,7 @@ export default function JobDetailScreen() {
           {/* Team Job Header Badge - Prominent indicator at top */}
           {isTeamJob && (
             <View style={styles.teamJobHeaderBadge}>
-              <Ionicons name="people-circle" size={20} color={Colors.white} />
+              <Ionicons name="people-circle" size={20} color="#00BAF1" />
               <Text style={styles.teamJobHeaderBadgeText}>
                 {isAgencyInviteTeamJob ? "Employees Assigned" : "Team Job"}
               </Text>
@@ -1745,7 +1723,7 @@ export default function JobDetailScreen() {
                 <Ionicons
                   name="checkmark-circle"
                   size={16}
-                  color={Colors.white}
+                  color="#00BAF1"
                   style={{ marginLeft: 4 }}
                 />
               )}
@@ -2080,65 +2058,14 @@ export default function JobDetailScreen() {
                 <Ionicons
                   name="chatbubbles-outline"
                   size={20}
-                  color={Colors.warning}
+                  color={Colors.textSecondary}
                 />
                 <View style={styles.conversationLockContent}>
                   <Text style={styles.conversationLockTitle}>
                     Group Chat Locked
                   </Text>
-                  <Text style={styles.conversationLockText}>
-                    {isClient && job.assignedAgency
-                      ? "The agency is still assigning workers…"
-                      : isClient
-                        ? `Select ${computedWorkersNeeded - computedWorkersAssigned} more worker(s) to start the team conversation`
-                        : "Team chat will be available once all positions are filled"}
-                  </Text>
                 </View>
               </View>
-            )}
-
-            {showStartAnywayButton && (
-              <TouchableOpacity
-                style={styles.startAnywayButton}
-                onPress={() =>
-                  Alert.alert(
-                    "Start Job Anyway",
-                    "Not all positions are filled. Start this team job with currently assigned workers?",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Start Job",
-                        onPress: () =>
-                          startTeamJobWithAvailable.mutate({
-                            jobId: parseInt(id),
-                          }),
-                      },
-                    ],
-                  )
-                }
-                disabled={startTeamJobWithAvailable.isPending}
-              >
-                {startTeamJobWithAvailable.isPending ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="play-circle-outline"
-                      size={18}
-                      color={Colors.primary}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.startAnywayButtonTitle}>
-                        Start Job Anyway
-                      </Text>
-                      <Text style={styles.startAnywayButtonSubtitle}>
-                        Not all positions are filled - job will start with
-                        current workers
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </TouchableOpacity>
             )}
 
             <Text style={[styles.sectionTitle, { marginTop: 4 }]}>
@@ -2176,10 +2103,6 @@ export default function JobDetailScreen() {
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.skillSlotSubtitle}>
-                      {getSkillLevelEmoji(slot.skill_level_required)}{" "}
-                      {slot.skill_level_required}
-                    </Text>
                   </View>
 
                   <View style={styles.skillSlotInfo}>
@@ -3795,10 +3718,6 @@ export default function JobDetailScreen() {
                 <Text style={styles.skillSlotTitle}>
                   {selectedSkillSlot.specialization_name}
                 </Text>
-                <Text style={styles.skillSlotSubtitle}>
-                  {getSkillLevelEmoji(selectedSkillSlot.skill_level_required)}{" "}
-                  {selectedSkillSlot.skill_level_required} Level Required
-                </Text>
                 <View style={[styles.skillSlotInfo, { marginTop: Spacing.sm }]}>
                   <View style={styles.skillSlotInfoItem}>
                     <Ionicons
@@ -4854,7 +4773,9 @@ const styles = StyleSheet.create({
   teamJobHeaderBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#7C3AED",
+    backgroundColor: "#EAF9FF",
+    borderWidth: 1,
+    borderColor: "#00BAF1",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
@@ -4864,17 +4785,17 @@ const styles = StyleSheet.create({
   teamJobHeaderBadgeText: {
     fontSize: Typography.fontSize.sm,
     fontWeight: "700",
-    color: Colors.white,
+    color: "#00BAF1",
   },
   teamJobHeaderDivider: {
     width: 1,
     height: 16,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "rgba(0,186,241,0.35)",
   },
   teamJobHeaderCount: {
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
-    color: Colors.white,
+    color: "#00BAF1",
     opacity: 0.95,
   },
   teamJobBadge: {
@@ -4972,9 +4893,9 @@ const styles = StyleSheet.create({
   conversationLockBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: Colors.warningLight,
+    backgroundColor: Colors.backgroundSecondary,
     borderWidth: 1,
-    borderColor: Colors.warning,
+    borderColor: Colors.borderDark,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
@@ -4997,35 +4918,8 @@ const styles = StyleSheet.create({
   conversationLockTitle: {
     fontSize: Typography.fontSize.sm,
     fontWeight: "700",
-    color: Colors.warning,
+    color: Colors.textSecondary,
     marginBottom: 2,
-  },
-  conversationLockText: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-  startAnywayButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + "10",
-  },
-  startAnywayButtonTitle: {
-    ...Typography.body.medium,
-    fontWeight: "700",
-    color: Colors.primary,
-  },
-  startAnywayButtonSubtitle: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
-    marginTop: 2,
   },
   conversationReadyTitle: {
     fontSize: Typography.fontSize.sm,

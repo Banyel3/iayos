@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency Wallet/Receipt Parity + Mobile UI Refresh (Selected PR #912 Changes)**
+  - Applied receipt-related mobile updates so buffer release date/remaining-day details derive correctly when explicit fields are missing.
+  - Applied selected mobile UI updates from PR #912 (agency chat banner/attendance presentation and profile/job/worker visual refinements).
+  - **Impact**: Wallet/receipt presentation is more consistent and agency/mobile UI updates from PR #912 are now included in main.
+
 - **Agency Attendance Confirm Toast Wording (No False ₱0 Payment Message)**
   - Updated mobile attendance confirmation success copy to avoid payment wording when confirmed amount is zero.
   - Client-side confirm action now shows `Attendance approved` unless a real payout amount is processed.

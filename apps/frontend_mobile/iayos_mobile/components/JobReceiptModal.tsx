@@ -72,6 +72,46 @@ export default function JobReceiptModal({
   const teamDistribution = receipt?.team_distribution ?? null;
   const [isDownloading, setIsDownloading] = useState(false);
 
+  const deriveBufferEndDate = () => {
+    if (!receipt?.buffer) return null;
+
+    const explicitEndDate = receipt.buffer.end_date
+      ? new Date(receipt.buffer.end_date)
+      : null;
+    if (explicitEndDate && !Number.isNaN(explicitEndDate.getTime())) {
+      return explicitEndDate;
+    }
+
+    const fallbackStartRaw =
+      receipt.buffer.start_date ||
+      receipt.completed_at ||
+      receipt.worker_completed_at ||
+      receipt.client_approved_at;
+    if (!fallbackStartRaw) return null;
+
+    const fallbackStart = new Date(fallbackStartRaw);
+    if (Number.isNaN(fallbackStart.getTime())) return null;
+
+    const days = Number(receipt.buffer.buffer_days || 0);
+    const computedEnd = new Date(fallbackStart);
+    computedEnd.setDate(computedEnd.getDate() + Math.max(days, 0));
+    return computedEnd;
+  };
+
+  const deriveRemainingDays = () => {
+    if (!receipt?.buffer || receipt.buffer.is_released) return 0;
+    if (typeof receipt.buffer.remaining_days === "number") {
+      return Math.max(receipt.buffer.remaining_days, 0);
+    }
+
+    const endDate = deriveBufferEndDate();
+    if (!endDate) return null;
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const diffDays = Math.ceil((endDate.getTime() - Date.now()) / msPerDay);
+    return Math.max(diffDays, 0);
+  };
+
   const handleDownloadPdf = async () => {
     if (!receipt) return;
     setIsDownloading(true);
@@ -434,15 +474,19 @@ ${RECEIPT_DISCLAIMER_TEXT}
                     <View style={styles.bufferStats}>
                       <View style={styles.bufferStat}>
                         <Text style={styles.bufferStatValue}>
-                          {receipt.buffer.remaining_days ?? "—"}
+                          {deriveRemainingDays() ?? "—"}
                         </Text>
                         <Text style={styles.bufferStatLabel}>Days Left</Text>
                       </View>
                       <View style={styles.bufferStat}>
                         <Text style={styles.bufferStatValue}>
-                          {formatReceiptDate(receipt.buffer.end_date)?.split(
-                            ",",
-                          )[0] ?? "—"}
+                          {(() => {
+                            const endDate = deriveBufferEndDate();
+                            if (!endDate) return "—";
+                            return formatReceiptDate(endDate.toISOString()).split(
+                              ",",
+                            )[0];
+                          })()}
                         </Text>
                         <Text style={styles.bufferStatLabel}>Release Date</Text>
                       </View>

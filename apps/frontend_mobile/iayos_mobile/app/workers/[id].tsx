@@ -361,6 +361,11 @@ export default function WorkerDetailScreen() {
   }
 
   const fullName = `${data.firstName} ${data.lastName}`;
+  const primarySkillTitle =
+    data.skills?.find((skill) => skill.isPrimary || skill.skillType === "PRIMARY")
+      ?.name ||
+    data.specializations?.[0] ||
+    "General Worker";
   const verificationLevelTag = getVerificationLevelTag(
     data.verificationLevel,
     data.verified,
@@ -519,7 +524,7 @@ export default function WorkerDetailScreen() {
               )}
             </View>
 
-            <Text style={styles.name}>{data.specializations?.[0] || "General Worker"}</Text>
+            <Text style={styles.name}>{primarySkillTitle}</Text>
             <Text style={styles.identityNameSub}>{fullName}</Text>
 
             {/* Rating */}
