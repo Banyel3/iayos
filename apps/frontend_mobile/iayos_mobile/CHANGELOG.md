@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Direct Hire Category Selection Fallback (Worker + Agency)**
+  - Fixed direct-hire job creation category loading when worker/agency skill mapping returns an empty set.
+  - Worker direct-hire now falls back to full category list if worker-scoped categories are empty.
+  - Agency direct-hire no longer hard-fails to an empty category list when specialization matching yields zero hits.
+  - Improved empty-state copy to avoid showing `No categories found for ""` when no search query is entered.
+  - **Impact**: Clients can select a category reliably in both `Hire Worker` and `Hire Agency` flows.
+
 - **Agency PROJECT Finish Flow + Legacy Workflow Compatibility (Existing In-Progress Jobs)**
   - Updated client `Finish Job` behavior for agency PROJECT multi-day jobs to continue into payment method selection (Wallet/Cash) before closing.
   - Added legacy attendance fallback in client-side workflow checks so older in-progress jobs with valid attendance signals are not falsely blocked.

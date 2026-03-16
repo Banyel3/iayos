@@ -492,13 +492,23 @@ export default function CreateJobScreen() {
   } = useQuery({
     queryKey: ["categories", workerId || "all"],
     queryFn: async () => {
-      const categoriesUrl = workerId
-        ? `${ENDPOINTS.GET_CATEGORIES}?worker_id=${workerId}`
-        : ENDPOINTS.GET_CATEGORIES;
-      const response = await fetchJson<{ categories: Category[] }>(
-        categoriesUrl,
-      );
-      return response.categories || [];
+      const fetchCategories = async (url: string) => {
+        const response = await fetchJson<{ categories: Category[] }>(url);
+        return response.categories || [];
+      };
+
+      // For direct worker hire, prefer worker-skill categories but gracefully
+      // fall back to all categories when worker mapping is empty.
+      if (workerId) {
+        const workerScopedUrl = `${ENDPOINTS.GET_CATEGORIES}?worker_id=${workerId}`;
+        const workerScoped = await fetchCategories(workerScopedUrl);
+
+        if (workerScoped.length > 0) {
+          return workerScoped;
+        }
+      }
+
+      return fetchCategories(ENDPOINTS.GET_CATEGORIES);
     },
   });
 
@@ -885,7 +895,7 @@ export default function CreateJobScreen() {
 
       if (agencySpecs.size > 0) {
         const specsArray = Array.from(agencySpecs);
-        list = list.filter((cat) => {
+        const filteredByAgencySpecs = list.filter((cat) => {
           const catName = cat.name.toLowerCase();
           return specsArray.some((spec) => {
             if (!spec) return false;
@@ -902,9 +912,12 @@ export default function CreateJobScreen() {
             );
           });
         });
-      } else {
-        // If no skills found, show nothing
-        list = [];
+
+        // Keep the full category list as fallback when matching heuristics
+        // produce no hits (e.g., legacy/misaligned agency skill naming).
+        if (filteredByAgencySpecs.length > 0) {
+          list = filteredByAgencySpecs;
+        }
       }
     }
 
@@ -1391,7 +1404,9 @@ export default function CreateJobScreen() {
                 ) : filteredCategories.length === 0 ? (
                   <View style={styles.emptyStateContainer}>
                     <Text style={styles.emptyStateText}>
-                      No categories found for "{categorySearch}"
+                      {categorySearch.trim()
+                        ? `No categories found for "${categorySearch}"`
+                        : "No categories available right now"}
                     </Text>
                   </View>
                 ) : (
