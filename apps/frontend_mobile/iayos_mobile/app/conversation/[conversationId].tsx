@@ -9086,9 +9086,10 @@ export default function ChatScreen() {
                         </View>
                       )}
 
-                    {/* WORKER/AGENCY: Waiting for Backjob Start */}
+                    {/* WORKER/AGENCY: Backjob pre-start status */}
                     {isWorkerSideBackjobActor &&
-                      !conversation.backjob?.backjob_started && (
+                      !conversation.backjob?.backjob_started &&
+                      (isBackjobScheduledForFuture ? (
                         <View style={styles.backjobWaitingBadge}>
                           <Ionicons
                             name="time-outline"
@@ -9099,7 +9100,62 @@ export default function ChatScreen() {
                             Waiting for scheduled start...
                           </Text>
                         </View>
-                      )}
+                      ) : !effectiveWorkerScheduleConfirmed &&
+                        !myBackjobScheduleConfirmed ? (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for schedule confirmation...
+                          </Text>
+                        </View>
+                      ) : conversation.my_role === "WORKER" &&
+                        conversation.is_team_job &&
+                        !myWorkerAttendanceToday?.is_dispatched &&
+                        !myWorkerAttendanceToday?.time_in ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.primary },
+                          ]}
+                          onPress={() =>
+                            workerCheckInMutation.mutate(conversation.job.id)
+                          }
+                          disabled={workerCheckInMutation.isPending}
+                        >
+                          {workerCheckInMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="navigate"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Mark On The Way
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for client to confirm backjob start...
+                          </Text>
+                        </View>
+                      ))}
 
                     {/* WORKER/AGENCY: Mark Backjob Complete Button */}
                     {conversation.my_role === "WORKER" &&
