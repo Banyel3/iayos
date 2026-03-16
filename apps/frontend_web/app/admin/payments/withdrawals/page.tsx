@@ -295,6 +295,43 @@ export default function WithdrawalsPage() {
     }
   };
 
+  const getDestinationFieldLabel = (type: string | undefined) => {
+    switch (type ?? "") {
+      case "GCASH":
+      case "MAYA":
+      case "GRABPAY":
+        return "Mobile Number";
+      case "PAYPAL":
+        return "PayPal Email";
+      case "VISA":
+      case "MASTERCARD":
+        return "Card Last 4 Digits";
+      default:
+        return "Account Number";
+    }
+  };
+
+  const formatDestinationValue = (
+    type: string | undefined,
+    value: string | undefined,
+  ) => {
+    if (!value) return "N/A";
+
+    if (type === "VISA" || type === "MASTERCARD") {
+      const digits = value.replace(/\D/g, "");
+      return digits ? `****${digits.slice(-4)}` : value;
+    }
+
+    if (type === "GCASH" || type === "MAYA" || type === "GRABPAY") {
+      const digits = value.replace(/\D/g, "");
+      if (digits.length === 11 && digits.startsWith("09")) {
+        return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+      }
+    }
+
+    return value;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
@@ -488,7 +525,7 @@ export default function WithdrawalsPage() {
                   <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Withdrawal Requests</h1>
                 </div>
                 <p className="text-gray-500 text-sm sm:text-base">
-                  Process pending withdrawal requests - GCash, Bank Transfers, and PayPal
+                  Process pending withdrawal requests across GCash, bank, PayPal, cards, and wallets
                 </p>
               </div>
               <Button
@@ -620,6 +657,16 @@ export default function WithdrawalsPage() {
                   className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
                 >
                   <CardContent className="p-4 sm:p-6">
+                    {(() => {
+                      const paymentType =
+                        withdrawal.payment_method?.type ||
+                        withdrawal.payment_method_type;
+                      const destinationValue =
+                        withdrawal.payment_method?.account_number ||
+                        withdrawal.account_number ||
+                        undefined;
+
+                      return (
                     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -652,18 +699,13 @@ export default function WithdrawalsPage() {
                           </div>
                           <div>
                             <p className="text-gray-500 mb-0.5">
-                              {(withdrawal.payment_method?.type || withdrawal.payment_method_type) === "GCASH"
-                                ? "GCash Number"
-                                : (withdrawal.payment_method?.type || withdrawal.payment_method_type) === "VISA" ||
-                                    (withdrawal.payment_method?.type || withdrawal.payment_method_type) === "MASTERCARD"
-                                  ? "Card Last 4 Digits"
-                                : "Account Number"}
+                              {getDestinationFieldLabel(paymentType)}
                             </p>
                             <p className="font-medium text-gray-900 font-mono tracking-tight">
-                              {withdrawal.payment_method?.account_number || withdrawal.account_number || "N/A"}
+                              {formatDestinationValue(paymentType, destinationValue)}
                             </p>
                           </div>
-                          {(withdrawal.payment_method?.bank_name || withdrawal.bank_name) && (
+                          {paymentType === "BANK" && (withdrawal.payment_method?.bank_name || withdrawal.bank_name) && (
                             <div>
                               <p className="text-gray-500 mb-0.5">Bank Name</p>
                               <p className="font-medium text-gray-900 truncate">
@@ -724,6 +766,8 @@ export default function WithdrawalsPage() {
                         )}
                       </div>
                     </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))
