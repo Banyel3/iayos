@@ -25,7 +25,7 @@ import { Picker } from "@react-native-picker/picker";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "VISA" | "GRABPAY" | "MAYA";
+  type: "GCASH" | "BANK" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA";
   account_name: string;
   account_number: string;
   bank_name?: string;
@@ -68,7 +68,7 @@ export default function PaymentMethodsScreen() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedType, setSelectedType] = useState<
-    "GCASH" | "BANK" | "VISA" | "GRABPAY" | "MAYA"
+    "GCASH" | "BANK" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA"
   >("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -283,6 +283,12 @@ export default function PaymentMethodsScreen() {
         Alert.alert("Error", "Invalid bank account number (5-20 digits)");
         return;
       }
+    } else if (selectedType === "VISA" || selectedType === "MASTERCARD") {
+      cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
+      if (!/^\d{4}$/.test(cleanAccountNumber)) {
+        Alert.alert("Error", "Enter the last 4 card digits");
+        return;
+      }
     }
 
     addMethodMutation.mutate({
@@ -303,6 +309,8 @@ export default function PaymentMethodsScreen() {
         return "bank account";
       case "VISA":
         return "Visa/card account";
+      case "MASTERCARD":
+        return "Mastercard/card account";
       case "GRABPAY":
         return "GrabPay account";
       default:
@@ -352,6 +360,8 @@ export default function PaymentMethodsScreen() {
         return "business";
       case "VISA":
         return "card";
+      case "MASTERCARD":
+        return "card";
       case "GRABPAY":
         return "phone-portrait";
       default:
@@ -369,6 +379,8 @@ export default function PaymentMethodsScreen() {
         return "Bank Account";
       case "VISA":
         return "Visa/Card";
+      case "MASTERCARD":
+        return "Mastercard/Card";
       case "GRABPAY":
         return "GrabPay";
       default:
@@ -472,7 +484,7 @@ export default function PaymentMethodsScreen() {
             />
             <Text style={styles.infoText}>
               Add your payment accounts for withdrawals (GCash, Maya, Bank,
-              or Visa). Your primary method will be used by
+              Visa, or Mastercard). Your primary method will be used by
               default.
             </Text>
           </View>
@@ -605,6 +617,48 @@ export default function PaymentMethodsScreen() {
                       ]}
                     >
                       Bank
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "VISA" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("VISA")}
+                  >
+                    <Ionicons
+                      name="card"
+                      size={20}
+                      color={selectedType === "VISA" ? Colors.white : Colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "VISA" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      Visa
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.typeButton,
+                      selectedType === "MASTERCARD" && styles.typeButtonActive,
+                    ]}
+                    onPress={() => setSelectedType("MASTERCARD")}
+                  >
+                    <Ionicons
+                      name="card"
+                      size={20}
+                      color={selectedType === "MASTERCARD" ? Colors.white : Colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.typeButtonText,
+                        selectedType === "MASTERCARD" && styles.typeButtonTextActive,
+                      ]}
+                    >
+                      Mastercard
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -939,10 +993,12 @@ const styles = StyleSheet.create({
   },
   typeSelector: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   typeButton: {
-    flex: 1,
+    minWidth: "48%",
+    flexGrow: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

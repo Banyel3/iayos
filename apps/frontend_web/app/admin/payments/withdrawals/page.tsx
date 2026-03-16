@@ -46,6 +46,7 @@ interface WithdrawalRequest {
   | "BANK"
   | "PAYPAL"
   | "VISA"
+  | "MASTERCARD"
   | "GRABPAY"
   | "MAYA";
   payment_method?: {
@@ -234,6 +235,8 @@ export default function WithdrawalsPage() {
         return <CreditCard className="h-4 w-4" />;
       case "VISA":
         return <CreditCard className="h-4 w-4" />;
+      case "MASTERCARD":
+        return <CreditCard className="h-4 w-4" />;
       case "GRABPAY":
         return <Smartphone className="h-4 w-4" />;
       case "MAYA":
@@ -267,6 +270,12 @@ export default function WithdrawalsPage() {
         return (
           <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200">
             Visa
+          </Badge>
+        );
+      case "MASTERCARD":
+        return (
+          <Badge className="bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200">
+            Mastercard
           </Badge>
         );
       case "GRABPAY":
@@ -576,6 +585,7 @@ export default function WithdrawalsPage() {
               <option value="BANK">Bank Transfer</option>
               <option value="PAYPAL">PayPal</option>
               <option value="VISA">Visa/Credit Card</option>
+              <option value="MASTERCARD">Mastercard/Credit Card</option>
               <option value="GRABPAY">GrabPay</option>
               <option value="MAYA">Maya</option>
             </select>
@@ -644,6 +654,9 @@ export default function WithdrawalsPage() {
                             <p className="text-gray-500 mb-0.5">
                               {(withdrawal.payment_method?.type || withdrawal.payment_method_type) === "GCASH"
                                 ? "GCash Number"
+                                : (withdrawal.payment_method?.type || withdrawal.payment_method_type) === "VISA" ||
+                                    (withdrawal.payment_method?.type || withdrawal.payment_method_type) === "MASTERCARD"
+                                  ? "Card Last 4 Digits"
                                 : "Account Number"}
                             </p>
                             <p className="font-medium text-gray-900 font-mono tracking-tight">

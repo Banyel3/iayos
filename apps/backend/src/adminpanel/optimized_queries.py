@@ -1079,6 +1079,10 @@ def get_withdrawals_list_optimized(
                     txn_method_type = 'BANK'
                 elif 'PAYPAL' in desc_upper:
                     txn_method_type = 'PAYPAL'
+                elif 'MASTERCARD' in desc_upper:
+                    txn_method_type = 'MASTERCARD'
+                elif 'VISA' in desc_upper:
+                    txn_method_type = 'VISA'
                 elif 'MAYA' in desc_upper:
                     txn_method_type = 'MAYA'
                 elif 'GRABPAY' in desc_upper:

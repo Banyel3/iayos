@@ -4846,7 +4846,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             )
         
         # Validate payment method type - all verified payment methods are supported for manual withdrawal
-        supported_types = ['GCASH', 'BANK', 'PAYPAL', 'VISA', 'GRABPAY', 'MAYA']
+        supported_types = ['GCASH', 'BANK', 'PAYPAL', 'VISA', 'MASTERCARD', 'GRABPAY', 'MAYA']
         if payment_method.methodType not in supported_types:
             return Response(
                 {"error": f"Unsupported payment method type: {payment_method.methodType}"},
@@ -4909,6 +4909,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 'BANK': f'Bank Transfer - {payment_method.bankName or "Bank"} {payment_method.accountNumber}',
                 'PAYPAL': f'PayPal - {payment_method.accountNumber}',
                 'VISA': f'Visa/Credit Card - ****{payment_method.accountNumber[-4:] if len(payment_method.accountNumber) >= 4 else payment_method.accountNumber}',
+                'MASTERCARD': f'Mastercard/Credit Card - ****{payment_method.accountNumber[-4:] if len(payment_method.accountNumber) >= 4 else payment_method.accountNumber}',
                 'GRABPAY': f'GrabPay - {payment_method.accountNumber}',
                 'MAYA': f'Maya - {payment_method.accountNumber}'
             }.get(payment_method.methodType, f'{payment_method.methodType} - {payment_method.accountNumber}')
@@ -4949,6 +4950,7 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             'BANK': f"Your funds will be transferred to your {payment_method.bankName or 'bank'} account within 1-3 business days after verification.",
             'PAYPAL': "Your funds will be transferred to your PayPal account within 1-3 business days after verification.",
             'VISA': "Your funds will be transferred to your card within 1-3 business days after verification.",
+            'MASTERCARD': "Your funds will be transferred to your card within 1-3 business days after verification.",
             'GRABPAY': "Your funds will be transferred to your GrabPay within 1-3 business days after verification.",
             'MAYA': "Your funds will be transferred to your Maya account within 1-3 business days after verification."
         }
@@ -6128,6 +6130,7 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
     - GCASH: Requires ₱1 PayMongo verification
     - BANK: Bank account (InstaPay/PESONet via PayMongo)
     - PAYPAL: PayPal account (manual processing)
+    - VISA / MASTERCARD: Card destination using last 4 digits (manual processing)
     
     GCASH Flow:
     1. User submits GCash account details
@@ -6152,9 +6155,9 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         method_type = payload.type or 'GCASH'
 
         # Validate method type
-        if method_type not in ['GCASH', 'BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA']:
+        if method_type not in ['GCASH', 'BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA', 'MASTERCARD']:
             return Response(
-                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL, MAYA, GRABPAY, VISA"},
+                {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL, MAYA, GRABPAY, VISA, MASTERCARD"},
                 status=400
             )
         
@@ -6201,6 +6204,14 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             if not re.match(email_regex, clean_number):
                 return Response(
                     {"error": "Invalid PayPal email format"},
+                    status=400
+                )
+        elif method_type in ['VISA', 'MASTERCARD']:
+            # Validate card ending digits (last 4) used for manual withdrawal destination
+            clean_number = payload.account_number.replace(' ', '').replace('-', '')
+            if not re.match(r'^\d{4}$', clean_number):
+                return Response(
+                    {"error": "Invalid card digits format (enter last 4 digits)"},
                     status=400
                 )
         else:
