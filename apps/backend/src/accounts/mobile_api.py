@@ -153,6 +153,37 @@ def _sync_project_multiday_total_days_worked(job) -> int:
         print(f"⚠️ [MOBILE] Failed to sync PROJECT total_days_worked: {err}")
         return int(getattr(job, "total_days_worked", 0) or 0)
 
+
+def _supports_daily_attendance_flow(job) -> bool:
+    """Attendance flow supports DAILY jobs and PROJECT jobs that track attendance."""
+    payment_model = str(getattr(job, "payment_model", "") or "").upper()
+    if payment_model == "DAILY":
+        return True
+
+    if payment_model != "PROJECT":
+        return False
+
+    # Team PROJECT jobs use attendance tracking even when they are single-day.
+    if bool(getattr(job, "is_team_job", False)):
+        return True
+
+    # Backward compatibility: some legacy team jobs may miss is_team_job=true
+    # but still have worker assignments. Treat these as attendance-tracked.
+    try:
+        from .models import JobWorkerAssignment
+
+        has_team_assignments = JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status__in=["ACTIVE", "COMPLETED"],
+        ).exists()
+        if has_team_assignments:
+            return True
+    except Exception:
+        # Fallback to duration-based PROJECT flow when assignment probe fails.
+        pass
+
+    return _derive_duration_days(job) > 1
+
 #region MOBILE AUTH ENDPOINTS
 
 @mobile_router.post("/auth/register")
@@ -7715,7 +7746,7 @@ def worker_check_in(request, job_id: int):
     Creates/updates attendance in DISPATCHED state (no time_in yet).
     
     Constraints:
-    - Only for IN_PROGRESS daily-rate jobs OR team PROJECT jobs with multi-day tracking
+    - Only for IN_PROGRESS DAILY jobs and attendance-tracked PROJECT jobs (team or multi-day)
     - Only once per day per worker
     """
     from decimal import Decimal
@@ -7730,13 +7761,9 @@ def worker_check_in(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
-        # Allow DAILY jobs and PROJECT multi-day jobs that use attendance tracking.
-        is_daily_job = job.payment_model == 'DAILY'
-        is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
-        )
-        if not (is_daily_job or is_project_multiday_job):
-            return Response({"error": "This endpoint supports DAILY jobs and PROJECT multi-day jobs only"}, status=400)
+        # Allow DAILY jobs and attendance-tracked PROJECT jobs.
+        if not _supports_daily_attendance_flow(job):
+            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
         
         # Validate job is IN_PROGRESS
         if job.status != 'IN_PROGRESS':
@@ -7997,12 +8024,8 @@ def worker_cancel_check_in(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
-        is_daily_job = job.payment_model == 'DAILY'
-        is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
-        )
-        if not (is_daily_job or is_project_multiday_job):
-            return Response({"error": "This endpoint supports DAILY jobs and PROJECT multi-day jobs only"}, status=400)
+        if not _supports_daily_attendance_flow(job):
+            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
 
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
         profile = Profile.objects.filter(accountFK=request.auth, profileType=profile_type).first()
