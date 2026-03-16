@@ -202,7 +202,7 @@ class WorkerProfile(models.Model):
         OFFLINE = "OFFLINE", "offline"
 
     availability_status = models.CharField(
-        max_length=10, choices=AvailabilityStatus.choices, default="OFFLINE", blank=True
+        max_length=10, choices=AvailabilityStatus.choices, default="AVAILABLE", blank=True
     )
     
     def calculate_profile_completion(self):
