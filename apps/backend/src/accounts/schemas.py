@@ -153,12 +153,13 @@ class WithdrawFundsSchema(Schema):
 class AddPaymentMethodSchema(Schema):
     """Schema for adding a payment method.
 
-    Only GCash is supported for withdrawals.
+    Supports GCash and BANK withdrawals.
     """
-    type: Literal["GCASH"]
+    type: Literal["GCASH", "BANK"]
     account_name: str
-    account_number: str  # GCash mobile number
+    account_number: str  # GCash mobile number or bank account number
     bank_name: Optional[str] = None
+    bank_code: Optional[str] = None
     card_number: Optional[str] = None
     card_expiry_month: Optional[int] = None
     card_expiry_year: Optional[int] = None

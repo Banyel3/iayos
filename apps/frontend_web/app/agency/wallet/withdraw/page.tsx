@@ -28,10 +28,11 @@ import { useWalletBalance } from "@/lib/hooks/useHomeData";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH";
+  type: "GCASH" | "BANK";
   account_name: string;
   account_number: string;
   bank_name: string | null;
+  bank_code?: string | null;
   is_primary: boolean;
   is_verified: boolean;
 }
@@ -71,7 +72,7 @@ export default function AgencyWithdrawPage() {
       if (res.ok) {
         const data = await res.json();
         const methods = (data.payment_methods || []).filter((m: PaymentMethod) =>
-          m.type === "GCASH",
+          m.type === "GCASH" || m.type === "BANK",
         );
         setPaymentMethods(methods);
         // Auto-select primary method
@@ -109,6 +110,8 @@ export default function AgencyWithdrawPage() {
     switch (type) {
       case "GCASH":
         return <Smartphone className="h-5 w-5 text-[#00BAF1]" />;
+      case "BANK":
+        return <Building2 className="h-5 w-5 text-emerald-600" />;
       default:
         return <CreditCard className="h-5 w-5 text-gray-600" />;
     }
@@ -118,6 +121,8 @@ export default function AgencyWithdrawPage() {
     switch (method.type) {
       case "GCASH":
         return "GCash";
+      case "BANK":
+        return "Bank";
       default:
         return method.type;
     }
@@ -346,7 +351,7 @@ export default function AgencyWithdrawPage() {
                     <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
                        <AlertCircle className="h-10 w-10 text-gray-200 mx-auto mb-3" />
                        <h3 className="text-sm font-bold text-gray-900">No payment accounts</h3>
-                       <p className="text-[10px] text-gray-400 mt-1 max-w-xs mx-auto">Add and verify your GCash account in profile settings to enable withdrawals.</p>
+                        <p className="text-[10px] text-gray-400 mt-1 max-w-xs mx-auto">Add and verify your payout account (GCash or bank) in profile settings to enable withdrawals.</p>
                        <Button
                           variant="outline"
                           size="sm"

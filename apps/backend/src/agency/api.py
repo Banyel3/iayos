@@ -3026,7 +3026,6 @@ def get_agency_payment_methods(request):
         methods = UserPaymentMethod.objects.filter(
             accountFK=account,
             isVerified=True,
-            methodType='GCASH'
         )
         
         payment_methods = []
@@ -3037,6 +3036,7 @@ def get_agency_payment_methods(request):
                 'account_name': method.accountName,
                 'account_number': method.accountNumber,
                 'bank_name': method.bankName,
+                'bank_code': method.bankCode,
                 'is_primary': method.isPrimary,
                 'is_verified': method.isVerified,
                 'created_at': method.createdAt.isoformat() if method.createdAt else None
@@ -3053,18 +3053,41 @@ def get_agency_payment_methods(request):
         )
 
 
+@router.get("/payment-methods/banks", auth=cookie_auth)
+def get_agency_supported_banks(request):
+    """Get PayMongo-supported banks for agency BANK payout methods."""
+    try:
+        from accounts.paymongo_service import PayMongoService
+
+        service = PayMongoService()
+        banks = service.get_supported_banks_cached()
+        return {
+            'banks': banks,
+            'count': len(banks),
+        }
+    except Exception as e:
+        print(f"❌ Get agency supported banks error: {str(e)}")
+        return Response(
+            {"error": "Failed to fetch supported banks"},
+            status=500,
+        )
+
+
 @router.post("/payment-methods", auth=cookie_auth)
 def add_agency_payment_method(request):
     """
-    Add a new GCash payment method with PayMongo verification.
+    Add a new payment method.
     
     Flow:
+    GCASH flow:
     1. Agency submits GCash account details
     2. We create a ₱1 verification checkout via PayMongo
     3. User pays ₱1 using their GCash account
     4. PayMongo webhook confirms payment + verifies account
-    5. ₱1 is credited to wallet as bonus
-    6. Payment method is marked as verified
+
+    BANK flow:
+    1. Agency submits bank details (account + bank code)
+    2. Method is saved as verified for admin-gated withdrawals
     """
     try:
         from accounts.models import UserPaymentMethod
@@ -3089,12 +3112,13 @@ def add_agency_payment_method(request):
         
         account_name = data.get('account_name', '').strip()
         account_number = data.get('account_number', '').strip()
-        method_type = data.get('type', 'GCASH')
-        
-        # For now, only GCash is supported
-        if method_type != 'GCASH':
+        method_type = str(data.get('type', 'GCASH')).upper()
+        bank_name = (data.get('bank_name') or '').strip()
+        bank_code = (data.get('bank_code') or '').strip()
+
+        if method_type not in ['GCASH', 'BANK']:
             return Response(
-                {"error": "Invalid payment method type. Only GCash is supported."},
+                {"error": "Invalid payment method type"},
                 status=400
             )
         
@@ -3105,24 +3129,46 @@ def add_agency_payment_method(request):
                 status=400
             )
         
-        # Validate and clean GCash number format
         clean_number = account_number.replace(' ', '').replace('-', '')
-        if not clean_number.startswith('09') or len(clean_number) != 11:
-            return Response(
-                {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
-                status=400
-            )
+        if method_type == 'GCASH':
+            # Validate and clean GCash number format
+            if not clean_number.startswith('09') or len(clean_number) != 11:
+                return Response(
+                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
+                    status=400
+                )
+            bank_name = None
+            bank_code = None
+        else:
+            # BANK validation
+            clean_number = ''.join(ch for ch in clean_number if ch.isdigit())
+            if len(clean_number) < 8 or len(clean_number) > 20:
+                return Response(
+                    {"error": "Invalid bank account number (must be 8-20 digits)"},
+                    status=400
+                )
+            if not bank_name:
+                return Response(
+                    {"error": "Bank name is required for BANK payment method"},
+                    status=400
+                )
+            if not bank_code:
+                return Response(
+                    {"error": "Bank code is required for BANK payment method"},
+                    status=400
+                )
         
-        # Check for duplicate GCash number
+        # Check for duplicate account number
         existing = UserPaymentMethod.objects.filter(
             accountFK=account,
+            methodType=method_type,
             accountNumber=clean_number
         ).first()
         
         if existing:
             if existing.isVerified:
                 return Response(
-                    {"error": "This GCash number is already verified on your account"},
+                    {"error": "This payment method is already verified on your account"},
                     status=400
                 )
             else:
@@ -3137,15 +3183,27 @@ def add_agency_payment_method(request):
             # Create payment method in PENDING state
             method = UserPaymentMethod.objects.create(
                 accountFK=account,
-                methodType='GCASH',
+                methodType=method_type,
                 accountName=account_name,
                 accountNumber=clean_number,
-                bankName=None,
+                bankName=bank_name,
+                bankCode=bank_code,
                 isPrimary=is_first,
-                isVerified=False  # Will be verified after PayMongo checkout
+                isVerified=(method_type == 'BANK')
             )
             
-            print(f"📱 Agency payment method created (pending verification): {method.id} for {account.email}")
+            verification_label = 'verified' if method_type == 'BANK' else 'pending verification'
+            print(f"📱 Agency payment method created ({verification_label}): {method.id} ({method_type}) for {account.email}")
+
+        if method_type == 'BANK':
+            return {
+                'success': True,
+                'message': 'Bank account added successfully',
+                'method_id': method.id,
+                'verification_required': False,
+                'is_verified': True,
+                'note': None,
+            }
         
         # Create PayMongo verification checkout
         paymongo = PayMongoService()
@@ -3298,16 +3356,16 @@ def set_primary_agency_payment_method(request, method_id: int):
 
 
 # ============================================
-# AGENCY WALLET WITHDRAWAL (with Xendit)
+# AGENCY WALLET WITHDRAWAL (Admin-Gated)
 # ============================================
 
 @router.post("/wallet/withdraw", auth=cookie_auth)
 @require_kyc
 def agency_withdraw_funds(request):
     """
-    Withdraw funds from agency wallet to GCash via Xendit Disbursement.
-    Requires a saved payment method (GCash account).
-    Deducts balance immediately and creates Xendit disbursement request.
+    Withdraw funds from agency wallet to a saved payment method.
+    Creates a PENDING withdrawal transaction for admin to process.
+    Deducts balance immediately and settles after admin action.
     """
     try:
         from accounts.models import Wallet, Transaction, UserPaymentMethod
@@ -3350,10 +3408,10 @@ def agency_withdraw_funds(request):
                 status=400
             )
         
-        # BLOCKER: Require payment method
+        # Require payment method
         if not payment_method_id:
             return Response(
-                {"error": "Payment method is required. Please add a GCash account first."},
+                {"error": "Payment method is required. Please add a payment method first."},
                 status=400
             )
         
@@ -3381,14 +3439,20 @@ def agency_withdraw_funds(request):
             )
         except UserPaymentMethod.DoesNotExist:
             return Response(
-                {"error": "Payment method not found. Please add a GCash account."},
+                {"error": "Payment method not found. Please add a payment method."},
                 status=404
             )
-        
-        # Only GCash supported for now
-        if payment_method.methodType != 'GCASH':
+
+        # Validate supported payout methods
+        if payment_method.methodType not in ['GCASH', 'BANK']:
             return Response(
-                {"error": "Only GCash withdrawals are currently supported"},
+                {"error": "Unsupported payment method for withdrawal"},
+                status=400
+            )
+
+        if payment_method.methodType == 'BANK' and not payment_method.bankCode:
+            return Response(
+                {"error": "Bank payout method is missing bank code. Please re-add this bank account."},
                 status=400
             )
         
@@ -3407,85 +3471,55 @@ def agency_withdraw_funds(request):
             wallet.save()
             
             # Create pending withdrawal transaction
+            if payment_method.methodType == 'BANK':
+                method_description = f"Withdrawal to Bank ({payment_method.bankName or 'BANK'}) - {payment_method.accountNumber}"
+            else:
+                method_description = f"Withdrawal to GCash - {payment_method.accountNumber}"
+
             transaction = Transaction.objects.create(
                 walletID=wallet,
                 transactionType='WITHDRAWAL',
                 amount=Decimal(str(amount)),
                 balanceAfter=wallet.balance,
                 status='PENDING',
-                description=f"Withdrawal to GCash - {payment_method.accountNumber}",
-                paymentMethod="GCASH"
+                description=method_description,
+                paymentMethod=payment_method.methodType
             )
             
             print(f"✅ New balance: ₱{wallet.balance}")
-            print(f"📤 Creating disbursement via payment provider...")
-            
-            # Create disbursement using configured payment provider
-            from accounts.payment_provider import get_payment_provider
-            payment_provider = get_payment_provider()
-            provider_name = payment_provider.provider_name
-            
-            disbursement_result = payment_provider.create_disbursement(
-                amount=amount,
-                currency="PHP",
-                recipient_name=payment_method.accountName,
-                account_number=payment_method.accountNumber,
-                channel_code="GCASH",
-                transaction_id=transaction.transactionID,
-                description=notes or f"Agency withdrawal - {business_name} - ₱{amount}",
-                metadata={"agency_name": business_name}
-            )
-            
-            if not disbursement_result.get("success"):
-                # Rollback balance deduction
-                wallet.balance = old_balance
-                wallet.save()
-                transaction.delete()
-                
-                print(f"❌ {provider_name.upper()} disbursement failed: {disbursement_result.get('error')}")
-                return Response(
-                    {"error": f"Failed to process withdrawal: {disbursement_result.get('error', 'Payment provider error')}"},
-                    status=500
-                )
-            
-            # Update transaction with disbursement details
-            transaction.xenditInvoiceID = disbursement_result.get('disbursement_id', '')
-            transaction.xenditExternalID = disbursement_result.get('external_id', '')
-            transaction.xenditPaymentChannel = "GCASH"
-            transaction.xenditPaymentMethod = provider_name.upper()
-            
-            # Mark as completed if disbursement is successful
-            if disbursement_result.get('status') in ['COMPLETED', 'completed']:
-                transaction.status = 'COMPLETED'
-                transaction.completedAt = timezone.now()
-            
+
+            # Generate admin-trackable withdrawal request ID
+            import uuid
+            withdrawal_request_id = f"WD-{transaction.transactionID}-{uuid.uuid4().hex[:8].upper()}"
+            transaction.xenditExternalID = withdrawal_request_id
+            transaction.xenditPaymentChannel = payment_method.methodType
+            transaction.xenditPaymentMethod = 'MANUAL'
             transaction.save()
-            
-            print(f"📄 {provider_name.upper()} disbursement created: {disbursement_result.get('disbursement_id')}")
-            print(f"📊 Status: {disbursement_result.get('status')}")
-            if disbursement_result.get('invoice_url'):
-                print(f"🔗 Invoice URL: {disbursement_result.get('invoice_url')}")
-        
-        # Build response with invoice URL for test mode
+
+            print(f"📄 Agency withdrawal request created: {withdrawal_request_id}")
+
+        success_message = (
+            "Withdrawal request submitted successfully. Funds will be transferred to your bank account within 1-3 business days."
+            if payment_method.methodType == 'BANK'
+            else "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
+        )
+
         response_data = {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "disbursement_id": disbursement_result.get('disbursement_id'),
+            "withdrawal_request_id": withdrawal_request_id,
             "amount": amount,
             "new_balance": float(wallet.balance),
-            "status": disbursement_result.get('status', 'PENDING'),
+            "status": "PENDING",
             "recipient": payment_method.accountNumber,
             "recipient_name": payment_method.accountName,
-            "message": "Withdrawal request submitted successfully. Funds will be transferred to your GCash within 1-3 business days."
+            "payment_method_type": payment_method.methodType,
+            "bank_name": payment_method.bankName,
+            "bank_code": payment_method.bankCode,
+            "message": success_message,
+            "estimated_arrival": "1-3 business days"
         }
-        
-        # Include invoice URL for test mode (allows user to see/pay the test invoice)
-        if disbursement_result.get('invoice_url'):
-            response_data['invoice_url'] = disbursement_result.get('invoice_url')
-            response_data['test_mode'] = disbursement_result.get('test_mode', False)
-            if disbursement_result.get('test_mode'):
-                response_data['message'] = "TEST MODE: Withdrawal invoice created. In production, funds would be sent directly to your GCash."
-        
+
         return response_data
         
     except Exception as e:

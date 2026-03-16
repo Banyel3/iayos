@@ -2772,6 +2772,18 @@ class Transaction(models.Model):
         max_length=100, blank=True, null=True,
         help_text="PayMongo pay_xxx payment ID (from webhook payments[] or lazy-fetched via checkout session)"
     )
+    paymongoTransferId = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="PayMongo transfer ID (trf_xxx) for BANK withdrawal processing"
+    )
+    paymongoTransferStatus = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        help_text="Latest PayMongo transfer status for BANK withdrawals"
+    )
     
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
@@ -2881,6 +2893,8 @@ class UserPaymentMethod(models.Model):
     accountName = models.CharField(max_length=255)  # Name on account
     accountNumber = models.CharField(max_length=50)  # GCash number, bank account number, or PayPal email
     bankName = models.CharField(max_length=100, null=True, blank=True)  # Only for bank accounts
+    bankCode = models.CharField(max_length=50, null=True, blank=True)  # PayMongo institution code (BANK only)
+    paymongoRecipientId = models.CharField(max_length=100, null=True, blank=True)  # Cached recipient for Transfer V2
     isPrimary = models.BooleanField(default=False)
     isVerified = models.BooleanField(default=False)
     createdAt = models.DateTimeField(auto_now_add=True)
