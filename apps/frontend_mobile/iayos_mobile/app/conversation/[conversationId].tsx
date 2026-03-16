@@ -3622,7 +3622,7 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {/* Offline Indicator */}
@@ -8877,6 +8877,7 @@ export default function ChatScreen() {
         <FlatList
           ref={flatListRef}
           data={chatMessages}
+          style={{ flex: 1 }}
           keyExtractor={(item, index) =>
             item.message_id
               ? String(item.message_id)
