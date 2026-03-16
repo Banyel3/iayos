@@ -873,7 +873,13 @@ export default function JobDetailScreen() {
           method: "POST",
         },
       );
-      return response.json();
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          String(data?.error || data?.detail || "Failed to accept application"),
+        );
+      }
+      return data;
     },
     onSuccess: () => {
       Alert.alert("Success", "Application accepted! Worker has been assigned.");
