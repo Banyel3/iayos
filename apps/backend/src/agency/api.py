@@ -3844,8 +3844,21 @@ def agency_get_pending_earnings(request):
         from decimal import Decimal
         from jobs.payment_buffer_service import (
             get_pending_earnings_for_account, 
-            get_payment_buffer_days
+            get_payment_buffer_days,
+            reconcile_missing_agency_receivables_for_account,
         )
+
+        # Compatibility self-heal for legacy completed jobs missing receivable ledger rows.
+        reconcile_result = reconcile_missing_agency_receivables_for_account(
+            account=request.auth,
+            limit=300,
+            dry_run=False,
+        )
+        if reconcile_result.get("repaired", 0) > 0:
+            logger.info(
+                f"✅ [Agency] Reconciled missing receivables for {request.auth.email}: "
+                f"{reconcile_result.get('repaired', 0)} repaired"
+            )
         
         # Get wallet for pending balance
         try:
@@ -3868,6 +3881,11 @@ def agency_get_pending_earnings(request):
             "total_pending": pending_total,
             "count": len(pending_list),
             "buffer_days": buffer_days,
+            "reconciliation": {
+                "scanned": int(reconcile_result.get("scanned", 0) or 0),
+                "repaired": int(reconcile_result.get("repaired", 0) or 0),
+                "errors": int(reconcile_result.get("errors", 0) or 0),
+            },
             "info_message": f"Payments are held for {buffer_days} days after job completion before being released to your wallet."
         }
         
