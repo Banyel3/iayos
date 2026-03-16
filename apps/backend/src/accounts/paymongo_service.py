@@ -780,21 +780,23 @@ class PayMongoService(PaymentProviderInterface):
             amount_centavos = int(float(amount) * 100)
             payload = {
                 "data": {
-                    "transfers": [
-                        {
-                            "destination_account": {
-                                "number": normalized_account,
-                                "name": recipient_name,
-                                "bic": clean_bank_code,
-                            },
-                            "amount": amount_centavos,
-                            "currency": "PHP",
-                            "provider": (transfer_provider or "instapay").lower(),
-                            "reference_number": external_id,
-                            "description": description,
-                            "metadata": transfer_metadata,
-                        }
-                    ]
+                    "attributes": {
+                        "transfers": [
+                            {
+                                "destination_account": {
+                                    "number": normalized_account,
+                                    "name": recipient_name,
+                                    "bic": clean_bank_code,
+                                },
+                                "amount": amount_centavos,
+                                "currency": "PHP",
+                                "provider": (transfer_provider or "instapay").lower(),
+                                "reference_number": external_id,
+                                "description": description,
+                                "metadata": transfer_metadata,
+                            }
+                        ]
+                    }
                 }
             }
 
@@ -807,7 +809,8 @@ class PayMongoService(PaymentProviderInterface):
 
             if response.status_code in (200, 201):
                 resp_data = response.json().get("data", {})
-                transfers = resp_data.get("transfers", [])
+                resp_attrs = resp_data.get("attributes", resp_data)  # V2 uses data.attributes
+                transfers = resp_attrs.get("transfers", [])
                 first_transfer = transfers[0] if transfers else {}
                 status = self._map_transfer_status(first_transfer.get("status", "pending"))
                 return {
