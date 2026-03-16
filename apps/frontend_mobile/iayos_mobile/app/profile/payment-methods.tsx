@@ -25,7 +25,14 @@ import { Picker } from "@react-native-picker/picker";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA";
+  type:
+    | "GCASH"
+    | "BANK"
+    | "PAYPAL"
+    | "VISA"
+    | "MASTERCARD"
+    | "GRABPAY"
+    | "MAYA";
   account_name: string;
   account_number: string;
   bank_name?: string;
@@ -123,7 +130,15 @@ export default function PaymentMethodsScreen() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      return response.json() as Promise<AddPaymentMethodResponse>;
+      const result = (await response.json()) as AddPaymentMethodResponse & {
+        error?: string;
+      };
+
+      if (!response.ok || result.error) {
+        throw new Error(result.error || "Failed to add payment method");
+      }
+
+      return result;
     },
     onSuccess: async (data: AddPaymentMethodResponse) => {
       // Check if verification is required (GCash with PayMongo)
@@ -281,7 +296,11 @@ export default function PaymentMethodsScreen() {
     };
 
     // Type-specific validation
-    if (selectedType === "GCASH" || selectedType === "MAYA" || selectedType === "GRABPAY") {
+    if (
+      selectedType === "GCASH" ||
+      selectedType === "MAYA" ||
+      selectedType === "GRABPAY"
+    ) {
       if (!accountNumber.trim()) {
         Alert.alert("Error", "Please enter mobile number");
         return;
@@ -291,7 +310,10 @@ export default function PaymentMethodsScreen() {
 
       // Validate PH mobile number format (11 digits starting with 09)
       if (!/^09\d{9}$/.test(cleanAccountNumber)) {
-        Alert.alert("Error", `Invalid ${selectedType === "GCASH" ? "GCash" : "Maya"} number format (e.g., 09123456789)`);
+        Alert.alert(
+          "Error",
+          `Invalid ${selectedType === "GCASH" ? "GCash" : "Maya"} number format (e.g., 09123456789)`,
+        );
         return;
       }
     } else if (selectedType === "BANK") {
@@ -304,7 +326,10 @@ export default function PaymentMethodsScreen() {
         return;
       }
       if (!PHILIPPINE_BANK_OPTIONS.includes(bankName.trim())) {
-        Alert.alert("Error", "Please select a valid Philippine bank from the dropdown");
+        Alert.alert(
+          "Error",
+          "Please select a valid Philippine bank from the dropdown",
+        );
         return;
       }
       // Validate bank account number (5-20 digits)
@@ -479,6 +504,11 @@ export default function PaymentMethodsScreen() {
                 color={Colors.success}
               />
             )}
+            {!method.is_verified && (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingText}>Pending</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.methodName}>{method.account_name}</Text>
           {method.type === "BANK" && method.bank_name && (
@@ -487,9 +517,9 @@ export default function PaymentMethodsScreen() {
           <Text style={styles.methodNumber}>
             {method.type === "GCASH"
               ? method.account_number.replace(
-                /(\d{4})(\d{3})(\d{4})/,
-                "$1 $2 $3",
-              )
+                  /(\d{4})(\d{3})(\d{4})/,
+                  "$1 $2 $3",
+                )
               : method.account_number}
           </Text>
         </View>
@@ -543,15 +573,10 @@ export default function PaymentMethodsScreen() {
         >
           {/* Info Banner */}
           <View style={styles.infoBanner}>
-            <Ionicons
-              name="information-circle"
-              size={20}
-              color={Colors.info}
-            />
+            <Ionicons name="information-circle" size={20} color={Colors.info} />
             <Text style={styles.infoText}>
               Add your payout accounts (GCash, Maya, GrabPay, Bank, PayPal,
-              Visa, or Mastercard). Your primary method will be used by
-              default.
+              Visa, or Mastercard). Your primary method will be used by default.
             </Text>
           </View>
 
@@ -695,12 +720,17 @@ export default function PaymentMethodsScreen() {
                     <Ionicons
                       name="logo-paypal"
                       size={20}
-                      color={selectedType === "PAYPAL" ? Colors.white : Colors.primary}
+                      color={
+                        selectedType === "PAYPAL"
+                          ? Colors.white
+                          : Colors.primary
+                      }
                     />
                     <Text
                       style={[
                         styles.typeButtonText,
-                        selectedType === "PAYPAL" && styles.typeButtonTextActive,
+                        selectedType === "PAYPAL" &&
+                          styles.typeButtonTextActive,
                       ]}
                     >
                       PayPal
@@ -716,12 +746,17 @@ export default function PaymentMethodsScreen() {
                     <Ionicons
                       name="phone-portrait"
                       size={20}
-                      color={selectedType === "GRABPAY" ? Colors.white : Colors.primary}
+                      color={
+                        selectedType === "GRABPAY"
+                          ? Colors.white
+                          : Colors.primary
+                      }
                     />
                     <Text
                       style={[
                         styles.typeButtonText,
-                        selectedType === "GRABPAY" && styles.typeButtonTextActive,
+                        selectedType === "GRABPAY" &&
+                          styles.typeButtonTextActive,
                       ]}
                     >
                       GrabPay
@@ -737,7 +772,9 @@ export default function PaymentMethodsScreen() {
                     <Ionicons
                       name="card"
                       size={20}
-                      color={selectedType === "VISA" ? Colors.white : Colors.primary}
+                      color={
+                        selectedType === "VISA" ? Colors.white : Colors.primary
+                      }
                     />
                     <Text
                       style={[
@@ -758,12 +795,17 @@ export default function PaymentMethodsScreen() {
                     <Ionicons
                       name="card"
                       size={20}
-                      color={selectedType === "MASTERCARD" ? Colors.white : Colors.primary}
+                      color={
+                        selectedType === "MASTERCARD"
+                          ? Colors.white
+                          : Colors.primary
+                      }
                     />
                     <Text
                       style={[
                         styles.typeButtonText,
-                        selectedType === "MASTERCARD" && styles.typeButtonTextActive,
+                        selectedType === "MASTERCARD" &&
+                          styles.typeButtonTextActive,
                       ]}
                     >
                       Mastercard
@@ -792,7 +834,9 @@ export default function PaymentMethodsScreen() {
                     <Picker
                       mode="dropdown"
                       selectedValue={bankName}
-                      onValueChange={(value) => setBankName(String(value || ""))}
+                      onValueChange={(value) =>
+                        setBankName(String(value || ""))
+                      }
                       style={styles.picker}
                       itemStyle={styles.pickerItem}
                       dropdownIconColor={Colors.textSecondary}
@@ -806,7 +850,9 @@ export default function PaymentMethodsScreen() {
                 </View>
               )}
 
-              {(selectedType === "GCASH" || selectedType === "MAYA" || selectedType === "GRABPAY") && (
+              {(selectedType === "GCASH" ||
+                selectedType === "MAYA" ||
+                selectedType === "GRABPAY") && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Mobile Number</Text>
                   <TextInput
@@ -907,7 +953,8 @@ export default function PaymentMethodsScreen() {
                     </View>
                   </View>
                   <Text style={styles.cardSecurityNote}>
-                    For security, CVV is only used for validation and is never stored. We only store the card last4.
+                    For security, CVV is only used for validation and is never
+                    stored. We only store the card last4.
                   </Text>
                 </>
               )}
@@ -1093,6 +1140,17 @@ const styles = StyleSheet.create({
   primaryText: {
     fontWeight: Typography.fontWeight.medium,
     color: Colors.white,
+    fontSize: 10,
+  },
+  pendingBadge: {
+    backgroundColor: Colors.warningLight,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.small,
+  },
+  pendingText: {
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.warning,
     fontSize: 10,
   },
   methodName: {
