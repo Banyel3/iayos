@@ -6148,6 +6148,16 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL, MAYA, GRABPAY, VISA, MASTERCARD"},
                 status=400
             )
+
+        # Security policy: while withdrawals are manually processed, do not allow
+        # new card destinations to avoid user concern about card handling.
+        if method_type in ['VISA', 'MASTERCARD']:
+            return Response(
+                {
+                    "error": "Card withdrawals are temporarily unavailable. Please use GCash, Maya, GrabPay, Bank, or PayPal."
+                },
+                status=400
+            )
         
         # Validate required fields
         if not payload.account_name:

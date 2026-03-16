@@ -336,6 +336,14 @@ export default function PaymentMethodsScreen() {
       account_number: cleanAccountNumber,
     };
 
+    if (selectedType === "VISA" || selectedType === "MASTERCARD") {
+      Alert.alert(
+        "Not Supported",
+        "Card withdrawals are temporarily unavailable. Please use GCash, Maya, GrabPay, Bank, or PayPal.",
+      );
+      return;
+    }
+
     // Type-specific validation
     if (
       selectedType === "GCASH" ||
@@ -391,41 +399,6 @@ export default function PaymentMethodsScreen() {
         return;
       }
       cleanAccountNumber = email;
-    } else if (selectedType === "VISA" || selectedType === "MASTERCARD") {
-      const card = cardNumber.replace(/[\s-]/g, "");
-      const month = cardExpiryMonth.replace(/\D/g, "");
-      const year = cardExpiryYear.replace(/\D/g, "");
-      const cvv = cardCvv.replace(/\D/g, "");
-
-      if (!/^\d{16}$/.test(card)) {
-        Alert.alert("Error", "Card number must be 16 digits");
-        return;
-      }
-      if (!isLuhnValid(card)) {
-        Alert.alert(
-          "Error",
-          "Invalid card number. Random 16-digit numbers are not accepted. Use a real card number or a Luhn-valid test number.",
-        );
-        return;
-      }
-      if (!/^\d{2}$/.test(month) || Number(month) < 1 || Number(month) > 12) {
-        Alert.alert("Error", "Enter a valid expiry month (MM)");
-        return;
-      }
-      if (!/^\d{4}$/.test(year)) {
-        Alert.alert("Error", "Enter a valid expiry year (YYYY)");
-        return;
-      }
-      if (!/^\d{3}$/.test(cvv)) {
-        Alert.alert("Error", "CVV must be exactly 3 digits");
-        return;
-      }
-
-      cleanAccountNumber = card.slice(-4);
-      payload.card_number = card;
-      payload.card_expiry_month = Number(month);
-      payload.card_expiry_year = Number(year);
-      payload.card_cvv = cvv;
     }
 
     payload.account_number = cleanAccountNumber;
@@ -623,8 +596,9 @@ export default function PaymentMethodsScreen() {
           <View style={styles.infoBanner}>
             <Ionicons name="information-circle" size={20} color={Colors.info} />
             <Text style={styles.infoText}>
-              Add your payout accounts (GCash, Maya, GrabPay, Bank, PayPal,
-              Visa, or Mastercard). Your primary method will be used by default.
+              Add your payout accounts (GCash, Maya, GrabPay, Bank, or PayPal).
+              Card withdrawals are currently disabled while withdrawals are
+              processed manually.
             </Text>
           </View>
 
@@ -810,55 +784,6 @@ export default function PaymentMethodsScreen() {
                       GrabPay
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      selectedType === "VISA" && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setSelectedType("VISA")}
-                  >
-                    <Ionicons
-                      name="card"
-                      size={20}
-                      color={
-                        selectedType === "VISA" ? Colors.white : Colors.primary
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.typeButtonText,
-                        selectedType === "VISA" && styles.typeButtonTextActive,
-                      ]}
-                    >
-                      Visa
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.typeButton,
-                      selectedType === "MASTERCARD" && styles.typeButtonActive,
-                    ]}
-                    onPress={() => setSelectedType("MASTERCARD")}
-                  >
-                    <Ionicons
-                      name="card"
-                      size={20}
-                      color={
-                        selectedType === "MASTERCARD"
-                          ? Colors.white
-                          : Colors.primary
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.typeButtonText,
-                        selectedType === "MASTERCARD" &&
-                          styles.typeButtonTextActive,
-                      ]}
-                    >
-                      Mastercard
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -948,64 +873,17 @@ export default function PaymentMethodsScreen() {
               )}
 
               {(selectedType === "VISA" || selectedType === "MASTERCARD") && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Card Number</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="4111 1111 1111 1111"
-                      placeholderTextColor={Colors.textHint}
-                      value={cardNumber}
-                      onChangeText={handleCardNumberChange}
-                      keyboardType="numeric"
-                      maxLength={19}
-                    />
-                  </View>
-                  <View style={styles.cardRow}>
-                    <View style={[styles.inputGroup, styles.cardField]}>
-                      <Text style={styles.inputLabel}>Exp. Month</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="MM"
-                        placeholderTextColor={Colors.textHint}
-                        value={cardExpiryMonth}
-                        onChangeText={handleExpiryMonthChange}
-                        keyboardType="numeric"
-                        maxLength={2}
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, styles.cardField]}>
-                      <Text style={styles.inputLabel}>Exp. Year</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="YYYY"
-                        placeholderTextColor={Colors.textHint}
-                        value={cardExpiryYear}
-                        onChangeText={handleExpiryYearChange}
-                        keyboardType="numeric"
-                        maxLength={4}
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, styles.cardField]}>
-                      <Text style={styles.inputLabel}>CVV</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="123"
-                        placeholderTextColor={Colors.textHint}
-                        value={cardCvv}
-                        onChangeText={handleCardCvvChange}
-                        keyboardType="numeric"
-                        maxLength={3}
-                        secureTextEntry
-                      />
-                    </View>
-                  </View>
-                  <Text style={styles.cardSecurityNote}>
-                    For security, CVV is only used for validation and is never
-                    stored. We only store the card last4. Use a real card
-                    number or a Luhn-valid test card (not random digits).
+                <View style={styles.infoBanner}>
+                  <Ionicons
+                    name="alert-circle"
+                    size={20}
+                    color={Colors.warning}
+                  />
+                  <Text style={styles.infoText}>
+                    Card withdrawals are temporarily unavailable. Please use
+                    GCash, Maya, GrabPay, Bank, or PayPal.
                   </Text>
-                </>
+                </View>
               )}
 
               {/* Submit Button */}
