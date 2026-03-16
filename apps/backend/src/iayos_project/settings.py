@@ -540,6 +540,11 @@ PAYMONGO_SECRET_KEY = os.getenv("PAYMONGO_SECRET_KEY", "")
 PAYMONGO_PUBLIC_KEY = os.getenv("PAYMONGO_PUBLIC_KEY", "")
 PAYMONGO_WEBHOOK_SECRET = os.getenv("PAYMONGO_WEBHOOK_SECRET", "")
 
+# Normalize env-provided keys to avoid hidden whitespace/quote issues from deployment UIs.
+PAYMONGO_SECRET_KEY = PAYMONGO_SECRET_KEY.strip().strip('"').strip("'")
+PAYMONGO_PUBLIC_KEY = PAYMONGO_PUBLIC_KEY.strip().strip('"').strip("'")
+PAYMONGO_WEBHOOK_SECRET = PAYMONGO_WEBHOOK_SECRET.strip().strip('"').strip("'")
+
 # Admin email for withdrawal notifications (manual processing alerts)
 ADMIN_WITHDRAWAL_EMAIL = os.getenv("ADMIN_WITHDRAWAL_EMAIL", "")
 
