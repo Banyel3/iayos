@@ -1105,17 +1105,12 @@ export default function AgencyChatScreen() {
 
                   return (
                     <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
-                      <CardContent className="p-3">
+                      <CardContent className="py-2 px-3">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-blue-900">
+                          <span className="text-xs font-bold text-black">
                             Dispatch Pending ({dispatchedCount}/{totalCount})
                           </span>
                         </div>
-                        {pendingDispatchEmployees.length > 0 && (
-                          <p className="text-[11px] text-blue-700 mb-2">
-                            Awaiting employee{pendingDispatchEmployees.length > 1 ? "s" : ""} to be dispatched: {pendingDispatchEmployees.map((e: AssignedEmployee) => e.name).join(", ")}
-                          </p>
-                        )}
                         <div className="space-y-1.5 text-xs">
                           {pendingDispatchEmployees.map(
                             (e: AssignedEmployee) =>
@@ -1268,9 +1263,9 @@ export default function AgencyChatScreen() {
 
                 return (
                   <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
-                    <CardContent className="p-3">
+                    <CardContent className="py-2 px-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-blue-900">
+                        <span className="text-xs font-bold text-black">
                           Mark On The Way Pending ({pendingDispatch.length}/
                           {totalCount})
                         </span>
