@@ -7813,7 +7813,7 @@ def worker_check_in(request, job_id: int):
     - Only once per day per worker
     """
     from decimal import Decimal
-    from .models import Job, DailyAttendance, WorkerProfile, Profile, Notification, JobWorkerAssignment
+    from .models import Job, DailyAttendance, WorkerProfile, Profile, Notification, JobWorkerAssignment, JobDispute
     
     try:
         print(f"⏰ [MOBILE] Worker on-the-way request for job {job_id} by {request.auth.email}")
@@ -7828,9 +7828,32 @@ def worker_check_in(request, job_id: int):
         if not _supports_daily_attendance_flow(job):
             return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
         
-        # Validate job is IN_PROGRESS
-        if job.status != 'IN_PROGRESS':
-            return Response({"error": f"Job must be in progress. Current status: {job.status}"}, status=400)
+        # Backward compatibility: some existing backjob cycles keep base job status
+        # as COMPLETED while rework is active. Allow check-in if there is an active,
+        # worker-confirmed backjob cycle that is not finalized yet.
+        active_backjob_cycle = JobDispute.objects.filter(
+            jobID=job,
+            status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
+        ).order_by('-openedDate').first()
+
+        allow_backjob_checkin = bool(
+            active_backjob_cycle
+            and active_backjob_cycle.workerScheduleConfirmed
+            and not active_backjob_cycle.clientConfirmedBackjob
+        )
+
+        if job.status != 'IN_PROGRESS' and not allow_backjob_checkin:
+            return Response({
+                "error": f"Job must be in progress. Current status: {job.status}"
+            }, status=400)
+
+        if allow_backjob_checkin and active_backjob_cycle and active_backjob_cycle.scheduled_date:
+            business_today = timezone.now().astimezone(PH_TIMEZONE).date()
+            if business_today < active_backjob_cycle.scheduled_date:
+                return Response({
+                    "error": "Backjob workday has not started yet. Wait for the scheduled date.",
+                    "scheduled_date": active_backjob_cycle.scheduled_date.isoformat(),
+                }, status=400)
         
         # Get worker's profile
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
