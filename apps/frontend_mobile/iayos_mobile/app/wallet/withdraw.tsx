@@ -3,7 +3,7 @@
  *
  * Features:
  * - Amount input with validation (min ₱100)
- * - Payment account selection (GCash, Bank, PayPal, Visa, Mastercard, GrabPay, Maya)
+ * - Payment account selection (GCash, PayPal, GrabPay, Maya)
  * - Balance check and display
  * - Optional notes field
  * - Immediate balance deduction
@@ -45,7 +45,7 @@ import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "MASTERCARD" | "GRABPAY" | "MAYA";
+  type: "GCASH" | "PAYPAL" | "GRABPAY" | "MAYA" | "BANK" | "VISA" | "MASTERCARD";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -101,9 +101,10 @@ export default function WithdrawScreen() {
     (m: PaymentMethod) => m.id === selectedMethodId,
   );
 
-  // Show all verified payment methods
+  // Show only allowed, verified payment methods
   const verifiedMethods = paymentMethods.filter(
-    (m: PaymentMethod) => m.is_verified,
+    (m: PaymentMethod) =>
+      m.is_verified && ["GCASH", "PAYPAL", "GRABPAY", "MAYA"].includes(m.type),
   );
 
   // Check if user has payment method on mount
@@ -111,7 +112,7 @@ export default function WithdrawScreen() {
     if (!methodsLoading && paymentMethodsData && verifiedMethods.length === 0) {
       Alert.alert(
         "Payment Account Required",
-        "You need to add a payment account (GCash, Bank, Visa, Mastercard, or PayPal) before you can withdraw funds. Would you like to add one now?",
+        "You need to add a payment account (GCash, Maya, GrabPay, or PayPal) before you can withdraw funds. Would you like to add one now?",
         [
           {
             text: "Cancel",
@@ -185,14 +186,8 @@ export default function WithdrawScreen() {
       switch (type) {
         case "GCASH":
           return "GCash";
-        case "BANK":
-          return selectedMethod?.bank_name || "Bank";
         case "PAYPAL":
           return "PayPal";
-        case "VISA":
-          return "Visa/Card";
-        case "MASTERCARD":
-          return "Mastercard/Card";
         case "GRABPAY":
           return "GrabPay";
         case "MAYA":
@@ -203,10 +198,7 @@ export default function WithdrawScreen() {
     };
     const methodLabel = getMethodLabel(selectedMethod?.type || "");
 
-    const accountDisplay =
-      selectedMethod?.type === "BANK" && selectedMethod?.bank_name
-        ? `${selectedMethod.bank_name} - ${selectedMethod.account_number}`
-        : selectedMethod?.account_number;
+    const accountDisplay = selectedMethod?.account_number;
 
     setWithdrawConfirmMessage(
       `Withdraw ₱${amountNum.toFixed(2)} to ${methodLabel} (${accountDisplay})?\n\nFunds will be transferred within 1-3 business days.`

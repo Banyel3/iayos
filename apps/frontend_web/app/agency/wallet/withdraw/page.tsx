@@ -28,7 +28,7 @@ import { useWalletBalance } from "@/lib/hooks/useHomeData";
 
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK" | "PAYPAL" | "VISA" | "GRABPAY" | "MAYA";
+  type: "GCASH" | "PAYPAL" | "GRABPAY" | "MAYA" | "BANK" | "VISA";
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -70,7 +70,9 @@ export default function AgencyWithdrawPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        const methods = data.payment_methods || [];
+        const methods = (data.payment_methods || []).filter((m: PaymentMethod) =>
+          ["GCASH", "PAYPAL", "GRABPAY", "MAYA"].includes(m.type),
+        );
         setPaymentMethods(methods);
         // Auto-select primary method
         const primary = methods.find((m: PaymentMethod) => m.is_primary);
@@ -107,12 +109,8 @@ export default function AgencyWithdrawPage() {
     switch (type) {
       case "GCASH":
         return <Smartphone className="h-5 w-5 text-[#00BAF1]" />;
-      case "BANK":
-        return <Building2 className="h-5 w-5 text-gray-600" />;
       case "PAYPAL":
         return <CreditCard className="h-5 w-5 text-blue-500" />;
-      case "VISA":
-        return <CreditCard className="h-5 w-5 text-indigo-600" />;
       case "GRABPAY":
         return <Smartphone className="h-5 w-5 text-green-600" />;
       case "MAYA":
@@ -126,12 +124,8 @@ export default function AgencyWithdrawPage() {
     switch (method.type) {
       case "GCASH":
         return "GCash";
-      case "BANK":
-        return method.bank_name || "Bank Transfer";
       case "PAYPAL":
         return "PayPal";
-      case "VISA":
-        return "Visa";
       case "GRABPAY":
         return "GrabPay";
       case "MAYA":

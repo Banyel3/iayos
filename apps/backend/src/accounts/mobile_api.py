@@ -6124,11 +6124,13 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
     Add a new payment method for withdrawals.
     
     Supported types:
-    - GCASH: Mobile wallet number (requires ₱1 PayMongo verification)
-    - MAYA / GRABPAY: Mobile wallet number (manual processing)
-    - BANK: Bank name + account number (manual processing)
-    - PAYPAL: PayPal email (manual processing)
-    - VISA / MASTERCARD: Full card details are validated; only last4 is stored (CVV is never stored)
+    - GCASH: Mobile wallet number
+    - MAYA / GRABPAY: Mobile wallet number
+    - PAYPAL: PayPal email
+
+    Temporarily disabled while withdrawals remain manually processed:
+    - BANK
+    - VISA / MASTERCARD
     
     Current flow:
     1. User submits payment method details
@@ -6146,6 +6148,14 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         if method_type not in ['GCASH', 'BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA', 'MASTERCARD']:
             return Response(
                 {"error": "Invalid payment method type. Supported: GCASH, BANK, PAYPAL, MAYA, GRABPAY, VISA, MASTERCARD"},
+                status=400
+            )
+
+        if method_type in ['BANK', 'VISA', 'MASTERCARD']:
+            return Response(
+                {
+                    "error": "Bank and card withdrawals are temporarily unavailable. Please use GCash, Maya, GrabPay, or PayPal."
+                },
                 status=400
             )
         
