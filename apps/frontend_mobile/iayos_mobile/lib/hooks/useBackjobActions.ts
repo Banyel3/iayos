@@ -234,10 +234,31 @@ export function useConfirmBackjobScheduledDate() {
       });
 
       if (!response.ok) {
-        const error = (await response.json()) as { error?: string };
-        throw new Error(
-          getErrorMessage(error, "Failed to confirm backjob scheduled date"),
+        const error = (await response.json()) as {
+          error?: string;
+          message?: string;
+          detail?: string;
+        };
+        const message = getErrorMessage(
+          error,
+          "Failed to confirm backjob scheduled date",
         );
+        const normalized = String(message || "").toLowerCase();
+
+        // Backend may return a non-2xx response when confirmation already succeeded
+        // from another participant. Treat this as idempotent success for UI consistency.
+        if (
+          normalized.includes("already approved for execution") ||
+          normalized.includes("already confirmed")
+        ) {
+          return {
+            success: true,
+            already_processed: true,
+            message,
+          };
+        }
+
+        throw new Error(message);
       }
 
       return response.json();
