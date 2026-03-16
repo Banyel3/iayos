@@ -16,6 +16,7 @@ from django.utils import timezone
 import datetime
 from datetime import timedelta
 from jobs.cancellation_service import cancel_job_with_scenarios
+from jobs.backjob_service import auto_start_agency_backjob_if_ready
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -44,38 +45,6 @@ def _get_effective_work_date(job):
         return base_date
 
     return base_date + timedelta(days=day_offset)
-
-
-def _self_heal_active_agency_backjob_start(job, dispute) -> bool:
-    """Auto-start eligible agency backjobs for legacy records during payload reads."""
-    if not job or not dispute:
-        return False
-
-    if not getattr(job, "assignedAgencyFK", None):
-        return False
-
-    if getattr(dispute, "backjobStarted", False):
-        return False
-
-    if not getattr(dispute, "workerScheduleConfirmed", False):
-        return False
-
-    scheduled_date = getattr(dispute, "scheduled_date", None)
-    if not scheduled_date:
-        return False
-
-    from zoneinfo import ZoneInfo
-
-    business_tz_name = getattr(settings, "BUSINESS_TIME_ZONE", "Asia/Manila")
-    business_today = timezone.now().astimezone(ZoneInfo(business_tz_name)).date()
-    if business_today < scheduled_date:
-        return False
-
-    dispute.backjobStarted = True
-    if not getattr(dispute, "backjobStartedAt", None):
-        dispute.backjobStartedAt = timezone.now()
-    dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
-    return True
 
 
 def _get_required_project_days(job) -> int:
@@ -2170,7 +2139,7 @@ def get_agency_conversations(request, filter: str = "all"):
             ).order_by('-openedDate').first()
             backjob_info = None
             if active_dispute:
-                _self_heal_active_agency_backjob_start(job, active_dispute)
+                auto_start_agency_backjob_if_ready(job, active_dispute, reason="agency-chat")
                 backjob_info = {
                     "has_backjob": True,
                     "dispute_id": active_dispute.disputeID,
@@ -2277,7 +2246,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         can_send_reason = None
 
         if active_dispute:
-            _self_heal_active_agency_backjob_start(job, active_dispute)
+            auto_start_agency_backjob_if_ready(job, active_dispute, reason="agency-jobs-list")
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
@@ -2471,7 +2440,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
         backjob_info = None
         if active_dispute:
-            _self_heal_active_agency_backjob_start(job, active_dispute)
+            auto_start_agency_backjob_if_ready(job, active_dispute, reason="agency-job-detail")
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
