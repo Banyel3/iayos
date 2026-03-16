@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency Client Confirm Arrival Visibility (Project Jobs)**
+  - Updated agency project conversation flow so clients can confirm arrival per dispatched employee without waiting for every assigned employee to be dispatched first.
+  - Kept existing dispatch status guidance visible for employees not yet dispatched.
+  - **Impact**: Clients now see `Confirm Arrival` as soon as an agency employee is marked on the way, matching expected team-style arrival confirmation behavior.
+
 - **KYC Name Mismatch Warning Flow + DOB Picker Year Fix**
   - Updated mobile KYC Step 2 name-mismatch behavior from hard blocker to one-time warning modal (same UI, warning shown once per upload session).
   - Users can continue to ID verification after seeing/dismissing the warning instead of being forced to restart the step.
