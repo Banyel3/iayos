@@ -81,6 +81,79 @@ export const KYCFieldEditor: React.FC<KYCFieldEditorProps> = ({
   const handleFocus = useCallback(() => setIsFocused(true), []);
   const handleBlur = useCallback(() => setIsFocused(false), []);
 
+  const parseDateForPicker = useCallback((rawValue: string): Date => {
+    if (!rawValue || !rawValue.trim()) {
+      return new Date();
+    }
+
+    const valueTrimmed = rawValue.trim();
+
+    // Prefer strict local parsing for YYYY-MM-DD to avoid timezone/epoch issues.
+    const isoMatch = valueTrimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const month = Number(isoMatch[2]);
+      const day = Number(isoMatch[3]);
+      const localDate = new Date(year, month - 1, day);
+      if (!Number.isNaN(localDate.getTime())) {
+        return localDate;
+      }
+    }
+
+    // Fallback for OCR variants like MM/DD/YYYY or DD/MM/YYYY.
+    const slashMatch = valueTrimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slashMatch) {
+      const first = Number(slashMatch[1]);
+      const second = Number(slashMatch[2]);
+      const year = Number(slashMatch[3]);
+      const month = first > 12 ? second : first;
+      const day = first > 12 ? first : second;
+      const localDate = new Date(year, month - 1, day);
+      if (!Number.isNaN(localDate.getTime())) {
+        return localDate;
+      }
+    }
+
+    const parsed = new Date(valueTrimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+
+    return new Date();
+  }, []);
+
+  const formatDateForStorage = useCallback((dateValue: Date): string => {
+    const year = dateValue.getFullYear();
+    const month = String(dateValue.getMonth() + 1).padStart(2, "0");
+    const day = String(dateValue.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  const pickerMinimumDate =
+    fieldKey === "birth_date" ? new Date(1900, 0, 1) : undefined;
+  const birthDateMaximum = React.useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 18);
+    return cutoff;
+  }, []);
+  const pickerMaximumDate =
+    fieldKey === "birth_date" ? birthDateMaximum : undefined;
+
+  const pickerValue = React.useMemo(() => {
+    const parsed = parseDateForPicker(value);
+
+    if (fieldKey === "birth_date") {
+      if (pickerMinimumDate && parsed < pickerMinimumDate) {
+        return pickerMinimumDate;
+      }
+      if (pickerMaximumDate && parsed > pickerMaximumDate) {
+        return pickerMaximumDate;
+      }
+    }
+
+    return parsed;
+  }, [fieldKey, parseDateForPicker, pickerMaximumDate, pickerMinimumDate, value]);
+
   return (
     <View style={styles.container}>
       {/* Label Row with Confidence Badge */}
@@ -159,17 +232,28 @@ export const KYCFieldEditor: React.FC<KYCFieldEditorProps> = ({
           
           {showDatePicker && (
             <DateTimePicker
-              value={value ? new Date(value) : new Date()}
+              value={pickerValue}
               mode="date"
               display={Platform.OS === "ios" ? "spinner" : "default"}
               onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
                 setShowDatePicker(Platform.OS === "ios");
                 if (event.type === "set" && selectedDate) {
+                  let dateToStore = selectedDate;
+                  if (
+                    fieldKey === "birth_date" &&
+                    pickerMaximumDate &&
+                    selectedDate > pickerMaximumDate
+                  ) {
+                    dateToStore = pickerMaximumDate;
+                  }
+
                   // Format as YYYY-MM-DD for consistent storage
-                  const formatted = selectedDate.toISOString().split("T")[0];
+                  const formatted = formatDateForStorage(dateToStore);
                   onValueChange(formatted);
                 }
               }}
+              minimumDate={pickerMinimumDate}
+              maximumDate={pickerMaximumDate}
               themeVariant="light"
               textColor={Platform.OS === "ios" ? Colors.textPrimary : undefined}
             />

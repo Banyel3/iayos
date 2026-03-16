@@ -1450,7 +1450,8 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                         import json
                         extracted_id_data = json.loads(extracted_id_data)
 
-                    # Defensive hard-block: ensure submitted ID full name matches account profile name
+                    # Warning-only validation: keep mismatch visibility for admin review,
+                    # but do not block KYC submission.
                     submitted_full_name = ""
                     for id_name_key in ["full_name", "fullName", "name", "holder_name"]:
                         if id_name_key in extracted_id_data:
@@ -1469,28 +1470,53 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
 
                     name_validation = evaluate_profile_name_match(user, submitted_full_name)
 
+                    name_validation_warning = None
                     if not name_validation["can_validate"]:
                         reason = name_validation.get("reason", "unknown")
                         if reason == "profile_name_incomplete":
-                            raise ValueError(
-                                "Unable to validate ID name because your profile name is incomplete. "
-                                "Please update your first and last name before submitting KYC."
+                            name_validation_warning = (
+                                "Name validation warning: Profile name incomplete; "
+                                "admin should verify submitted ID name manually."
                             )
-                        if reason == "ocr_name_missing":
-                            raise ValueError(
-                                "Unable to validate ID name because no readable name was extracted from your ID. "
-                                "Please use a clearer ID photo and try again."
+                        elif reason == "ocr_name_missing":
+                            name_validation_warning = (
+                                "Name validation warning: OCR name missing; "
+                                "admin should verify submitted ID name manually."
                             )
-                        raise ValueError(
-                            "Unable to validate ID name against your account profile. "
-                            "Please review your profile and ID details, then try again."
+                        else:
+                            name_validation_warning = (
+                                "Name validation warning: Unable to validate ID name against profile; "
+                                "admin manual review required."
+                            )
+                    elif not name_validation["is_match"]:
+                        name_validation_warning = (
+                            "Name mismatch warning: Government ID name does not match profile name; "
+                            "admin manual review required."
                         )
 
-                    if not name_validation["is_match"]:
-                        raise ValueError(
-                            "Name mismatch: Government ID name does not match your account profile name. "
-                            "Please edit your profile name first."
-                        )
+                    if name_validation_warning:
+                        print(f"⚠️ [KYC UPLOAD] {name_validation_warning}")
+
+                        existing_notes = (kyc_record.notes or "").strip()
+                        if name_validation_warning not in existing_notes:
+                            kyc_record.notes = (
+                                f"{existing_notes}\n{name_validation_warning}".strip()
+                                if existing_notes
+                                else name_validation_warning
+                            )
+                            kyc_record.save(update_fields=['notes'])
+
+                    raw_data = extracted.raw_extraction_data or {}
+                    raw_data['name_validation'] = {
+                        'can_validate': name_validation.get('can_validate'),
+                        'is_match': name_validation.get('is_match'),
+                        'score': name_validation.get('score'),
+                        'reason': name_validation.get('reason'),
+                        'profile_name': name_validation.get('profile_name'),
+                        'ocr_name': name_validation.get('ocr_name'),
+                        'warning': name_validation_warning,
+                    }
+                    extracted.raw_extraction_data = raw_data
                     
                     # Map frontend field names to model fields
                     field_mapping = {
