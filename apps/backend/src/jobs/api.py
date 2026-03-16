@@ -6785,6 +6785,113 @@ def _get_active_backjob_dispute(job: Job) -> Optional[JobDispute]:
         dispute.refresh_from_db()
     return dispute
 
+
+def _resolve_team_backjob_assignment_progress(
+    job: Job,
+    assignment: JobWorkerAssignment,
+    dispute: Optional[JobDispute] = None,
+    *,
+    auto_heal: bool = False,
+) -> Dict[str, Any]:
+    """
+    Resolve team assignment arrival/completion with backward compatibility.
+
+    Legacy daily attendance rows may carry the true worker progress even when
+    assignment flags/timestamps are stale or missing.
+    """
+    from accounts.models import DailyAttendance
+
+    cycle_start = getattr(dispute, "workerScheduleConfirmedAt", None) if dispute else None
+
+    def _status_in_cycle(status_flag: bool, status_at: Optional[datetime]) -> bool:
+        if not status_flag:
+            return False
+        if not cycle_start:
+            return True
+        if not status_at:
+            return True
+        try:
+            return status_at >= cycle_start
+        except Exception:
+            return True
+
+    assignment_arrived = _status_in_cycle(
+        bool(getattr(assignment, "client_confirmed_arrival", False)),
+        getattr(assignment, "client_confirmed_arrival_at", None),
+    )
+    assignment_completed = _status_in_cycle(
+        bool(getattr(assignment, "worker_marked_complete", False)),
+        getattr(assignment, "worker_marked_complete_at", None),
+    )
+
+    attendance_qs = DailyAttendance.objects.filter(jobID=job, assignmentID=assignment)
+    if dispute and getattr(dispute, "scheduled_date", None):
+        attendance_qs = attendance_qs.filter(date__gte=dispute.scheduled_date)
+
+    attendance = attendance_qs.order_by("-date", "-attendanceID").first()
+    if not attendance:
+        attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            assignmentID=assignment,
+        ).order_by("-date", "-attendanceID").first()
+
+    attendance_arrived = False
+    attendance_completed = False
+    attendance_arrival_at = None
+    attendance_complete_at = None
+
+    if attendance:
+        attendance_status = str(getattr(attendance, "status", "") or "").upper()
+
+        arrival_signal = bool(
+            getattr(attendance, "client_confirmed", False)
+            or getattr(attendance, "client_confirmed_at", None)
+            or getattr(attendance, "time_in", None)
+            or getattr(attendance, "time_out", None)
+            or attendance_status in ["PENDING", "PRESENT", "HALF_DAY", "COMPLETED"]
+        )
+        completion_signal = bool(
+            getattr(attendance, "time_out", None)
+            or attendance_status in ["PRESENT", "HALF_DAY", "COMPLETED"]
+        )
+
+        attendance_arrival_at = (
+            getattr(attendance, "client_confirmed_at", None)
+            or getattr(attendance, "time_in", None)
+            or getattr(attendance, "time_out", None)
+        )
+        attendance_complete_at = getattr(attendance, "time_out", None)
+
+        attendance_arrived = _status_in_cycle(arrival_signal, attendance_arrival_at)
+        attendance_completed = _status_in_cycle(completion_signal, attendance_complete_at)
+
+    resolved_arrived = assignment_arrived or attendance_arrived
+    resolved_completed = assignment_completed or attendance_completed
+
+    if auto_heal:
+        healed_fields: List[str] = []
+        now = timezone.now()
+
+        if resolved_arrived and not getattr(assignment, "client_confirmed_arrival", False):
+            assignment.client_confirmed_arrival = True
+            assignment.client_confirmed_arrival_at = attendance_arrival_at or now
+            healed_fields.extend(["client_confirmed_arrival", "client_confirmed_arrival_at"])
+
+        if resolved_completed and not getattr(assignment, "worker_marked_complete", False):
+            assignment.worker_marked_complete = True
+            assignment.worker_marked_complete_at = attendance_complete_at or now
+            healed_fields.extend(["worker_marked_complete", "worker_marked_complete_at"])
+
+        if healed_fields:
+            if "updatedAt" not in healed_fields:
+                healed_fields.append("updatedAt")
+            assignment.save(update_fields=healed_fields)
+
+    return {
+        "arrived": resolved_arrived,
+        "completed": resolved_completed,
+    }
+
 @router.post("/{job_id}/request-backjob", auth=dual_auth)
 @require_kyc
 def request_backjob(request, job_id: int, reason: str = Form(...), description: str = Form(...), terms_accepted: bool = Form(...), images: List[UploadedFile] = File(default=None)):
@@ -7963,6 +8070,49 @@ def confirm_backjob_started(request, job_id: int):
                         },
                         status=400,
                     )
+
+        # Team backjob workflow requires all active team workers to have
+        # arrival confirmation for the current cycle before start confirmation.
+        if job.is_team_job:
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status='ACTIVE',
+            ).select_related('workerID__profileID')
+
+            if not team_assignments.exists():
+                return Response(
+                    {
+                        "error": "No active team assignments found for this backjob cycle"
+                    },
+                    status=400,
+                )
+
+            pending_arrivals = []
+            for assignment in team_assignments:
+                progress = _resolve_team_backjob_assignment_progress(
+                    job,
+                    assignment,
+                    dispute,
+                    auto_heal=True,
+                )
+                if not progress["arrived"]:
+                    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip()
+                    pending_arrivals.append(worker_name or f"Worker #{assignment.workerID_id}")
+
+            if pending_arrivals:
+                pending_count = len(pending_arrivals)
+                sample_names = ", ".join(pending_arrivals[:3])
+                if pending_count > 3:
+                    sample_names = f"{sample_names}, and {pending_count - 3} more"
+
+                return Response(
+                    {
+                        "error": "Confirm all team worker arrivals before confirming backjob started",
+                        "pending_arrival_count": pending_count,
+                        "pending_arrival_workers": sample_names,
+                    },
+                    status=400,
+                )
         
         # Confirm backjob work has started
         dispute.backjobStarted = True
@@ -8107,7 +8257,75 @@ def mark_backjob_complete(request, job_id: int):
                 status=400
             )
         
-        # Check if already marked complete
+        # Team backjob: mark per-assignment completion first, then set dispute
+        # completion only when all active workers are complete.
+        if job.is_team_job and requester_team_assignment:
+            if not requester_team_assignment.worker_marked_complete:
+                requester_team_assignment.worker_marked_complete = True
+                requester_team_assignment.worker_marked_complete_at = timezone.now()
+                if hasattr(requester_team_assignment, "completion_notes") and notes:
+                    requester_team_assignment.completion_notes = notes
+                    requester_team_assignment.save(
+                        update_fields=[
+                            "worker_marked_complete",
+                            "worker_marked_complete_at",
+                            "completion_notes",
+                            "updatedAt",
+                        ]
+                    )
+                else:
+                    requester_team_assignment.save(
+                        update_fields=[
+                            "worker_marked_complete",
+                            "worker_marked_complete_at",
+                            "updatedAt",
+                        ]
+                    )
+
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status='ACTIVE',
+            ).select_related('workerID__profileID')
+
+            pending_completions = []
+            for assignment in team_assignments:
+                progress = _resolve_team_backjob_assignment_progress(
+                    job,
+                    assignment,
+                    dispute,
+                    auto_heal=True,
+                )
+                if not progress["completed"]:
+                    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip()
+                    pending_completions.append(worker_name or f"Worker #{assignment.workerID_id}")
+
+            if pending_completions:
+                remaining = len(pending_completions)
+                return {
+                    "success": True,
+                    "already_processed": False,
+                    "all_workers_complete": False,
+                    "remaining_workers": remaining,
+                    "message": f"Your assignment is marked complete. Waiting for {remaining} team worker(s) to finish.",
+                    "job_id": job_id,
+                    **_build_backjob_state_payload(dispute),
+                }
+
+            if not dispute.workerMarkedBackjobComplete:
+                dispute.workerMarkedBackjobComplete = True
+                dispute.workerMarkedBackjobCompleteAt = timezone.now()
+                dispute.save(update_fields=["workerMarkedBackjobComplete", "workerMarkedBackjobCompleteAt", "updatedAt"])
+
+            return {
+                "success": True,
+                "already_processed": False,
+                "all_workers_complete": True,
+                "message": "All team workers are complete. Client can now approve backjob completion.",
+                "job_id": job_id,
+                **_build_backjob_state_payload(dispute),
+            }
+
+        # Non-team backjobs remain dispute-level completion.
         if dispute.workerMarkedBackjobComplete:
             return {
                 "success": True,
@@ -8223,6 +8441,46 @@ def approve_backjob_completion(request, job_id: int):
                 "job_id": job_id,
                 **_build_backjob_state_payload(dispute),
             }
+
+        # Team backjob parity: require all active team assignments complete.
+        if job.is_team_job:
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status='ACTIVE',
+            ).select_related('workerID__profileID')
+
+            pending_completions = []
+            for assignment in team_assignments:
+                progress = _resolve_team_backjob_assignment_progress(
+                    job,
+                    assignment,
+                    dispute,
+                    auto_heal=True,
+                )
+                if not progress["completed"]:
+                    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip()
+                    pending_completions.append(worker_name or f"Worker #{assignment.workerID_id}")
+
+            if pending_completions:
+                pending_count = len(pending_completions)
+                sample_names = ", ".join(pending_completions[:3])
+                if pending_count > 3:
+                    sample_names = f"{sample_names}, and {pending_count - 3} more"
+
+                return Response(
+                    {
+                        "error": f"{pending_count} team worker(s) have not yet marked assignment complete",
+                        "pending_completion_count": pending_count,
+                        "pending_completion_workers": sample_names,
+                    },
+                    status=400,
+                )
+
+            # Keep dispute-level state aligned once all assignments are complete.
+            if not dispute.workerMarkedBackjobComplete:
+                dispute.workerMarkedBackjobComplete = True
+                dispute.workerMarkedBackjobCompleteAt = timezone.now()
+                dispute.save(update_fields=["workerMarkedBackjobComplete", "workerMarkedBackjobCompleteAt", "updatedAt"])
 
         # Check if worker marked it complete
         if not dispute.workerMarkedBackjobComplete:
