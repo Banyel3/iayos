@@ -1107,6 +1107,10 @@ export default function ChatScreen() {
     conversation?.is_team_job &&
     conversation?.job?.payment_model === "DAILY" &&
     Boolean(conversation?.backjob?.has_backjob);
+  const hasTeamAssignmentRows = teamAssignedWorkers.length > 0;
+  const isTeamBackjobFlow =
+    Boolean(conversation?.backjob?.has_backjob) &&
+    (Boolean(conversation?.is_team_job) || hasTeamAssignmentRows);
   const teamBackjobAllWorkersComplete =
     teamAssignedWorkers.length > 0 && pendingTeamCompletionWorkers.length === 0;
   const myTeamBackjobAssignment =
@@ -8943,9 +8947,9 @@ export default function ChatScreen() {
                     {/* CLIENT: Waiting for Worker to Complete Backjob */}
                     {conversation.my_role === "CLIENT" &&
                       conversation.backjob?.backjob_started &&
-                      ((isTeamDailyBackjobFlow &&
+                      ((isTeamBackjobFlow &&
                         !teamBackjobAllWorkersComplete) ||
-                        (!isTeamDailyBackjobFlow &&
+                        (!isTeamBackjobFlow &&
                           !conversation.backjob?.worker_marked_complete)) && (
                         <View style={styles.backjobWaitingBadge}>
                           <Ionicons
@@ -8954,7 +8958,7 @@ export default function ChatScreen() {
                             color={Colors.textSecondary}
                           />
                           <Text style={styles.backjobWaitingText}>
-                            {isTeamDailyBackjobFlow
+                            {isTeamBackjobFlow
                               ? `Waiting for workers to finish (${teamAssignedWorkers.length - pendingTeamCompletionWorkers.length}/${teamAssignedWorkers.length})...`
                               : "Waiting for worker..."}
                           </Text>
@@ -9017,8 +9021,7 @@ export default function ChatScreen() {
                     {isWorkerSideBackjobActor &&
                       !(
                         conversation.my_role === "WORKER" &&
-                        isTeamDailyBackjobFlow &&
-                        !!myTeamBackjobAssignment
+                        isTeamBackjobFlow
                       ) &&
                       conversation.backjob?.backjob_started &&
                       !conversation.backjob?.worker_marked_complete && (
@@ -9044,6 +9047,56 @@ export default function ChatScreen() {
                               />
                               <Text style={styles.backjobActionButtonText}>
                                 Mark Complete
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                    {conversation.my_role === "WORKER" &&
+                      isTeamBackjobFlow &&
+                      conversation.backjob?.backjob_started &&
+                      !myTeamBackjobAssignment && (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="alert-circle-outline"
+                            size={14}
+                            color={Colors.warning}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for team assignment sync before marking completion.
+                          </Text>
+                        </View>
+                      )}
+
+                    {conversation.my_role === "WORKER" &&
+                      isTeamBackjobFlow &&
+                      conversation.backjob?.backjob_started &&
+                      !!myTeamBackjobAssignment &&
+                      !myTeamBackjobMarkedComplete &&
+                      !isTeamDailyBackjobFlow && (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.warning },
+                          ]}
+                          onPress={handleMarkBackjobComplete}
+                          disabled={markBackjobCompleteMutation.isPending}
+                        >
+                          {markBackjobCompleteMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-done"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Mark My Assignment Complete
                               </Text>
                             </>
                           )}

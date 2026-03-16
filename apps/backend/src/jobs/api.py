@@ -8209,7 +8209,7 @@ def confirm_backjob_started(request, job_id: int):
         if job.is_team_job:
             team_assignments = JobWorkerAssignment.objects.filter(
                 jobID=job,
-                assignment_status='ACTIVE',
+                assignment_status__in=['ACTIVE', 'COMPLETED'],
             ).select_related('workerID__profileID')
 
             if not team_assignments.exists():
@@ -8348,12 +8348,22 @@ def mark_backjob_complete(request, job_id: int):
             profileID__accountFK=request.auth
         ).first()
         requester_team_assignment = None
-        if worker_profile and job.is_team_job:
+        if job.is_team_job:
+            # Primary lookup: resolve assignment directly by authenticated account.
+            # This avoids false 403s when WorkerProfile resolution is stale/inconsistent.
             requester_team_assignment = JobWorkerAssignment.objects.filter(
                 jobID=job,
-                workerID=worker_profile,
-                assignment_status='ACTIVE',
+                workerID__profileID__accountFK=request.auth,
+                assignment_status__in=['ACTIVE', 'COMPLETED'],
             ).first()
+
+            # Legacy fallback: keep old worker-profile path for compatibility.
+            if not requester_team_assignment and worker_profile:
+                requester_team_assignment = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    workerID=worker_profile,
+                    assignment_status__in=['ACTIVE', 'COMPLETED'],
+                ).first()
 
         requester_employee_assignment = JobEmployeeAssignment.objects.filter(
             job=job,
@@ -8417,7 +8427,7 @@ def mark_backjob_complete(request, job_id: int):
 
             team_assignments = JobWorkerAssignment.objects.filter(
                 jobID=job,
-                assignment_status='ACTIVE',
+                assignment_status__in=['ACTIVE', 'COMPLETED'],
             ).select_related('workerID__profileID')
 
             pending_completions = []
