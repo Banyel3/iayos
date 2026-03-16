@@ -27,7 +27,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useProfileMetrics } from "@/lib/hooks/useProfileMetrics";
 import { useWallet, WalletData } from "@/lib/hooks/useWallet";
 import { formatCurrency } from "@/lib/hooks/usePayments";
-import { useScanLocation } from "@/lib/hooks/useLocation";
 import {
   useDualProfileStatus,
   useCreateClientProfile,
@@ -60,7 +59,6 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
 
   const router = useRouter();
-  const scanLocation = useScanLocation();
 
   // Dual profile management
   const { data: dualStatus, isLoading: isDualStatusLoading } =
@@ -379,92 +377,6 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Top Action Buttons */}
-      <View style={styles.topActionsContainer}>
-        {/* Location Button */}
-        <TouchableOpacity
-          onPress={async () => {
-            try {
-              await scanLocation.mutateAsync();
-            } catch (error) {
-              // Error alert already shown in hook
-            }
-          }}
-          style={styles.actionButton}
-          disabled={scanLocation.isPending}
-        >
-          {scanLocation.isPending ? (
-            <ActivityIndicator size="small" color="#007AFF" />
-          ) : (
-            <Ionicons name="location" size={26} color="#54B7EC" />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Availability pill — top left, worker only */}
-      {isWorker && (
-        <View style={styles.availabilityPillWrapper}>
-          <Text style={styles.availabilitySectionLabel}>Availability</Text>
-          <View
-            style={[
-              styles.availabilityPill,
-              effectiveIsAvailable ? styles.availabilityPillOn : styles.availabilityPillOff,
-            ]}
-          >
-            {isAvailabilityLoading ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 6 }} />
-            ) : (
-              <Switch
-                value={effectiveIsAvailable}
-                onValueChange={(val) => {
-                  setLocalIsAvailable(val);
-                  showAvailabilityToast(val);
-                  updateAvailability.mutate(val, {
-                    onError: () => {
-                      setLocalIsAvailable(!val);
-                      if (availabilityToastTimer.current) {
-                        clearTimeout(availabilityToastTimer.current);
-                      }
-                      hideAvailabilityToast();
-                    },
-                  });
-                }}
-                trackColor={{ false: "#ccc", true: Colors.success + "90" }}
-                thumbColor={effectiveIsAvailable ? Colors.success : "#888"}
-                disabled={updateAvailability.isPending}
-                style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }] }}
-              />
-            )}
-          </View>
-          {availabilityToast !== null && (
-            <Animated.View
-              style={[
-                styles.availabilityToast,
-                {
-                  opacity: availabilityToastAnim,
-                  transform: [
-                    {
-                      translateY: availabilityToastAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-8, 0],
-                      }),
-                    },
-                    {
-                      scale: availabilityToastAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.96, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.availabilityToastText}>{availabilityToast}</Text>
-            </Animated.View>
-          )}
-        </View>
-      )}
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -477,6 +389,85 @@ export default function ProfileScreen() {
         {/* Header with Profile Info */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
+            {/* Availability pill (scrolls with content), worker only */}
+            {isWorker && (
+              <View style={styles.availabilityPillWrapper}>
+                <Text
+                  style={[
+                    styles.availabilitySectionLabel,
+                    effectiveIsAvailable && styles.availabilitySectionLabelOn,
+                  ]}
+                >
+                  Availability
+                </Text>
+                <View
+                  style={[
+                    styles.availabilityPill,
+                    effectiveIsAvailable
+                      ? styles.availabilityPillOn
+                      : styles.availabilityPillOff,
+                  ]}
+                >
+                  {isAvailabilityLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={Colors.primary}
+                      style={{ marginRight: 6 }}
+                    />
+                  ) : (
+                    <Switch
+                      value={effectiveIsAvailable}
+                      onValueChange={(val) => {
+                        setLocalIsAvailable(val);
+                        showAvailabilityToast(val);
+                        updateAvailability.mutate(val, {
+                          onError: () => {
+                            setLocalIsAvailable(!val);
+                            if (availabilityToastTimer.current) {
+                              clearTimeout(availabilityToastTimer.current);
+                            }
+                            hideAvailabilityToast();
+                          },
+                        });
+                      }}
+                      trackColor={{ false: "#ccc", true: Colors.success + "90" }}
+                      thumbColor={effectiveIsAvailable ? Colors.success : "#888"}
+                      disabled={updateAvailability.isPending}
+                      style={{ transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }] }}
+                    />
+                  )}
+                </View>
+                {availabilityToast !== null && (
+                  <Animated.View
+                    style={[
+                      styles.availabilityToast,
+                      {
+                        opacity: availabilityToastAnim,
+                        transform: [
+                          {
+                            translateY: availabilityToastAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-8, 0],
+                            }),
+                          },
+                          {
+                            scale: availabilityToastAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.96, 1],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <Text style={styles.availabilityToastText}>
+                      {availabilityToast}
+                    </Text>
+                  </Animated.View>
+                )}
+              </View>
+            )}
+
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               {user?.profile_data?.profileImg ? (
@@ -1267,20 +1258,12 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.divider,
     ...Shadows.sm,
   },
-  topActionsContainer: {
-    position: "absolute",
-    top: 70,
-    right: 16,
-    zIndex: 100,
-    flexDirection: "row",
-    gap: 12,
-  },
   availabilityPillWrapper: {
     position: "absolute",
-    top: 70,
-    left: 16,
-    zIndex: 100,
-    alignItems: "flex-start",
+    top: 0,
+    right: 0,
+    zIndex: 2,
+    alignItems: "flex-end",
   },
   availabilitySectionLabel: {
     fontSize: 12,
@@ -1288,25 +1271,25 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: 6,
     marginLeft: 6,
-    letterSpacing: 0.1,
+    letterSpacing: 0,
+  },
+  availabilitySectionLabelOn: {
+    color: Colors.success,
   },
   availabilityPill: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 999,
     paddingVertical: 2,
-    paddingHorizontal: 4,
-    ...Shadows.sm,
+    paddingHorizontal: 2,
   },
   availabilityPillOn: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.success + "55",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   availabilityPillOff: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border + "CC",
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   availabilityToast: {
     marginTop: 6,
@@ -1323,15 +1306,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 12,
     fontWeight: "600",
-  },
-  actionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    ...Shadows.sm,
   },
   notificationIconContainer: {
     position: "absolute",
