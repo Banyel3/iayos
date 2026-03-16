@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Backjob Detail 'Not Found' Fallback Recovery (Worker Flow)**
   - Hardened mobile backjob detail param parsing for `jobId`/`disputeId` to prevent invalid route values from triggering false missing states.
+  - Added direct dispute lookup path `GET /api/jobs/backjob/{dispute_id}` and made it the primary detail fetch path when `disputeId` is present.
   - Added fallback lookup via `GET /api/mobile/jobs/my-backjobs` when primary `backjob-status` lookup fails, then resolves the dispute by `dispute_id` (or `job_id`) and continues loading details.
   - **Impact**: Workers opening backjob detail from conversation/list routes no longer hit false `Backjob Not Found` screens when primary lookup fails on legacy/edge payloads.
 

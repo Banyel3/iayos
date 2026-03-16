@@ -2304,6 +2304,117 @@ def get_my_backjobs(request, status: Optional[str] = None):
         return Response({"error": "Failed to fetch backjobs"}, status=500)
 
 
+@router.get("/backjob/{dispute_id}", auth=dual_auth)
+def get_backjob_by_dispute_id(request, dispute_id: int):
+    """
+    Fetch a specific backjob/dispute by dispute ID.
+    This is a resilient lookup path for mobile detail screens that already have dispute_id.
+    """
+    try:
+        try:
+            dispute = JobDispute.objects.select_related(
+                'jobID',
+                'jobID__clientID__profileID__accountFK',
+                'jobID__assignedWorkerID__profileID__accountFK',
+                'jobID__assignedAgencyFK__accountFK',
+            ).prefetch_related('evidence').get(disputeID=dispute_id)
+        except JobDispute.DoesNotExist:
+            return Response({"error": "Backjob not found"}, status=404)
+
+        job = dispute.jobID
+        if not job:
+            return Response({"error": "Related job not found"}, status=404)
+
+        worker_profile = WorkerProfile.objects.filter(
+            profileID__accountFK=request.auth
+        ).first()
+
+        active_team_assignment_exists = False
+        if worker_profile and job.is_team_job:
+            active_team_assignment_exists = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status__in=['ACTIVE', 'COMPLETED'],
+            ).exists()
+
+        # Agency owner path for agency-assigned jobs.
+        active_employee_assignment_exists = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+                JobEmployeeAssignment.AssignmentStatus.COMPLETED,
+            ],
+        ).exists()
+
+        # Conversation-participant fallback for worker-side participants,
+        # including team workers represented via ConversationParticipant.
+        is_conversation_participant = False
+        try:
+            from profiles.models import ConversationParticipant, Conversation
+
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation and worker_profile and worker_profile.profileID:
+                is_conversation_participant = ConversationParticipant.objects.filter(
+                    conversation=conversation,
+                    profile=worker_profile.profileID,
+                ).exists()
+        except Exception:
+            is_conversation_participant = False
+
+        is_client = bool(
+            job.clientID and job.clientID.profileID and job.clientID.profileID.accountFK == request.auth
+        )
+        is_assigned_worker = bool(
+            job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK == request.auth
+        )
+        is_assigned_agency = bool(
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+
+        if not (
+            is_client
+            or is_assigned_worker
+            or is_assigned_agency
+            or active_team_assignment_exists
+            or active_employee_assignment_exists
+            or is_conversation_participant
+        ):
+            return Response({"error": "Only job participants can view this backjob"}, status=403)
+
+        evidence_urls = [e.imageURL for e in dispute.evidence.all()]
+
+        return {
+            "has_backjob": True,
+            "job_id": job.jobID,
+            "dispute": {
+                "dispute_id": dispute.disputeID,
+                "reason": dispute.reason,
+                "description": dispute.description,
+                "status": dispute.status,
+                "priority": dispute.priority,
+                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
+                "resolution": dispute.resolution,
+                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
+                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+                "evidence_images": evidence_urls,
+                "backjob_started": dispute.backjobStarted,
+                "worker_marked_complete": dispute.workerMarkedBackjobComplete,
+                "client_confirmed": dispute.clientConfirmedBackjob,
+                "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+                "admin_rejected_at": dispute.adminRejectedAt.isoformat() if dispute.adminRejectedAt else None,
+                "admin_rejection_reason": dispute.adminRejectionReason,
+            }
+        }
+    except Exception as e:
+        print(f"Error fetching backjob by dispute id: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to fetch backjob detail"}, status=500)
+
+
 @router.get("/{job_id}", auth=cookie_auth)
 def get_job_posting(request, job_id: int):
     """

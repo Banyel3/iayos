@@ -21,6 +21,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface BackjobDetail {
   has_backjob: boolean;
+  job_id?: number;
   dispute: {
     dispute_id: number;
     reason: string;
@@ -137,7 +138,37 @@ export default function BackjobDetailScreen() {
       let resolvedJobId = jobIdParam;
       let resolvedBackjob: BackjobDetail | null = null;
 
-      // Primary path: fetch by job ID.
+      // Primary path for mobile robustness: fetch directly by dispute ID when available.
+      if (disputeIdParam) {
+        if (__DEV__) {
+          console.log(
+            `[BackjobDetail] Fetching detail by disputeId: ${disputeIdParam}`,
+          );
+        }
+        const disputeResponse = await apiRequest(
+          ENDPOINTS.BACKJOB_BY_DISPUTE(disputeIdParam),
+        );
+
+        if (disputeResponse.ok) {
+          const disputeData = (await disputeResponse.json()) as BackjobDetail;
+          if (disputeData.dispute?.evidence_images) {
+            disputeData.dispute.evidence_images =
+              disputeData.dispute.evidence_images.map((img) =>
+                getAbsoluteMediaUrl(img),
+              ) as string[];
+          }
+          if (disputeData.has_backjob && disputeData.dispute) {
+            resolvedBackjob = disputeData;
+            resolvedJobId = resolvedJobId || disputeData.job_id || null;
+          }
+        } else if (__DEV__) {
+          console.warn(
+            `[BackjobDetail] Dispute-id lookup failed (${disputeIdParam}): ${disputeResponse.status}`,
+          );
+        }
+      }
+
+      // Secondary path: fetch by job ID.
       if (resolvedJobId) {
         if (__DEV__) console.log(`[BackjobDetail] Fetching backjob status for jobId: ${resolvedJobId}`);
         const backjobResponse = await apiRequest(ENDPOINTS.BACKJOB_STATUS(resolvedJobId));
