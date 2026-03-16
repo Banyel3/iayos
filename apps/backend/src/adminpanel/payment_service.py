@@ -2093,9 +2093,66 @@ def process_withdrawal_approval(
                 )
 
                 if not transfer_result.get('success'):
+                    error_message = transfer_result.get('error', 'Failed to initiate BANK transfer')
+
+                    # Mark withdrawal as failed and immediately refund wallet balance.
+                    transaction.status = 'FAILED'
+                    transaction.processedAt = timezone.now()
+                    if admin:
+                        transaction.processedByAdmin = admin
+                    if admin_notes:
+                        transaction.description = f"{transaction.description} | Admin: {admin_notes}"
+                    transaction.description = f"{transaction.description} | BANK transfer initiation failed: {error_message}"
+                    transaction.save()
+
+                    if wallet:
+                        wallet.balance += transaction.amount
+                        wallet.save(update_fields=['balance', 'updatedAt'])
+
+                        Transaction.objects.create(
+                            walletID=wallet,
+                            transactionType='REFUND',
+                            amount=transaction.amount,
+                            balanceAfter=wallet.balance,
+                            status='COMPLETED',
+                            description=f"BANK withdrawal initiation failure refund - Original txn #{transaction_id}",
+                            referenceNumber=f"REFUND-BANK-WD-{transaction_id}",
+                            completedAt=timezone.now(),
+                            paymentMethod='WALLET'
+                        )
+
+                    if user_account:
+                        Notification.objects.create(
+                            accountFK=user_account,
+                            notificationType='SYSTEM',
+                            title='Bank Withdrawal Failed',
+                            message=(
+                                f'Your bank withdrawal of ₱{transaction.amount:,.2f} could not be initiated and '
+                                'has been refunded to your wallet balance.'
+                            )
+                        )
+
+                    if admin and request:
+                        log_action(
+                            admin=admin,
+                            action='APPROVE_WITHDRAWAL',
+                            entity_type='Transaction',
+                            entity_id=str(transaction_id),
+                            details={
+                                'amount': float(transaction.amount),
+                                'user': user_name,
+                                'payment_method': transaction.paymentMethod,
+                                'notes': admin_notes,
+                                'reference_number': reference_number,
+                                'outcome': 'transfer_initiation_failed_refunded',
+                                'provider_error': error_message,
+                            },
+                            request=request
+                        )
+
                     return {
                         'success': False,
-                        'error': transfer_result.get('error', 'Failed to initiate BANK transfer')
+                        'error': f'BANK transfer initiation failed and wallet was refunded: {error_message}'
                     }
 
                 if transfer_result.get('recipient_id') and transfer_result.get('recipient_id') != payment_method.paymongoRecipientId:
