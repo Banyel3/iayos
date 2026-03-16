@@ -23,6 +23,7 @@ import uuid
 import hmac
 import hashlib
 import logging
+import re
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 from django.conf import settings
@@ -561,13 +562,41 @@ class PayMongoService(PaymentProviderInterface):
 
         banks = self._fetch_supported_banks()
         if not banks:
-            # Do not return fallback banks with empty codes because BANK setup/transfer
-            # requires a valid provider bank code.
-            logger.warning("⚠️ PayMongo bank directory unavailable; returning empty list")
-            banks = []
+            # Provide a fallback directory with non-empty placeholder codes so UI
+            # can still render/select banks when provider directory lookup fails.
+            logger.warning("⚠️ PayMongo bank directory unavailable; using fallback bank directory")
+            banks = self._fallback_supported_banks()
 
         cache.set(cache_key, banks, timeout=ttl_seconds)
         return banks
+
+    def resolve_bank_code(self, bank_name: Optional[str], banks: Optional[List[Dict[str, str]]] = None) -> Optional[str]:
+        """Resolve live provider bank code by bank name."""
+        if not bank_name:
+            return None
+
+        normalized_target = self._normalize_bank_name(bank_name)
+        if not normalized_target:
+            return None
+
+        candidate_banks = banks if banks is not None else self._fetch_supported_banks()
+        if not candidate_banks:
+            return None
+
+        for bank in candidate_banks:
+            if self._normalize_bank_name(bank.get("name", "")) == normalized_target:
+                code = str(bank.get("code", "")).strip()
+                if code:
+                    return code
+
+        for bank in candidate_banks:
+            normalized_name = self._normalize_bank_name(bank.get("name", ""))
+            if normalized_target in normalized_name or normalized_name in normalized_target:
+                code = str(bank.get("code", "")).strip()
+                if code:
+                    return code
+
+        return None
 
     def create_bank_transfer_v2(
         self,
@@ -798,6 +827,42 @@ class PayMongoService(PaymentProviderInterface):
                 continue
 
         return []
+
+    def _fallback_supported_banks(self) -> List[Dict[str, str]]:
+        """Fallback list with placeholder bank codes for UI continuity."""
+        names = [
+            "AllBank (A Thrift Bank), Inc.",
+            "Asia United Bank (AUB)",
+            "BDO Unibank, Inc.",
+            "BPI (Bank of the Philippine Islands)",
+            "Bank of Commerce",
+            "China Banking Corporation (Chinabank)",
+            "Development Bank of the Philippines (DBP)",
+            "EastWest Bank",
+            "Land Bank of the Philippines",
+            "Maybank Philippines, Inc.",
+            "Metrobank (Metropolitan Bank & Trust Co.)",
+            "Philippine National Bank (PNB)",
+            "RCBC (Rizal Commercial Banking Corporation)",
+            "Security Bank Corporation",
+            "Union Bank of the Philippines (UnionBank)",
+        ]
+        return [
+            {
+                "code": f"fallback:{self._slugify_bank_name(name)}",
+                "name": name,
+            }
+            for name in names
+        ]
+
+    def _normalize_bank_name(self, value: str) -> str:
+        normalized = (value or "").lower()
+        normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized
+
+    def _slugify_bank_name(self, value: str) -> str:
+        return self._normalize_bank_name(value).replace(" ", "-")
 
     def _create_transfer_recipient_v2(
         self,

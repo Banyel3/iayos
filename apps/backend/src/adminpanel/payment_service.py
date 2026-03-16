@@ -2060,11 +2060,28 @@ def process_withdrawal_approval(
                 from accounts.paymongo_service import PayMongoService
 
                 paymongo = PayMongoService()
+                bank_code_to_use = str(payment_method.bankCode or '').strip()
+
+                # If method was saved from fallback bank directory, resolve to a live code now.
+                if bank_code_to_use.startswith('fallback:'):
+                    resolved_code = paymongo.resolve_bank_code(payment_method.bankName)
+                    if not resolved_code:
+                        return {
+                            'success': False,
+                            'error': (
+                                'Unable to resolve live bank code from provider. '
+                                'Please retry later when bank directory is available.'
+                            )
+                        }
+                    bank_code_to_use = resolved_code
+                    payment_method.bankCode = resolved_code
+                    payment_method.save(update_fields=['bankCode', 'updatedAt'])
+
                 transfer_result = paymongo.create_bank_transfer_v2(
                     amount=float(transaction.amount),
                     recipient_name=payment_method.accountName,
                     account_number=payment_method.accountNumber,
-                    bank_code=payment_method.bankCode,
+                    bank_code=bank_code_to_use,
                     transaction_id=transaction.transactionID,
                     description=admin_notes or f"Admin-approved BANK withdrawal #{transaction.transactionID}",
                     metadata={
