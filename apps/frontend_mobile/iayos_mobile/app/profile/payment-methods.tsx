@@ -94,6 +94,10 @@ export default function PaymentMethodsScreen() {
     },
   });
 
+  const validBankOptions = (banksData?.banks || []).filter(
+    (bank) => !!String(bank.code || "").trim(),
+  );
+
   // Add payment method mutation
   // Response type for add payment method
   interface AddPaymentMethodResponse {
@@ -313,6 +317,17 @@ export default function PaymentMethodsScreen() {
 
       if (!selectedBankName || !selectedBankCode) {
         Alert.alert("Error", "Please select a bank");
+        return;
+      }
+
+      const chosenBankIsValid = validBankOptions.some(
+        (bank) => bank.code === selectedBankCode,
+      );
+      if (!chosenBankIsValid) {
+        Alert.alert(
+          "Error",
+          "Selected bank is currently unavailable. Please select a valid bank option.",
+        );
         return;
       }
 
@@ -612,7 +627,7 @@ export default function PaymentMethodsScreen() {
                   <TouchableOpacity
                     style={styles.pickerButton}
                     onPress={() => setShowBankPickerModal(true)}
-                    disabled={isLoadingBanks || !banksData?.banks || banksData.banks.length === 0}
+                    disabled={isLoadingBanks || validBankOptions.length === 0}
                   >
                     <Text
                       style={[
@@ -624,7 +639,7 @@ export default function PaymentMethodsScreen() {
                       {selectedBankName ||
                         (isLoadingBanks
                           ? "Loading supported banks..."
-                          : banksData?.banks?.length
+                          : validBankOptions.length
                           ? "Select bank"
                           : "No supported banks available")}
                     </Text>
@@ -643,7 +658,7 @@ export default function PaymentMethodsScreen() {
                       <Text style={styles.retryBanksText}>Failed to load banks. Tap to retry.</Text>
                     </TouchableOpacity>
                   )}
-                  {!isLoadingBanks && !isBanksError && (!banksData?.banks || banksData.banks.length === 0) && (
+                  {!isLoadingBanks && !isBanksError && validBankOptions.length === 0 && (
                     <Text style={styles.helperText}>No banks were returned by the provider right now. Please retry later.</Text>
                   )}
                   {!!selectedBankName && <Text style={styles.helperText}>Selected: {selectedBankName}</Text>}
@@ -733,7 +748,7 @@ export default function PaymentMethodsScreen() {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={styles.modalList}>
-                  {(banksData?.banks || []).map((bank) => (
+                  {validBankOptions.map((bank) => (
                     <TouchableOpacity
                       key={`${bank.code}-${bank.name}`}
                       style={styles.modalListItem}
