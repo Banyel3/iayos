@@ -11,10 +11,12 @@
 import {
   useQuery,
   useInfiniteQuery,
+  useMutation,
+  useQueryClient,
   UseQueryOptions,
 } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/query-core";
-import { ENDPOINTS, fetchJson, getAbsoluteMediaUrl } from "@/lib/api/config";
+import { ENDPOINTS, fetchJson, getAbsoluteMediaUrl, apiRequest } from "@/lib/api/config";
 
 export interface Worker {
   id: number;
@@ -294,5 +296,59 @@ export function useInfiniteWorkers(filters: Omit<WorkerFilters, "page"> = {}) {
       return undefined;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Worker availability hooks (worker-side)
+// ---------------------------------------------------------------------------
+
+interface WorkerAvailabilityData {
+  isAvailable: boolean;
+  availabilityStatus: string;
+}
+
+/**
+ * Fetch the authenticated worker's current availability status.
+ */
+export function useWorkerAvailability(options?: { enabled?: boolean }) {
+  return useQuery<WorkerAvailabilityData>({
+    queryKey: ["worker-availability"],
+    queryFn: async (): Promise<WorkerAvailabilityData> => {
+      const res = await apiRequest(ENDPOINTS.WORKER_AVAILABILITY);
+      if (!res.ok) throw new Error("Failed to fetch availability");
+      const json = await res.json();
+      const data = (json?.data ?? json) as Record<string, unknown>;
+      return {
+        isAvailable: data.isAvailable === true,
+        availabilityStatus: (data.availabilityStatus as string) || "OFFLINE",
+      };
+    },
+    enabled: options?.enabled !== false,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Toggle the authenticated worker's availability status.
+ * Optimistically updates the cache so the UI responds instantly.
+ */
+export function useUpdateWorkerAvailability() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, boolean>({
+    mutationFn: async (isAvailable: boolean): Promise<void> => {
+      const url = `${ENDPOINTS.WORKER_AVAILABILITY}?is_available=${isAvailable}`;
+      const res = await apiRequest(url, { method: "PATCH" });
+      if (!res.ok) throw new Error("Failed to update availability");
+    },
+    onSuccess: (_data, isAvailable) => {
+      // Synchronously update the query cache so the toggle reflects immediately
+      queryClient.setQueryData<WorkerAvailabilityData>(["worker-availability"], {
+        isAvailable,
+        availabilityStatus: isAvailable ? "AVAILABLE" : "OFFLINE",
+      });
+      // Invalidate the client-side workers listing so hidden/shown workers refresh
+      queryClient.invalidateQueries({ queryKey: ["workers"] });
+    },
   });
 }

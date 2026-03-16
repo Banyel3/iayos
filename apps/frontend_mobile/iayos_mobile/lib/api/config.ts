@@ -472,7 +472,7 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/support/tickets/${id}/reply`,
 
   // Worker
-  WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/worker/availability`,
+  WORKER_AVAILABILITY: `${API_BASE_URL}/accounts/workers/availability`,
   NEARBY_WORKERS: `${API_URL}/api/mobile/workers/list`,
   WORKER_DETAIL: (id: number) => `${API_URL}/api/mobile/workers/detail/${id}`,
 

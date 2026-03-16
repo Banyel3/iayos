@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
@@ -34,6 +35,7 @@ import {
 import { ENDPOINTS, apiRequest, getAbsoluteMediaUrl } from "@/lib/api/config";
 import CalendarFAB from "@/components/CalendarFAB";
 import { useQuery } from "@tanstack/react-query";
+import { useWorkerAvailability, useUpdateWorkerAvailability } from "@/lib/hooks/useWorkers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type WorkerOnboardingProfile = {
@@ -95,6 +97,17 @@ export default function ProfileScreen() {
   };
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
+
+  // Worker availability toggle
+  const { data: availabilityData, isLoading: isAvailabilityLoading } =
+    useWorkerAvailability({ enabled: Boolean(isWorker) });
+  const updateAvailability = useUpdateWorkerAvailability();
+  const [localIsAvailable, setLocalIsAvailable] = React.useState<boolean | null>(null);
+  const effectiveIsAvailable =
+    localIsAvailable !== null
+      ? localIsAvailable
+      : (availabilityData?.isAvailable ?? false);
+
   const [showFirstTimeWorkerModal, setShowFirstTimeWorkerModal] =
     React.useState(false);
   const firstTimeWorkerStorageKey =
@@ -668,7 +681,47 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* Wallet Section */}
+          {/* Availability Toggle - Worker Only */}
+          {isWorker && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Availability</Text>
+              <View style={styles.availabilityCard}>
+                <View style={styles.availabilityIconContainer}>
+                  <Ionicons
+                    name={effectiveIsAvailable ? "power" : "power-outline"}
+                    size={24}
+                    color={effectiveIsAvailable ? Colors.success : Colors.textSecondary}
+                  />
+                </View>
+                <View style={styles.availabilityInfo}>
+                  <Text style={styles.availabilityTitle}>Available for Work</Text>
+                  <Text style={styles.availabilitySubtitle}>
+                    {effectiveIsAvailable
+                      ? "Clients can find and hire you"
+                      : "You are hidden from client search"}
+                  </Text>
+                </View>
+                {isAvailabilityLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Switch
+                    value={effectiveIsAvailable}
+                    onValueChange={(val) => {
+                      setLocalIsAvailable(val);
+                      updateAvailability.mutate(val, {
+                        onError: () => setLocalIsAvailable(!val),
+                      });
+                    }}
+                    trackColor={{ false: Colors.border, true: Colors.success + "60" }}
+                    thumbColor={effectiveIsAvailable ? Colors.success : Colors.textHint}
+                    disabled={updateAvailability.isPending}
+                  />
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Wallet Section */}}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Wallet</Text>
             <TouchableOpacity
@@ -1599,5 +1652,35 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontStyle: "italic",
     color: "#9AA0A6",
+  },
+  availabilityCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    ...Shadows.sm,
+  },
+  availabilityIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  availabilityInfo: {
+    flex: 1,
+  },
+  availabilityTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  availabilitySubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
   },
 });
