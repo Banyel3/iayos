@@ -50,7 +50,55 @@ class PayMongoService(PaymentProviderInterface):
     """
     
     BASE_URL = "https://api.paymongo.com/v1"
+    TRANSFER_V2_BASE_URL = "https://api.paymongo.com/v2"
     PLACEHOLDER_KEY_PATTERN = re.compile(r"^\$\{[^}]+\}$")
+
+    # BIC/SWIFT codes required by PayMongo Transfer V2 destination_account.bic.
+    # Maps every code variant (short code, slug, fallback slug) → canonical BIC.
+    _BIC_MAP: Dict[str, str] = {
+        # Short codes (lowercase)
+        "aub":          "AUBKPHMM",
+        "bdo":          "BNORPHMM",
+        "bpi":          "BOPIPHM1",
+        "chinabank":    "CHBKPHMM",
+        "dbp":          "DEVBPHM1",
+        "eastwest":     "EWBKPHMM",
+        "landbank":     "LBPIPHM1",
+        "maybank":      "MBBEPHMM",
+        "metrobank":    "MBTCPHMM",
+        "pnb":          "PNBMPHMM",
+        "rcbc":         "RCBCPHMM",
+        "securitybank": "SBNKPHMM",
+        "unionbank":    "UBPHPHMM",
+        # Slug patterns (from fallback: prefix)
+        "asia-united-bank-aub":                         "AUBKPHMM",
+        "bdo-unibank-inc":                              "BNORPHMM",
+        "bpi-bank-of-the-philippine-islands":           "BOPIPHM1",
+        "china-banking-corporation-chinabank":          "CHBKPHMM",
+        "development-bank-of-the-philippines-dbp":      "DEVBPHM1",
+        "eastwest-bank":                                "EWBKPHMM",
+        "land-bank-of-the-philippines":                 "LBPIPHM1",
+        "maybank-philippines-inc":                      "MBBEPHMM",
+        "metrobank-metropolitan-bank-trust-co":         "MBTCPHMM",
+        "philippine-national-bank-pnb":                 "PNBMPHMM",
+        "rcbc-rizal-commercial-banking-corporation":    "RCBCPHMM",
+        "security-bank-corporation":                    "SBNKPHMM",
+        "union-bank-of-the-philippines-unionbank":      "UBPHPHMM",
+        # BIC codes → themselves (idempotent normalisation)
+        "AUBKPHMM": "AUBKPHMM",
+        "BNORPHMM": "BNORPHMM",
+        "BOPIPHM1": "BOPIPHM1",
+        "CHBKPHMM": "CHBKPHMM",
+        "DEVBPHM1": "DEVBPHM1",
+        "EWBKPHMM": "EWBKPHMM",
+        "LBPIPHM1": "LBPIPHM1",
+        "MBBEPHMM": "MBBEPHMM",
+        "MBTCPHMM": "MBTCPHMM",
+        "PNBMPHMM": "PNBMPHMM",
+        "RCBCPHMM": "RCBCPHMM",
+        "SBNKPHMM": "SBNKPHMM",
+        "UBPHPHMM": "UBPHPHMM",
+    }
     
     def __init__(self):
         self.secret_key = self._sanitize_key(getattr(settings, 'PAYMONGO_SECRET_KEY', ''))
@@ -612,64 +660,84 @@ class PayMongoService(PaymentProviderInterface):
 
     def derive_fallback_bank_code(self, stored_code: str, bank_name: Optional[str]) -> Optional[str]:
         """
-        Derive a best-effort provider bank code when only fallback code/name is available.
-        This keeps payouts operational during temporary institutions endpoint outages.
+        Derive the BIC/SWIFT code for PayMongo Transfer V2 destination_account.bic
+        when only a fallback code or bank name is available.
+
+        Returns a BIC code (e.g. 'BNORPHMM' for BDO) required by POST /v2/batch_transfers.
         """
         raw_code = (stored_code or "").strip()
-        if not raw_code:
+        slug = raw_code.replace("fallback:", "", 1).strip().lower()
+
+        # 1. Direct lookup in BIC map (covers BIC→BIC, shortcode→BIC, slug→BIC)
+        bic = self._BIC_MAP.get(slug) or self._BIC_MAP.get(raw_code)
+        if bic:
+            return bic
+
+        # 2. Name-based lookup against static fallback list
+        normalized_name = self._normalize_bank_name(bank_name or "")
+        name_to_bic = {
+            "union bank": "UBPHPHMM",
+            "unionbank":  "UBPHPHMM",
+            "security bank": "SBNKPHMM",
+            "metro bank": "MBTCPHMM",
+            "metrobank":  "MBTCPHMM",
+            "land bank":  "LBPIPHM1",
+            "landbank":   "LBPIPHM1",
+            "eastwest":   "EWBKPHMM",
+            "chinabank":  "CHBKPHMM",
+            "china bank": "CHBKPHMM",
+            "maybank":    "MBBEPHMM",
+            "rcbc":       "RCBCPHMM",
+            "philippine national": "PNBMPHMM",
+            "bpi":        "BOPIPHM1",
+            "bdo":        "BNORPHMM",
+            "asia united": "AUBKPHMM",
+            "development bank": "DEVBPHM1",
+        }
+        for keyword, bic_code in name_to_bic.items():
+            if keyword in normalized_name:
+                return bic_code
+
+        return None
+
+    def normalize_bank_code_to_bic(self, bank_code: str, bank_name: Optional[str] = None) -> Optional[str]:
+        """
+        Normalise any stored bank code format (BIC, short code, slug, fallback:slug)
+        to the BIC/SWIFT code required by PayMongo Transfer V2 destination_account.bic.
+
+        Returns the BIC if resolvable, or None if unknown.
+        """
+        raw = (bank_code or "").strip()
+        if not raw:
             return None
 
-        slug = raw_code.replace("fallback:", "", 1).strip().lower()
-        normalized_name = self._normalize_bank_name(bank_name or "")
+        # Strip the 'fallback:' prefix before lookup
+        normalized = raw.replace("fallback:", "", 1).strip()
 
-        mapping = {
-            "allbank-a-thrift-bank-inc": "allbank",
-            "asia-united-bank-aub": "aub",
-            "bdo-unibank-inc": "bdo",
-            "bpi-bank-of-the-philippine-islands": "bpi",
-            "bank-of-commerce": "bankcom",
-            "china-banking-corporation-chinabank": "chinabank",
-            "development-bank-of-the-philippines-dbp": "dbp",
-            "eastwest-bank": "eastwest",
-            "land-bank-of-the-philippines": "landbank",
-            "maybank-philippines-inc": "maybank",
-            "metrobank-metropolitan-bank-trust-co": "metrobank",
-            "philippine-national-bank-pnb": "pnb",
-            "rcbc-rizal-commercial-banking-corporation": "rcbc",
-            "security-bank-corporation": "securitybank",
-            "union-bank-of-the-philippines-unionbank": "unionbank",
-        }
+        # Direct map lookup (covers BIC→BIC, short→BIC, slug→BIC, uppercase variants)
+        bic = (
+            self._BIC_MAP.get(normalized)
+            or self._BIC_MAP.get(normalized.lower())
+            or self._BIC_MAP.get(normalized.upper())
+        )
+        if bic:
+            return bic
 
-        if slug in mapping:
-            return mapping[slug]
+        # Try resolve by name against live institutions (may return BIC from live API)
+        if bank_name:
+            live_code = self.resolve_bank_code(bank_name)
+            if live_code and live_code.upper() not in ("INS",) and not live_code.lower().startswith("ins_"):
+                # Re-normalize the live-returned code (it might itself be a BIC already)
+                bic_from_live = (
+                    self._BIC_MAP.get(live_code)
+                    or self._BIC_MAP.get(live_code.upper())
+                    or (live_code if len(live_code) >= 8 else None)
+                )
+                if bic_from_live:
+                    return bic_from_live
 
-        # Name-based loose matching
-        if "union" in normalized_name:
-            return "unionbank"
-        if "security" in normalized_name:
-            return "securitybank"
-        if "metro" in normalized_name:
-            return "metrobank"
-        if "land" in normalized_name:
-            return "landbank"
-        if "eastwest" in normalized_name:
-            return "eastwest"
-        if "chinabank" in normalized_name or "china banking" in normalized_name:
-            return "chinabank"
-        if "maybank" in normalized_name:
-            return "maybank"
-        if "rcbc" in normalized_name:
-            return "rcbc"
-        if "pnb" in normalized_name or "philippine national" in normalized_name:
-            return "pnb"
-        if "bpi" in normalized_name:
-            return "bpi"
-        if "bdo" in normalized_name:
-            return "bdo"
-
-        # Last resort: use compacted slug token
-        compact = slug.replace("-", "")
-        return compact[:20] if compact else None
+        # Name-based derivation as last resort
+        return self.derive_fallback_bank_code(raw, bank_name)
 
     def create_bank_transfer_v2(
         self,
@@ -681,10 +749,17 @@ class PayMongoService(PaymentProviderInterface):
         description: str,
         metadata: Optional[Dict[str, Any]] = None,
         transfer_provider: str = "instapay",
-        paymongo_recipient_id: Optional[str] = None,
+        paymongo_recipient_id: Optional[str] = None,  # Kept for signature compat, unused
     ) -> Dict[str, Any]:
         """
         Create a PayMongo Transfer V2 payout for BANK withdrawals.
+
+        Uses POST /v2/batch_transfers with inline destination_account.
+        No separate recipient creation step — the old /v1/recipients endpoint
+        does not exist in the PayMongo API.
+
+        bank_code must be a BIC/SWIFT code (e.g. BNORPHMM for BDO, BOPIPHM1 for BPI).
+        These are returned by GET /v1/wallets/receiving_institutions?provider=instapay.
         """
         try:
             normalized_account = self._normalize_bank_account_number(account_number)
@@ -693,7 +768,7 @@ class PayMongoService(PaymentProviderInterface):
 
             clean_bank_code = (bank_code or "").strip()
             if not clean_bank_code:
-                return {"success": False, "error": "Missing bank code for BANK transfer"}
+                return {"success": False, "error": "Missing bank BIC code for BANK transfer"}
 
             external_id = self._generate_external_id("BANKWD", transaction_id)
             transfer_metadata = {
@@ -702,47 +777,43 @@ class PayMongoService(PaymentProviderInterface):
                 **(metadata or {}),
             }
 
-            recipient_id = paymongo_recipient_id
-            if not recipient_id:
-                recipient_result = self._create_transfer_recipient_v2(
-                    recipient_name=recipient_name,
-                    account_number=normalized_account,
-                    bank_code=clean_bank_code,
-                    metadata=transfer_metadata,
-                )
-                if not recipient_result.get("success"):
-                    return recipient_result
-                recipient_id = recipient_result.get("recipient_id")
-
             amount_centavos = int(float(amount) * 100)
-            transfer_payload = {
+            payload = {
                 "data": {
-                    "attributes": {
-                        "amount": amount_centavos,
-                        "currency": "PHP",
-                        "recipient_id": recipient_id,
-                        "description": description,
-                        "transfer_provider": (transfer_provider or "instapay").lower(),
-                        "metadata": transfer_metadata,
-                    }
+                    "transfers": [
+                        {
+                            "destination_account": {
+                                "number": normalized_account,
+                                "name": recipient_name,
+                                "bic": clean_bank_code,
+                            },
+                            "amount": amount_centavos,
+                            "currency": "PHP",
+                            "provider": (transfer_provider or "instapay").lower(),
+                            "reference_number": external_id,
+                            "description": description,
+                            "metadata": transfer_metadata,
+                        }
+                    ]
                 }
             }
 
             response = requests.post(
-                f"{self.BASE_URL}/transfers",
-                json=transfer_payload,
+                f"{self.TRANSFER_V2_BASE_URL}/batch_transfers",
+                json=payload,
                 headers=self._get_headers(),
                 timeout=30,
             )
 
             if response.status_code in (200, 201):
-                data = response.json().get("data", {})
-                attrs = data.get("attributes", {})
-                status = self._map_transfer_status(attrs.get("status", "pending"))
+                resp_data = response.json().get("data", {})
+                transfers = resp_data.get("transfers", [])
+                first_transfer = transfers[0] if transfers else {}
+                status = self._map_transfer_status(first_transfer.get("status", "pending"))
                 return {
                     "success": True,
-                    "transfer_id": data.get("id"),
-                    "recipient_id": recipient_id,
+                    "transfer_id": first_transfer.get("id"),
+                    "batch_transfer_id": resp_data.get("id"),
                     "external_id": external_id,
                     "status": status,
                     "provider": "paymongo",
@@ -751,14 +822,14 @@ class PayMongoService(PaymentProviderInterface):
             error_data = response.json() if response.text else {}
             errors = error_data.get("errors", [{}])
             detail = errors[0].get("detail", f"HTTP {response.status_code}") if errors else f"HTTP {response.status_code}"
-            logger.error(f"❌ PayMongo Transfer V2 failed: {detail}")
+            logger.error(f"❌ PayMongo batch_transfer failed: {detail}")
             return {
                 "success": False,
                 "error": detail,
                 "error_details": error_data,
             }
         except Exception as e:
-            logger.error(f"❌ PayMongo Transfer V2 exception: {str(e)}")
+            logger.error(f"❌ PayMongo batch_transfer exception: {str(e)}")
             return {"success": False, "error": str(e)}
     
     def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
@@ -866,10 +937,11 @@ class PayMongoService(PaymentProviderInterface):
 
     def _fetch_supported_banks(self) -> List[Dict[str, str]]:
         """Fetch bank institutions from PayMongo; tolerant to endpoint shape changes."""
+        # Correct endpoint per PayMongo Transfer V2 docs:
+        # GET /v1/wallets/receiving_institutions?provider=instapay|pesonet
         endpoints = [
-            f"{self.BASE_URL}/institutions",
-            f"{self.BASE_URL}/institutions?type=bank",
-            f"{self.BASE_URL}/institutions?transfer_provider=instapay",
+            f"{self.BASE_URL}/wallets/receiving_institutions?provider=instapay",
+            f"{self.BASE_URL}/wallets/receiving_institutions?provider=pesonet",
         ]
 
         if not self.secret_key:
@@ -896,6 +968,7 @@ class PayMongoService(PaymentProviderInterface):
                     # IMPORTANT: transfer recipient requires a real provider bank code,
                     # not the institutions resource id (e.g., ins_xxx).
                     code_candidates = [
+                        attributes.get("bic"),            # Primary: BIC code for Transfer V2 destination_account
                         attributes.get("bank_code"),
                         attributes.get("institution_code"),
                         attributes.get("instapay_code"),
@@ -944,22 +1017,23 @@ class PayMongoService(PaymentProviderInterface):
         Used when the live institutions endpoint is unavailable.
         Codes were derived from PayMongo's supported-banks list for Transfer/Disbursements.
         """
+        # BIC codes (SWIFT) required by PayMongo Transfer V2 destination_account.bic.
+        # The live /v1/wallets/receiving_institutions endpoint is the authoritative source;
+        # this list is used only when that endpoint is unreachable.
         return [
-            {"code": "allbank",      "name": "AllBank (A Thrift Bank), Inc."},
-            {"code": "aub",          "name": "Asia United Bank (AUB)"},
-            {"code": "bdo",          "name": "BDO Unibank, Inc."},
-            {"code": "bpi",          "name": "BPI (Bank of the Philippine Islands)"},
-            {"code": "bankcom",      "name": "Bank of Commerce"},
-            {"code": "chinabank",    "name": "China Banking Corporation (Chinabank)"},
-            {"code": "dbp",          "name": "Development Bank of the Philippines (DBP)"},
-            {"code": "eastwest",     "name": "EastWest Bank"},
-            {"code": "landbank",     "name": "Land Bank of the Philippines"},
-            {"code": "maybank",      "name": "Maybank Philippines, Inc."},
-            {"code": "metrobank",    "name": "Metrobank (Metropolitan Bank & Trust Co.)"},
-            {"code": "pnb",          "name": "Philippine National Bank (PNB)"},
-            {"code": "rcbc",         "name": "RCBC (Rizal Commercial Banking Corporation)"},
-            {"code": "securitybank", "name": "Security Bank Corporation"},
-            {"code": "unionbank",    "name": "Union Bank of the Philippines (UnionBank)"},
+            {"code": "AUBKPHMM",    "name": "Asia United Bank (AUB)"},
+            {"code": "BNORPHMM",    "name": "BDO Unibank, Inc."},
+            {"code": "BOPIPHM1",    "name": "BPI (Bank of the Philippine Islands)"},
+            {"code": "CHBKPHMM",    "name": "China Banking Corporation (Chinabank)"},
+            {"code": "DEVBPHM1",    "name": "Development Bank of the Philippines (DBP)"},
+            {"code": "EWBKPHMM",    "name": "EastWest Bank"},
+            {"code": "LBPIPHM1",    "name": "Land Bank of the Philippines"},
+            {"code": "MBBEPHMM",    "name": "Maybank Philippines, Inc."},
+            {"code": "MBTCPHMM",    "name": "Metrobank (Metropolitan Bank & Trust Co.)"},
+            {"code": "PNBMPHMM",    "name": "Philippine National Bank (PNB)"},
+            {"code": "RCBCPHMM",    "name": "RCBC (Rizal Commercial Banking Corporation)"},
+            {"code": "SBNKPHMM",    "name": "Security Bank Corporation"},
+            {"code": "UBPHPHMM",    "name": "Union Bank of the Philippines (UnionBank)"},
         ]
 
     def _normalize_bank_name(self, value: str) -> str:
@@ -978,45 +1052,18 @@ class PayMongoService(PaymentProviderInterface):
         bank_code: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create a Transfer V2 recipient for bank payouts."""
-        payload = {
-            "data": {
-                "attributes": {
-                    "type": "bank_account",
-                    "account_name": recipient_name,
-                    "account_number": account_number,
-                    "bank_code": bank_code,
-                    "currency": "PHP",
-                    "metadata": metadata or {},
-                }
-            }
-        }
+        """
+        DEPRECATED — DO NOT CALL.
 
-        try:
-            response = requests.post(
-                f"{self.BASE_URL}/recipients",
-                json=payload,
-                headers=self._get_headers(),
-                timeout=30,
-            )
-
-            if response.status_code in (200, 201):
-                data = response.json().get("data", {})
-                return {
-                    "success": True,
-                    "recipient_id": data.get("id"),
-                }
-
-            error_data = response.json() if response.text else {}
-            errors = error_data.get("errors", [{}])
-            detail = errors[0].get("detail", f"HTTP {response.status_code}") if errors else f"HTTP {response.status_code}"
-            return {
-                "success": False,
-                "error": f"Recipient creation failed: {detail}",
-                "error_details": error_data,
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        The PayMongo /v1/recipients endpoint does not exist. Recipient details are
+        passed inline via destination_account inside POST /v2/batch_transfers.
+        create_bank_transfer_v2() no longer calls this method.
+        """
+        logger.error(
+            "❌ _create_transfer_recipient_v2() called — /v1/recipients does not exist. "
+            "Use create_bank_transfer_v2() which calls POST /v2/batch_transfers directly."
+        )
+        return {"success": False, "error": "Recipient endpoint does not exist — use batch_transfers"}
     
     def get_checkout_session_payments(self, cs_id: str):
         """
