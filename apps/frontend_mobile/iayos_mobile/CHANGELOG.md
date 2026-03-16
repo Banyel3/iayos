@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Backjob Attendance Row Selection Self-Heal (Legacy Duplicate Rows)**
+  - Updated mobile team/backjob attendance matching to select the best row by priority (`assignment_id` first) and most recent attendance signal timestamp.
+  - Applied the same best-match logic to worker-side `myWorkerAttendanceToday`, team backjob signal derivation, and client-side assignment-to-attendance merging.
+  - Prevents stale legacy rows from winning first-match selection when both old and current-cycle same-day rows exist.
+  - **Impact**: Worker `Mark On The Way` no longer reappears after dispatch, and client pending-arrival counts now reflect the current-cycle state consistently.
+
 - **Agency Client Confirm Arrival Visibility (Project Jobs)**
   - Updated agency project conversation flow so clients can confirm arrival per dispatched employee without waiting for every assigned employee to be dispatched first.
   - Kept existing dispatch status guidance visible for employees not yet dispatched.
