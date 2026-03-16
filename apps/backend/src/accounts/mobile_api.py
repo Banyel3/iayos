@@ -2637,6 +2637,7 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                     if wallet.balance - wallet.reservedBalance < additional_needed:
                         # Restore the reservation and abort
                         wallet.reservedBalance += original_reserved
+                        db_transaction.set_rollback(True)
                         return Response(
                             {
                                 "error": "Insufficient balance for negotiated price",
@@ -2650,6 +2651,7 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 # Final reserved-aware guard before deduction
                 if wallet.availableBalance < total_to_charge:
                     wallet.reservedBalance += original_reserved
+                    db_transaction.set_rollback(True)
                     return Response(
                         {
                             "error": "Insufficient balance while processing payment",
@@ -2666,6 +2668,7 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                     wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
                 except Exception:
                     wallet.reservedBalance += original_reserved
+                    db_transaction.set_rollback(True)
                     return Response(
                         {
                             "error": "Payment failed due to reserved wallet constraints",
