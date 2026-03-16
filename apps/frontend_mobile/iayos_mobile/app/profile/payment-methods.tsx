@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,6 +54,7 @@ export default function PaymentMethodsScreen() {
   const [accountNumber, setAccountNumber] = useState("");
   const [selectedBankName, setSelectedBankName] = useState("");
   const [selectedBankCode, setSelectedBankCode] = useState("");
+  const [showBankPickerModal, setShowBankPickerModal] = useState(false);
 
   // Fetch payment methods
   const {
@@ -249,6 +251,7 @@ export default function PaymentMethodsScreen() {
     setAccountNumber("");
     setSelectedBankName("");
     setSelectedBankCode("");
+    setShowBankPickerModal(false);
   };
 
   const handleAddMethod = () => {
@@ -587,11 +590,7 @@ export default function PaymentMethodsScreen() {
                 <Text style={styles.inputLabel}>Account Name</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={
-                    selectedType === "BANK"
-                      ? "e.g., Juan Dela Cruz"
-                      : "e.g., Juan Dela Cruz"
-                  }
+                  placeholder="e.g., Juan Dela Cruz"
                   placeholderTextColor={Colors.textHint}
                   value={accountName}
                   onChangeText={setAccountName}
@@ -602,34 +601,30 @@ export default function PaymentMethodsScreen() {
               {selectedType === "BANK" && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Select Bank</Text>
-                  <View style={styles.typeSelector}>
-                    {(banksData?.banks || []).slice(0, 12).map((bank) => (
-                      <TouchableOpacity
-                        key={bank.code || bank.name}
-                        style={[
-                          styles.typeButton,
-                          selectedBankCode === bank.code && styles.typeButtonActive,
-                        ]}
-                        onPress={() => {
-                          setSelectedBankName(bank.name);
-                          setSelectedBankCode(bank.code);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.typeButtonText,
-                            selectedBankCode === bank.code && styles.typeButtonTextActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {bank.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  {!!selectedBankName && (
-                    <Text style={styles.helperText}>Selected: {selectedBankName}</Text>
-                  )}
+                  <TouchableOpacity
+                    style={styles.pickerButton}
+                    onPress={() => setShowBankPickerModal(true)}
+                    disabled={!banksData?.banks || banksData.banks.length === 0}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerButtonText,
+                        !selectedBankName && styles.pickerButtonTextPlaceholder,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedBankName ||
+                        (banksData?.banks?.length
+                          ? "Select bank"
+                          : "Loading supported banks...")}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={18}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  {!!selectedBankName && <Text style={styles.helperText}>Selected: {selectedBankName}</Text>}
                 </View>
               )}
 
@@ -642,11 +637,20 @@ export default function PaymentMethodsScreen() {
                   placeholder={selectedType === "BANK" ? "Enter account number" : "09123456789"}
                   placeholderTextColor={Colors.textHint}
                   value={accountNumber}
-                  onChangeText={setAccountNumber}
+                  onChangeText={(value) => {
+                    const digitsOnly = value.replace(/\D/g, "");
+                    const maxLength = selectedType === "BANK" ? 20 : 11;
+                    setAccountNumber(digitsOnly.slice(0, maxLength));
+                  }}
                   keyboardType={selectedType === "BANK" ? "number-pad" : "numeric"}
                   maxLength={selectedType === "BANK" ? 20 : 11}
                   autoCapitalize="none"
                 />
+                <Text style={styles.helperText}>
+                  {selectedType === "BANK"
+                    ? `${accountNumber.length}/20 digits (minimum 8)`
+                    : `${accountNumber.length}/11 digits (must start with 09)`}
+                </Text>
               </View>
 
               {/* Submit Button */}
@@ -690,6 +694,44 @@ export default function PaymentMethodsScreen() {
 
           <View style={styles.bottomSpacing} />
         </ScrollView>
+
+        {showAddForm && selectedType === "BANK" && (
+          <Modal
+            visible={showBankPickerModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowBankPickerModal(false)}
+          >
+            <View style={styles.modalBackdrop}>
+              <View style={styles.modalCard}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Bank</Text>
+                  <TouchableOpacity onPress={() => setShowBankPickerModal(false)}>
+                    <Ionicons name="close" size={22} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={styles.modalList}>
+                  {(banksData?.banks || []).map((bank) => (
+                    <TouchableOpacity
+                      key={`${bank.code}-${bank.name}`}
+                      style={styles.modalListItem}
+                      onPress={() => {
+                        setSelectedBankName(bank.name);
+                        setSelectedBankCode(bank.code);
+                        setShowBankPickerModal(false);
+                      }}
+                    >
+                      <Text style={styles.modalListItemText}>{bank.name}</Text>
+                      {selectedBankCode === bank.code && (
+                        <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -981,6 +1023,69 @@ const styles = StyleSheet.create({
   },
   pickerItem: {
     color: Colors.textPrimary,
+  },
+  pickerButton: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  pickerButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  pickerButtonTextPlaceholder: {
+    color: Colors.textHint,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.medium,
+    maxHeight: "70%",
+    paddingVertical: 8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalTitle: {
+    ...Typography.heading.h4,
+    color: Colors.textPrimary,
+  },
+  modalList: {
+    maxHeight: 420,
+  },
+  modalListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalListItemText: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: 8,
   },
   cardRow: {
     flexDirection: "row",

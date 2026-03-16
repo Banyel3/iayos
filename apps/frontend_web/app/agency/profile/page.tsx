@@ -762,6 +762,7 @@ export default function AgencyProfilePage() {
                     <select
                       className="w-full h-12 border border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold px-3 text-sm"
                       value={newBankCode}
+                      disabled={isLoadingBanks || supportedBanks.length === 0}
                       onChange={(e) => {
                         const code = e.target.value;
                         const selected = supportedBanks.find((bank) => bank.code === code);
@@ -769,13 +770,24 @@ export default function AgencyProfilePage() {
                         setNewBankName(selected?.name || "");
                       }}
                     >
-                      <option value="">{isLoadingBanks ? "Loading banks..." : "Select bank"}</option>
+                      <option value="">
+                        {isLoadingBanks
+                          ? "Loading supported banks..."
+                          : supportedBanks.length === 0
+                            ? "No banks available"
+                            : "Select bank"}
+                      </option>
                       {supportedBanks.map((bank) => (
                         <option key={`${bank.code}-${bank.name}`} value={bank.code}>
                           {bank.name}
                         </option>
                       ))}
                     </select>
+                    {!isLoadingBanks && supportedBanks.length === 0 && (
+                      <p className="text-[11px] text-amber-600 font-semibold">
+                        Unable to load PayMongo bank directory right now. Please retry in a moment.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -792,6 +804,8 @@ export default function AgencyProfilePage() {
                     <Input
                       className="h-12 pl-11 border-gray-100 bg-gray-50 focus:bg-white rounded-xl font-bold tracking-widest"
                       value={newAccountNumber}
+                      inputMode="numeric"
+                      maxLength={newMethodType === "BANK" ? 20 : 11}
                       onChange={(e) =>
                         setNewAccountNumber(
                           e.target.value
@@ -802,6 +816,11 @@ export default function AgencyProfilePage() {
                       placeholder={newMethodType === "BANK" ? "Enter account number" : "09XXXXXXXXX"}
                     />
                   </div>
+                  <p className="text-[11px] text-gray-500 font-semibold">
+                    {newMethodType === "BANK"
+                      ? `${newAccountNumber.length}/20 digits (minimum 8)`
+                      : `${newAccountNumber.length}/11 digits (must start with 09)`}
+                  </p>
                 </div>
               </div>
 
@@ -821,7 +840,7 @@ export default function AgencyProfilePage() {
                     !newAccountName.trim() ||
                     (newMethodType === "GCASH"
                       ? newAccountNumber.length !== 11
-                      : newAccountNumber.length < 8 || !newBankCode)
+                      : newAccountNumber.length < 8 || !newBankCode || supportedBanks.length === 0)
                   }
                   className="w-full bg-[#00BAF1] hover:bg-[#00BAF1]/90 text-white h-12 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-sky-100"
                 >
@@ -853,7 +872,7 @@ export default function AgencyProfilePage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl font-bold text-gray-900">Remove Account?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-500 font-medium">
-              Are you sure you want to remove this GCash account? You will need to re-verify it to use it again for payouts.
+              Are you sure you want to remove this payout account? You may need to verify it again before using it for withdrawals.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="pt-6">
