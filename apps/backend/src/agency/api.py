@@ -4597,15 +4597,27 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 can_redispatch_for_backjob = True
             else:
                 can_redispatch_for_backjob = assignment.dispatchedAt < backjob_cycle_start
+
+        can_redispatch_for_new_day = False
+        work_date = _get_effective_work_date(job) if is_project_multiday else None
+        if assignment.dispatched and is_project_multiday and not can_redispatch_for_backjob:
+            # PROJECT multi-day requires a fresh dispatch each effective workday.
+            # If the stored dispatch is from a previous day (or has no timestamp),
+            # allow re-dispatch for the new day.
+            if not assignment.dispatchedAt:
+                can_redispatch_for_new_day = True
+            else:
+                last_dispatch_day = timezone.localtime(assignment.dispatchedAt).date()
+                if work_date and last_dispatch_day < work_date:
+                    can_redispatch_for_new_day = True
         
         # Check if already dispatched (unless this is a new backjob cycle)
-        if assignment.dispatched and not can_redispatch_for_backjob:
+        if assignment.dispatched and not can_redispatch_for_backjob and not can_redispatch_for_new_day:
             # Backward compatibility + idempotency for PROJECT multi-day jobs:
             # legacy records may already be dispatched via assignment flags while
             # missing DailyAttendance markers used by attendance-driven UIs.
             if is_project_multiday:
                 dispatched_time = assignment.dispatchedAt or timezone.now()
-                work_date = _get_effective_work_date(job)
                 arrival_confirmed = bool(getattr(assignment, 'clientConfirmedArrival', False))
                 arrival_time = getattr(assignment, 'clientConfirmedArrivalAt', None)
 
@@ -4658,7 +4670,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 'dispatched_at': assignment.dispatchedAt.isoformat() if assignment.dispatchedAt else None
             }, status=400)
 
-        if can_redispatch_for_backjob:
+        if can_redispatch_for_backjob or can_redispatch_for_new_day:
             assignment.clientConfirmedArrival = False
             assignment.clientConfirmedArrivalAt = None
             assignment.agencyMarkedComplete = False
@@ -4678,7 +4690,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         # Sync PROJECT multi-day dispatch into DailyAttendance so attendance-driven
         # flows (mobile/web) reflect on-the-way state consistently.
         if is_project_multiday:
-            work_date = _get_effective_work_date(job)
+            work_date = work_date or _get_effective_work_date(job)
             DailyAttendance.objects.update_or_create(
                 jobID=job,
                 employeeID=employee,
