@@ -764,25 +764,12 @@ export default function ChatScreen() {
     hydrateReviewInputs(activeEditableReview);
   }, [reviewModalMode, showReviewModal, currentEditableReviewIndex]);
 
-  // Block Android hardware back when review is required.
+  // Allow Android hardware back even when review is pending.
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
     const onBackPress = () => {
-      if (!needsReview) return false;
-
-      Alert.alert(
-        "Review Required",
-        "Please leave a review before exiting this conversation.",
-        [
-          {
-            text: "Leave Review",
-            onPress: () => openReviewModalSafely("submit"),
-          },
-        ],
-        { cancelable: false },
-      );
-      return true;
+      return false;
     };
 
     const subscription = BackHandler.addEventListener(
@@ -791,7 +778,7 @@ export default function ChatScreen() {
     );
 
     return () => subscription.remove();
-  }, [needsReview, reviewStatusSyncing]);
+  }, []);
 
   // Send message mutation
   const sendMutation = useSendMessageMutation();
@@ -3702,21 +3689,7 @@ export default function ChatScreen() {
       <View style={styles.customHeader}>
         <TouchableOpacity
           onPress={() => {
-            if (needsReview) {
-              Alert.alert(
-                "Review Required",
-                "Please leave a review before exiting this conversation.",
-                [
-                  {
-                    text: "Leave Review",
-                    onPress: () => openReviewModalSafely("submit"),
-                  },
-                ],
-                { cancelable: false },
-              );
-            } else {
-              safeGoBack(routerHook, "/(tabs)/messages");
-            }
+            safeGoBack(routerHook, "/(tabs)/messages");
           }}
           style={styles.backButton}
         >
@@ -7304,9 +7277,7 @@ export default function ChatScreen() {
             animationType="slide"
             presentationStyle="pageSheet"
             onRequestClose={() => {
-              if (!needsReview || reviewStatusSyncing)
-                setShowReviewModal(false);
-              // Block dismiss when review is required
+              setShowReviewModal(false);
             }}
           >
             <SafeAreaView style={styles.reviewModalContainer}>
@@ -7314,23 +7285,14 @@ export default function ChatScreen() {
               <View style={styles.reviewModalHeader}>
                 <TouchableOpacity
                   onPress={() => {
-                    if (!needsReview || reviewStatusSyncing) {
-                      setShowReviewModal(false);
-                    } else {
-                      Alert.alert(
-                        "Review Required",
-                        "Please complete your review before closing.",
-                      );
-                    }
+                    setShowReviewModal(false);
                   }}
                   style={styles.reviewModalCloseButton}
                 >
                   <Ionicons
                     name="close"
                     size={24}
-                    color={
-                      needsReview ? Colors.textSecondary : Colors.textPrimary
-                    }
+                    color={Colors.textPrimary}
                   />
                 </TouchableOpacity>
                 <Text style={styles.reviewModalTitle}>
