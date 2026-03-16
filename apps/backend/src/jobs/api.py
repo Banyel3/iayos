@@ -7795,6 +7795,14 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             return Response({"error": "Client must set a scheduled date first"}, status=400)
 
         if dispute.workerScheduleConfirmed:
+            # Backward compatibility + requested behavior:
+            # once worker confirms schedule, treat backjob as initiated.
+            if not dispute.backjobStarted:
+                dispute.backjobStarted = True
+                if not dispute.backjobStartedAt:
+                    dispute.backjobStartedAt = timezone.now()
+                dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
+
             auto_start_agency_backjob_if_ready(job, dispute, reason="already-confirmed")
             payload = _build_backjob_state_payload(dispute)
             return {
@@ -7841,10 +7849,17 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             if all_confirmed:
                 dispute.workerScheduleConfirmed = True
                 dispute.workerScheduleConfirmedAt = timezone.now()
+                # Requested behavior: all required worker confirmations completed,
+                # so backjob is considered initiated.
+                dispute.backjobStarted = True
+                if not dispute.backjobStartedAt:
+                    dispute.backjobStartedAt = timezone.now()
                 dispute.status = "UNDER_REVIEW"
                 dispute.save(update_fields=[
                     "workerScheduleConfirmed",
                     "workerScheduleConfirmedAt",
+                    "backjobStarted",
+                    "backjobStartedAt",
                     "status",
                     "updatedAt",
                 ])
@@ -7862,10 +7877,17 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         else:
             dispute.workerScheduleConfirmed = True
             dispute.workerScheduleConfirmedAt = timezone.now()
+            # Requested behavior: once assigned worker/agency confirms schedule,
+            # mark backjob as initiated.
+            dispute.backjobStarted = True
+            if not dispute.backjobStartedAt:
+                dispute.backjobStartedAt = timezone.now()
             dispute.status = "UNDER_REVIEW"
             dispute.save(update_fields=[
                 "workerScheduleConfirmed",
                 "workerScheduleConfirmedAt",
+                "backjobStarted",
+                "backjobStartedAt",
                 "status",
                 "updatedAt",
             ])

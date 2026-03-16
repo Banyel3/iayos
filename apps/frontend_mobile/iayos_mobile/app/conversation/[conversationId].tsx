@@ -880,12 +880,14 @@ export default function ChatScreen() {
   const isBackjobScheduledForFuture =
     !!hasApprovedBackjob &&
     !!scheduledBackjobDate &&
-    !conversation?.backjob?.backjob_started &&
     todayLocal < scheduledBackjobDate;
   const isBackjobScheduleMissing =
     !!hasApprovedBackjob &&
     !scheduledBackjobDate &&
     !conversation?.backjob?.backjob_started;
+  const scheduledBackjobDateLabel = scheduledBackjobDate
+    ? format(scheduledBackjobDate, "MMMM d, yyyy")
+    : null;
   const teamScheduleTotalWorkers =
     conversation?.backjob?.team_schedule_total_workers ?? 0;
   const teamScheduleConfirmedCount =
@@ -4154,6 +4156,13 @@ export default function ChatScreen() {
                               ]}
                               onPress={() => {
                                 if (isWorkerAlreadyCheckedIn) return;
+                                if (isBackjobScheduledForFuture && scheduledBackjobDateLabel) {
+                                  Alert.alert(
+                                    "Scheduled Backjob",
+                                    `Scheduled backjob is on ${scheduledBackjobDateLabel}.`,
+                                  );
+                                  return;
+                                }
                                 workerCheckInMutation.mutate(conversation.job.id);
                               }}
                               disabled={
@@ -8950,7 +8959,7 @@ export default function ChatScreen() {
                       </Text>
                     </View>
                     <Text style={styles.backjobScheduledNoticeText}>
-                      Workflow actions will activate on the scheduled date.
+                      Scheduled backjob is on {scheduledBackjobDateLabel}. Workflow actions will activate on that date.
                     </Text>
                     <TouchableOpacity
                       style={styles.backjobRenegotiateButton}
@@ -9086,9 +9095,10 @@ export default function ChatScreen() {
                         </View>
                       )}
 
-                    {/* WORKER/AGENCY: Waiting for Backjob Start */}
+                    {/* WORKER/AGENCY: Backjob pre-start status */}
                     {isWorkerSideBackjobActor &&
-                      !conversation.backjob?.backjob_started && (
+                      !conversation.backjob?.backjob_started &&
+                      (isBackjobScheduledForFuture ? (
                         <View style={styles.backjobWaitingBadge}>
                           <Ionicons
                             name="time-outline"
@@ -9099,7 +9109,68 @@ export default function ChatScreen() {
                             Waiting for scheduled start...
                           </Text>
                         </View>
-                      )}
+                      ) : !effectiveWorkerScheduleConfirmed &&
+                        !myBackjobScheduleConfirmed ? (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for schedule confirmation...
+                          </Text>
+                        </View>
+                      ) : conversation.my_role === "WORKER" &&
+                        conversation.is_team_job &&
+                        !myWorkerAttendanceToday?.is_dispatched &&
+                        !myWorkerAttendanceToday?.time_in ? (
+                        <TouchableOpacity
+                          style={[
+                            styles.backjobActionButtonCompact,
+                            { backgroundColor: Colors.primary },
+                          ]}
+                          onPress={() =>
+                            isBackjobScheduledForFuture &&
+                            scheduledBackjobDateLabel
+                              ? Alert.alert(
+                                  "Scheduled Backjob",
+                                  `Scheduled backjob is on ${scheduledBackjobDateLabel}.`,
+                                )
+                              : workerCheckInMutation.mutate(conversation.job.id)
+                          }
+                          disabled={workerCheckInMutation.isPending}
+                        >
+                          {workerCheckInMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.white}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="navigate"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.backjobActionButtonText}>
+                                Mark On The Way
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.backjobWaitingBadge}>
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.backjobWaitingText}>
+                            Waiting for client to confirm backjob start...
+                          </Text>
+                        </View>
+                      ))}
 
                     {/* WORKER/AGENCY: Mark Backjob Complete Button */}
                     {conversation.my_role === "WORKER" &&

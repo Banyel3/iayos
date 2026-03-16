@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Team Backjob On-The-Way Sequence + Legacy Cycle Compatibility**
   - Updated team backjob gating to separate `dispatch/on-the-way` from `arrival` so clients now see `Waiting for workers to mark on the way` before `Confirm arrivals first`.
   - Updated worker-side team backjob UI to render `Mark On The Way` in legacy team project branches instead of immediately showing `Waiting for client to confirm your arrival`.
+  - Fixed misleading worker backjob status text so `Waiting for scheduled start...` now appears only when the scheduled date is genuinely in the future.
+  - Added worker pre-start backjob action rendering so team workers scheduled for today can immediately tap `Mark On The Way` from the backjob card.
+  - Updated future-date lock messaging to show exact schedule text: `Scheduled backjob is on <date>` and block early `Mark On The Way` attempts.
+  - Updated backend schedule-confirm flow so backjob is marked initiated once worker schedule confirmation is completed.
   - Added backend compatibility for existing jobs/backjobs where base job status remains `COMPLETED`: worker check-in now supports active confirmed backjob cycles.
   - Expanded conversation attendance payload inclusion to active backjob cycles so existing records reflect dispatch/arrival updates without creating a new job.
   - **Impact**: Existing TEAM DAILY and TEAM PROJECT/FIXED backjobs can follow the intended flow: schedule confirm -> worker marks on the way -> client confirms arrival -> start/complete steps.
