@@ -176,13 +176,15 @@ def _self_heal_team_assignment_completion_flags(job: Job) -> int:
     payment_model = str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper()
     required_days = _get_required_project_days(job)
 
-    # For PROJECT multi-day jobs, infer completion from confirmed attendance
-    # rows so legacy records without explicit assignment completion flags can
-    # still pass final approval safely.
+    # For PROJECT jobs, infer completion from attendance rows so legacy records
+    # without explicit assignment completion flags can still pass final approval
+    # safely (single-day and multi-day).
     confirmed_days_by_assignment = {}
     confirmed_days_by_worker = {}
-    effective_required_days = required_days
-    if payment_model == 'PROJECT' and required_days > 1:
+    effective_required_days = max(1, required_days)
+    project_attendance_completion_signal_by_assignment = {}
+    project_attendance_completion_signal_by_worker = {}
+    if payment_model == 'PROJECT':
         from accounts.models import DailyAttendance
 
         qa_offset = max(0, int(getattr(job, 'qa_day_offset', 0) or 0))
@@ -249,6 +251,59 @@ def _self_heal_team_assignment_completion_flags(job: Job) -> int:
                     int(row['days'] or 0),
                 )
 
+        # Single-day PROJECT compatibility: checkout/client-confirmed attendance
+        # should be enough to infer completion even if assignment flags lag.
+        completion_signal_qs = DailyAttendance.objects.filter(
+            jobID=job,
+            status__in=[
+                DailyAttendance.AttendanceStatus.PRESENT,
+                DailyAttendance.AttendanceStatus.HALF_DAY,
+                DailyAttendance.AttendanceStatus.PENDING,
+            ],
+        ).filter(
+            Q(time_out__isnull=False) |
+            Q(client_confirmed=True)
+        )
+
+        completion_by_assignment_qs = (
+            completion_signal_qs.filter(assignmentID__isnull=False)
+            .values('assignmentID_id')
+            .annotate(days=Count('date', distinct=True))
+        )
+        for row in completion_by_assignment_qs:
+            assignment_id = row['assignmentID_id']
+            if assignment_id:
+                project_attendance_completion_signal_by_assignment[assignment_id] = max(
+                    project_attendance_completion_signal_by_assignment.get(assignment_id, 0),
+                    int(row['days'] or 0),
+                )
+
+        completion_by_worker_assignment_qs = (
+            completion_signal_qs.filter(assignmentID__isnull=False)
+            .values('assignmentID__workerID_id')
+            .annotate(days=Count('date', distinct=True))
+        )
+        for row in completion_by_worker_assignment_qs:
+            worker_id = row['assignmentID__workerID_id']
+            if worker_id:
+                project_attendance_completion_signal_by_worker[worker_id] = max(
+                    project_attendance_completion_signal_by_worker.get(worker_id, 0),
+                    int(row['days'] or 0),
+                )
+
+        completion_by_worker_direct_qs = (
+            completion_signal_qs.filter(workerID__isnull=False)
+            .values('workerID_id')
+            .annotate(days=Count('date', distinct=True))
+        )
+        for row in completion_by_worker_direct_qs:
+            worker_id = row['workerID_id']
+            if worker_id:
+                project_attendance_completion_signal_by_worker[worker_id] = max(
+                    project_attendance_completion_signal_by_worker.get(worker_id, 0),
+                    int(row['days'] or 0),
+                )
+
     assignments = JobWorkerAssignment.objects.filter(jobID=job)
     for assignment in assignments:
         should_heal = False
@@ -262,12 +317,21 @@ def _self_heal_team_assignment_completion_flags(job: Job) -> int:
             # Historical compatibility: job-level completion was already set and
             # this assignment had already passed client arrival confirmation.
             should_heal = True
-        elif payment_model == 'PROJECT' and required_days > 1:
+        elif payment_model == 'PROJECT':
             confirmed_days = max(
                 confirmed_days_by_assignment.get(assignment.assignmentID, 0),
                 confirmed_days_by_worker.get(getattr(assignment, 'workerID_id', None), 0),
             )
-            if confirmed_days >= effective_required_days:
+
+            completion_signal_days = max(
+                project_attendance_completion_signal_by_assignment.get(assignment.assignmentID, 0),
+                project_attendance_completion_signal_by_worker.get(getattr(assignment, 'workerID_id', None), 0),
+            )
+
+            if (
+                confirmed_days >= effective_required_days
+                or completion_signal_days >= effective_required_days
+            ):
                 should_heal = True
 
         if should_heal and not assignment.worker_marked_complete:

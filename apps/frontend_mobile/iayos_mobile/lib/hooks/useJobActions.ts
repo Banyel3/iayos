@@ -465,6 +465,7 @@ export function useApproveTeamJobCompletion() {
       queryClient.invalidateQueries({ queryKey: ["paymentHistory"] });
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["job-receipt", jobId] });
     },
     onError: (error: Error) => {
       Toast.show({

@@ -3488,6 +3488,8 @@ export default function ChatScreen() {
   const isTeamProjectAttendance =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "PROJECT";
+  const isTeamSingleDayProjectAttendanceFlow =
+    isTeamProjectAttendance && !isProjectMultiDayJob;
   const isProjectMultiDayJob =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
   const shouldChargePerAttendance =
@@ -3628,6 +3630,21 @@ export default function ChatScreen() {
           return [...merged, ...unmatchedAttendance];
         })()
       : attendanceRows;
+
+  const teamProjectClientRows =
+    conversation.my_role === "CLIENT" && isTeamSingleDayProjectAttendanceFlow
+      ? clientAttendanceRows.filter((attendance: any) => !attendance.awaiting_worker)
+      : [];
+
+  const allTeamProjectWorkersCheckedOutForFinish =
+    conversation.my_role === "CLIENT" &&
+    isTeamSingleDayProjectAttendanceFlow &&
+    teamProjectClientRows.length > 0 &&
+    teamProjectClientRows.every((attendance: any) => {
+      const status = String(attendance?.status || "").toUpperCase();
+      const isAbsentConfirmed = status === "ABSENT" && Boolean(attendance?.client_confirmed);
+      return isAbsentConfirmed || Boolean(attendance?.time_out);
+    });
 
   const hasClientWorkerOnTheWay =
     conversation.my_role === "CLIENT" &&
@@ -5281,55 +5298,65 @@ export default function ChatScreen() {
                                     <Text style={styles.activeAttendanceTimeText}>
                                       {`${format(new Date(attendance.time_in), "h:mm a")} - ${format(new Date(attendance.time_out), "h:mm a")}`}
                                     </Text>
-                                    <TouchableOpacity
-                                      style={[
-                                        styles.confirmArrivalButtonCompact,
-                                        styles.confirmArrivalButtonSmall,
-                                      ]}
-                                      onPress={() =>
-                                        !shouldChargePerAttendance
-                                          ? setCountdownConfig({
-                                              visible: true,
-                                              title: "Confirm Attendance",
-                                              message: `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`,
-                                              confirmLabel: "Confirm Day",
-                                              countdownSeconds: 7,
-                                              onConfirm: () => {
-                                                setCountdownConfig(null);
-                                                clientConfirmAttendanceMutation.mutate({
-                                                  attendanceId:
-                                                    attendance.attendance_id,
-                                                  paymentMethod: "WALLET",
-                                                });
-                                              },
-                                              icon: "checkmark-circle",
-                                              iconColor: Colors.warning,
-                                            })
-                                          : void confirmDailyAttendanceWithPayment(
-                                              attendance,
-                                            )
-                                      }
-                                      disabled={
-                                        clientConfirmAttendanceMutation.isPending
-                                      }
-                                    >
-                                      {clientConfirmAttendanceMutation.isPending ? (
-                                        <ActivityIndicator
-                                          size="small"
-                                          color={Colors.white}
-                                        />
-                                      ) : (
+                                    {isTeamSingleDayProjectAttendanceFlow ? (
+                                      <View style={styles.attendanceRightStatusPillNeutral}>
                                         <Text
-                                          style={
-                                            styles.confirmArrivalButtonTextSmall
-                                          }
+                                          style={styles.attendanceRightStatusTextNeutral}
                                         >
-                                          {!shouldChargePerAttendance
-                                            ? "Confirm"
-                                            : "Pay"}
+                                          Checked Out
                                         </Text>
-                                      )}
-                                    </TouchableOpacity>
+                                      </View>
+                                    ) : (
+                                      <TouchableOpacity
+                                        style={[
+                                          styles.confirmArrivalButtonCompact,
+                                          styles.confirmArrivalButtonSmall,
+                                        ]}
+                                        onPress={() =>
+                                          !shouldChargePerAttendance
+                                            ? setCountdownConfig({
+                                                visible: true,
+                                                title: "Confirm Attendance",
+                                                message: `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`,
+                                                confirmLabel: "Confirm Day",
+                                                countdownSeconds: 7,
+                                                onConfirm: () => {
+                                                  setCountdownConfig(null);
+                                                  clientConfirmAttendanceMutation.mutate({
+                                                    attendanceId:
+                                                      attendance.attendance_id,
+                                                    paymentMethod: "WALLET",
+                                                  });
+                                                },
+                                                icon: "checkmark-circle",
+                                                iconColor: Colors.warning,
+                                              })
+                                            : void confirmDailyAttendanceWithPayment(
+                                                attendance,
+                                              )
+                                        }
+                                        disabled={
+                                          clientConfirmAttendanceMutation.isPending
+                                        }
+                                      >
+                                        {clientConfirmAttendanceMutation.isPending ? (
+                                          <ActivityIndicator
+                                            size="small"
+                                            color={Colors.white}
+                                          />
+                                        ) : (
+                                          <Text
+                                            style={
+                                              styles.confirmArrivalButtonTextSmall
+                                            }
+                                          >
+                                            {!shouldChargePerAttendance
+                                              ? "Confirm"
+                                              : "Pay"}
+                                          </Text>
+                                        )}
+                                      </TouchableOpacity>
+                                    )}
                                   </View>
                                 </View>
                               ) : attendance.client_confirmed ? (
@@ -5426,6 +5453,60 @@ export default function ChatScreen() {
                       </ScrollView>
                     </>
                   )}
+
+                  {conversation.my_role === "CLIENT" &&
+                    isTeamSingleDayProjectAttendanceFlow &&
+                    allTeamProjectWorkersCheckedOutForFinish &&
+                    !conversation.job.clientMarkedComplete && (
+                      <View style={styles.projectEndActionsCard}>
+                        <Text style={styles.projectEndActionsTitle}>
+                          Team Workday Completed
+                        </Text>
+                        <Text style={styles.projectEndActionsText}>
+                          All team workers are checked out. Finish this project
+                          now to proceed with final payment (Wallet or Cash).
+                        </Text>
+
+                        <View style={styles.projectEndActionsButtons}>
+                          <TouchableOpacity
+                            style={styles.projectFinishButton}
+                            onPress={() => {
+                              Alert.alert(
+                                "Finish Team Project & Pay",
+                                "All workers are checked out. Continue to choose payment method (Wallet or Cash) and complete the job.",
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Continue",
+                                    onPress: () =>
+                                      handleApproveTeamJobCompletion(),
+                                  },
+                                ],
+                              );
+                            }}
+                            disabled={approveTeamJobCompletionMutation.isPending}
+                          >
+                            {approveTeamJobCompletionMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="wallet"
+                                  size={16}
+                                  color={Colors.white}
+                                />
+                                <Text style={styles.projectFinishButtonText}>
+                                  Finish & Pay
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
 
                   {/* Daily rate info (DAILY-only) */}
                   {isAttendanceExpanded &&
