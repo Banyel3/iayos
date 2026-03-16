@@ -50,15 +50,27 @@ class PayMongoService(PaymentProviderInterface):
     """
     
     BASE_URL = "https://api.paymongo.com/v1"
+    PLACEHOLDER_KEY_PATTERN = re.compile(r"^\$\{[^}]+\}$")
     
     def __init__(self):
-        self.secret_key = getattr(settings, 'PAYMONGO_SECRET_KEY', '')
-        self.public_key = getattr(settings, 'PAYMONGO_PUBLIC_KEY', '')
-        self.webhook_secret = getattr(settings, 'PAYMONGO_WEBHOOK_SECRET', '')
+        self.secret_key = self._sanitize_key(getattr(settings, 'PAYMONGO_SECRET_KEY', ''))
+        self.public_key = self._sanitize_key(getattr(settings, 'PAYMONGO_PUBLIC_KEY', ''))
+        self.webhook_secret = self._sanitize_key(getattr(settings, 'PAYMONGO_WEBHOOK_SECRET', ''))
         self.test_mode = self.secret_key.startswith('sk_test_') if self.secret_key else True
         
         if not self.secret_key:
             logger.warning("PAYMONGO_SECRET_KEY not configured - payments will fail")
+        elif not self.secret_key.startswith(('sk_test_', 'sk_live_')):
+            logger.warning(
+                "PAYMONGO_SECRET_KEY appears invalid format (expected sk_test_/sk_live_ prefix)."
+            )
+
+    def _sanitize_key(self, raw_value: Optional[str]) -> str:
+        """Normalize env keys and guard against unresolved placeholders."""
+        value = (raw_value or '').strip().strip('"').strip("'")
+        if self.PLACEHOLDER_KEY_PATTERN.match(value):
+            return ''
+        return value
     
     @property
     def provider_name(self) -> str:
@@ -598,6 +610,67 @@ class PayMongoService(PaymentProviderInterface):
 
         return None
 
+    def derive_fallback_bank_code(self, stored_code: str, bank_name: Optional[str]) -> Optional[str]:
+        """
+        Derive a best-effort provider bank code when only fallback code/name is available.
+        This keeps payouts operational during temporary institutions endpoint outages.
+        """
+        raw_code = (stored_code or "").strip()
+        if not raw_code:
+            return None
+
+        slug = raw_code.replace("fallback:", "", 1).strip().lower()
+        normalized_name = self._normalize_bank_name(bank_name or "")
+
+        mapping = {
+            "allbank-a-thrift-bank-inc": "allbank",
+            "asia-united-bank-aub": "aub",
+            "bdo-unibank-inc": "bdo",
+            "bpi-bank-of-the-philippine-islands": "bpi",
+            "bank-of-commerce": "bankcom",
+            "china-banking-corporation-chinabank": "chinabank",
+            "development-bank-of-the-philippines-dbp": "dbp",
+            "eastwest-bank": "eastwest",
+            "land-bank-of-the-philippines": "landbank",
+            "maybank-philippines-inc": "maybank",
+            "metrobank-metropolitan-bank-trust-co": "metrobank",
+            "philippine-national-bank-pnb": "pnb",
+            "rcbc-rizal-commercial-banking-corporation": "rcbc",
+            "security-bank-corporation": "securitybank",
+            "union-bank-of-the-philippines-unionbank": "unionbank",
+        }
+
+        if slug in mapping:
+            return mapping[slug]
+
+        # Name-based loose matching
+        if "union" in normalized_name:
+            return "unionbank"
+        if "security" in normalized_name:
+            return "securitybank"
+        if "metro" in normalized_name:
+            return "metrobank"
+        if "land" in normalized_name:
+            return "landbank"
+        if "eastwest" in normalized_name:
+            return "eastwest"
+        if "chinabank" in normalized_name or "china banking" in normalized_name:
+            return "chinabank"
+        if "maybank" in normalized_name:
+            return "maybank"
+        if "rcbc" in normalized_name:
+            return "rcbc"
+        if "pnb" in normalized_name or "philippine national" in normalized_name:
+            return "pnb"
+        if "bpi" in normalized_name:
+            return "bpi"
+        if "bdo" in normalized_name:
+            return "bdo"
+
+        # Last resort: use compacted slug token
+        compact = slug.replace("-", "")
+        return compact[:20] if compact else None
+
     def create_bank_transfer_v2(
         self,
         amount: float,
@@ -799,10 +872,20 @@ class PayMongoService(PaymentProviderInterface):
             f"{self.BASE_URL}/institutions?transfer_provider=instapay",
         ]
 
+        if not self.secret_key:
+            logger.error("❌ Cannot fetch PayMongo institutions: missing PAYMONGO_SECRET_KEY")
+            return []
+
         for endpoint in endpoints:
             try:
                 response = requests.get(endpoint, headers=self._get_headers(), timeout=30)
                 if response.status_code != 200:
+                    logger.warning(
+                        "⚠️ PayMongo institutions fetch failed (%s): HTTP %s - %s",
+                        endpoint,
+                        response.status_code,
+                        (response.text or '')[:300],
+                    )
                     continue
 
                 payload = response.json()
@@ -813,17 +896,33 @@ class PayMongoService(PaymentProviderInterface):
                     code = (
                         item.get("id")
                         or attributes.get("code")
+                        or attributes.get("bank_code")
+                        or attributes.get("instapay_code")
+                        or attributes.get("pesonet_code")
+                        or attributes.get("short_code")
+                        or attributes.get("swift_code")
                         or attributes.get("institution_code")
                         or ""
                     )
-                    name = attributes.get("name") or attributes.get("display_name") or ""
+                    name = (
+                        attributes.get("name")
+                        or attributes.get("display_name")
+                        or attributes.get("short_name")
+                        or ""
+                    )
                     if code and name:
                         banks.append({"code": str(code), "name": str(name)})
 
                 if banks:
                     banks.sort(key=lambda x: x["name"])
+                    logger.info("✅ PayMongo institutions loaded: %d banks", len(banks))
                     return banks
+                logger.warning(
+                    "⚠️ PayMongo institutions endpoint returned 200 but no parsable bank entries: %s",
+                    endpoint,
+                )
             except Exception:
+                logger.exception("❌ Exception while fetching PayMongo institutions from %s", endpoint)
                 continue
 
         return []
