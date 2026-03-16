@@ -1105,17 +1105,12 @@ export default function AgencyChatScreen() {
 
                   return (
                     <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
-                      <CardContent className="p-3">
+                      <CardContent className="py-2 px-3">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-blue-900">
+                          <span className="text-xs font-bold text-black">
                             Dispatch Pending ({dispatchedCount}/{totalCount})
                           </span>
                         </div>
-                        {pendingDispatchEmployees.length > 0 && (
-                          <p className="text-[11px] text-blue-700 mb-2">
-                            Awaiting employee{pendingDispatchEmployees.length > 1 ? "s" : ""} to be dispatched: {pendingDispatchEmployees.map((e: AssignedEmployee) => e.name).join(", ")}
-                          </p>
-                        )}
                         <div className="space-y-1.5 text-xs">
                           {pendingDispatchEmployees.map(
                             (e: AssignedEmployee) =>
@@ -1228,13 +1223,13 @@ export default function AgencyChatScreen() {
                   }
 
                   return (
-                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-900">
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-black">
                         Ready to complete
                       </span>
                       <Button
                         size="sm"
-                        className="bg-green-600 px-3 h-7 text-[10px]"
+                        className="bg-[#00BAF1] hover:bg-[#00a8d8] px-3 h-7 text-[10px]"
                         onClick={handleMarkComplete}
                       >
                         Complete Job
@@ -1268,9 +1263,9 @@ export default function AgencyChatScreen() {
 
                 return (
                   <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
-                    <CardContent className="p-3">
+                    <CardContent className="py-2 px-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-blue-900">
+                        <span className="text-xs font-bold text-black">
                           Mark On The Way Pending ({pendingDispatch.length}/
                           {totalCount})
                         </span>
@@ -1831,6 +1826,85 @@ export default function AgencyChatScreen() {
                       Receipt ID: {receiptData.receipt_id || `JOB-${receiptData.job_id}`}
                     </p>
                   </div>
+
+                  {(() => {
+                    const buffer = receiptData.buffer;
+                    if (!buffer) return null;
+
+                    const parseDate = (value: string | null | undefined) => {
+                      if (!value) return null;
+                      const parsed = new Date(value);
+                      return Number.isNaN(parsed.getTime()) ? null : parsed;
+                    };
+
+                    const explicitEndDate = parseDate(buffer.end_date);
+                    const fallbackStart =
+                      parseDate(buffer.start_date) ||
+                      parseDate(receiptData.completed_at) ||
+                      parseDate(receiptData.worker_completed_at) ||
+                      parseDate(receiptData.client_approved_at);
+
+                    const derivedEndDate = explicitEndDate
+                      ? explicitEndDate
+                      : fallbackStart
+                      ? (() => {
+                          const computed = new Date(fallbackStart);
+                          computed.setDate(
+                            computed.getDate() + Number(buffer.buffer_days || 0),
+                          );
+                          return computed;
+                        })()
+                      : null;
+
+                    const remainingDays =
+                      typeof buffer.remaining_days === "number"
+                        ? Math.max(buffer.remaining_days, 0)
+                        : derivedEndDate
+                        ? Math.max(
+                            Math.ceil(
+                              (derivedEndDate.getTime() - Date.now()) /
+                                (24 * 60 * 60 * 1000),
+                            ),
+                            0,
+                          )
+                        : null;
+
+                    const isReleased = Boolean(buffer.is_released);
+
+                    return (
+                      <div
+                        className={`border rounded-xl p-3 space-y-2 ${
+                          isReleased
+                            ? "bg-green-50 border-green-200"
+                            : "bg-amber-50 border-amber-200"
+                        }`}
+                      >
+                        <p className="text-sm font-bold text-gray-900">
+                          {isReleased ? "Payment Released" : "Pending Payment"}
+                        </p>
+                        {isReleased ? (
+                          <p className="text-xs text-gray-700">
+                            Released on{" "}
+                            {buffer.released_at
+                              ? format(new Date(buffer.released_at), "MMM d, yyyy h:mm a")
+                              : "N/A"}
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-gray-700">
+                              Earnings are held for {Number(buffer.buffer_days || 0)} days.
+                            </p>
+                            <div className="flex justify-between text-xs text-gray-700">
+                              <span>Days Left: {remainingDays ?? "N/A"}</span>
+                              <span>
+                                Release Date: {derivedEndDate ? format(derivedEndDate, "MMM d, yyyy") : "N/A"}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="border border-gray-200 rounded-xl p-3 space-y-2">
                     <p className="text-sm font-bold text-gray-900">Payment Breakdown</p>

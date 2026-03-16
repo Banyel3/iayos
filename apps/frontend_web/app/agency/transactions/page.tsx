@@ -50,7 +50,19 @@ interface AgencyTransaction {
   balance_after?: number;
 }
 
+function isSampleTransaction(tx: AgencyTransaction): boolean {
+  const description = (tx.description || "").trim();
+  const isLegacyWithdrawal = description === "Withdrawal to GCash - 09998500312";
+  const isLegacyVerificationBonus = /^GCash Verification Bonus - Account \*+0312$/.test(
+    description,
+  );
+  return (
+    isLegacyWithdrawal || isLegacyVerificationBonus
+  );
+}
+
 export default function AgencyTransactionsPage() {
+  const [isClient, setIsClient] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -59,11 +71,15 @@ export default function AgencyTransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const {
     data: walletBalance = 0,
     isLoading: isLoadingWallet,
     refetch: refetchWallet,
-  } = useWalletBalance(true);
+  } = useWalletBalance(isClient);
 
   const {
     data: paginatedData,
@@ -76,10 +92,12 @@ export default function AgencyTransactionsPage() {
       transactionType: typeFilter,
       status: statusFilter,
     },
-    true,
+    isClient,
   );
 
-  const transactions = paginatedData?.transactions || [];
+  const transactions = (paginatedData?.transactions || []).filter(
+    (tx: AgencyTransaction) => !isSampleTransaction(tx),
+  );
   const pagination = paginatedData?.pagination;
 
   // Filter transactions
@@ -107,6 +125,10 @@ export default function AgencyTransactionsPage() {
   // Backend pagination (type/status handled server-side); date/search are client-side on current page.
   const totalPages = pagination?.total_pages || 1;
   const paginatedTransactions = filteredTransactions;
+  const visibleTotalItems =
+    typeof pagination?.total_items === "number"
+      ? Math.max(0, pagination.total_items - (paginatedData?.transactions || []).length + transactions.length)
+      : paginatedTransactions.length;
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -213,28 +235,11 @@ export default function AgencyTransactionsPage() {
     .filter((t: AgencyTransaction) => t.status === "PENDING")
     .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
-  const totalReceived = transactions
-    .filter((t: AgencyTransaction) =>
-      ["DEPOSIT", "EARNING", "REFUND"].includes(t.type),
-    )
-    .filter((t: AgencyTransaction) => t.status === "COMPLETED")
-    .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
-
-  const pendingEarnings = transactions
-    .filter((t: AgencyTransaction) => t.type === "PENDING_EARNING")
-    .filter((t: AgencyTransaction) => t.status === "PENDING")
-    .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
-
-  const totalWithdrawn = transactions
-    .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL")
-    .filter((t: AgencyTransaction) => t.status === "COMPLETED")
-    .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
-
   const pendingWithdrawals = transactions
     .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL" && t.status === "PENDING")
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
 
-  if (isLoadingTransactions && transactions.length === 0) {
+  if (!isClient || (isLoadingTransactions && transactions.length === 0)) {
     return (
       <div className="max-w-7xl mx-auto space-y-8 pt-10 px-4 pb-20">
         <div className="flex items-center justify-center min-h-[400px]">
@@ -325,8 +330,8 @@ export default function AgencyTransactionsPage() {
               <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
               <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
             </div>
-            <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Earnings</p>
-            <p className="text-xl font-bold text-gray-900">₱{pendingEarnings.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Withdrawals</p>
+            <p className="text-xl font-bold text-gray-900">₱{pendingWithdrawals.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
       </div>
@@ -401,7 +406,7 @@ export default function AgencyTransactionsPage() {
           <CardTitle>Transaction History</CardTitle>
           <CardDescription>
             Overview of your wallet activity (Page {currentPage} of {totalPages || 1})
-            {pagination ? ` • ${pagination.total_items} total records` : ""}
+            {` • ${visibleTotalItems} total records`}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">

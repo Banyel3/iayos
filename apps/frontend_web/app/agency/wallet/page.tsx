@@ -53,6 +53,15 @@ interface PendingEarningsData {
   info_message: string;
 }
 
+function isLegacySampleTransaction(tx: any): boolean {
+  const description = String(tx?.description || "").trim();
+  const isLegacyWithdrawal = description === "Withdrawal to GCash - 09998500312";
+  const isLegacyVerificationBonus = /^GCash Verification Bonus - Account \*+0312$/.test(
+    description,
+  );
+  return isLegacyWithdrawal || isLegacyVerificationBonus;
+}
+
 export default function AgencyWalletPage() {
   const router = useRouter();
   const [pendingEarnings, setPendingEarnings] = useState<PendingEarningsData | null>(null);
@@ -70,6 +79,8 @@ export default function AgencyWalletPage() {
     isLoading: isLoadingTransactions,
     refetch: refetchTransactions,
   } = useWalletTransactions(true);
+
+  const visibleTransactions = transactions.filter((tx: any) => !isLegacySampleTransaction(tx));
 
   useEffect(() => {
     fetchPendingEarnings();
@@ -119,10 +130,10 @@ export default function AgencyWalletPage() {
     })}`;
   };
 
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = visibleTransactions.slice(0, 5);
 
-  const totalEarned = transactions
-    .filter((t: any) => ["EARNING", "DEPOSIT", "REFUND"].includes(t.type))
+  const totalEarned = visibleTransactions
+    .filter((t: any) => ["EARNING", "PENDING_EARNING", "DEPOSIT", "REFUND"].includes(t.type))
     .filter((t: any) => t.status === "COMPLETED")
     .reduce((sum: number, t: any) => sum + t.amount, 0);
 

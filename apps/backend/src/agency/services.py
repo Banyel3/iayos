@@ -1,5 +1,5 @@
 from .models import AgencyKYC, AgencyKycFile, AgencyEmployee
-from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview, JobEmployeeAssignment
+from accounts.models import Accounts, Agency as AgencyProfile, Profile, Job, Notification, JobReview, JobEmployeeAssignment, Wallet, Transaction
 from iayos_project.utils import upload_agency_doc
 from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
@@ -827,10 +827,21 @@ def get_agency_profile(account_id):
             completed_jobs = agency_jobs.filter(status='COMPLETED').count()
             cancelled_jobs = agency_jobs.filter(status='CANCELLED').count()
             
-            # Calculate total revenue from completed jobs
-            total_revenue = agency_jobs.filter(status='COMPLETED').aggregate(
-                total=Sum('budget')
-            )['total'] or Decimal('0.00')
+            # Align dashboard financials with wallet/transactions semantics:
+            # - total_revenue: only released earnings (completed EARNING transactions)
+            # - escrow_held: earnings still in 7-day hold (wallet.pendingEarnings)
+            wallet, _ = Wallet.objects.get_or_create(
+                accountFK=user,
+                defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
+            )
+
+            total_revenue = Transaction.objects.filter(
+                walletID=wallet,
+                transactionType='EARNING',
+                status='COMPLETED'
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+            escrow_held = wallet.pendingEarnings or Decimal('0.00')
             
             # --- REVENUE CHART DATA CALCULATION ---
             from django.db.models.functions import TruncDay, TruncWeek
@@ -958,6 +969,7 @@ def get_agency_profile(account_id):
             completed_jobs = 0
             cancelled_jobs = 0
             total_revenue = Decimal('0.00')
+            escrow_held = Decimal('0.00')
             revenue_chart_data = {'7d': [], '30d': [], 'All': []}
             # Fill 7d zeros for consistency
             start_7d = (timezone.now() - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -987,6 +999,7 @@ def get_agency_profile(account_id):
                 "completed_jobs": completed_jobs,
                 "cancelled_jobs": cancelled_jobs,
                 "total_revenue": float(total_revenue),
+                "escrow_held": float(escrow_held),
                 "revenue_chart_data": revenue_chart_data,
                 "average_rating": average_rating,
                 "revenue_growth": float(revenue_growth) if 'revenue_growth' in locals() else 0.0,
