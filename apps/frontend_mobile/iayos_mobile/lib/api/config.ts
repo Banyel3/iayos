@@ -610,6 +610,7 @@ export const ENDPOINTS = {
 
   // Payment Methods
   PAYMENT_METHODS: `${API_URL}/api/mobile/payment-methods`,
+  PAYMENT_METHOD_BANKS: `${API_URL}/api/mobile/payment-methods/banks`,
   ADD_PAYMENT_METHOD: `${API_URL}/api/mobile/payment-methods`,
   DELETE_PAYMENT_METHOD: (id: number) =>
     `${API_URL}/api/mobile/payment-methods/${id}`,
@@ -638,6 +639,8 @@ export const ENDPOINTS = {
   REQUEST_BACKJOB: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/request-backjob`,
   MY_BACKJOBS: `${API_URL}/api/mobile/jobs/my-backjobs`,
+  BACKJOB_BY_DISPUTE: (disputeId: number) =>
+    `${API_URL}/api/jobs/backjob/${disputeId}`,
   BACKJOB_STATUS: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/backjob-status`,
   COMPLETE_BACKJOB: (jobId: number) =>
