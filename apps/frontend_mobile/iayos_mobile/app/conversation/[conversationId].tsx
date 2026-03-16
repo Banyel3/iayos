@@ -4235,47 +4235,95 @@ export default function ChatScreen() {
                   </View>
 
                   {(conversation.my_role === "CLIENT" ||
-                    conversation.my_role === "AGENCY") && (
-                    <TouchableOpacity
-                      style={styles.attendanceClientStatusRow}
-                      onPress={toggleAttendanceExpanded}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.attendanceBannerHint}>
-                        {(() => {
-                          const assignedEmployees = Array.isArray(
-                            conversation.assigned_employees,
-                          )
-                            ? conversation.assigned_employees
-                            : [];
-                          const dispatchedCount = assignedEmployees.filter(
-                            (e) => e.dispatched,
-                          ).length;
-                          const pendingArrivalCount = assignedEmployees.filter(
-                            (e) => e.dispatched && !e.clientConfirmedArrival,
-                          ).length;
+                    conversation.my_role === "AGENCY") &&
+                    (() => {
+                      const assignedEmployees = Array.isArray(
+                        conversation.assigned_employees,
+                      )
+                        ? conversation.assigned_employees
+                        : [];
+                      const dispatchedCount = assignedEmployees.filter(
+                        (e) => e.dispatched,
+                      ).length;
+                      const pendingArrivalCount = assignedEmployees.filter(
+                        (e) => e.dispatched && !e.clientConfirmedArrival,
+                      ).length;
+                      const onSiteWorkingCount = assignedEmployees.filter(
+                        (e: any) =>
+                          e.clientConfirmedArrival &&
+                          !(
+                            e.agencyMarkedComplete ||
+                            e.employeeMarkedComplete ||
+                            e.marked_complete ||
+                            String(e.status || "").toUpperCase() === "COMPLETED"
+                          ),
+                      ).length;
 
-                          if (pendingArrivalCount > 0) {
-                            return `Confirm Arrivals (${pendingArrivalCount} on the way)`;
-                          }
+                      const statusText =
+                        onSiteWorkingCount > 0
+                          ? `${onSiteWorkingCount} employee${onSiteWorkingCount > 1 ? "s" : ""} working on site...`
+                          : pendingArrivalCount > 0
+                          ? `Confirm Arrivals (${pendingArrivalCount} on the way)`
+                          : dispatchedCount < assignedEmployees.length
+                          ? `Waiting for agency to dispatch employees (${dispatchedCount} of ${assignedEmployees.length} dispatched)`
+                          : null;
 
-                          return `Waiting for agency to dispatch employees (${dispatchedCount} of ${assignedEmployees.length} dispatched)`;
-                        })()}
-                      </Text>
-                      <View style={styles.attendanceToggleInner}>
-                        <Ionicons
-                          name={
-                            isAttendanceExpanded ? "chevron-up" : "chevron-down"
-                          }
-                          size={18}
-                          color={Colors.textSecondary}
-                        />
-                        {!isAttendanceExpanded && hasClientWorkerOnTheWay && (
-                          <View style={styles.attendanceOnTheWayDot} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  )}
+                      return (
+                        <View style={styles.attendanceClientStatusRow}>
+                          {statusText ? (
+                            <TouchableOpacity
+                              style={styles.attendanceClientStatusTextButton}
+                              onPress={toggleAttendanceExpanded}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.attendanceBannerHint}>
+                                {statusText}
+                              </Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={styles.attendanceClientRightSpacer} />
+                          )}
+
+                          <View style={styles.attendanceClientStatusActions}>
+                            {onSiteWorkingCount > 0 && (
+                              <TouchableOpacity
+                                onPress={() => refetch()}
+                                style={styles.attendanceStatusRefreshButton}
+                                activeOpacity={0.8}
+                              >
+                                <Ionicons
+                                  name="refresh"
+                                  size={18}
+                                  color={Colors.primary}
+                                />
+                              </TouchableOpacity>
+                            )}
+
+                            <TouchableOpacity
+                              style={styles.attendanceToggleButton}
+                              onPress={toggleAttendanceExpanded}
+                              activeOpacity={0.8}
+                            >
+                              <View style={styles.attendanceToggleInner}>
+                                <Ionicons
+                                  name={
+                                    isAttendanceExpanded
+                                      ? "chevron-up"
+                                      : "chevron-down"
+                                  }
+                                  size={18}
+                                  color={Colors.textSecondary}
+                                />
+                                {!isAttendanceExpanded &&
+                                  hasClientWorkerOnTheWay && (
+                                    <View style={styles.attendanceOnTheWayDot} />
+                                  )}
+                              </View>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })()}
 
                   {isAttendanceExpanded &&
                     (conversation.my_role === "CLIENT" ||
@@ -6936,70 +6984,8 @@ export default function ChatScreen() {
                   const allWorkflowComplete =
                     allDispatched && allArrived && allComplete;
 
-                  // Employees arrived but not yet marked complete by agency
-                  const onSiteWorking = conversation.assigned_employees.filter(
-                    (e) =>
-                      e.clientConfirmedArrival &&
-                      (e as any).status !== "COMPLETED" &&
-                      !isEmployeeComplete(e),
-                  );
-
                   return (
                     <>
-                      {/* Workers on site, working */}
-                      {onSiteWorking.length > 0 && (
-                        <View
-                          style={[
-                            styles.actionButton,
-                            styles.waitingButton,
-                            {
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                            },
-                          ]}
-                        >
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              flex: 1,
-                            }}
-                          >
-                            <Ionicons
-                              name="time-outline"
-                              size={20}
-                              color={Colors.textSecondary}
-                            />
-                            <Text
-                              style={[
-                                styles.waitingButtonText,
-                                { marginLeft: 8 },
-                              ]}
-                            >
-                              {onSiteWorking.length} employee
-                              {onSiteWorking.length > 1 ? "s" : ""} working on
-                              site...
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => refetch()}
-                            style={{
-                              paddingHorizontal: 8,
-                              paddingVertical: 4,
-                              borderRadius: 8,
-                              backgroundColor: Colors.primary + "20",
-                            }}
-                          >
-                            <Ionicons
-                              name="refresh"
-                              size={18}
-                              color={Colors.primary}
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      )}
-
                       {/* Single agency-level approve & pay button */}
                       {allWorkflowComplete &&
                         !conversation.job.clientMarkedComplete && (
@@ -10231,10 +10217,24 @@ const styles = StyleSheet.create({
   },
   attendanceClientStatusRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     marginTop: Spacing.xs,
     gap: Spacing.xs,
+  },
+  attendanceClientStatusTextButton: {
+    flex: 1,
+  },
+  attendanceClientStatusActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  attendanceStatusRefreshButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: Colors.primary + "20",
   },
   attendanceConfirmArrivalList: {
     marginTop: Spacing.sm,
