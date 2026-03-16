@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency PROJECT Finish Flow + Legacy Workflow Compatibility (Existing In-Progress Jobs)**
+  - Updated client `Finish Job` behavior for agency PROJECT multi-day jobs to continue into payment method selection (Wallet/Cash) before closing.
+  - Added legacy attendance fallback in client-side workflow checks so older in-progress jobs with valid attendance signals are not falsely blocked.
+  - **Impact**: Existing agency PROJECT jobs can complete with the expected flow: dispatch → arrival confirmation → checkout/complete → payment method selection → job closes (reviews/backjob enabled).
+
 - **Agency PROJECT Client Approval Workflow Guard (Prevents False 'Workflow Incomplete')**
   - Tightened client-side `Approve & Pay Agency` visibility to require full employee workflow completion: dispatched + arrival confirmed + agency marked complete.
   - Added a defensive pre-submit check before agency approval mutation so stale/partial workflow states are blocked client-side with a clear message.
