@@ -3,7 +3,7 @@
  *
  * Features:
  * - Amount input with validation (min ₱100)
- * - Payment account selection (GCash only)
+ * - Payment account selection (GCash, Bank, PayPal, GrabPay, Maya)
  * - Balance check and display
  * - Optional notes field
  * - Immediate balance deduction
@@ -43,9 +43,11 @@ import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 
+type PaymentMethodType = "GCASH" | "BANK" | "PAYPAL" | "GRABPAY" | "MAYA";
+
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK";
+  type: PaymentMethodType;
   account_name: string;
   account_number: string;
   bank_name: string | null;
@@ -67,6 +69,38 @@ interface WithdrawResponse {
   withdrawal_request_id?: string;
   amount?: number;
 }
+
+const getMethodIconHelper = (type: string): string => {
+  switch (type) {
+    case "GCASH":
+    case "GRABPAY":
+    case "MAYA":
+      return "phone-portrait";
+    case "BANK":
+      return "business";
+    case "PAYPAL":
+      return "globe";
+    default:
+      return "card";
+  }
+};
+
+const getMethodLabelHelper = (type: string): string => {
+  switch (type) {
+    case "GCASH":
+      return "GCash";
+    case "BANK":
+      return "Bank";
+    case "PAYPAL":
+      return "PayPal";
+    case "GRABPAY":
+      return "GrabPay";
+    case "MAYA":
+      return "Maya";
+    default:
+      return type;
+  }
+};
 
 export default function WithdrawScreen() {
   const router = useRouter();
@@ -105,10 +139,9 @@ export default function WithdrawScreen() {
     (m: PaymentMethod) => m.id === selectedMethodId,
   );
 
-  // Show only allowed, verified payment methods
+  // Show only verified payment methods (all types accepted)
   const verifiedMethods = paymentMethods.filter(
-    (m: PaymentMethod) =>
-      m.is_verified && (m.type === "GCASH" || m.type === "BANK"),
+    (m: PaymentMethod) => m.is_verified,
   );
 
   // Check if user has payment method on mount
@@ -116,7 +149,7 @@ export default function WithdrawScreen() {
     if (!methodsLoading && paymentMethodsData && verifiedMethods.length === 0) {
       Alert.alert(
         "Payment Account Required",
-        "You need to add a verified payout account (GCash or bank) before you can withdraw funds. Would you like to add one now?",
+        "You need to add a verified payout account before you can withdraw funds. Would you like to add one now?",
         [
           {
             text: "Cancel",
@@ -186,17 +219,7 @@ export default function WithdrawScreen() {
     }
 
     // Confirm withdrawal
-    const getMethodLabel = (type: string) => {
-      switch (type) {
-        case "GCASH":
-          return "GCash";
-        case "BANK":
-          return "Bank";
-        default:
-          return type;
-      }
-    };
-    const methodLabel = getMethodLabel(selectedMethod?.type || "");
+    const methodLabel = getMethodLabelHelper(selectedMethod?.type || "");
 
     const accountDisplay = selectedMethod?.account_number;
 
@@ -437,28 +460,8 @@ export default function WithdrawScreen() {
               </View>
             ) : (
               verifiedMethods.map((method: PaymentMethod) => {
-                const getMethodIcon = (type: string) => {
-                  switch (type) {
-                    case "GCASH":
-                      return "phone-portrait";
-                    case "BANK":
-                      return "business";
-                    default:
-                      return "card";
-                  }
-                };
-                const getMethodLabel = (type: string) => {
-                  switch (type) {
-                    case "GCASH":
-                      return "GCash";
-                    case "BANK":
-                      return "Bank";
-                    default:
-                      return type;
-                  }
-                };
-                const methodIcon = getMethodIcon(method.type);
-                const methodLabel = getMethodLabel(method.type);
+                const methodIcon = getMethodIconHelper(method.type);
+                const methodLabel = getMethodLabelHelper(method.type);
 
                 return (
                   <TouchableOpacity
@@ -493,7 +496,7 @@ export default function WithdrawScreen() {
                         {method.account_name}
                       </Text>
                       <Text style={styles.methodNumber}>
-                        {method.type === "GCASH"
+                        {["GCASH", "GRABPAY", "MAYA"].includes(method.type)
                           ? method.account_number.replace(
                               /(\d{4})(\d{3})(\d{4})/,
                               "$1 $2 $3",
