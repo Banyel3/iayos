@@ -31,6 +31,36 @@ PH_TIMEZONE = ZoneInfo("Asia/Manila")
 CONTACT_INFO_BLOCKED_MESSAGE = "For safety, sharing phone numbers or email addresses in chat is not allowed."
 
 
+def _self_heal_active_agency_backjob_start(job, dispute) -> bool:
+    """Auto-start eligible agency backjobs for legacy records during payload reads."""
+    if not job or not dispute:
+        return False
+
+    if not getattr(job, "assignedAgencyFK", None):
+        return False
+
+    if getattr(dispute, "backjobStarted", False):
+        return False
+
+    if not getattr(dispute, "workerScheduleConfirmed", False):
+        return False
+
+    scheduled_date = getattr(dispute, "scheduled_date", None)
+    if not scheduled_date:
+        return False
+
+    business_tz_name = getattr(settings, "BUSINESS_TIME_ZONE", "Asia/Manila")
+    business_today = timezone.now().astimezone(ZoneInfo(business_tz_name)).date()
+    if business_today < scheduled_date:
+        return False
+
+    dispute.backjobStarted = True
+    if not getattr(dispute, "backjobStartedAt", None):
+        dispute.backjobStartedAt = timezone.now()
+    dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
+    return True
+
+
 def _get_user_profile(request) -> Profile:
     """Return the current user's profile respecting JWT profile_type."""
     profile_type = getattr(request.auth, "profile_type", None)
@@ -1274,6 +1304,7 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         
         backjob_info = None
         if active_dispute:
+            _self_heal_active_agency_backjob_start(job, active_dispute)
             team_schedule_total_workers = 0
             team_schedule_confirmed_count = 0
             my_schedule_confirmed = None
@@ -2128,6 +2159,7 @@ def get_conversation_messages(request, conversation_id: int):
         
         backjob_info = None
         if active_dispute:
+            _self_heal_active_agency_backjob_start(job, active_dispute)
             team_schedule_total_workers = 0
             team_schedule_confirmed_count = 0
             my_schedule_confirmed = None

@@ -6710,6 +6710,54 @@ def _build_backjob_state_payload(dispute: JobDispute) -> Dict[str, Any]:
     }
 
 
+def _get_business_local_date() -> Any:
+    """Return business-local date used for backjob schedule checks."""
+    from zoneinfo import ZoneInfo
+
+    business_tz_name = getattr(settings, "BUSINESS_TIME_ZONE", "Asia/Manila")
+    return timezone.now().astimezone(ZoneInfo(business_tz_name)).date()
+
+
+def _auto_start_agency_backjob_if_ready(job: Job, dispute: JobDispute, reason: str = "") -> bool:
+    """
+    Backward-compatible self-heal for active agency backjobs.
+    When schedule is confirmed and date has arrived, agency backjobs should be
+    execution-ready without requiring an extra client "confirm started" action.
+    Returns True when fields were changed.
+    """
+    if not job or not dispute:
+        return False
+
+    if not job.assignedAgencyFK:
+        return False
+
+    if dispute.backjobStarted:
+        return False
+
+    if not dispute.workerScheduleConfirmed:
+        return False
+
+    if not dispute.scheduled_date:
+        return False
+
+    business_today = _get_business_local_date()
+    if business_today < dispute.scheduled_date:
+        return False
+
+    dispute.backjobStarted = True
+    if not dispute.backjobStartedAt:
+        dispute.backjobStartedAt = timezone.now()
+    dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
+
+    if reason:
+        print(
+            f"[backjob-self-heal] Auto-started agency backjob dispute={dispute.disputeID} "
+            f"job={job.jobID} reason={reason}"
+        )
+
+    return True
+
+
 def _self_heal_backjob_dispute_state(dispute: JobDispute) -> bool:
     """
     Backward-compatibility normalization for legacy/stuck backjob records.
@@ -7684,6 +7732,7 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
             return Response({"error": "Client must set a scheduled date first"}, status=400)
 
         if dispute.workerScheduleConfirmed:
+            _auto_start_agency_backjob_if_ready(job, dispute, reason="already-confirmed")
             payload = _build_backjob_state_payload(dispute)
             return {
                 "success": True,
@@ -7757,6 +7806,10 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
                 "status",
                 "updatedAt",
             ])
+
+            # Agency backjobs should move to execution-ready automatically once
+            # schedule is confirmed and the date has arrived.
+            _auto_start_agency_backjob_if_ready(job, dispute, reason="confirm-schedule")
 
         formatted_date = dispute.scheduled_date.strftime("%B %d, %Y")
         if dispute.workerScheduleConfirmed:
@@ -7891,6 +7944,11 @@ def confirm_backjob_started(request, job_id: int):
                 status=400,
             )
         
+        # Agency backjobs auto-start based on schedule confirmation + date.
+        # Keep this endpoint idempotent for backward compatibility.
+        if job.assignedAgencyFK:
+            _auto_start_agency_backjob_if_ready(job, dispute, reason="client-confirm-start")
+
         # Check if already confirmed
         if dispute.backjobStarted:
             print(f"   Backjob already confirmed as started at {dispute.backjobStartedAt}")
