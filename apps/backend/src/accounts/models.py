@@ -594,7 +594,7 @@ class kyc(models.Model):
     
     def can_resubmit(self):
         """Check if user can still resubmit KYC documents."""
-        return self.kyc_status == 'REJECTED' and self.resubmissionCount < self.maxResubmissions
+        return (self.kyc_status or '').upper() == 'REJECTED' and self.resubmissionCount < self.maxResubmissions
     
     def get_remaining_attempts(self):
         """Get number of remaining resubmission attempts."""
