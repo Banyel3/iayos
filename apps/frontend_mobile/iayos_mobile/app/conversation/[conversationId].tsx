@@ -9080,10 +9080,10 @@ export default function ChatScreen() {
                             styles.backjobActionButtonCompact,
                             { backgroundColor: Colors.warning },
                           ]}
-                          onPress={handleMarkBackjobComplete}
-                          disabled={markBackjobCompleteMutation.isPending}
+                          onPress={() => handleMarkTeamAssignmentComplete(myTeamBackjobAssignment.assignment_id)}
+                          disabled={markTeamAssignmentCompleteMutation.isPending}
                         >
-                          {markBackjobCompleteMutation.isPending ? (
+                          {markTeamAssignmentCompleteMutation.isPending ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
@@ -9105,8 +9105,8 @@ export default function ChatScreen() {
 
                     {/* WORKER: Waiting for Client Approval */}
                     {conversation.my_role === "WORKER" &&
-                      ((isTeamDailyBackjobFlow && myTeamBackjobMarkedComplete) ||
-                        (!isTeamDailyBackjobFlow &&
+                      ((isTeamBackjobFlow && myTeamBackjobMarkedComplete) ||
+                        (!isTeamBackjobFlow &&
                           conversation.backjob?.worker_marked_complete)) &&
                       !conversation.backjob?.client_confirmed_complete && (
                         <View style={styles.backjobWaitingBadge}>
@@ -9123,9 +9123,9 @@ export default function ChatScreen() {
 
                     {/* CLIENT: Approve Backjob Completion Button */}
                     {conversation.my_role === "CLIENT" &&
-                      ((isTeamDailyBackjobFlow &&
+                      ((isTeamBackjobFlow &&
                         teamBackjobAllWorkersComplete) ||
-                        (!isTeamDailyBackjobFlow &&
+                        (!isTeamBackjobFlow &&
                           conversation.backjob?.worker_marked_complete)) &&
                       !conversation.backjob?.client_confirmed_complete && (
                         <TouchableOpacity
