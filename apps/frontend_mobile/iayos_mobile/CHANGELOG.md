@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Backjob Arrival CTA Gate Parity (Single-Job Pattern Alignment)**
+  - Audited single-job backjob flow and aligned team flow to rely on real backjob state signals, not only `is_team_job` flag.
+  - Backjob team worker rows now drive team-flow detection even for legacy payloads where `is_team_job` is missing/stale.
+  - Client-side backjob start gate now recognizes team arrival prerequisites via assignment rows, restoring `Confirm Arrival` progression path.
+  - **Impact**: Team PROJECT backjobs no longer dead-end after schedule confirmations when team assignment data exists but team flag metadata is inconsistent.
+
+- **Team PROJECT Backjob: Client Confirm Arrival CTA Restoration**
+  - Added explicit client-side `Confirm Arrival` action list in backjob workflow when team workers have confirmed schedule but are still pending arrival confirmation.
+  - Preserved existing backjob start gate so `Confirm Started` appears only after all required team arrivals are confirmed.
+  - **Impact**: Team PROJECT/FIXED backjobs no longer get stuck after schedule confirmations; client can complete arrival confirmations and continue flow.
+
 - **Team DAILY Backjob Completion Compatibility + Idempotent UX**
   - Enabled team assignment completion for DAILY jobs during active backjob cycles so `Mark Assignment Complete` works in TEAM DAILY backjob flow.
   - Kept normal DAILY non-backjob behavior unchanged (still attendance-based outside active backjob cycles).
