@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  LayoutAnimation,
+  UIManager,
   TouchableOpacity,
   Image,
   Alert,
@@ -218,9 +220,18 @@ export default function ChatScreen() {
   const [currentEmployeeIndex, setCurrentEmployeeIndex] = useState(0);
   const [currentEditableReviewIndex, setCurrentEditableReviewIndex] =
     useState(0);
-  const [isConfirmArrivalsExpanded, setIsConfirmArrivalsExpanded] =
-    useState(false);
   const [isAttendanceExpanded, setIsAttendanceExpanded] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    }
+  }, []);
+
+  const toggleAttendanceExpanded = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsAttendanceExpanded((prev) => !prev);
+  }, []);
 
   // Price input modal - cross-platform replacement for Alert.prompt (iOS-only)
   const [priceModal, setPriceModal] = useState<{
@@ -4227,18 +4238,29 @@ export default function ChatScreen() {
                     conversation.my_role === "AGENCY") && (
                     <TouchableOpacity
                       style={styles.attendanceClientStatusRow}
-                      onPress={() => setIsAttendanceExpanded((prev) => !prev)}
+                      onPress={toggleAttendanceExpanded}
                       activeOpacity={0.8}
                     >
                       <Text style={styles.attendanceBannerHint}>
-                        Waiting for agency to dispatch employees (
-                        {Array.isArray(conversation.assigned_employees)
-                          ? conversation.assigned_employees.filter(
-                              (e) => e.dispatched,
-                            ).length
-                          : 0} of {Array.isArray(conversation.assigned_employees)
-                          ? conversation.assigned_employees.length
-                          : 0} dispatched)
+                        {(() => {
+                          const assignedEmployees = Array.isArray(
+                            conversation.assigned_employees,
+                          )
+                            ? conversation.assigned_employees
+                            : [];
+                          const dispatchedCount = assignedEmployees.filter(
+                            (e) => e.dispatched,
+                          ).length;
+                          const pendingArrivalCount = assignedEmployees.filter(
+                            (e) => e.dispatched && !e.clientConfirmedArrival,
+                          ).length;
+
+                          if (pendingArrivalCount > 0) {
+                            return `Confirm Arrivals (${pendingArrivalCount} on the way)`;
+                          }
+
+                          return `Waiting for agency to dispatch employees (${dispatchedCount} of ${assignedEmployees.length} dispatched)`;
+                        })()}
                       </Text>
                       <View style={styles.attendanceToggleInner}>
                         <Ionicons
@@ -4255,14 +4277,81 @@ export default function ChatScreen() {
                     </TouchableOpacity>
                   )}
 
+                  {isAttendanceExpanded &&
+                    (conversation.my_role === "CLIENT" ||
+                      conversation.my_role === "AGENCY") &&
+                    conversation.is_agency_job &&
+                    conversation.job.payment_model === "PROJECT" &&
+                    !isProjectMultiDayJob &&
+                    Array.isArray(conversation.assigned_employees) &&
+                    (() => {
+                      const pendingArrivalEmployees =
+                        conversation.assigned_employees.filter(
+                          (e) => e.dispatched && !e.clientConfirmedArrival,
+                        );
+
+                      if (pendingArrivalEmployees.length === 0) return null;
+
+                      return (
+                        <View style={styles.attendanceConfirmArrivalList}>
+                          {pendingArrivalEmployees.map((employee) => (
+                            <View
+                              key={`attendance-arrival-${employee.id}`}
+                              style={styles.confirmArrivalWorkerRow}
+                            >
+                              <Text
+                                style={styles.confirmArrivalWorkerName}
+                                numberOfLines={1}
+                              >
+                                {employee.name}
+                              </Text>
+                              <TouchableOpacity
+                                style={styles.confirmArrivalInlineButton}
+                                onPress={() =>
+                                  Alert.alert(
+                                    "Confirm Arrival",
+                                    `Has ${employee.name} arrived at the job site?`,
+                                    [
+                                      { text: "Cancel", style: "cancel" },
+                                      {
+                                        text: "Confirm",
+                                        onPress: () =>
+                                          confirmProjectArrivalMutation.mutate({
+                                            jobId: conversation.job.id,
+                                            employeeId: employee.id,
+                                          }),
+                                      },
+                                    ],
+                                  )
+                                }
+                                disabled={confirmProjectArrivalMutation.isPending}
+                                activeOpacity={0.85}
+                              >
+                                {confirmProjectArrivalMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.white}
+                                  />
+                                ) : (
+                                  <Text
+                                    style={styles.confirmArrivalInlineButtonText}
+                                  >
+                                    Confirm Arrival
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      );
+                    })()}
+
                   {conversation.my_role !== "CLIENT" &&
                     conversation.my_role !== "AGENCY" && (
                       <View style={styles.attendanceToggleRow}>
                         <TouchableOpacity
                           style={styles.attendanceToggleButton}
-                          onPress={() =>
-                            setIsAttendanceExpanded((prev) => !prev)
-                          }
+                          onPress={toggleAttendanceExpanded}
                           activeOpacity={0.8}
                         >
                           <View style={styles.attendanceToggleInner}>
@@ -5471,18 +5560,7 @@ export default function ChatScreen() {
                               );
                             })()
                           ))
-                        ) : (
-                          <View style={styles.noAttendanceContainer}>
-                            <Ionicons
-                              name="calendar-outline"
-                              size={20}
-                              color={Colors.textSecondary}
-                            />
-                            <Text style={styles.noAttendanceText}>
-                              No attendance logged for today
-                            </Text>
-                          </View>
-                        )}
+                        ) : null}
                       </ScrollView>
                     </>
                   )}
@@ -6858,11 +6936,6 @@ export default function ChatScreen() {
                   const allWorkflowComplete =
                     allDispatched && allArrived && allComplete;
 
-                  // Employees dispatched but not arrived yet
-                  const pendingArrival = conversation.assigned_employees.filter(
-                    (e) => e.dispatched && !e.clientConfirmedArrival,
-                  );
-
                   // Employees arrived but not yet marked complete by agency
                   const onSiteWorking = conversation.assigned_employees.filter(
                     (e) =>
@@ -6873,89 +6946,6 @@ export default function ChatScreen() {
 
                   return (
                     <>
-                      {/* Confirm arrivals section */}
-                      {allDispatched && pendingArrival.length > 0 && (
-                        <View style={styles.employeeActionsSection}>
-                          <TouchableOpacity
-                            style={styles.confirmArrivalsCollapseHeader}
-                            onPress={() =>
-                              setIsConfirmArrivalsExpanded((prev) => !prev)
-                            }
-                            activeOpacity={0.8}
-                          >
-                            <Text style={styles.actionSectionTitle}>
-                              Confirm Arrivals ({pendingArrival.length} on the
-                              way)
-                            </Text>
-                            <Ionicons
-                              name={
-                                isConfirmArrivalsExpanded
-                                  ? "chevron-up"
-                                  : "chevron-down"
-                              }
-                              size={16}
-                              color={Colors.textSecondary}
-                            />
-                          </TouchableOpacity>
-
-                          {isConfirmArrivalsExpanded &&
-                            pendingArrival.map((employee) => (
-                              <View
-                                key={`arrival-${employee.id}`}
-                                style={styles.confirmArrivalWorkerRow}
-                              >
-                                <Text
-                                  style={styles.confirmArrivalWorkerName}
-                                  numberOfLines={1}
-                                >
-                                  {employee.name}
-                                </Text>
-                                <TouchableOpacity
-                                  style={styles.confirmArrivalInlineButton}
-                                  onPress={() =>
-                                    Alert.alert(
-                                      "Confirm Arrival",
-                                      `Has ${employee.name} arrived at the job site?`,
-                                      [
-                                        { text: "Cancel", style: "cancel" },
-                                        {
-                                          text: "Confirm",
-                                          onPress: () =>
-                                            confirmProjectArrivalMutation.mutate(
-                                              {
-                                                jobId: conversation.job.id,
-                                                employeeId: employee.id,
-                                              },
-                                            ),
-                                        },
-                                      ],
-                                    )
-                                  }
-                                  disabled={
-                                    confirmProjectArrivalMutation.isPending
-                                  }
-                                  activeOpacity={0.85}
-                                >
-                                  {confirmProjectArrivalMutation.isPending ? (
-                                    <ActivityIndicator
-                                      size="small"
-                                      color={Colors.white}
-                                    />
-                                  ) : (
-                                    <Text
-                                      style={
-                                        styles.confirmArrivalInlineButtonText
-                                      }
-                                    >
-                                      Confirm Arrival
-                                    </Text>
-                                  )}
-                                </TouchableOpacity>
-                              </View>
-                            ))}
-                        </View>
-                      )}
-
                       {/* Workers on site, working */}
                       {onSiteWorking.length > 0 && (
                         <View
@@ -10245,6 +10235,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: Spacing.xs,
     gap: Spacing.xs,
+  },
+  attendanceConfirmArrivalList: {
+    marginTop: Spacing.sm,
   },
   attendanceBannerToggle: {
     flexDirection: "row",
