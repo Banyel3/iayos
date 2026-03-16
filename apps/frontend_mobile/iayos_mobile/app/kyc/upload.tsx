@@ -158,6 +158,7 @@ export default function KYCUploadScreen() {
     ocrName: string;
     score?: number;
   } | null>(null);
+  const hasShownNameMismatchWarningRef = useRef(false);
 
   // Per-document validation states (validate on upload like agency KYC)
   // This spreads memory usage over time instead of batching all validations on "Next"
@@ -610,8 +611,6 @@ export default function KYCUploadScreen() {
 
       // ===== OCR EXTRACTION: Extract ID data (no re-validation needed) =====
       setIsExtracting(true);
-      let blockForNameMismatch = false;
-
       try {
         const idFormData = new FormData();
         idFormData.append("id_front", {
@@ -635,8 +634,10 @@ export default function KYCUploadScreen() {
           });
           setIdFormValues(initialValues);
 
-          if (extractResult.name_match === false) {
-            blockForNameMismatch = true;
+          if (
+            extractResult.name_match === false &&
+            !hasShownNameMismatchWarningRef.current
+          ) {
             setNameMismatchInfo({
               profileName: extractResult.profile_name || "Your profile name",
               ocrName:
@@ -646,6 +647,7 @@ export default function KYCUploadScreen() {
               score: extractResult.name_match_score,
             });
             setNameMismatchModalVisible(true);
+            hasShownNameMismatchWarningRef.current = true;
           }
         } else {
           // No extraction - enable manual entry mode
@@ -675,10 +677,6 @@ export default function KYCUploadScreen() {
         });
       } finally {
         setIsExtracting(false);
-      }
-
-      if (blockForNameMismatch) {
-        return;
       }
 
       // Proceed to Step 3 (ID verification)

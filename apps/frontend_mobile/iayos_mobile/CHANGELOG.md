@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **KYC Name Mismatch Warning Flow + DOB Picker Year Fix**
+  - Updated mobile KYC Step 2 name-mismatch behavior from hard blocker to one-time warning modal (same UI, warning shown once per upload session).
+  - Users can continue to ID verification after seeing/dismissing the warning instead of being forced to restart the step.
+  - Fixed KYC Step 3 `Date of Birth` picker parsing/formatting so it no longer falls back to epoch-like values and supports changing year normally.
+  - Enforced 18+ date restriction in Step 3 DOB picker so dates younger than 18 years old cannot be selected/saved.
+  - Improved date handling to use local `YYYY-MM-DD` formatting and robust parsing for OCR date variants.
+  - **Impact**: KYC flow is less disruptive for minor OCR/profile name mismatches, and DOB editing is fully usable.
+
 - **Backjob Detail 'Not Found' Fallback Recovery (Worker Flow)**
   - Hardened mobile backjob detail param parsing for `jobId`/`disputeId` to prevent invalid route values from triggering false missing states.
   - Added fallback lookup via `GET /api/mobile/jobs/my-backjobs` when primary `backjob-status` lookup fails, then resolves the dispute by `dispute_id` (or `job_id`) and continues loading details.
