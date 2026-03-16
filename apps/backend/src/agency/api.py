@@ -46,6 +46,38 @@ def _get_effective_work_date(job):
     return base_date + timedelta(days=day_offset)
 
 
+def _self_heal_active_agency_backjob_start(job, dispute) -> bool:
+    """Auto-start eligible agency backjobs for legacy records during payload reads."""
+    if not job or not dispute:
+        return False
+
+    if not getattr(job, "assignedAgencyFK", None):
+        return False
+
+    if getattr(dispute, "backjobStarted", False):
+        return False
+
+    if not getattr(dispute, "workerScheduleConfirmed", False):
+        return False
+
+    scheduled_date = getattr(dispute, "scheduled_date", None)
+    if not scheduled_date:
+        return False
+
+    from zoneinfo import ZoneInfo
+
+    business_tz_name = getattr(settings, "BUSINESS_TIME_ZONE", "Asia/Manila")
+    business_today = timezone.now().astimezone(ZoneInfo(business_tz_name)).date()
+    if business_today < scheduled_date:
+        return False
+
+    dispute.backjobStarted = True
+    if not getattr(dispute, "backjobStartedAt", None):
+        dispute.backjobStartedAt = timezone.now()
+    dispute.save(update_fields=["backjobStarted", "backjobStartedAt", "updatedAt"])
+    return True
+
+
 def _get_required_project_days(job) -> int:
     configured = int(getattr(job, "duration_days", 0) or 0)
     if configured > 0:
@@ -2138,6 +2170,7 @@ def get_agency_conversations(request, filter: str = "all"):
             ).order_by('-openedDate').first()
             backjob_info = None
             if active_dispute:
+                _self_heal_active_agency_backjob_start(job, active_dispute)
                 backjob_info = {
                     "has_backjob": True,
                     "dispute_id": active_dispute.disputeID,
@@ -2244,6 +2277,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
         can_send_reason = None
 
         if active_dispute:
+            _self_heal_active_agency_backjob_start(job, active_dispute)
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
@@ -2437,6 +2471,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
         backjob_info = None
         if active_dispute:
+            _self_heal_active_agency_backjob_start(job, active_dispute)
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
@@ -4449,6 +4484,9 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
         # associated dispute so we simply check for any dispute record.
         dispute_for_dispatch = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
         has_dispute = dispute_for_dispatch is not None
+        is_active_backjob_cycle = bool(
+            dispute_for_dispatch and dispute_for_dispatch.status in ['IN_NEGOTIATION', 'UNDER_REVIEW']
+        )
 
         logger.info(
             f"[dispatch-project v2] job={job_id} status={job.status} "
@@ -4466,6 +4504,37 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 'success': False,
                 'error': 'Cannot dispatch for a completed job without a dispute/backjob'
             }, status=400)
+
+        # Active agency backjob cycles are date-driven after schedule confirmation.
+        # Backward-compatibility self-heal: auto-start once schedule is confirmed and
+        # the scheduled date has arrived, so agency is not blocked on client start action.
+        if is_active_backjob_cycle:
+            from zoneinfo import ZoneInfo
+
+            business_tz_name = getattr(settings, "BUSINESS_TIME_ZONE", "Asia/Manila")
+            business_today = timezone.now().astimezone(ZoneInfo(business_tz_name)).date()
+
+            if not getattr(dispute_for_dispatch, 'workerScheduleConfirmed', False):
+                return Response({
+                    'success': False,
+                    'error': 'Backjob schedule must be confirmed before dispatch is allowed'
+                }, status=400)
+
+            scheduled_date = getattr(dispute_for_dispatch, 'scheduled_date', None)
+            if scheduled_date and business_today < scheduled_date:
+                return Response({
+                    'success': False,
+                    'error': 'Backjob dispatch is only allowed on the scheduled date',
+                    'scheduled_date': scheduled_date.isoformat(),
+                    'today': business_today.isoformat(),
+                    'timezone': business_tz_name,
+                }, status=400)
+
+            if not getattr(dispute_for_dispatch, 'backjobStarted', False):
+                dispute_for_dispatch.backjobStarted = True
+                if not getattr(dispute_for_dispatch, 'backjobStartedAt', None):
+                    dispute_for_dispatch.backjobStartedAt = timezone.now()
+                dispute_for_dispatch.save(update_fields=['backjobStarted', 'backjobStartedAt', 'updatedAt'])
         
         # Get employee
         try:
@@ -4658,7 +4727,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
                 Message.create_system_message(conv, f"📋 {employee.fullName} has been dispatched to the job site")
                 if all_dispatched:
                     if is_active_backjob_cycle:
-                        Message.create_system_message(conv, f"✅ All {total_count} employees dispatched! Waiting for client to confirm backjob work has started.")
+                        Message.create_system_message(conv, f"✅ All {total_count} employees dispatched for the active backjob schedule.")
                     else:
                         Message.create_system_message(conv, f"✅ All {total_count} employees dispatched! Waiting for client to confirm arrivals.")
         except Exception as e:
@@ -4679,7 +4748,7 @@ def dispatch_project_employee(request, job_id: int, employee_id: int):
             'dispatched_count': dispatched_count,
             'total_count': total_count,
             'next_step': (
-                'Wait for client to confirm backjob work has started'
+                'Backjob dispatch in progress. Continue with on-site completion flow.'
                 if is_active_backjob_cycle
                 else 'Wait for client to confirm employee arrival'
             )

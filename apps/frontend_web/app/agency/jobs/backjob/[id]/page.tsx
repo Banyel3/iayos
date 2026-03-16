@@ -406,7 +406,9 @@ function AgencyBackjobDetailContent({ params }: { params: { id: string } }) {
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
                   <Clock className="w-5 h-5 text-amber-600" />
                   <p className="text-sm text-amber-800">
-                    Waiting for client to confirm backjob work has started...
+                    {dispute.scheduled_date
+                      ? `Backjob is scheduled for ${new Date(dispute.scheduled_date).toLocaleDateString()}. Prepare to dispatch employees on the scheduled date.`
+                      : "Backjob schedule is pending. Waiting for scheduled date confirmation."}
                   </p>
                 </div>
               )}

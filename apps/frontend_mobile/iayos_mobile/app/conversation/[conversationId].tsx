@@ -909,6 +909,9 @@ export default function ChatScreen() {
     !!conversation?.backjob?.has_backjob &&
     !conversation?.backjob?.backjob_started;
 
+  const isWorkerSideBackjobActor =
+    conversation?.my_role === "WORKER" || conversation?.my_role === "AGENCY";
+
   const backjobCycleStartMs = conversation?.backjob?.worker_schedule_confirmed_at
     ? new Date(conversation.backjob.worker_schedule_confirmed_at).getTime()
     : null;
@@ -8750,8 +8753,8 @@ export default function ChatScreen() {
                         </View>
                       )}
 
-                    {/* WORKER: Waiting for Client Confirmation */}
-                    {conversation.my_role === "WORKER" &&
+                    {/* WORKER/AGENCY: Waiting for Backjob Start */}
+                    {isWorkerSideBackjobActor &&
                       !conversation.backjob?.backjob_started && (
                         <View style={styles.backjobWaitingBadge}>
                           <Ionicons
@@ -8760,13 +8763,13 @@ export default function ChatScreen() {
                             color={Colors.textSecondary}
                           />
                           <Text style={styles.backjobWaitingText}>
-                            Waiting for client...
+                            Waiting for scheduled start...
                           </Text>
                         </View>
                       )}
 
-                    {/* WORKER: Mark Backjob Complete Button */}
-                    {conversation.my_role === "WORKER" &&
+                    {/* WORKER/AGENCY: Mark Backjob Complete Button */}
+                    {isWorkerSideBackjobActor &&
                       conversation.backjob?.backjob_started &&
                       !conversation.backjob?.worker_marked_complete && (
                         <TouchableOpacity

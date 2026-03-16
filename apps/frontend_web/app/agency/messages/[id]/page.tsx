@@ -729,6 +729,19 @@ export default function AgencyChatScreen() {
     !conversation.backjob?.client_confirmed_complete &&
     conversation.backjob?.status !== "RESOLVED";
 
+  const scheduledBackjobDate = conversation.backjob?.scheduled_date
+    ? new Date(conversation.backjob.scheduled_date)
+    : null;
+  const todayLocal = new Date();
+  todayLocal.setHours(0, 0, 0, 0);
+  if (scheduledBackjobDate) {
+    scheduledBackjobDate.setHours(0, 0, 0, 0);
+  }
+  const isBackjobScheduledForFuture =
+    !!hasActiveBackjobCycle &&
+    !!scheduledBackjobDate &&
+    todayLocal < scheduledBackjobDate;
+
   const isConversationClosed =
     (conversation.status === "COMPLETED" && !hasActiveBackjobCycle) ||
     (job.clientMarkedComplete &&
@@ -975,10 +988,14 @@ export default function AgencyChatScreen() {
                     )}
                   {isAgencyBackjob && (
                     <div className="mt-2">
-                        {!isBackjobExecutionPhase &&
+                        {isBackjobScheduledForFuture ? (
+                          <div className="text-xs text-gray-600 italic">
+                            Backjob is scheduled for {formatBackjobDate(conversation.backjob?.scheduled_date || "", false)}. Prepare to dispatch employees on the scheduled date.
+                          </div>
+                        ) : !isBackjobExecutionPhase &&
                         conversation.backjob.worker_schedule_confirmed ? (
                           <div className="text-xs text-gray-500 italic">
-                            Waiting for client to confirm...
+                            Backjob schedule confirmed. Dispatch employees to begin the cycle.
                           </div>
                         ) : isBackjobExecutionPhase &&
                           !conversation.backjob.worker_marked_complete &&
@@ -992,7 +1009,7 @@ export default function AgencyChatScreen() {
                           shouldShowProjectWorkflow &&
                           !conversation.backjob.backjob_started ? (
                           <div className="text-xs text-gray-500 italic">
-                            Waiting for client to confirm backjob work has started.
+                            Backjob schedule is active. Dispatch employees to continue.
                           </div>
                         ) : canMarkBackjobCompleteNow ? (
                           <Button
@@ -1067,6 +1084,14 @@ export default function AgencyChatScreen() {
                   );
                 }
 
+                if (isBackjobProjectFlow && isBackjobScheduledForFuture) {
+                  return (
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-800 font-medium">
+                      Backjob is scheduled for {formatBackjobDate(conversation.backjob?.scheduled_date || "", false)}. Prepare to dispatch employees on the scheduled date.
+                    </div>
+                  );
+                }
+
                 if (!allDispatched) {
                   const pendingDispatchEmployees = assigned_employees.filter(
                     (e: AssignedEmployee) =>
@@ -1135,11 +1160,7 @@ export default function AgencyChatScreen() {
                   );
                 }
                 if (isBackjobProjectFlow && !conversation.backjob?.backjob_started) {
-                  return (
-                    <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
-                      Waiting for client to confirm backjob work has started.
-                    </div>
-                  );
+                  return null;
                 }
                 if (!isBackjobProjectFlow && !allArrived) {
                   return (
