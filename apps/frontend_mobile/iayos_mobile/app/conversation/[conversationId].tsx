@@ -5526,52 +5526,132 @@ export default function ChatScreen() {
                   // Show progress if not all complete
                   if (!allWorkersComplete) {
                     return (
-                      <View style={[styles.actionButton, styles.waitingButton]}>
-                        <Ionicons
-                          name="time-outline"
-                          size={20}
-                          color={Colors.textSecondary}
-                        />
-                        <Text style={styles.waitingButtonText}>
-                          {completedCount} of{" "}
-                          {conversation.team_worker_assignments.length} workers
-                          marked complete...
-                        </Text>
-                      </View>
+                      <>
+                        <View style={[styles.actionButton, styles.waitingButton]}>
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            {completedCount} of{" "}
+                            {conversation.team_worker_assignments.length} workers
+                            marked complete...
+                          </Text>
+                        </View>
+                        {!conversation.job.remainingPaymentPaid &&
+                          !conversation.job.clientMarkedComplete && (
+                            <TouchableOpacity
+                              style={[styles.actionButton, styles.waitingButton]}
+                              onPress={handlePayNow}
+                              disabled={createFinalPaymentMutation.isPending}
+                            >
+                              {createFinalPaymentMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
+                                  color={Colors.textPrimary}
+                                />
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="flash"
+                                    size={20}
+                                    color={Colors.textPrimary}
+                                  />
+                                  <Text
+                                    style={[
+                                      styles.waitingButtonText,
+                                      { color: Colors.textPrimary },
+                                    ]}
+                                  >
+                                    Pay Now (Optional)
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                        {conversation.job.remainingPaymentPaid && (
+                          <View
+                            style={[styles.actionButton, styles.completedAction]}
+                          >
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={20}
+                              color={Colors.success}
+                            />
+                            <Text
+                              style={[
+                                styles.actionButtonText,
+                                { color: Colors.success },
+                              ]}
+                            >
+                              Final payment done. Approve when all workers
+                              complete.
+                            </Text>
+                          </View>
+                        )}
+                      </>
                     );
                   }
 
                   // Show approve button if all complete and not yet approved
                   if (!conversation.job.clientMarkedComplete) {
                     return (
-                      <TouchableOpacity
-                        style={[
-                          styles.actionButton,
-                          styles.approveCompletionButton,
-                        ]}
-                        onPress={handleApproveTeamJobCompletion}
-                        disabled={approveTeamJobCompletionMutation.isPending}
-                      >
-                        {approveTeamJobCompletionMutation.isPending ? (
-                          <ActivityIndicator
-                            size="small"
-                            color={Colors.white}
-                          />
-                        ) : (
-                          <>
+                      <>
+                        {conversation.job.remainingPaymentPaid && (
+                          <View
+                            style={[styles.actionButton, styles.completedAction]}
+                          >
                             <Ionicons
-                              name="wallet"
+                              name="checkmark-circle"
                               size={20}
+                              color={Colors.success}
+                            />
+                            <Text
+                              style={[
+                                styles.actionButtonText,
+                                { color: Colors.success },
+                              ]}
+                            >
+                              Final payment completed. Approve completion below.
+                            </Text>
+                          </View>
+                        )}
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            styles.approveCompletionButton,
+                          ]}
+                          onPress={handleApproveTeamJobCompletion}
+                          disabled={approveTeamJobCompletionMutation.isPending}
+                        >
+                          {approveTeamJobCompletionMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
                               color={Colors.white}
                             />
-                            <Text style={styles.actionButtonText}>
-                              Approve & Pay Team (₱
-                              {(conversation.job.budget * 0.5).toLocaleString()}
-                              )
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+                          ) : (
+                            <>
+                              <Ionicons
+                                name={
+                                  conversation.job.remainingPaymentPaid
+                                    ? "checkmark-circle"
+                                    : "wallet"
+                                }
+                                size={20}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.actionButtonText}>
+                                {conversation.job.remainingPaymentPaid
+                                  ? "Approve Team Completion"
+                                  : `Approve & Pay Team (₱${(
+                                      conversation.job.budget * 0.5
+                                    ).toLocaleString()})`}
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </>
                     );
                   }
 
