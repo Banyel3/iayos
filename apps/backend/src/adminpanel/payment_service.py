@@ -2061,36 +2061,53 @@ def process_withdrawal_approval(
 
                 paymongo = PayMongoService()
                 bank_code_to_use = str(payment_method.bankCode or '').strip()
+                bank_code_candidates = [bank_code_to_use]
 
                 # If method was saved from fallback bank directory, resolve to a live code now.
                 if bank_code_to_use.startswith('fallback:'):
                     resolved_code = paymongo.resolve_bank_code(payment_method.bankName)
-                    if not resolved_code:
-                        return {
-                            'success': False,
-                            'error': (
-                                'Unable to resolve live bank code from provider. '
-                                'Please retry later when bank directory is available.'
-                            )
-                        }
-                    bank_code_to_use = resolved_code
-                    payment_method.bankCode = resolved_code
-                    payment_method.save(update_fields=['bankCode', 'updatedAt'])
+                    if resolved_code:
+                        bank_code_candidates = [resolved_code]
+                    else:
+                        # Best effort fallback: try derived codes so provider can validate.
+                        fallback_slug = bank_code_to_use.split('fallback:', 1)[1]
+                        bank_code_candidates = [
+                            fallback_slug,
+                            fallback_slug.replace('-', '_'),
+                            fallback_slug.replace('-', ''),
+                            fallback_slug.upper().replace('-', '_'),
+                        ]
 
-                transfer_result = paymongo.create_bank_transfer_v2(
-                    amount=float(transaction.amount),
-                    recipient_name=payment_method.accountName,
-                    account_number=payment_method.accountNumber,
-                    bank_code=bank_code_to_use,
-                    transaction_id=transaction.transactionID,
-                    description=admin_notes or f"Admin-approved BANK withdrawal #{transaction.transactionID}",
-                    metadata={
-                        'user_email': user_email,
-                        'admin_email': getattr(admin, 'email', None),
-                    },
-                    transfer_provider='instapay',
-                    paymongo_recipient_id=payment_method.paymongoRecipientId,
-                )
+                # Deduplicate candidates while preserving order and dropping empties.
+                seen_codes = set()
+                bank_code_candidates = [
+                    code for code in bank_code_candidates
+                    if code and not (code in seen_codes or seen_codes.add(code))
+                ]
+
+                transfer_result = {
+                    'success': False,
+                    'error': 'No valid bank code candidate available for transfer initiation',
+                }
+                if bank_code_candidates:
+                    for candidate_code in bank_code_candidates:
+                        transfer_result = paymongo.create_bank_transfer_v2(
+                            amount=float(transaction.amount),
+                            recipient_name=payment_method.accountName,
+                            account_number=payment_method.accountNumber,
+                            bank_code=candidate_code,
+                            transaction_id=transaction.transactionID,
+                            description=admin_notes or f"Admin-approved BANK withdrawal #{transaction.transactionID}",
+                            metadata={
+                                'user_email': user_email,
+                                'admin_email': getattr(admin, 'email', None),
+                            },
+                            transfer_provider='instapay',
+                            paymongo_recipient_id=payment_method.paymongoRecipientId,
+                        )
+                        if transfer_result.get('success'):
+                            bank_code_to_use = candidate_code
+                            break
 
                 if not transfer_result.get('success'):
                     error_message = transfer_result.get('error', 'Failed to initiate BANK transfer')
@@ -2154,6 +2171,10 @@ def process_withdrawal_approval(
                         'success': False,
                         'error': f'BANK transfer initiation failed and wallet was refunded: {error_message}'
                     }
+
+                if bank_code_to_use != payment_method.bankCode and not str(bank_code_to_use).startswith('fallback:'):
+                    payment_method.bankCode = bank_code_to_use
+                    payment_method.save(update_fields=['bankCode', 'updatedAt'])
 
                 if transfer_result.get('recipient_id') and transfer_result.get('recipient_id') != payment_method.paymongoRecipientId:
                     payment_method.paymongoRecipientId = transfer_result.get('recipient_id')
