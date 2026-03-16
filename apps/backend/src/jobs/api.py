@@ -22,7 +22,7 @@ from django.db import transaction as db_transaction, IntegrityError
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import re
 from django.conf import settings
@@ -6692,6 +6692,95 @@ def get_my_invite_jobs(request, invite_status: str | None = None, page: int = 1,
 # ============================================================
 #region Backjob Endpoints
 
+
+def _build_backjob_state_payload(dispute: JobDispute) -> Dict[str, Any]:
+    """Return a canonical state payload consumed by mobile/web after transitions."""
+    return {
+        "dispute_id": dispute.disputeID,
+        "status": dispute.status,
+        "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+        "worker_schedule_confirmed": bool(dispute.workerScheduleConfirmed),
+        "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
+        "backjob_started": bool(dispute.backjobStarted),
+        "backjob_started_at": dispute.backjobStartedAt.isoformat() if dispute.backjobStartedAt else None,
+        "worker_marked_complete": bool(dispute.workerMarkedBackjobComplete),
+        "worker_marked_complete_at": dispute.workerMarkedBackjobCompleteAt.isoformat() if dispute.workerMarkedBackjobCompleteAt else None,
+        "client_confirmed": bool(dispute.clientConfirmedBackjob),
+        "client_confirmed_at": dispute.clientConfirmedBackjobAt.isoformat() if dispute.clientConfirmedBackjobAt else None,
+    }
+
+
+def _self_heal_backjob_dispute_state(dispute: JobDispute) -> bool:
+    """
+    Backward-compatibility normalization for legacy/stuck backjob records.
+    Returns True when any field was changed.
+    """
+    if not dispute:
+        return False
+
+    changed_fields: List[str] = []
+
+    if dispute.clientConfirmedBackjob:
+        if not dispute.workerMarkedBackjobComplete:
+            dispute.workerMarkedBackjobComplete = True
+            if not dispute.workerMarkedBackjobCompleteAt:
+                dispute.workerMarkedBackjobCompleteAt = dispute.clientConfirmedBackjobAt or timezone.now()
+            changed_fields.extend(["workerMarkedBackjobComplete", "workerMarkedBackjobCompleteAt"])
+        if not dispute.backjobStarted:
+            dispute.backjobStarted = True
+            if not dispute.backjobStartedAt:
+                dispute.backjobStartedAt = dispute.workerMarkedBackjobCompleteAt or dispute.clientConfirmedBackjobAt or timezone.now()
+            changed_fields.extend(["backjobStarted", "backjobStartedAt"])
+        if dispute.status != "RESOLVED":
+            dispute.status = "RESOLVED"
+            changed_fields.append("status")
+        if not dispute.resolvedDate:
+            dispute.resolvedDate = dispute.clientConfirmedBackjobAt or timezone.now()
+            changed_fields.append("resolvedDate")
+
+    elif dispute.workerMarkedBackjobComplete:
+        if not dispute.backjobStarted:
+            dispute.backjobStarted = True
+            dispute.backjobStartedAt = dispute.workerMarkedBackjobCompleteAt or timezone.now()
+            changed_fields.extend(["backjobStarted", "backjobStartedAt"])
+        if dispute.status != "UNDER_REVIEW":
+            dispute.status = "UNDER_REVIEW"
+            changed_fields.append("status")
+
+    elif dispute.backjobStarted:
+        if dispute.status != "UNDER_REVIEW":
+            dispute.status = "UNDER_REVIEW"
+            changed_fields.append("status")
+
+    elif dispute.workerScheduleConfirmed:
+        if dispute.status != "UNDER_REVIEW":
+            dispute.status = "UNDER_REVIEW"
+            changed_fields.append("status")
+    else:
+        if dispute.status == "UNDER_REVIEW" and not dispute.scheduled_date:
+            dispute.status = "IN_NEGOTIATION"
+            changed_fields.append("status")
+
+    if changed_fields:
+        if "updatedAt" not in changed_fields:
+            changed_fields.append("updatedAt")
+        dispute.save(update_fields=changed_fields)
+        return True
+
+    return False
+
+
+def _get_active_backjob_dispute(job: Job) -> Optional[JobDispute]:
+    """Fetch latest active backjob dispute and normalize legacy state if needed."""
+    dispute = JobDispute.objects.filter(
+        jobID=job,
+        status__in=["OPEN", "IN_NEGOTIATION", "UNDER_REVIEW", "RESOLVED"],
+    ).order_by("-openedDate").first()
+    if dispute:
+        _self_heal_backjob_dispute_state(dispute)
+        dispute.refresh_from_db()
+    return dispute
+
 @router.post("/{job_id}/request-backjob", auth=dual_auth)
 @require_kyc
 def request_backjob(request, job_id: int, reason: str = Form(...), description: str = Form(...), terms_accepted: bool = Form(...), images: List[UploadedFile] = File(default=None)):
@@ -6759,14 +6848,13 @@ def request_backjob(request, job_id: int, reason: str = Form(...), description: 
             status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
         ).first()
         if existing_active_dispute:
-            return Response(
-                {
-                    "error": "A backjob request is already active for this job",
-                    "dispute_id": existing_active_dispute.disputeID,
-                    "status": existing_active_dispute.status,
-                },
-                status=400
-            )
+            return {
+                "success": True,
+                "already_processed": True,
+                "message": "A backjob request is already active for this job",
+                "job_id": job.jobID,
+                **_build_backjob_state_payload(existing_active_dispute),
+            }
         
         # Validate inputs
         if len(reason) < 10:
@@ -7585,24 +7673,26 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
         if not (is_assigned_worker or is_assigned_agency or is_team_assigned_worker or is_assigned_employee):
             return Response({"error": "Only the assigned worker, assigned employee, or agency can confirm this schedule"}, status=403)
 
-        dispute = JobDispute.objects.filter(jobID=job, status="IN_NEGOTIATION").first()
+        dispute = _get_active_backjob_dispute(job)
         if not dispute:
+            return Response({"error": "No active backjob found for this job"}, status=404)
+
+        if dispute.status not in ["IN_NEGOTIATION", "UNDER_REVIEW"]:
             return Response({"error": "Backjob must be in IN_NEGOTIATION to confirm schedule"}, status=400)
 
         if not dispute.scheduled_date:
             return Response({"error": "Client must set a scheduled date first"}, status=400)
 
         if dispute.workerScheduleConfirmed:
+            payload = _build_backjob_state_payload(dispute)
             return {
                 "success": True,
+                "already_processed": True,
                 "message": "Scheduled date is already confirmed",
                 "job_id": job.jobID,
-                "dispute_id": dispute.disputeID,
-                "status": "UNDER_REVIEW",
-                "scheduled_date": dispute.scheduled_date.isoformat(),
-                "worker_schedule_confirmed": True,
                 "team_schedule_total_workers": eligible_team_assignments.count() if job.is_team_job else 0,
                 "team_schedule_confirmed_count": eligible_team_assignments.count() if job.is_team_job else 0,
+                **payload,
             }
 
         team_total_workers = 0
@@ -7716,20 +7806,17 @@ def confirm_backjob_scheduled_date_by_worker(request, job_id: int):
 
         return {
             "success": True,
+            "already_processed": False,
             "message": (
                 f"Backjob scheduled date confirmed for {formatted_date}."
                 if dispute.workerScheduleConfirmed
                 else f"Schedule confirmation recorded ({team_confirmed_count}/{team_total_workers})."
             ),
             "job_id": job.jobID,
-            "dispute_id": dispute.disputeID,
-            "status": dispute.status,
-            "scheduled_date": dispute.scheduled_date.isoformat(),
-            "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
-            "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
             "team_schedule_total_workers": team_total_workers,
             "team_schedule_confirmed_count": team_confirmed_count,
             "my_schedule_confirmed": requester_confirmed,
+            **_build_backjob_state_payload(dispute),
         }
 
     except Exception as e:
@@ -7769,10 +7856,13 @@ def confirm_backjob_started(request, job_id: int):
         print(f"   ✓ Verified user is the job client")
         
         # Get the active dispute (backjob)
-        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        dispute = _get_active_backjob_dispute(job)
         if not dispute:
-            print(f"   No active backjob (UNDER_REVIEW dispute) found for job {job_id}")
+            print(f"   No active backjob found for job {job_id}")
             return Response({"error": "No active backjob found for this job"}, status=404)
+
+        if dispute.status not in ["IN_NEGOTIATION", "UNDER_REVIEW"]:
+            return Response({"error": "Backjob is not in a startable state"}, status=400)
         
         print(f"   Found dispute {dispute.disputeID}, backjobStarted={dispute.backjobStarted}")
 
@@ -7804,7 +7894,13 @@ def confirm_backjob_started(request, job_id: int):
         # Check if already confirmed
         if dispute.backjobStarted:
             print(f"   Backjob already confirmed as started at {dispute.backjobStartedAt}")
-            return Response({"error": "Backjob work has already been confirmed as started"}, status=400)
+            return {
+                "success": True,
+                "already_processed": True,
+                "message": "Backjob work start was already confirmed.",
+                "job_id": job_id,
+                **_build_backjob_state_payload(dispute),
+            }
 
         # Agency backjob workflow requires all assigned employees to be dispatched
         # before client can confirm work started for the current backjob cycle.
@@ -7902,11 +7998,10 @@ def confirm_backjob_started(request, job_id: int):
         
         return {
             "success": True,
+            "already_processed": False,
             "message": "Backjob work start confirmed. Worker can now mark as complete when finished.",
             "job_id": job_id,
-            "dispute_id": dispute.disputeID,
-            "backjob_started": True,
-            "backjob_started_at": dispute.backjobStartedAt.isoformat()
+            **_build_backjob_state_payload(dispute),
         }
         
     except Exception as e:
@@ -7947,9 +8042,12 @@ def mark_backjob_complete(request, job_id: int):
             return Response({"error": "Job not found"}, status=404)
         
         # Get the active dispute (backjob)
-        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        dispute = _get_active_backjob_dispute(job)
         if not dispute:
             return Response({"error": "No active backjob found for this job"}, status=404)
+
+        if dispute.status not in ["IN_NEGOTIATION", "UNDER_REVIEW"]:
+            return Response({"error": "Backjob is not in a completable state"}, status=400)
         
         worker_profile = WorkerProfile.objects.filter(
             profileID__accountFK=request.auth
@@ -7999,7 +8097,13 @@ def mark_backjob_complete(request, job_id: int):
         
         # Check if already marked complete
         if dispute.workerMarkedBackjobComplete:
-            return Response({"error": "Backjob has already been marked as complete"}, status=400)
+            return {
+                "success": True,
+                "already_processed": True,
+                "message": "Backjob has already been marked complete.",
+                "job_id": job_id,
+                **_build_backjob_state_payload(dispute),
+            }
         
         # Mark backjob as complete
         dispute.workerMarkedBackjobComplete = True
@@ -8048,11 +8152,10 @@ def mark_backjob_complete(request, job_id: int):
         
         return {
             "success": True,
+            "already_processed": False,
             "message": "Backjob marked as complete. Client has been notified to verify.",
             "job_id": job_id,
-            "dispute_id": dispute.disputeID,
-            "worker_marked_complete": True,
-            "worker_marked_complete_at": dispute.workerMarkedBackjobCompleteAt.isoformat()
+            **_build_backjob_state_payload(dispute),
         }
         
     except Exception as e:
@@ -8092,20 +8195,29 @@ def approve_backjob_completion(request, job_id: int):
         print(f"   Verified user is the job client")
         
         # Get the active dispute (backjob)
-        dispute = JobDispute.objects.filter(jobID=job, status="UNDER_REVIEW").first()
+        dispute = _get_active_backjob_dispute(job)
         if not dispute:
             return Response({"error": "No active backjob found for this job"}, status=404)
+
+        if dispute.status not in ["IN_NEGOTIATION", "UNDER_REVIEW", "RESOLVED"]:
+            return Response({"error": "Backjob is not in an approvable state"}, status=400)
         
+        # Check if already confirmed
+        if dispute.clientConfirmedBackjob:
+            return {
+                "success": True,
+                "already_processed": True,
+                "message": "Backjob was already confirmed complete.",
+                "job_id": job_id,
+                **_build_backjob_state_payload(dispute),
+            }
+
         # Check if worker marked it complete
         if not dispute.workerMarkedBackjobComplete:
             return Response(
                 {"error": "Worker must mark backjob as complete before client can approve"},
                 status=400
             )
-        
-        # Check if already confirmed
-        if dispute.clientConfirmedBackjob:
-            return Response({"error": "Backjob has already been confirmed as complete"}, status=400)
         
         with db_transaction.atomic():
             # Mark client confirmation
@@ -8178,12 +8290,10 @@ def approve_backjob_completion(request, job_id: int):
         
         return {
             "success": True,
+            "already_processed": False,
             "message": "Backjob confirmed complete. The conversation has been closed.",
             "job_id": job_id,
-            "dispute_id": dispute.disputeID,
-            "status": "RESOLVED",
-            "client_confirmed": True,
-            "client_confirmed_at": dispute.clientConfirmedBackjobAt.isoformat()
+            **_build_backjob_state_payload(dispute),
         }
         
     except Exception as e:
