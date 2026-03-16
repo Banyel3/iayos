@@ -1,6 +1,6 @@
 # services.py
 from .models import Accounts, Profile, Agency, kyc, kycFiles
-from adminpanel.models import SystemRoles
+from adminpanel.models import SystemRoles, KYCLogs
 from adminpanel.audit_service import log_action
 from django.utils.dateparse import parse_date
 from django.utils import timezone
@@ -21,6 +21,27 @@ from difflib import SequenceMatcher
 def generate_otp():
     """Generate a random 6-digit OTP code"""
     return ''.join(random.choices('0123456789', k=6))
+
+
+def _create_ai_kyc_audit_log(kyc_record, action: str, reason: str) -> None:
+    """Persist AI KYC decisions so admin approved/rejected pages stay in sync."""
+    try:
+        if action not in {"APPROVED", "Rejected"}:
+            return
+
+        KYCLogs.objects.create(
+            kycID=kyc_record.kycID,
+            accountFK=kyc_record.accountFK,
+            action=action,
+            reviewedBy=None,
+            reviewedAt=timezone.now(),
+            reason=reason,
+            userEmail=kyc_record.accountFK.email,
+            userAccountID=kyc_record.accountFK.accountID,
+            kycType="USER",
+        )
+    except Exception as e:
+        print(f"⚠️ [AI KYC] Failed to create KYC audit log: {e}")
 
 
 def evaluate_profile_name_match(account, ocr_full_name):
@@ -1316,6 +1337,11 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                             kyc_rec.kyc_status = 'APPROVED'
                             kyc_rec.notes = f"Auto-approved: Face match passed (similarity: {similarity:.0%})."
                             kyc_rec.save(update_fields=['kyc_status', 'notes'])
+                            _create_ai_kyc_audit_log(
+                                kyc_rec,
+                                "APPROVED",
+                                f"AI auto-approved: Face match passed (similarity: {similarity:.0%}).",
+                            )
                             account = Accounts.objects.get(accountID=account_id)
                             account.KYCVerified = True
                             # Set verification_level based on whether clearance was submitted
@@ -1338,9 +1364,14 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                         if similarity > 0:
                             # Faces detected but don't match → auto-reject
                             print(f"🧵 [ASYNC FACE MATCH] ❌ FAILED: similarity={similarity:.2f} < 0.55 (kycID={kyc_record_id})")
-                            kyc_rec.kyc_status = 'REJECTED'
+                            kyc_rec.kyc_status = 'Rejected'
                             kyc_rec.notes = f"Auto-rejected: Selfie does not match ID photo (similarity: {similarity:.0%})"
                             kyc_rec.save(update_fields=['kyc_status', 'notes'])
+                            _create_ai_kyc_audit_log(
+                                kyc_rec,
+                                "Rejected",
+                                f"AI auto-rejected: Selfie does not match ID photo (similarity: {similarity:.0%}).",
+                            )
                             
                             # Notify user
                             try:
@@ -1408,11 +1439,16 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
         # If any document failed AI verification, set KYC status to REJECTED
         # (Only applies when skip_ai_verification=False)
         if any_failed and not skip_ai_verification:
-            kyc_record.kyc_status = 'REJECTED'
+            kyc_record.kyc_status = 'Rejected'
             # Format rejection messages in a user-friendly way with bullet points
             formatted_reasons = "\n".join([f"• {msg}" for msg in failure_messages])
             kyc_record.notes = f"Your documents could not be verified automatically:\n\n{formatted_reasons}\n\nPlease resubmit with clearer images."
             kyc_record.save()
+            _create_ai_kyc_audit_log(
+                kyc_record,
+                "Rejected",
+                f"AI auto-rejected: {'; '.join(failure_messages)}",
+            )
             print(f"❌ KYC auto-rejected due to AI verification failures")
             
             return {
