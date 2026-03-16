@@ -18,7 +18,7 @@ from datetime import timedelta
 from typing import Optional
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 
 from accounts.models import (
     Job, Wallet, Transaction, Notification, JobDispute
@@ -247,6 +247,165 @@ def has_receivable_ledger_for_account(job: Job, account) -> bool:
         transactionType__in=["PENDING_EARNING", "EARNING"],
         status__in=["PENDING", "COMPLETED"],
     ).exists()
+
+
+def estimate_job_receivable_amount(job: Job) -> Decimal:
+    """Estimate receivable amount for a completed job using safest available signals."""
+    from accounts.models import DailyAttendance, JobEmployeeAssignment
+
+    approved_assignments_total = JobEmployeeAssignment.objects.filter(
+        job=job,
+        clientApproved=True,
+    ).aggregate(total=Sum("paymentAmount")).get("total")
+
+    if approved_assignments_total and approved_assignments_total > Decimal("0.00"):
+        return Decimal(str(approved_assignments_total))
+
+    daily_paid_total = DailyAttendance.objects.filter(
+        jobID=job,
+        payment_processed=True,
+    ).aggregate(total=Sum("amount_earned")).get("total")
+
+    if daily_paid_total and daily_paid_total > Decimal("0.00"):
+        return Decimal(str(daily_paid_total))
+
+    remaining = Decimal(str(getattr(job, "remainingPayment", Decimal("0.00")) or Decimal("0.00")))
+    materials = Decimal(str(getattr(job, "materialsCost", Decimal("0.00")) or Decimal("0.00")))
+    fallback = remaining + materials
+    if fallback > Decimal("0.00"):
+        return fallback
+
+    # Only use full-budget fallback when final payment was marked as settled.
+    if getattr(job, "remainingPaymentPaid", False):
+        budget = Decimal(str(getattr(job, "budget", Decimal("0.00")) or Decimal("0.00")))
+        if budget > Decimal("0.00"):
+            return budget
+
+    return Decimal("0.00")
+
+
+@transaction.atomic
+def reconcile_missing_agency_receivables_for_account(account, limit: int = 200, dry_run: bool = False) -> dict:
+    """
+    Backfill missing agency receivable ledger entries for legacy completed jobs.
+
+    This is safe to call repeatedly: idempotency checks prevent duplicate pending rows,
+    and existing receivable ledgers are always skipped.
+    """
+    if not account:
+        return {
+            "success": False,
+            "error": "account is required",
+            "scanned": 0,
+            "repaired": 0,
+            "skipped": 0,
+            "errors": 0,
+            "reasons": {},
+        }
+
+    now = timezone.now()
+    limit = max(1, int(limit or 200))
+    mature_cutoff = now - timedelta(days=get_payment_buffer_days())
+
+    jobs_qs = (
+        Job.objects.select_related("assignedAgencyFK__accountFK")
+        .filter(
+            assignedAgencyFK__accountFK=account,
+            status="COMPLETED",
+        )
+        .order_by("-updatedAt")[:limit]
+    )
+
+    scanned = 0
+    repaired = 0
+    skipped = 0
+    errors = 0
+    reasons = {
+        "already_has_receivable": 0,
+        "non_positive_expected_amount": 0,
+        "repaired_pending": 0,
+        "repaired_released_ledger_only": 0,
+        "repaired_released_now": 0,
+        "error": 0,
+    }
+
+    for job in jobs_qs:
+        scanned += 1
+
+        if has_receivable_ledger_for_account(job, account):
+            skipped += 1
+            reasons["already_has_receivable"] += 1
+            continue
+
+        expected_amount = estimate_job_receivable_amount(job)
+        if expected_amount <= Decimal("0.00"):
+            skipped += 1
+            reasons["non_positive_expected_amount"] += 1
+            continue
+
+        if dry_run:
+            continue
+
+        try:
+            if job.paymentReleasedToWorker:
+                wallet, _ = Wallet.objects.get_or_create(accountFK=account)
+                reference_number = f"BACKFILL-JOB-{job.jobID}-RELEASED-COMPAT"
+                Transaction.objects.get_or_create(
+                    walletID=wallet,
+                    relatedJobPosting=job,
+                    referenceNumber=reference_number,
+                    defaults={
+                        "transactionType": "EARNING",
+                        "amount": expected_amount,
+                        "balanceAfter": wallet.balance,
+                        "status": "COMPLETED",
+                        "description": f"[Backfill] Released earning ledger for completed agency job: {job.title}",
+                        "completedAt": now,
+                    },
+                )
+                reasons["repaired_released_ledger_only"] += 1
+                repaired += 1
+                continue
+
+            settlement = add_pending_earnings(
+                job=job,
+                recipient_account=account,
+                amount=expected_amount,
+                recipient_type="agency",
+                idempotency_key=f"backfill-agency-{job.jobID}",
+            )
+            if not settlement.get("success"):
+                raise RuntimeError("pending settlement helper returned unsuccessful result")
+
+            reasons["repaired_pending"] += 1
+
+            is_matured = bool(
+                (job.paymentReleaseDate and job.paymentReleaseDate <= now)
+                or ((job.completedAt or job.updatedAt or job.createdAt) and (job.completedAt or job.updatedAt or job.createdAt) <= mature_cutoff)
+            )
+            if is_matured:
+                release_result = release_pending_payment(job, force=True)
+                if release_result.get("success"):
+                    reasons["repaired_released_now"] += 1
+                else:
+                    error_text = str(release_result.get("error") or "")
+                    if "already released" not in error_text.lower():
+                        raise RuntimeError(f"failed auto-release after backfill: {error_text or 'unknown error'}")
+
+            repaired += 1
+        except Exception:
+            errors += 1
+            reasons["error"] += 1
+
+    return {
+        "success": errors == 0,
+        "scanned": scanned,
+        "repaired": repaired,
+        "skipped": skipped,
+        "errors": errors,
+        "reasons": reasons,
+        "dry_run": dry_run,
+    }
 
 
 @transaction.atomic  
