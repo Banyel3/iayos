@@ -7954,13 +7954,9 @@ def worker_check_out(request, job_id: int):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
         
-        # Validate job is DAILY payment model
-        is_daily_job = job.payment_model == 'DAILY'
-        is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
-        )
-        if not (is_daily_job or is_project_multiday_job):
-            return Response({"error": "This endpoint supports DAILY and PROJECT multi-day jobs only"}, status=400)
+        # Keep worker-side attendance actions aligned with supported flows.
+        if not _supports_daily_attendance_flow(job):
+            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
         
         # Get worker's profile
         profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
@@ -8270,13 +8266,12 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
-        is_daily_job = job.payment_model == 'DAILY'
         is_project_multiday_job = (
             job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
         )
 
-        if not (is_daily_job or is_project_multiday_job):
-            return Response({"error": "This endpoint supports DAILY and PROJECT multi-day jobs only"}, status=400)
+        if not _supports_daily_attendance_flow(job):
+            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
 
         if not job.clientID or job.clientID.profileID.accountFK != request.auth:
             return Response({"error": "Only the job client can mark no-work days"}, status=403)
