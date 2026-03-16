@@ -737,7 +737,7 @@ export default function ProfileScreen() {
 
 
 
-          {/* Wallet Section */}}
+          {/* Wallet Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Wallet</Text>
             <TouchableOpacity
