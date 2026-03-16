@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency Attendance Confirm Toast Wording (No False ₱0 Payment Message)**
+  - Updated mobile attendance confirmation success copy to avoid payment wording when confirmed amount is zero.
+  - Client-side confirm action now shows `Attendance approved` unless a real payout amount is processed.
+  - **Impact**: Client -> Agency attendance confirmations no longer show misleading `Payment of ₱0 processed` messages.
+
 - **Team Backjob Attendance Row Selection Self-Heal (Legacy Duplicate Rows)**
   - Updated mobile team/backjob attendance matching to select the best row by priority (`assignment_id` first) and most recent attendance signal timestamp.
   - Applied the same best-match logic to worker-side `myWorkerAttendanceToday`, team backjob signal derivation, and client-side assignment-to-attendance merging.

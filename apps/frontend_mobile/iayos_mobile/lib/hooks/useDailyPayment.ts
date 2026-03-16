@@ -1261,11 +1261,12 @@ export const useClientConfirmAttendance = () => {
       Toast.show({
         type: "success",
         text1: "Attendance Confirmed ✅",
-        text2: data.payment_processed
-          ? data.payment_method === "CASH"
-            ? `Cash payout of ₱${data.amount_earned.toFixed(0)} released`
-            : `Payment of ₱${data.amount_earned.toFixed(0)} processed`
-          : "Awaiting worker confirmation",
+        text2:
+          data.payment_processed && Number(data.amount_earned || 0) > 0
+            ? data.payment_method === "CASH"
+              ? `Cash payout of ₱${data.amount_earned.toFixed(0)} released`
+              : `Payment of ₱${data.amount_earned.toFixed(0)} processed`
+            : "Attendance approved",
         position: "top",
       });
     },
