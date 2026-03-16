@@ -2187,6 +2187,7 @@ def _send_withdrawal_receipt_email(
         'BANK_TRANSFER': 'Bank Transfer',
         'PAYPAL': 'PayPal',
         'VISA': 'Visa/Credit Card',
+        'MASTERCARD': 'Mastercard/Credit Card',
         'GRABPAY': 'GrabPay',
         'MAYA': 'Maya',
         'PAYMAYA': 'Maya'

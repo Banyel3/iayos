@@ -783,7 +783,11 @@ def get_transactions_list_optimized(
         if t.walletID and t.walletID.accountFK_id
     ]
     profiles = Profile.objects.filter(accountFK_id__in=account_ids)
-    profile_map = {p.accountFK_id: p for p in profiles}
+    profile_map = {
+        getattr(p, 'accountFK_id', None): p
+        for p in profiles
+        if getattr(p, 'accountFK_id', None) is not None
+    }
     
     transactions_list = []
     for txn in page_obj:
@@ -1027,9 +1031,9 @@ def get_withdrawals_list_optimized(
             Q(walletID__accountFK__email__icontains=search) |
             Q(referenceNumber__icontains=search)
         )
-    
-    # Note: payment_method_filter would filter by linked payment method type
-    # This requires a subquery or post-filtering since payment methods are user-level
+
+    if payment_method_filter:
+        queryset = queryset.filter(paymentMethod=str(payment_method_filter).upper())
     
     paginator = Paginator(queryset, page_size)
     page_obj = paginator.get_page(page)
@@ -1044,8 +1048,19 @@ def get_withdrawals_list_optimized(
     profile_map = {p.accountFK_id: p for p in profiles}
     
     # Get payment methods
-    payment_methods = UserPaymentMethod.objects.filter(accountFK_id__in=account_ids)
-    pm_map = {pm.accountFK_id: pm for pm in payment_methods}
+    payment_methods = UserPaymentMethod.objects.filter(accountFK_id__in=account_ids).order_by('-isPrimary', '-createdAt')
+    pm_map_by_type = {
+        (getattr(pm, 'accountFK_id', None), pm.methodType): pm
+        for pm in payment_methods
+        if getattr(pm, 'accountFK_id', None) is not None
+    }
+    pm_map_by_account = {}
+    for pm in payment_methods:
+        pm_account_id = getattr(pm, 'accountFK_id', None)
+        if pm_account_id is None:
+            continue
+        if pm_account_id not in pm_map_by_account:
+            pm_map_by_account[pm_account_id] = pm
     
     withdrawals_list = []
     for txn in page_obj:
@@ -1055,7 +1070,27 @@ def get_withdrawals_list_optimized(
         if txn.walletID and txn.walletID.accountFK:
             account = txn.walletID.accountFK
             profile = profile_map.get(account.accountID)
-            pm = pm_map.get(account.accountID)
+            txn_method_type = (txn.paymentMethod or '').upper().strip()
+
+            # Backfill legacy rows where paymentMethod may be missing.
+            if not txn_method_type and txn.description:
+                desc_upper = txn.description.upper()
+                if 'BANK' in desc_upper:
+                    txn_method_type = 'BANK'
+                elif 'PAYPAL' in desc_upper:
+                    txn_method_type = 'PAYPAL'
+                elif 'MASTERCARD' in desc_upper:
+                    txn_method_type = 'MASTERCARD'
+                elif 'VISA' in desc_upper:
+                    txn_method_type = 'VISA'
+                elif 'MAYA' in desc_upper:
+                    txn_method_type = 'MAYA'
+                elif 'GRABPAY' in desc_upper:
+                    txn_method_type = 'GRABPAY'
+                else:
+                    txn_method_type = 'GCASH'
+
+            pm = pm_map_by_type.get((account.accountID, txn_method_type)) or pm_map_by_account.get(account.accountID)
             
             user_info = {
                 'id': str(account.accountID),
@@ -1065,9 +1100,10 @@ def get_withdrawals_list_optimized(
             
             if pm:
                 payment_method = {
-                    'type': pm.methodType,
+                    'type': txn_method_type or pm.methodType,
                     'account_name': pm.accountName,
                     'account_number': pm.accountNumber,
+                    'bank_name': pm.bankName,
                 }
         
         withdrawals_list.append({
@@ -1076,7 +1112,11 @@ def get_withdrawals_list_optimized(
             'amount': float(txn.amount or 0),
             'currency': 'PHP',  # Default to PHP
             'user': user_info,
+            'payment_method_type': payment_method['type'] if payment_method else (txn.paymentMethod or None),
             'payment_method': payment_method,
+            'recipient_name': payment_method['account_name'] if payment_method else None,
+            'account_number': payment_method['account_number'] if payment_method else None,
+            'bank_name': payment_method.get('bank_name') if payment_method else None,
             'description': txn.description,
             'reference_number': txn.referenceNumber,
             'created_at': txn.createdAt.isoformat() if txn.createdAt else None,

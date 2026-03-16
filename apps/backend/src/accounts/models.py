@@ -2865,13 +2865,14 @@ class Barangay(models.Model):
 
 
 class UserPaymentMethod(models.Model):
-    """User's payment methods for withdrawals (GCash, Bank, PayPal, Visa, GrabPay, Maya)"""
+    """User's payment methods for withdrawals (GCash, Bank, PayPal, Visa, Mastercard, GrabPay, Maya)"""
     
     class MethodType(models.TextChoices):
         GCASH = "GCASH", "GCash"
         BANK = "BANK", "Bank Account"
         PAYPAL = "PAYPAL", "PayPal"
         VISA = "VISA", "Visa/Credit Card"
+        MASTERCARD = "MASTERCARD", "Mastercard/Credit Card"
         GRABPAY = "GRABPAY", "GrabPay"
         MAYA = "MAYA", "Maya"
     

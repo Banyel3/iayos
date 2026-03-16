@@ -151,11 +151,15 @@ class WithdrawFundsSchema(Schema):
     notes: Optional[str] = None
 
 class AddPaymentMethodSchema(Schema):
-    """Schema for adding a payment method (GCash, Bank, PayPal)"""
-    type: Literal["GCASH", "BANK", "PAYPAL"]
+    """Schema for adding a payment method (GCash, Bank, PayPal, Visa, Mastercard, GrabPay, Maya)"""
+    type: Literal["GCASH", "BANK", "PAYPAL", "VISA", "MASTERCARD", "GRABPAY", "MAYA"]
     account_name: str
     account_number: str  # GCash number, bank account number, or PayPal email
     bank_name: Optional[str] = None  # Required for BANK type
+    card_number: Optional[str] = None  # Required for VISA/MASTERCARD (validated, not stored)
+    card_expiry_month: Optional[int] = None  # Required for VISA/MASTERCARD
+    card_expiry_year: Optional[int] = None  # Required for VISA/MASTERCARD
+    card_cvv: Optional[str] = None  # Required for VISA/MASTERCARD (validated, never stored)
 
 # ========================================
 # MOBILE-SPECIFIC SCHEMAS
