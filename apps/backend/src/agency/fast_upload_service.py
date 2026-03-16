@@ -50,6 +50,14 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
             defaults={'status': 'PENDING', 'notes': ''}
         )
 
+        # Enforce resubmission policy for rejected applications.
+        if not created and kyc_record.status == AgencyKYC.AgencyKycStatus.REJECTED:
+            if not kyc_record.can_resubmit():
+                raise ValueError(
+                    f"Maximum resubmission attempts reached ({kyc_record.maxResubmissions}). "
+                    "Please contact support."
+                )
+
         # Save business_type from payload
         business_type = getattr(payload, 'business_type', None)
         if business_type:
@@ -119,18 +127,25 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 
                 # Get cached validation result from Redis
                 from .validation_cache import get_cached_validation, generate_file_hash
-                
+
+                file.seek(0)
+                file_data = file.read()
+                file.seek(0)
+                actual_hash = generate_file_hash(file_data)
+
                 file_hash = file_hashes.get(key)
                 cached_validation = None
-                
+                using_client_hash = bool(file_hash)
+
                 if file_hash:
+                    if file_hash != actual_hash:
+                        raise ValueError(
+                            f"{key}: File hash mismatch. Please re-validate this document before upload."
+                        )
                     cached_validation = get_cached_validation(file_hash, key)
                 else:
                     # Fallback: generate hash from file data if not provided
-                    file.seek(0)
-                    file_data = file.read()
-                    file.seek(0)
-                    file_hash = generate_file_hash(file_data)
+                    file_hash = actual_hash
                     cached_validation = get_cached_validation(file_hash, key)
                 
                 # Extract validation results from cache (or use defaults)
@@ -163,6 +178,11 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                     ai_rejection_reason = cached_validation.get('ai_rejection_reason')
                     ai_rejection_message = cached_validation.get('ai_rejection_message')
                 else:
+                    if using_client_hash:
+                        raise ValueError(
+                            f"{key}: Validation expired. Please validate this document again and resubmit within 10 minutes."
+                        )
+
                     print(f"⚠️ No cached validation for {key}, using PENDING status")
                     # For PDFs, skip validation
                     if file.content_type == 'application/pdf':
