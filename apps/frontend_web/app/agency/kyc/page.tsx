@@ -25,6 +25,8 @@ interface KYCUser extends User {
 }
 
 const AgencyKYCPage = () => {
+  const STATUS_STEP = 5;
+
   const { user: authUser, isAuthenticated, isLoading } = useAuth();
   const user = authUser as KYCUser;
   const router = useRouter();
@@ -136,7 +138,7 @@ const AgencyKYCPage = () => {
           if (data?.notes) setAgencyKycNotes(data.notes || null);
           // If KYC already exists (pending/approved/rejected), show status page
           if (status !== "NOT_STARTED") {
-            setCurrentStep(6); // Go to status page, not OCR confirmation
+            setCurrentStep(STATUS_STEP);
           }
         }
       } catch (err) {
@@ -656,7 +658,7 @@ const AgencyKYCPage = () => {
         setAgencyKycStatus("REJECTED");
         setAgencyKycNotes(rejectionReasons.join("\n"));
         if (responseData?.files) setAgencyKycFiles(responseData.files || []);
-        setCurrentStep(5); // Go to status step (Step 5 renders the status page)
+        setCurrentStep(STATUS_STEP);
         router.refresh(); // Invalidate Next.js server cache so layout refetches status
         setIsSubmitting(false);
         return;
@@ -678,11 +680,11 @@ const AgencyKYCPage = () => {
         },
       );
 
-      // Update status and navigate to Step 5 (status page)
+      // Update status and navigate to status page
       setAgencyKycStatus(responseData?.status || "PENDING");
       if (responseData?.files) setAgencyKycFiles(responseData.files || []);
       if (responseData?.notes) setAgencyKycNotes(responseData.notes || null);
-      setCurrentStep(5); // Go to status step (Step 5 renders the status page)
+      setCurrentStep(STATUS_STEP);
       router.refresh(); // Invalidate Next.js server cache so layout refetches status
     } catch (err) {
       console.error(err);
@@ -711,12 +713,37 @@ const AgencyKYCPage = () => {
         initialFields["permit_number"] = registrationNumber;
       setOcrFields(initialFields);
     }
-  }, [hasAutofillData, autofillData]);
+  }, [
+    hasAutofillData,
+    autofillData,
+    getFieldValue,
+    businessName,
+    registrationNumber,
+  ]);
+
+  const validateOcrDateField = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
   // Issue #1: Handle OCR confirmation submit
   const handleOcrConfirmSubmit = async () => {
     setIsConfirmingOcr(true);
     try {
+      const dateFields = [
+        "rep_birth_date",
+        "permit_issue_date",
+        "permit_expiry_date",
+      ];
+
+      for (const fieldKey of dateFields) {
+        const rawValue = (ocrFields[fieldKey] || "").trim();
+        if (rawValue && !validateOcrDateField(rawValue)) {
+          toast.error("Invalid Date Format", {
+            description: `${fieldKey.replace(/_/g, " ")} must be YYYY-MM-DD.`,
+          });
+          setIsConfirmingOcr(false);
+          return;
+        }
+      }
+
       const payload: AgencyKYCConfirmPayload = {
         ...ocrFields,
         rep_id_type: repIdType,
@@ -729,7 +756,7 @@ const AgencyKYCPage = () => {
             toast.success("Data Confirmed", {
               description: "Your business information has been saved.",
             });
-            fetchStatusAndGoToStep6();
+            fetchStatusAndGoToStatusStep();
             resolve();
           },
           onError: (error: Error) => {
@@ -747,8 +774,8 @@ const AgencyKYCPage = () => {
     }
   };
 
-  // Helper to fetch status and go to step 6
-  const fetchStatusAndGoToStep6 = async () => {
+  // Helper to fetch status and go to the status step
+  const fetchStatusAndGoToStatusStep = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/agency/status`, {
         method: "GET",
@@ -764,7 +791,7 @@ const AgencyKYCPage = () => {
     } catch {
       toast.error("Could not retrieve KYC status. Please refresh.");
     }
-    setCurrentStep(6);
+    setCurrentStep(STATUS_STEP);
   };
 
   const handleResubmit = () => {
