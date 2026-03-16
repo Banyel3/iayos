@@ -6191,15 +6191,14 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                     status=400
                 )
 
-            # Resolve legacy fallback: codes to real short codes immediately so the
-            # stored bankCode is usable directly by PayMongo Transfer V2.
-            if bank_code.startswith('fallback:'):
-                from .paymongo_service import PayMongoService as _PM
-                _svc = _PM()
-                derived = _svc.derive_fallback_bank_code(bank_code, bank_name)
-                if derived:
-                    bank_code = derived
-                    print(f"🏦 Resolved fallback bank code → {bank_code!r} for {bank_name!r}")
+            # Normalise to BIC/SWIFT code required by PayMongo Transfer V2 destination_account.bic.
+            # This handles fallback: slugs, plain short codes (bdo/bpi), and already-correct BICs.
+            from .paymongo_service import PayMongoService as _PM
+            _svc = _PM()
+            bic = _svc.normalize_bank_code_to_bic(bank_code, bank_name)
+            if bic:
+                bank_code = bic
+                print(f"🏦 Normalised bank code → {bank_code!r} for {bank_name!r}")
 
         if not clean_number:
             return Response(

@@ -2060,45 +2060,25 @@ def process_withdrawal_approval(
                 from accounts.paymongo_service import PayMongoService
 
                 paymongo = PayMongoService()
-                bank_code_to_use = str(payment_method.bankCode or '').strip()
-                bank_code_candidates = [bank_code_to_use]
+                raw_bank_code = str(payment_method.bankCode or '').strip()
 
-                # If method was saved from fallback bank directory, resolve to a live code now.
-                if bank_code_to_use.startswith('fallback:') or bank_code_to_use.lower().startswith('ins_'):
-                    resolved_code = paymongo.resolve_bank_code(payment_method.bankName)
-                    if resolved_code:
-                        bank_code_candidates = [resolved_code]
-                    else:
-                        if bank_code_to_use.startswith('fallback:'):
-                            # derive_fallback_bank_code maps slug → short code (e.g. "bdo", "bpi")
-                            # which is the format PayMongo Transfer V2 /recipients accepts.
-                            derived_code = paymongo.derive_fallback_bank_code(
-                                bank_code_to_use, payment_method.bankName
-                            )
-                            fallback_slug = bank_code_to_use.split('fallback:', 1)[1]
-                            bank_code_candidates = list(filter(None, [
-                                derived_code,                                    # "bdo" — most likely valid
-                                derived_code.upper() if derived_code else None,  # "BDO" — uppercase variant
-                                fallback_slug,                                   # "bdo-unibank-inc"
-                                fallback_slug.replace('-', '_'),                 # "bdo_unibank_inc"
-                                fallback_slug.replace('-', ''),                  # "bdounibankink"
-                                fallback_slug.upper().replace('-', '_'),         # "BDO_UNIBANK_INC"
-                            ]))
-                        else:
-                            # Legacy institutions ID (ins_xxx) is not a transfer bank code.
-                            # Try resolving by bank name; if not available, let provider reject and refund path handle safely.
-                            bank_code_candidates = [bank_code_to_use]
+                # Normalise whatever format was stored (short code, slug, fallback:slug, ins_xxx, BIC)
+                # to the BIC/SWIFT code required by PayMongo Transfer V2 destination_account.bic.
+                bank_code_to_use = (
+                    paymongo.normalize_bank_code_to_bic(raw_bank_code, payment_method.bankName)
+                    or raw_bank_code
+                )
+                if bank_code_to_use != raw_bank_code:
+                    logger.info(
+                        "🏦 Normalised bank code %r → %r for %r",
+                        raw_bank_code, bank_code_to_use, payment_method.bankName,
+                    )
 
-                # Deduplicate candidates while preserving order and dropping empties.
-                seen_codes = set()
-                bank_code_candidates = [
-                    code for code in bank_code_candidates
-                    if code and not (code in seen_codes or seen_codes.add(code))
-                ]
+                bank_code_candidates = [bank_code_to_use] if bank_code_to_use else []
 
                 transfer_result = {
                     'success': False,
-                    'error': 'No valid bank code candidate available for transfer initiation',
+                    'error': 'No valid bank BIC code available for transfer initiation',
                 }
                 if bank_code_candidates:
                     for candidate_code in bank_code_candidates:
