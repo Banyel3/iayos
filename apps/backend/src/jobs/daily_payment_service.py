@@ -443,7 +443,7 @@ class DailyPaymentService:
             transactionType='EARNING' if payment_method_upper == 'CASH' else 'PENDING_EARNING',
             amount=amount,
             balanceAfter=wallet.balance,
-            status='COMPLETED',
+            status='COMPLETED' if payment_method_upper == 'CASH' else 'PENDING',
             description=(
                 f'Daily cash payment for {attendance.date} - Job #{job.jobID}'
                 if payment_method_upper == 'CASH'

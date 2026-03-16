@@ -15,6 +15,7 @@ Functions:
 
 from decimal import Decimal
 from datetime import timedelta
+from typing import Optional
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Q
@@ -118,7 +119,8 @@ def add_pending_earnings(
     job: Job,
     recipient_account,
     amount: Decimal,
-    recipient_type: str = "worker"
+    recipient_type: str = "worker",
+    idempotency_key: Optional[str] = None,
 ) -> dict:
     """
     Add earnings to worker's/agency's pendingEarnings (Due Balance).
@@ -146,6 +148,31 @@ def add_pending_earnings(
         accountFK=recipient_account,
         defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
     )
+
+    # Idempotency guard for retried requests.
+    # When a deterministic key is provided, return the existing ledger row instead of duplicating funds.
+    reference_number = None
+    if idempotency_key:
+        reference_number = f"JOB-{job.jobID}-PENDING-{idempotency_key}"
+        existing_txn = Transaction.objects.filter(
+            walletID=recipient_wallet,
+            relatedJobPosting=job,
+            transactionType="PENDING_EARNING",
+            referenceNumber=reference_number,
+        ).order_by('-transactionID').first()
+
+        if existing_txn:
+            release_date = job.paymentReleaseDate or (timezone.now() + timedelta(days=buffer_days))
+            release_date_str = release_date.strftime('%B %d, %Y at %I:%M %p')
+            return {
+                'success': True,
+                'pending_earning_id': existing_txn.transactionID,
+                'release_date': release_date,
+                'release_date_str': release_date_str,
+                'amount': existing_txn.amount,
+                'buffer_days': buffer_days,
+                'idempotent_replay': True,
+            }
     
     # Add to pending earnings (NOT to balance yet)
     recipient_wallet.pendingEarnings += amount
@@ -162,7 +189,7 @@ def add_pending_earnings(
         status="PENDING",
         description=f"Pending payment for job: {job.title} (releases {release_date.strftime('%b %d, %Y')})" + 
                     (f" (Agency: {getattr(job.assignedAgencyFK, 'businessName', 'Agency')})" if recipient_type == "agency" else ""),
-        referenceNumber=f"JOB-{job.jobID}-PENDING-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+        referenceNumber=reference_number or f"JOB-{job.jobID}-PENDING-{timezone.now().strftime('%Y%m%d%H%M%S')}",
         relatedJobPosting=job
     )
     
@@ -203,6 +230,23 @@ def add_pending_earnings(
         'amount': amount,
         'buffer_days': buffer_days
     }
+
+
+def has_receivable_ledger_for_account(job: Job, account) -> bool:
+    """Return True if the account has either pending or released earnings rows for this job."""
+    if not account:
+        return False
+
+    wallet = Wallet.objects.filter(accountFK=account).first()
+    if not wallet:
+        return False
+
+    return Transaction.objects.filter(
+        walletID=wallet,
+        relatedJobPosting=job,
+        transactionType__in=["PENDING_EARNING", "EARNING"],
+        status__in=["PENDING", "COMPLETED"],
+    ).exists()
 
 
 @transaction.atomic  

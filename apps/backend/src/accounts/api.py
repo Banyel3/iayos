@@ -2799,10 +2799,17 @@ def withdraw_funds(request, amount: float, payment_method: str = "GCASH", gcash_
 
 
 @router.get("/wallet/transactions", auth=cookie_auth)
-def get_wallet_transactions(request):
+def get_wallet_transactions(
+    request,
+    page: int = 1,
+    page_size: int = 50,
+    transaction_type: str = None,
+    status: str = None,
+):
     """Get user's wallet transaction history"""
     try:
         from .models import Wallet, Transaction
+        from django.core.paginator import Paginator
         
         # Get wallet
         try:
@@ -2810,13 +2817,33 @@ def get_wallet_transactions(request):
         except Wallet.DoesNotExist:
             return {
                 "success": True,
-                "transactions": []
+                "transactions": [],
+                "pagination": {
+                    "page": max(1, int(page or 1)),
+                    "page_size": max(1, min(int(page_size or 50), 200)),
+                    "total_items": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_previous": False,
+                },
             }
         
-        # Get transactions
-        transactions = Transaction.objects.filter(
-            walletID=wallet
-        ).order_by('-createdAt')[:50]  # Last 50 transactions
+        # Sanitize pagination inputs
+        page = max(1, int(page or 1))
+        page_size = max(1, min(int(page_size or 50), 200))
+
+        # Build query with optional server-side filters
+        transactions_qs = Transaction.objects.filter(walletID=wallet)
+
+        if transaction_type:
+            transactions_qs = transactions_qs.filter(transactionType=str(transaction_type).upper())
+        if status:
+            transactions_qs = transactions_qs.filter(status=str(status).upper())
+
+        transactions_qs = transactions_qs.order_by('-createdAt')
+        paginator = Paginator(transactions_qs, page_size)
+        page_obj = paginator.get_page(page)
+        transactions = list(page_obj.object_list)
         
         transaction_list = [
             {
@@ -2839,7 +2866,15 @@ def get_wallet_transactions(request):
             "transactions": transaction_list,
             "current_balance": float(wallet.balance),
             "reserved_balance": float(wallet.reservedBalance),
-            "available_balance": float(wallet.availableBalance)
+            "available_balance": float(wallet.availableBalance),
+            "pagination": {
+                "page": page_obj.number,
+                "page_size": page_size,
+                "total_items": paginator.count,
+                "total_pages": paginator.num_pages,
+                "has_next": page_obj.has_next(),
+                "has_previous": page_obj.has_previous(),
+            },
         }
         
     except Exception as e:

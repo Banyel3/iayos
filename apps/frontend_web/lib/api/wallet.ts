@@ -24,6 +24,20 @@ export interface TransactionsResponse {
   transactions: Transaction[];
 }
 
+export interface WalletTransactionsPagination {
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+  has_next: boolean;
+  has_previous: boolean;
+}
+
+export interface WalletTransactionsPaginatedResponse {
+  transactions: Transaction[];
+  pagination: WalletTransactionsPagination;
+}
+
 /**
  * Fetch wallet balance
  */
@@ -64,6 +78,52 @@ export async function fetchWalletTransactions(): Promise<Transaction[]> {
 
   const data = await response.json();
   return data.transactions || [];
+}
+
+export async function fetchWalletTransactionsPaginated(params?: {
+  page?: number;
+  pageSize?: number;
+  transactionType?: string;
+  status?: string;
+}): Promise<WalletTransactionsPaginatedResponse> {
+  const search = new URLSearchParams();
+  if (params?.page) search.set("page", String(params.page));
+  if (params?.pageSize) search.set("page_size", String(params.pageSize));
+  if (params?.transactionType && params.transactionType !== "all") {
+    search.set("transaction_type", params.transactionType);
+  }
+  if (params?.status && params.status !== "all") {
+    search.set("status", params.status);
+  }
+
+  const query = search.toString();
+  const response = await fetch(
+    `${API_BASE_URL}/accounts/wallet/transactions${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch paginated wallet transactions");
+  }
+
+  const data = await response.json();
+  return {
+    transactions: data.transactions || [],
+    pagination: data.pagination || {
+      page: 1,
+      page_size: params?.pageSize || 50,
+      total_items: (data.transactions || []).length,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+    },
+  };
 }
 
 /**

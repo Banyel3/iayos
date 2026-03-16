@@ -9,7 +9,9 @@ import {
 import {
   fetchWalletBalance,
   fetchWalletTransactions,
+  fetchWalletTransactionsPaginated,
   type Transaction,
+  type WalletTransactionsPaginatedResponse,
 } from "@/lib/api/wallet";
 import type {
   WorkerListing,
@@ -297,5 +299,35 @@ export function useWalletTransactions(enabled: boolean = true) {
       );
       return cached || undefined;
     },
+  });
+}
+
+export function useWalletTransactionsPaginated(
+  params: {
+    page: number;
+    pageSize: number;
+    transactionType?: string;
+    status?: string;
+  },
+  enabled: boolean = true,
+) {
+  return useQuery<WalletTransactionsPaginatedResponse>({
+    queryKey: [
+      "walletTransactionsPaginated",
+      params.page,
+      params.pageSize,
+      params.transactionType || "all",
+      params.status || "all",
+    ],
+    queryFn: async () =>
+      fetchWalletTransactionsPaginated({
+        page: params.page,
+        pageSize: params.pageSize,
+        transactionType: params.transactionType,
+        status: params.status,
+      }),
+    enabled,
+    staleTime: 0,
+    gcTime: 24 * 60 * 60 * 1000,
   });
 }
