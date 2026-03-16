@@ -911,6 +911,59 @@ export default function ChatScreen() {
     ? conversation.attendance_today
     : [];
 
+  const getAttendanceSignalMs = (row: any) => {
+    const candidates = [
+      row?.time_out,
+      row?.time_in,
+      row?.client_confirmed_at,
+      row?.worker_confirmed_at,
+    ]
+      .map((value) => (value ? new Date(value).getTime() : Number.NaN))
+      .filter((value) => Number.isFinite(value));
+
+    if (candidates.length === 0) {
+      return 0;
+    }
+
+    return Math.max(...candidates);
+  };
+
+  const getAttendanceMatchScore = ({
+    row,
+    accountId,
+    workerId,
+    assignmentId,
+  }: {
+    row: any;
+    accountId?: number;
+    workerId?: number;
+    assignmentId?: number;
+  }) => {
+    const rowAccountId = Number(row?.worker_account_id);
+    const rowWorkerId = Number(row?.worker_id);
+    const rowAssignmentId = Number(row?.assignment_id);
+
+    const accountMatch =
+      Number.isFinite(rowAccountId) &&
+      Number.isFinite(accountId) &&
+      rowAccountId === accountId;
+    const workerMatch =
+      Number.isFinite(rowWorkerId) &&
+      Number.isFinite(workerId) &&
+      rowWorkerId === workerId;
+    const assignmentMatch =
+      Number.isFinite(rowAssignmentId) &&
+      Number.isFinite(assignmentId) &&
+      rowAssignmentId === assignmentId;
+
+    if (!(accountMatch || workerMatch || assignmentMatch)) {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    const matchBase = assignmentMatch ? 100 : accountMatch || workerMatch ? 10 : 0;
+    return matchBase + getAttendanceSignalMs(row) / 1_000_000_000_000;
+  };
+
   const isClientBackjobStartFlow =
     conversation?.my_role === "CLIENT" &&
     !!conversation?.backjob?.has_backjob &&
@@ -990,35 +1043,37 @@ export default function ChatScreen() {
   };
 
   const getTeamAttendanceBackjobSignals = (worker: any) => {
-    const matchedAttendance = backjobAttendanceRows.find((row: any) => {
-      if (row?.awaiting_worker) {
-        return false;
-      }
+    const workerAccountId = Number(worker?.account_id);
+    const workerId = Number(worker?.worker_id);
+    const workerAssignmentId = Number(worker?.assignment_id);
 
-      const rowAccountId = Number(row?.worker_account_id);
-      const rowWorkerId = Number(row?.worker_id);
-      const rowAssignmentId = Number(row?.assignment_id);
-      const workerAccountId = Number(worker?.account_id);
-      const workerId = Number(worker?.worker_id);
-      const workerAssignmentId = Number(worker?.assignment_id);
+    const matchedAttendance = backjobAttendanceRows
+      .filter((row: any) => !row?.awaiting_worker)
+      .sort((a: any, b: any) => {
+        const aScore = getAttendanceMatchScore({
+          row: a,
+          accountId: workerAccountId,
+          workerId,
+          assignmentId: workerAssignmentId,
+        });
+        const bScore = getAttendanceMatchScore({
+          row: b,
+          accountId: workerAccountId,
+          workerId,
+          assignmentId: workerAssignmentId,
+        });
+        return bScore - aScore;
+      })[0];
 
-      const accountMatch =
-        Number.isFinite(rowAccountId) &&
-        Number.isFinite(workerAccountId) &&
-        rowAccountId === workerAccountId;
-      const workerMatch =
-        Number.isFinite(rowWorkerId) &&
-        Number.isFinite(workerId) &&
-        rowWorkerId === workerId;
-      const assignmentMatch =
-        Number.isFinite(rowAssignmentId) &&
-        Number.isFinite(workerAssignmentId) &&
-        rowAssignmentId === workerAssignmentId;
-
-      return accountMatch || workerMatch || assignmentMatch;
-    });
-
-    if (!matchedAttendance) {
+    if (
+      !matchedAttendance ||
+      getAttendanceMatchScore({
+        row: matchedAttendance,
+        accountId: workerAccountId,
+        workerId,
+        assignmentId: workerAssignmentId,
+      }) === Number.NEGATIVE_INFINITY
+    ) {
       return null;
     }
 
@@ -1140,7 +1195,7 @@ export default function ChatScreen() {
       ? teamAssignedWorkers.find((assignment: any) => {
           const assignmentWorkerId = Number(assignment?.worker_id);
           const assignmentAccountId = Number(assignment?.account_id);
-          const meWorkerId = Number(user?.workerProfile?.workerID);
+          const meWorkerId = Number(user?.profile_data?.workerProfileId);
           const meAccountId = Number(user?.accountID);
 
           const workerIdMatch =
@@ -3438,38 +3493,46 @@ export default function ChatScreen() {
       ? conversation.attendance_today
       : [];
 
-    const matched = attendanceRows.find((a) => {
-      const attendanceWorkerId = Number(a?.worker_id);
-      const attendanceWorkerAccountId = Number(a?.worker_account_id);
-      const attendanceAssignmentId = Number(a?.assignment_id);
-      const myAssignmentId = Number(myTeamAssignment?.assignment_id);
+    const myAssignmentId = Number(myTeamAssignment?.assignment_id);
+    const matched = [...attendanceRows].sort((a, b) => {
+      const aScore = getAttendanceMatchScore({
+        row: a,
+        accountId: myAccountId,
+        workerId: myWorkerProfileId,
+        assignmentId: myAssignmentId,
+      });
+      const bScore = getAttendanceMatchScore({
+        row: b,
+        accountId: myAccountId,
+        workerId: myWorkerProfileId,
+        assignmentId: myAssignmentId,
+      });
+      return bScore - aScore;
+    })[0];
 
-      const profileIdMatch =
-        Number.isFinite(attendanceWorkerId) &&
-        Number.isFinite(myWorkerProfileId) &&
-        attendanceWorkerId === myWorkerProfileId;
-
-      const accountIdMatch =
-        Number.isFinite(attendanceWorkerAccountId) &&
-        Number.isFinite(myAccountId) &&
-        attendanceWorkerAccountId === myAccountId;
-
-      const assignmentIdMatch =
-        Number.isFinite(attendanceAssignmentId) &&
-        Number.isFinite(myAssignmentId) &&
-        attendanceAssignmentId === myAssignmentId;
-
-      return profileIdMatch || accountIdMatch || assignmentIdMatch;
-    });
-
-    if (matched) {
+    if (
+      matched &&
+      getAttendanceMatchScore({
+        row: matched,
+        accountId: myAccountId,
+        workerId: myWorkerProfileId,
+        assignmentId: myAssignmentId,
+      }) !== Number.NEGATIVE_INFINITY
+    ) {
       return matched;
     }
 
     // Fallback for team-worker payloads that can temporarily miss worker/account IDs.
+    const isWorkerRoleForFallback = ["WORKER", "EMPLOYEE", "TEAM_WORKER"].includes(
+      String(conversation.my_role || "").toUpperCase(),
+    );
+    const isTeamAttendanceFallbackFlow =
+      conversation.is_team_job &&
+      ["DAILY", "PROJECT"].includes(String(conversation.job?.payment_model || "").toUpperCase());
+
     if (
-      isWorkerSideRole &&
-      isTeamAttendanceFlow &&
+      isWorkerRoleForFallback &&
+      isTeamAttendanceFallbackFlow &&
       attendanceRows.length === 1 &&
       myTeamAssignment
     ) {
@@ -3536,10 +3599,10 @@ export default function ChatScreen() {
   const isTeamProjectAttendance =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "PROJECT";
-  const isTeamSingleDayProjectAttendanceFlow =
-    isTeamProjectAttendance && !isProjectMultiDayJob;
   const isProjectMultiDayJob =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const isTeamSingleDayProjectAttendanceFlow =
+    isTeamProjectAttendance && !isProjectMultiDayJob;
   const shouldChargePerAttendance = conversation.job?.payment_model === "DAILY";
   const canShowQASkipNextDay =
     conversation.my_role === "CLIENT" &&
@@ -3603,37 +3666,34 @@ export default function ChatScreen() {
           const consumedAttendanceIndexes = new Set<number>();
 
           const merged = assignments.map((assignment) => {
-            const matchIndex = attendanceRows.findIndex(
-              (row: any, idx: number) => {
-                if (consumedAttendanceIndexes.has(idx)) {
-                  return false;
-                }
+            const assignmentAccountId = Number(assignment?.account_id);
+            const assignmentWorkerId = Number(assignment?.worker_id);
+            const assignmentId = Number(assignment?.assignment_id);
 
-                const rowAccountId = Number(row?.worker_account_id);
-                const rowWorkerId = Number(row?.worker_id);
-                const rowAssignmentId = Number(row?.assignment_id);
-                const assignmentAccountId = Number(assignment?.account_id);
-                const assignmentWorkerId = Number(assignment?.worker_id);
-                const assignmentId = Number(assignment?.assignment_id);
+            let matchIndex = -1;
+            let bestScore = Number.NEGATIVE_INFINITY;
 
-                const accountMatch =
-                  Number.isFinite(rowAccountId) &&
-                  Number.isFinite(assignmentAccountId) &&
-                  rowAccountId === assignmentAccountId;
+            attendanceRows.forEach((row: any, idx: number) => {
+              if (consumedAttendanceIndexes.has(idx)) {
+                return;
+              }
 
-                const workerMatch =
-                  Number.isFinite(rowWorkerId) &&
-                  Number.isFinite(assignmentWorkerId) &&
-                  rowWorkerId === assignmentWorkerId;
+              const score = getAttendanceMatchScore({
+                row,
+                accountId: assignmentAccountId,
+                workerId: assignmentWorkerId,
+                assignmentId,
+              });
 
-                const assignmentMatch =
-                  Number.isFinite(rowAssignmentId) &&
-                  Number.isFinite(assignmentId) &&
-                  rowAssignmentId === assignmentId;
+              if (score > bestScore) {
+                bestScore = score;
+                matchIndex = idx;
+              }
+            });
 
-                return accountMatch || workerMatch || assignmentMatch;
-              },
-            );
+            if (bestScore === Number.NEGATIVE_INFINITY) {
+              matchIndex = -1;
+            }
 
             if (matchIndex >= 0) {
               consumedAttendanceIndexes.add(matchIndex);
