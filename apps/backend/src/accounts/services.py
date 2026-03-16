@@ -226,7 +226,7 @@ def create_account_individ(data):
                 description='',
                 workerRating=0,
                 totalEarningGross=0.00,
-                availability_status='OFFLINE'
+                availability_status='AVAILABLE'
             )
             print(f"✅ Auto-created WorkerProfile during registration for {user.email}")
         elif profile_type == Profile.ProfileType.CLIENT:
@@ -750,7 +750,7 @@ def fetch_currentUser(accountID, profile_type=None):
                             'description': '',
                             'workerRating': 0,
                             'totalEarningGross': 0.00,
-                            'availability_status': 'OFFLINE'
+                            'availability_status': 'AVAILABLE'
                         }
                     )
                     
@@ -926,7 +926,7 @@ def assign_role(data):
                     'description': '',
                     'workerRating': 0,
                     'totalEarningGross': 0.00,
-                    'availability_status': 'OFFLINE'
+                    'availability_status': 'AVAILABLE'
                 }
             )
             if created:
@@ -2311,7 +2311,7 @@ def update_worker_availability(user_id, is_available):
                 'description': '',
                 'workerRating': 0,
                 'totalEarningGross': 0.00,
-                'availability_status': 'OFFLINE'
+                'availability_status': 'AVAILABLE'
             }
         )
         
@@ -2372,7 +2372,7 @@ def get_worker_availability(user_id):
                 'description': '',
                 'workerRating': 0,
                 'totalEarningGross': 0.00,
-                'availability_status': 'OFFLINE'
+                'availability_status': 'AVAILABLE'
             }
         )
         
