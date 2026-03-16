@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Applied selected mobile UI updates from PR #912 (agency chat banner/attendance presentation and profile/job/worker visual refinements).
   - **Impact**: Wallet/receipt presentation is more consistent and agency/mobile UI updates from PR #912 are now included in main.
 
+- **Team Backjob Mark Complete Authorization + Multi-Worker Waiting State**
+  - Hardened backend backjob completion permission lookup to resolve team assignment directly by authenticated account (`workerID__profileID__accountFK`) before legacy profile fallback.
+  - Updated mobile conversation backjob gating to treat team flow as active when team assignment rows exist (even if legacy `is_team_job` flag is stale).
+  - Prevented generic worker `Mark Complete` action from showing in team backjob flows when no matching team assignment is available.
+  - Added explicit team-worker action label (`Mark My Assignment Complete`) and assignment-sync waiting notice for unbound team rows.
+  - **Impact**: Team workers can mark completion reliably in backjob cycles, and client-side waiting state reflects multi-worker progression instead of falling back to a single-worker message.
+
 - **Agency Attendance Confirm Toast Wording (No False ₱0 Payment Message)**
   - Updated mobile attendance confirmation success copy to avoid payment wording when confirmed amount is zero.
   - Client-side confirm action now shows `Attendance approved` unless a real payout amount is processed.

@@ -939,30 +939,27 @@ class PayMongoService(PaymentProviderInterface):
         return []
 
     def _fallback_supported_banks(self) -> List[Dict[str, str]]:
-        """Fallback list with placeholder bank codes for UI continuity."""
-        names = [
-            "AllBank (A Thrift Bank), Inc.",
-            "Asia United Bank (AUB)",
-            "BDO Unibank, Inc.",
-            "BPI (Bank of the Philippine Islands)",
-            "Bank of Commerce",
-            "China Banking Corporation (Chinabank)",
-            "Development Bank of the Philippines (DBP)",
-            "EastWest Bank",
-            "Land Bank of the Philippines",
-            "Maybank Philippines, Inc.",
-            "Metrobank (Metropolitan Bank & Trust Co.)",
-            "Philippine National Bank (PNB)",
-            "RCBC (Rizal Commercial Banking Corporation)",
-            "Security Bank Corporation",
-            "Union Bank of the Philippines (UnionBank)",
-        ]
+        """
+        Static bank list with the short codes PayMongo Transfer V2 /recipients accepts.
+        Used when the live institutions endpoint is unavailable.
+        Codes were derived from PayMongo's supported-banks list for Transfer/Disbursements.
+        """
         return [
-            {
-                "code": f"fallback:{self._slugify_bank_name(name)}",
-                "name": name,
-            }
-            for name in names
+            {"code": "allbank",      "name": "AllBank (A Thrift Bank), Inc."},
+            {"code": "aub",          "name": "Asia United Bank (AUB)"},
+            {"code": "bdo",          "name": "BDO Unibank, Inc."},
+            {"code": "bpi",          "name": "BPI (Bank of the Philippine Islands)"},
+            {"code": "bankcom",      "name": "Bank of Commerce"},
+            {"code": "chinabank",    "name": "China Banking Corporation (Chinabank)"},
+            {"code": "dbp",          "name": "Development Bank of the Philippines (DBP)"},
+            {"code": "eastwest",     "name": "EastWest Bank"},
+            {"code": "landbank",     "name": "Land Bank of the Philippines"},
+            {"code": "maybank",      "name": "Maybank Philippines, Inc."},
+            {"code": "metrobank",    "name": "Metrobank (Metropolitan Bank & Trust Co.)"},
+            {"code": "pnb",          "name": "Philippine National Bank (PNB)"},
+            {"code": "rcbc",         "name": "RCBC (Rizal Commercial Banking Corporation)"},
+            {"code": "securitybank", "name": "Security Bank Corporation"},
+            {"code": "unionbank",    "name": "Union Bank of the Philippines (UnionBank)"},
         ]
 
     def _normalize_bank_name(self, value: str) -> str:
