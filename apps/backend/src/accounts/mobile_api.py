@@ -6130,24 +6130,14 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
     - PAYPAL: PayPal email (manual processing)
     - VISA / MASTERCARD: Full card details are validated; only last4 is stored (CVV is never stored)
     
-    GCASH Flow:
-    1. User submits GCash account details
-    2. We create a ₱1 verification checkout via PayMongo
-    3. User pays ₱1 using their GCash account
-    4. PayMongo webhook confirms payment + verifies account
-    5. ₱1 is credited to user's wallet as bonus
-    6. Payment method is marked as verified
-    
-    BANK/PAYPAL/CARD Flow:
-    1. User submits bank/PayPal account details
-    2. Account is added in unverified state
-    3. Admin manually verifies on first withdrawal
+    Current flow:
+    1. User submits payment method details
+    2. Method-specific validation is applied
+    3. Payment method is added and marked verified immediately
     """
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
-        from .paymongo_service import PayMongoService
-        from django.conf import settings
         import re
         
         method_type = payload.type or 'GCASH'
@@ -6297,8 +6287,8 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             is_first = not has_existing
             
             # Create payment method
-            # Only GCASH requires verification; other destinations are manual payout methods.
-            is_verified = (method_type in ['BANK', 'PAYPAL', 'MAYA', 'GRABPAY', 'VISA', 'MASTERCARD'])
+            # Product decision: all payment methods, including GCash, are auto-verified on add.
+            is_verified = True
             
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
@@ -6312,61 +6302,17 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
             
             print(f"📱 Payment method created ({'verified' if is_verified else 'pending verification'}): {method.id} ({method_type}) for {request.auth.email}")
         
-        # Only GCASH requires PayMongo verification
-        if method_type != 'GCASH':
-            return {
-                'success': True,
-                'message': f'{method_type} account added successfully',
-                'method_id': method.id,
-                'verification_required': False,
-                'is_verified': is_verified,
-                'note': (
-                    'Only your card last4 is stored for security. CVV is never stored.'
-                    if method_type in ['VISA', 'MASTERCARD']
-                    else 'Your account will be verified on your first withdrawal request'
-                    if method_type in ['BANK', 'PAYPAL']
-                    else None
-                )
-            }
-        
-        # Create PayMongo verification checkout for GCASH
-        paymongo = PayMongoService()
-        
-        # Use the mobile API URL for redirects - must be accessible from user's phone
-        # Redirect to our success/failure page that shows a nice message
-        import os
-        api_url = os.getenv('EXPO_PUBLIC_API_URL', 'http://localhost:8000').strip('"').strip("'")
-        
-        print(f"📱 Using API URL for redirects: {api_url}")
-        
-        result = paymongo.create_verification_checkout(
-            user_email=request.auth.email,
-            user_name=payload.account_name,
-            payment_method_id=method.id,
-            account_number=clean_number,
-            success_url=f"{api_url}/api/mobile/payment-verified?success=true&method_id={method.id}",
-            failure_url=f"{api_url}/api/mobile/payment-verified?success=false&method_id={method.id}"
-        )
-        
-        if not result.get("success"):
-            # Cleanup the pending method if checkout creation failed
-            method.delete()
-            return Response(
-                {"error": result.get("error", "Failed to create verification checkout")},
-                status=500
-            )
-        
-        print(f"✅ Verification checkout created for method {method.id}: {result.get('checkout_id')}")
-        
         return {
             'success': True,
-            'message': 'Please complete GCash verification to activate this payment method',
+            'message': f'{method_type} account added successfully',
             'method_id': method.id,
-            'verification_required': True,
-            'checkout_url': result.get('checkout_url'),
-            'checkout_id': result.get('checkout_id'),
-            'verification_amount': 1.00,
-            'note': 'The ₱1 verification fee will be credited to your wallet after successful verification'
+            'verification_required': False,
+            'is_verified': is_verified,
+            'note': (
+                'Only your card last4 is stored for security. CVV is never stored.'
+                if method_type in ['VISA', 'MASTERCARD']
+                else None
+            )
         }
         
     except Exception as e:
