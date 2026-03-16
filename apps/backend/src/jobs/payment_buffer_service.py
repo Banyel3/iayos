@@ -237,12 +237,16 @@ def has_receivable_ledger_for_account(job: Job, account) -> bool:
     if not account:
         return False
 
-    wallet = Wallet.objects.filter(accountFK=account).first()
-    if not wallet:
+    # Legacy data may contain multiple wallet rows for the same account.
+    # Check across all of them to avoid false negatives during reconciliation.
+    wallet_ids = list(
+        Wallet.objects.filter(accountFK=account).values_list("walletID", flat=True)
+    )
+    if not wallet_ids:
         return False
 
     return Transaction.objects.filter(
-        walletID=wallet,
+        walletID_id__in=wallet_ids,
         relatedJobPosting=job,
         transactionType__in=["PENDING_EARNING", "EARNING"],
         status__in=["PENDING", "COMPLETED"],
