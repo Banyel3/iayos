@@ -760,10 +760,20 @@ export default function AgencyChatScreen() {
     job.payment_model === "PROJECT" &&
     conversation.backjob?.worker_schedule_confirmed === true;
 
+  // Backjob dispatch readiness regardless of payment model (PROJECT or DAILY)
+  const hasReadyBackjobDispatchCycle =
+    hasActiveBackjobCycle &&
+    conversation.backjob?.worker_schedule_confirmed === true;
+
   const shouldShowProjectWorkflow =
     (hasProjectWorkflowProgressState || hasReadyBackjobProjectCycle) &&
     job.payment_model === "PROJECT" &&
     assigned_employees?.length > 0;
+
+  // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
+  const shouldShowDispatchWorkflow =
+    shouldShowProjectWorkflow ||
+    (hasReadyBackjobDispatchCycle && (assigned_employees?.length ?? 0) > 0);
 
   const configuredDurationDays = Number(job.duration_days || 0);
   const fallbackDurationDays = parseExpectedDurationDays(job.expectedDuration);
@@ -808,13 +818,13 @@ export default function AgencyChatScreen() {
     return statusMs >= backjobCycleStartMs;
   };
 
-  const allEmployeesDispatched = shouldShowProjectWorkflow
+  const allEmployeesDispatched = shouldShowDispatchWorkflow
     ? assigned_employees.every((e: AssignedEmployee) =>
         isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
       )
     : false;
 
-  const allEmployeesArrived = shouldShowProjectWorkflow
+  const allEmployeesArrived = shouldShowDispatchWorkflow
     ? assigned_employees.every((e: AssignedEmployee) =>
         isStatusInActiveBackjobCycle(
           e.clientConfirmedArrival,
@@ -869,7 +879,7 @@ export default function AgencyChatScreen() {
     isBackjobExecutionPhase &&
     !!conversation.backjob?.backjob_started &&
     !conversation.backjob?.worker_marked_complete &&
-    (!shouldShowProjectWorkflow || allEmployeesDispatched);
+    (!shouldShowDispatchWorkflow || allEmployeesDispatched);
 
   // Keep lock-state logic for input disable/placeholder behavior.
   // Only the visual lock banner has been removed.
@@ -1005,14 +1015,14 @@ export default function AgencyChatScreen() {
                           </div>
                         ) : isBackjobExecutionPhase &&
                           !conversation.backjob.worker_marked_complete &&
-                          shouldShowProjectWorkflow &&
+                          shouldShowDispatchWorkflow &&
                           !allEmployeesDispatched ? (
                           <div className="text-xs text-gray-500 italic">
                             Dispatch workers first before confirming completion.
                           </div>
                         ) : isBackjobExecutionPhase &&
                           !conversation.backjob.worker_marked_complete &&
-                          shouldShowProjectWorkflow &&
+                          shouldShowDispatchWorkflow &&
                           !conversation.backjob.backjob_started ? (
                           <div className="text-xs text-gray-500 italic">
                             Backjob schedule is active. Dispatch employees to continue.
@@ -1036,7 +1046,7 @@ export default function AgencyChatScreen() {
               </div>
             )}
 
-            {shouldShowProjectWorkflow &&
+            {shouldShowDispatchWorkflow &&
               (() => {
                 const allDispatched = isProjectMultiDayAttendanceFlow
                   ? assigned_employees.every((e: AssignedEmployee) =>
