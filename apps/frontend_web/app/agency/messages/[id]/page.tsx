@@ -749,15 +749,21 @@ export default function AgencyChatScreen() {
       job.clientReviewed &&
       !hasActiveBackjobCycle);
 
-  const shouldShowProjectWorkflow =
-    (job.status === "IN_PROGRESS" ||
-      job.status === "COMPLETED" ||
-      job.clientMarkedComplete ||
-      job.workerMarkedComplete) &&
+  const hasProjectWorkflowProgressState =
+    job.status === "IN_PROGRESS" ||
+    job.status === "COMPLETED" ||
+    job.clientMarkedComplete ||
+    job.workerMarkedComplete;
+
+  const hasReadyBackjobProjectCycle =
+    hasActiveBackjobCycle &&
     job.payment_model === "PROJECT" &&
-    assigned_employees?.length > 0 &&
-    (!hasActiveBackjobCycle ||
-      conversation.backjob?.worker_schedule_confirmed === true);
+    conversation.backjob?.worker_schedule_confirmed === true;
+
+  const shouldShowProjectWorkflow =
+    (hasProjectWorkflowProgressState || hasReadyBackjobProjectCycle) &&
+    job.payment_model === "PROJECT" &&
+    assigned_employees?.length > 0;
 
   const configuredDurationDays = Number(job.duration_days || 0);
   const fallbackDurationDays = parseExpectedDurationDays(job.expectedDuration);
