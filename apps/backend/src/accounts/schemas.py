@@ -153,9 +153,9 @@ class WithdrawFundsSchema(Schema):
 class AddPaymentMethodSchema(Schema):
     """Schema for adding a payment method.
 
-    Supports GCash and BANK withdrawals.
+    Supports GCash, Bank, Maya, Visa, Mastercard, PayPal, and GrabPay withdrawals.
     """
-    type: Literal["GCASH", "BANK"]
+    type: Literal["GCASH", "BANK", "MAYA", "VISA", "MASTERCARD", "PAYPAL", "GRAB_PAY"]
     account_name: str
     account_number: str  # GCash mobile number or bank account number
     bank_name: Optional[str] = None

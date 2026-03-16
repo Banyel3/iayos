@@ -23,9 +23,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
 import * as WebBrowser from "expo-web-browser";
 
+type PaymentMethodType = "GCASH" | "BANK" | "MAYA" | "VISA" | "MASTERCARD" | "PAYPAL" | "GRAB_PAY";
+
 interface PaymentMethod {
   id: number;
-  type: "GCASH" | "BANK";
+  type: PaymentMethodType;
   account_name: string;
   account_number: string;
   bank_name?: string;
@@ -49,7 +51,7 @@ export default function PaymentMethodsScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedType, setSelectedType] = useState<"GCASH" | "BANK">("GCASH");
+  const [selectedType, setSelectedType] = useState<PaymentMethodType>("GCASH");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [selectedBankName, setSelectedBankName] = useState("");
@@ -286,29 +288,41 @@ export default function PaymentMethodsScreen() {
 
     // Type-specific validation
     if (!accountNumber.trim()) {
-      Alert.alert(
-        "Error",
-        selectedType === "BANK"
-          ? "Please enter bank account number"
-          : "Please enter GCash mobile number",
-      );
+      const fieldLabel =
+        selectedType === "BANK" ? "bank account number"
+        : selectedType === "PAYPAL" ? "PayPal email"
+        : ["VISA", "MASTERCARD"].includes(selectedType) ? "card number"
+        : "mobile number";
+      Alert.alert("Error", `Please enter ${fieldLabel}`);
       return;
     }
 
-    // Remove spaces/dashes
-    cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
+    // Remove spaces/dashes for non-email types
+    if (selectedType !== "PAYPAL") {
+      cleanAccountNumber = cleanAccountNumber.replace(/[\s-]/g, "");
+    }
 
-    if (selectedType === "GCASH") {
+    if (["GCASH", "MAYA", "GRAB_PAY"].includes(selectedType)) {
       // Validate PH mobile number format (11 digits starting with 09)
       if (!/^09\d{9}$/.test(cleanAccountNumber)) {
         Alert.alert(
           "Error",
-          "Invalid GCash number format (e.g., 09123456789)",
+          `Invalid ${getMethodLabel(selectedType)} number format (e.g., 09123456789)`,
         );
         return;
       }
-    } else {
-      // BANK validation
+    } else if (["VISA", "MASTERCARD"].includes(selectedType)) {
+      cleanAccountNumber = cleanAccountNumber.replace(/\D/g, "");
+      if (cleanAccountNumber.length < 13 || cleanAccountNumber.length > 19) {
+        Alert.alert("Error", "Invalid card number (13-19 digits)");
+        return;
+      }
+    } else if (selectedType === "PAYPAL") {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanAccountNumber)) {
+        Alert.alert("Error", "Please enter a valid email address");
+        return;
+      }
+    } else if (selectedType === "BANK") {
       cleanAccountNumber = cleanAccountNumber.replace(/\D/g, "");
       if (cleanAccountNumber.length < 8 || cleanAccountNumber.length > 20) {
         Alert.alert("Error", "Invalid bank account number (8-20 digits)");
@@ -345,6 +359,16 @@ export default function PaymentMethodsScreen() {
         return "GCash account";
       case "BANK":
         return "Bank account";
+      case "MAYA":
+        return "Maya account";
+      case "VISA":
+        return "Visa card";
+      case "MASTERCARD":
+        return "Mastercard";
+      case "PAYPAL":
+        return "PayPal account";
+      case "GRAB_PAY":
+        return "GrabPay account";
       default:
         return "account";
     }
@@ -388,6 +412,16 @@ export default function PaymentMethodsScreen() {
         return "phone-portrait";
       case "BANK":
         return "business";
+      case "MAYA":
+        return "phone-portrait";
+      case "VISA":
+        return "card";
+      case "MASTERCARD":
+        return "card";
+      case "PAYPAL":
+        return "logo-paypal";
+      case "GRAB_PAY":
+        return "car";
       default:
         return "card";
     }
@@ -399,6 +433,16 @@ export default function PaymentMethodsScreen() {
         return "GCash";
       case "BANK":
         return "Bank";
+      case "MAYA":
+        return "Maya";
+      case "VISA":
+        return "Visa";
+      case "MASTERCARD":
+        return "Mastercard";
+      case "PAYPAL":
+        return "PayPal";
+      case "GRAB_PAY":
+        return "GrabPay";
       default:
         return type;
     }
@@ -437,8 +481,10 @@ export default function PaymentMethodsScreen() {
           </View>
           <Text style={styles.methodName}>{method.account_name}</Text>
           <Text style={styles.methodNumber}>
-            {method.type === "GCASH"
+            {["GCASH", "MAYA", "GRAB_PAY"].includes(method.type)
               ? method.account_number.replace(/(\d{4})(\d{3})(\d{4})/, "$1 $2 $3")
+              : ["VISA", "MASTERCARD"].includes(method.type)
+              ? "•••• •••• •••• " + method.account_number.slice(-4)
               : method.account_number}
           </Text>
           {method.type === "BANK" && method.bank_name && (
@@ -497,8 +543,9 @@ export default function PaymentMethodsScreen() {
           <View style={styles.infoBanner}>
             <Ionicons name="information-circle" size={20} color={Colors.info} />
             <Text style={styles.infoText}>
-              Add your payout account (GCash or bank). BANK withdrawals are
-              initiated after admin approval and settlement.
+              Add your payout account. Supported: GCash, Bank, Maya, Visa,
+              Mastercard, PayPal, and GrabPay. All withdrawals are processed
+              after admin approval.
             </Text>
           </View>
 
@@ -560,54 +607,48 @@ export default function PaymentMethodsScreen() {
               </View>
 
               {/* Form Fields */}
-              <View style={styles.typeSelector}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    selectedType === "GCASH" && styles.typeButtonActive,
-                  ]}
-                  onPress={() => {
-                    setSelectedType("GCASH");
-                    setSelectedBankName("");
-                    setSelectedBankCode("");
-                  }}
-                >
-                  <Ionicons
-                    name="phone-portrait"
-                    size={16}
-                    color={selectedType === "GCASH" ? Colors.white : Colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      selectedType === "GCASH" && styles.typeButtonTextActive,
-                    ]}
-                  >
-                    GCash
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeButton,
-                    selectedType === "BANK" && styles.typeButtonActive,
-                  ]}
-                  onPress={() => setSelectedType("BANK")}
-                >
-                  <Ionicons
-                    name="business"
-                    size={16}
-                    color={selectedType === "BANK" ? Colors.white : Colors.textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.typeButtonText,
-                      selectedType === "BANK" && styles.typeButtonTextActive,
-                    ]}
-                  >
-                    Bank
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeSelectorScroll}>
+                <View style={styles.typeSelector}>
+                  {([
+                    { key: "GCASH" as PaymentMethodType, label: "GCash", icon: "phone-portrait" },
+                    { key: "BANK" as PaymentMethodType, label: "Bank", icon: "business" },
+                    { key: "MAYA" as PaymentMethodType, label: "Maya", icon: "phone-portrait" },
+                    { key: "VISA" as PaymentMethodType, label: "Visa", icon: "card" },
+                    { key: "MASTERCARD" as PaymentMethodType, label: "Mastercard", icon: "card" },
+                    { key: "PAYPAL" as PaymentMethodType, label: "PayPal", icon: "logo-paypal" },
+                    { key: "GRAB_PAY" as PaymentMethodType, label: "GrabPay", icon: "car" },
+                  ]).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[
+                        styles.typeButton,
+                        selectedType === opt.key && styles.typeButtonActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedType(opt.key);
+                        if (opt.key !== "BANK") {
+                          setSelectedBankName("");
+                          setSelectedBankCode("");
+                        }
+                      }}
+                    >
+                      <Ionicons
+                        name={opt.icon as any}
+                        size={16}
+                        color={selectedType === opt.key ? Colors.white : Colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.typeButtonText,
+                          selectedType === opt.key && styles.typeButtonTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Account Name</Text>
@@ -667,25 +708,57 @@ export default function PaymentMethodsScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>
-                  {selectedType === "BANK" ? "Bank Account Number" : "GCash Mobile Number"}
+                  {selectedType === "BANK"
+                    ? "Bank Account Number"
+                    : selectedType === "PAYPAL"
+                    ? "PayPal Email"
+                    : ["VISA", "MASTERCARD"].includes(selectedType)
+                    ? "Card Number"
+                    : "Mobile Number"}
                 </Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={selectedType === "BANK" ? "Enter account number" : "09123456789"}
+                  placeholder={
+                    selectedType === "BANK"
+                      ? "Enter account number"
+                      : selectedType === "PAYPAL"
+                      ? "email@example.com"
+                      : ["VISA", "MASTERCARD"].includes(selectedType)
+                      ? "Enter card number"
+                      : "09123456789"
+                  }
                   placeholderTextColor={Colors.textHint}
                   value={accountNumber}
                   onChangeText={(value) => {
-                    const digitsOnly = value.replace(/\D/g, "");
-                    const maxLength = selectedType === "BANK" ? 20 : 11;
-                    setAccountNumber(digitsOnly.slice(0, maxLength));
+                    if (selectedType === "PAYPAL") {
+                      setAccountNumber(value.slice(0, 100));
+                    } else {
+                      const digitsOnly = value.replace(/\D/g, "");
+                      const maxLen =
+                        selectedType === "BANK" ? 20
+                        : ["VISA", "MASTERCARD"].includes(selectedType) ? 19
+                        : 11;
+                      setAccountNumber(digitsOnly.slice(0, maxLen));
+                    }
                   }}
-                  keyboardType={selectedType === "BANK" ? "number-pad" : "numeric"}
-                  maxLength={selectedType === "BANK" ? 20 : 11}
+                  keyboardType={
+                    selectedType === "PAYPAL" ? "email-address" : "number-pad"
+                  }
+                  maxLength={
+                    selectedType === "PAYPAL" ? 100
+                    : selectedType === "BANK" ? 20
+                    : ["VISA", "MASTERCARD"].includes(selectedType) ? 19
+                    : 11
+                  }
                   autoCapitalize="none"
                 />
                 <Text style={styles.helperText}>
                   {selectedType === "BANK"
                     ? `${accountNumber.length}/20 digits (minimum 8)`
+                    : selectedType === "PAYPAL"
+                    ? "Enter your PayPal email address"
+                    : ["VISA", "MASTERCARD"].includes(selectedType)
+                    ? `${accountNumber.length}/19 digits (minimum 13)`
                     : `${accountNumber.length}/11 digits (must start with 09)`}
                 </Text>
               </View>
@@ -998,19 +1071,21 @@ const styles = StyleSheet.create({
     ...Typography.heading.h4,
     color: Colors.textPrimary,
   },
+  typeSelectorScroll: {
+    marginHorizontal: -4,
+  },
   typeSelector: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8,
+    paddingHorizontal: 4,
   },
   typeButton: {
-    minWidth: "48%",
-    flexGrow: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    padding: 12,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: BorderRadius.medium,
     borderWidth: 1,
     borderColor: Colors.border,
