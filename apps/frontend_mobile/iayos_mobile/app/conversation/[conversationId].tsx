@@ -7111,7 +7111,7 @@ export default function ChatScreen() {
                       )}
 
                       {/* Confirm arrivals section */}
-                      {allDispatched && pendingArrival.length > 0 && (
+                      {pendingArrival.length > 0 && (
                         <View style={styles.employeeActionsSection}>
                           <TouchableOpacity
                             style={styles.confirmArrivalsCollapseHeader}
