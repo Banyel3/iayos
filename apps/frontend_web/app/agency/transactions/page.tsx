@@ -213,6 +213,23 @@ export default function AgencyTransactionsPage() {
     .filter((t: AgencyTransaction) => t.status === "PENDING")
     .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
 
+  const totalReceived = transactions
+    .filter((t: AgencyTransaction) =>
+      ["DEPOSIT", "EARNING", "REFUND"].includes(t.type),
+    )
+    .filter((t: AgencyTransaction) => t.status === "COMPLETED")
+    .reduce((sum: number, t: AgencyTransaction) => sum + t.amount, 0);
+
+  const pendingEarnings = transactions
+    .filter((t: AgencyTransaction) => t.type === "PENDING_EARNING")
+    .filter((t: AgencyTransaction) => t.status === "PENDING")
+    .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
+
+  const totalWithdrawn = transactions
+    .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL")
+    .filter((t: AgencyTransaction) => t.status === "COMPLETED")
+    .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
+
   const pendingWithdrawals = transactions
     .filter((t: AgencyTransaction) => t.type === "WITHDRAWAL" && t.status === "PENDING")
     .reduce((sum: number, t: AgencyTransaction) => sum + Math.abs(t.amount), 0);
@@ -308,8 +325,8 @@ export default function AgencyTransactionsPage() {
               <div className="p-2 bg-[#00BAF1]/10 rounded-lg"><Clock className="h-5 w-5 text-[#00BAF1]" /></div>
               <div className="h-1.5 w-1.5 bg-[#00BAF1] rounded-full animate-pulse"></div>
             </div>
-            <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Withdrawals</p>
-            <p className="text-xl font-bold text-gray-900">₱{pendingWithdrawals.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
+            <p className="text-xs font-medium text-gray-500 mb-0.5">Pending Earnings</p>
+            <p className="text-xl font-bold text-gray-900">₱{pendingEarnings.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
       </div>

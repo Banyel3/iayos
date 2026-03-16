@@ -63,7 +63,7 @@ export async function fetchWalletBalance(): Promise<number> {
  * Fetch wallet transactions
  */
 export async function fetchWalletTransactions(): Promise<Transaction[]> {
-  const response = await fetch(`${API_BASE_URL}/accounts/wallet/transactions`, {
+  const response = await fetch(`${API_BASE_URL}/accounts/wallet/transactions?page=1&page_size=1000`, {
     method: "GET",
     credentials: "include",
     headers: {

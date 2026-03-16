@@ -11347,6 +11347,15 @@ def finish_daily_job(request, job_id: int):
     job.clientMarkedComplete = True
     job.workerMarkedComplete = True
     if not job.remainingPaymentPaid:
+        has_settlement_entry = Transaction.objects.filter(
+            relatedJobPosting=job,
+            transactionType__in=['PENDING_EARNING', 'EARNING'],
+            status__in=['PENDING', 'COMPLETED'],
+        ).exists()
+        if job.assignedAgencyFK and not has_settlement_entry:
+            return Response({
+                'error': 'Cannot mark daily job payment as completed without settlement ledger entries. Confirm and process daily attendance payments first.'
+            }, status=400)
         job.remainingPaymentPaid = True
         job.remainingPaymentPaidAt = now
     job.save(update_fields=[
@@ -11975,8 +11984,11 @@ def approve_agency_project_employee(
         
         # Validate payment method
         payment_method = payment_method.upper()
-        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
-            return Response({"error": "Invalid payment method. Must be WALLET, GCASH, or CASH"}, status=400)
+        if payment_method not in ['WALLET', 'CASH']:
+            return Response({
+                "error": "Invalid payment method for this flow. Must be WALLET or CASH",
+                "supported_methods": ["WALLET", "CASH"],
+            }, status=400)
         
         if payment_method == 'CASH' and not cash_proof_image:
             return Response({"error": "Cash payment requires proof image", "requires_proof": True}, status=400)
@@ -12018,8 +12030,7 @@ def approve_agency_project_employee(
                 status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
             )
             total_employees = all_active.count()
-            remaining = job.budget - (job.escrowAmount or Decimal('0.00'))
-            payment_amount = remaining / total_employees if total_employees > 0 else remaining
+            payment_amount = job.budget / total_employees if total_employees > 0 else job.budget
         
         with transaction.atomic():
             from jobs.payment_buffer_service import add_pending_earnings
@@ -12057,18 +12068,6 @@ def approve_agency_project_employee(
                     balanceAfter=client_wallet.balance,
                     relatedJobPosting=job,
                     paymentMethod='WALLET',
-                )
-            elif payment_method == 'GCASH':
-                # Placeholder until direct GCash checkout is wired for this flow.
-                Transaction.objects.create(
-                    walletID=client_wallet,
-                    amount=payment_amount,
-                    transactionType='PAYMENT',
-                    status='PENDING',
-                    description=f'GCash payment pending for {employee.fullName} - {job.title}',
-                    balanceAfter=client_wallet.balance,
-                    relatedJobPosting=job,
-                    paymentMethod='GCASH',
                 )
             elif payment_method == 'CASH':
                 job.cashProofImage = cash_proof_image
@@ -12260,8 +12259,11 @@ def approve_agency_project_job(
         
         # Validate payment method
         payment_method = payment_method.upper()
-        if payment_method not in ['WALLET', 'GCASH', 'CASH']:
-            return Response({"error": "Invalid payment method. Must be WALLET, GCASH, or CASH"}, status=400)
+        if payment_method not in ['WALLET', 'CASH']:
+            return Response({
+                "error": "Invalid payment method for this flow. Must be WALLET or CASH",
+                "supported_methods": ["WALLET", "CASH"],
+            }, status=400)
         
         # CASH requires proof
         if payment_method == 'CASH' and not cash_proof_image:
@@ -12349,18 +12351,6 @@ def approve_agency_project_job(
                     paymentMethod='WALLET',
                 )
             
-            elif payment_method == 'GCASH':
-                Transaction.objects.create(
-                    walletID=client_wallet,
-                    amount=remaining_balance,
-                    transactionType='PAYMENT',
-                    status='PENDING',
-                    description=f'GCash final payment pending for job: {job.title}',
-                    balanceAfter=client_wallet.balance,
-                    relatedJobPosting=job,
-                    paymentMethod='GCASH',
-                )
-            
             elif payment_method == 'CASH':
                 # Store cash proof
                 job.cashProofImage = cash_proof_image
@@ -12378,11 +12368,20 @@ def approve_agency_project_job(
                 )
 
             # Canonical settlement: ledger agency receivable in pending earnings before job flags.
-            if payment_method in ['WALLET', 'CASH'] and remaining_balance > Decimal('0.00'):
+            # Derive receivable amount first so it can also be reused in employee share fallback.
+            assignment_total = Decimal('0.00')
+            for assignment in assignments:
+                share = assignment.paymentAmount or Decimal('0.00')
+                if share > 0:
+                    assignment_total += share
+
+            agency_receivable_amount = assignment_total if assignment_total > Decimal('0.00') else job.budget
+
+            if payment_method in ['WALLET', 'CASH'] and agency_receivable_amount > Decimal('0.00'):
                 settlement_result = add_pending_earnings(
                     job=job,
                     recipient_account=job.assignedAgencyFK.accountFK,
-                    amount=remaining_balance,
+                    amount=agency_receivable_amount,
                     recipient_type='agency',
                     idempotency_key=f"agency-project-bulk-{job.jobID}",
                 )
@@ -12397,12 +12396,14 @@ def approve_agency_project_job(
 
             # Track employee completion stats per assignment in this bulk approval path
             employee_count = assignments.count()
-            per_employee_earning = remaining_balance / employee_count if employee_count > 0 else Decimal('0.00')
             for assignment in assignments:
                 emp = assignment.employee
+                share = assignment.paymentAmount or Decimal('0.00')
+                if share <= Decimal('0.00') and employee_count > 0:
+                    share = agency_receivable_amount / employee_count
                 emp.totalJobsCompleted = (emp.totalJobsCompleted or 0) + 1
-                if per_employee_earning > 0:
-                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + per_employee_earning
+                if share > 0:
+                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + share
                 emp.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
             
             # Mark job as completed
