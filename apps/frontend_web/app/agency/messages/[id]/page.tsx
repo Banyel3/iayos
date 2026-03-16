@@ -1223,13 +1223,13 @@ export default function AgencyChatScreen() {
                   }
 
                   return (
-                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-900">
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-black">
                         Ready to complete
                       </span>
                       <Button
                         size="sm"
-                        className="bg-green-600 px-3 h-7 text-[10px]"
+                        className="bg-[#00BAF1] hover:bg-[#00a8d8] px-3 h-7 text-[10px]"
                         onClick={handleMarkComplete}
                       >
                         Complete Job
