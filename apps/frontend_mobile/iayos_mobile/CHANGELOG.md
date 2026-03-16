@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team DAILY Backjob Start Flow Parity (Single-Job Pattern)**
+  - Updated team DAILY backjob client-start gate so `Confirm Started` unlocks after workers finish schedule confirmations (same progression pattern as single-job backjobs).
+  - Disabled team arrival-confirmation step specifically for DAILY backjobs and kept arrival gating for non-DAILY team backjobs.
+  - Improved block-reason messaging to show schedule-confirmation progress before start.
+  - **Impact**: After both team workers agree to the backjob schedule, client can proceed directly with backjob start and completion flow without getting stuck on arrival confirmation.
+
+- **Agency Backjob One-Day Dispatch/Arrival Flow Unification (Single-Job Parity)**
+  - Updated agency PROJECT backjob gates to bypass legacy multi-day project lock when a backjob is active, in negotiation, and schedule-confirmed.
+  - Agency dispatch, client confirm-arrival, and completion sections now use backjob-cycle-aware status checks (`isAgencyStatusInCurrentBackjobCycle`) instead of raw flags.
+  - This mirrors the single-job backjob progression after dispatch while preserving existing non-backjob behavior.
+  - **Impact**: Client -> Agency backjobs no longer hide dispatch/arrival actions on legacy multi-day project jobs; flow now proceeds consistently through backjob completion.
+
 - **Team Backjob Arrival CTA Gate Parity (Single-Job Pattern Alignment)**
   - Audited single-job backjob flow and aligned team flow to rely on real backjob state signals, not only `is_team_job` flag.
   - Backjob team worker rows now drive team-flow detection even for legacy payloads where `is_team_job` is missing/stale.

@@ -1110,12 +1110,20 @@ export default function ChatScreen() {
     agencyAssignedEmployees.length > 0 &&
     dispatchedAgencyEmployees.length === agencyAssignedEmployees.length;
 
-  const canClientConfirmBackjobStartedForTeam =
-    teamAssignedWorkers.length > 0 && pendingTeamArrivalWorkers.length === 0;
+  const isBackjobActiveForDispatch =
+    Boolean(conversation?.backjob?.has_backjob) &&
+    conversation?.backjob?.status === "IN_NEGOTIATION" &&
+    conversation?.backjob?.worker_schedule_confirmed === true &&
+    !conversation?.backjob?.worker_marked_complete;
   const isTeamDailyBackjobFlow =
     isTeamBackjobFlow &&
     conversation?.job?.payment_model === "DAILY" &&
     Boolean(conversation?.backjob?.has_backjob);
+  const canClientConfirmBackjobStartedForTeam =
+    teamAssignedWorkers.length > 0 &&
+    (isTeamDailyBackjobFlow
+      ? effectiveWorkerScheduleConfirmed
+      : pendingTeamArrivalWorkers.length === 0);
   const teamBackjobAllWorkersComplete =
     teamAssignedWorkers.length > 0 && pendingTeamCompletionWorkers.length === 0;
   const myTeamBackjobAssignment =
@@ -1171,7 +1179,13 @@ export default function ChatScreen() {
           : conversation?.is_agency_job &&
               dispatchedAgencyEmployees.length < agencyAssignedEmployees.length
             ? `Waiting for agency to dispatch workers (${dispatchedAgencyEmployees.length} of ${agencyAssignedEmployees.length}).`
-              : isTeamBackjobFlow && pendingTeamArrivalWorkers.length > 0
+              : isTeamBackjobFlow &&
+                  isTeamDailyBackjobFlow &&
+                  !effectiveWorkerScheduleConfirmed
+                ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
+                : isTeamBackjobFlow &&
+                    !isTeamDailyBackjobFlow &&
+                    pendingTeamArrivalWorkers.length > 0
               ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
               : null;
 
@@ -4342,12 +4356,20 @@ export default function ChatScreen() {
                       conversation.my_role === "AGENCY") &&
                     conversation.is_agency_job &&
                     conversation.job.payment_model === "PROJECT" &&
-                    !isProjectMultiDayJob &&
+                    (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
                     Array.isArray(conversation.assigned_employees) &&
                     (() => {
                       const pendingArrivalEmployees =
                         conversation.assigned_employees.filter(
-                          (e) => e.dispatched && !e.clientConfirmedArrival,
+                          (e) =>
+                            isAgencyStatusInCurrentBackjobCycle(
+                              e.dispatched,
+                              e.dispatchedAt,
+                            ) &&
+                            !isAgencyStatusInCurrentBackjobCycle(
+                              e.clientConfirmedArrival,
+                              e.clientConfirmedArrivalAt,
+                            ),
                         );
 
                       if (pendingArrivalEmployees.length === 0) return null;
@@ -6933,37 +6955,51 @@ export default function ChatScreen() {
               {conversation.is_agency_job &&
                 conversation.my_role === "AGENCY" &&
                 conversation.job.payment_model === "PROJECT" &&
-                !isProjectMultiDayJob &&
+                (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
                 conversation.assigned_employees &&
                 conversation.assigned_employees.length > 0 &&
                 (() => {
+                  const assignedEmployees =
+                    conversation.assigned_employees || [];
                   const isEmployeeComplete = (employee: any) =>
                     employee.agencyMarkedComplete ||
                     employee.employeeMarkedComplete ||
                     employee.marked_complete ||
                     employee.status === "COMPLETED";
 
-                  const allDispatched = conversation.assigned_employees.every(
-                    (e) => e.dispatched,
+                  const allDispatched = assignedEmployees.every((e) =>
+                    isAgencyStatusInCurrentBackjobCycle(
+                      e.dispatched,
+                      e.dispatchedAt,
+                    ),
                   );
-                  const allArrived = conversation.assigned_employees.every(
-                    (e) => e.clientConfirmedArrival,
+                  const allArrived = assignedEmployees.every((e) =>
+                    isAgencyStatusInCurrentBackjobCycle(
+                      e.clientConfirmedArrival,
+                      e.clientConfirmedArrivalAt,
+                    ),
                   );
-                  const allComplete = conversation.assigned_employees.every(
-                    (e) => isEmployeeComplete(e),
+                  const allComplete = assignedEmployees.every((e) =>
+                    isEmployeeComplete(e),
                   );
 
                   // Show dispatch buttons for employees not yet dispatched
-                  const pendingDispatch =
-                    conversation.assigned_employees.filter(
-                      (e) => !e.dispatched,
-                    );
+                  const pendingDispatch = assignedEmployees.filter(
+                    (e) =>
+                      !isAgencyStatusInCurrentBackjobCycle(
+                        e.dispatched,
+                        e.dispatchedAt,
+                      ),
+                  );
 
                   // Show mark complete buttons for arrived employees not yet marked complete
-                  const pendingComplete =
-                    conversation.assigned_employees.filter(
-                      (e) => e.clientConfirmedArrival && !isEmployeeComplete(e),
-                    );
+                  const pendingComplete = assignedEmployees.filter(
+                    (e) =>
+                      isAgencyStatusInCurrentBackjobCycle(
+                        e.clientConfirmedArrival,
+                        e.clientConfirmedArrivalAt,
+                      ) && !isEmployeeComplete(e),
+                  );
 
                   return (
                     <>
@@ -7037,11 +7073,14 @@ export default function ChatScreen() {
                           <Text style={styles.waitingButtonText}>
                             Waiting for client to confirm arrivals (
                             {
-                              conversation.assigned_employees.filter(
-                                (e) => e.clientConfirmedArrival,
+                              assignedEmployees.filter((e) =>
+                                isAgencyStatusInCurrentBackjobCycle(
+                                  e.clientConfirmedArrival,
+                                  e.clientConfirmedArrivalAt,
+                                ),
                               ).length
                             }{" "}
-                            of {conversation.assigned_employees.length})
+                            of {assignedEmployees.length})
                           </Text>
                         </View>
                       )}
@@ -7130,24 +7169,32 @@ export default function ChatScreen() {
               {conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 conversation.job.payment_model === "PROJECT" &&
-                !isProjectMultiDayJob &&
+                (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
                 conversation.assigned_employees &&
                 conversation.assigned_employees.length > 0 &&
                 (() => {
+                  const assignedEmployees =
+                    conversation.assigned_employees || [];
                   const isEmployeeComplete = (employee: any) =>
                     employee.agencyMarkedComplete ||
                     employee.employeeMarkedComplete ||
                     employee.marked_complete ||
                     employee.status === "COMPLETED";
 
-                  const allDispatched = conversation.assigned_employees.every(
-                    (e) => e.dispatched,
+                  const allDispatched = assignedEmployees.every((e) =>
+                    isAgencyStatusInCurrentBackjobCycle(
+                      e.dispatched,
+                      e.dispatchedAt,
+                    ),
                   );
-                  const allArrived = conversation.assigned_employees.every(
-                    (e) => e.clientConfirmedArrival,
+                  const allArrived = assignedEmployees.every((e) =>
+                    isAgencyStatusInCurrentBackjobCycle(
+                      e.clientConfirmedArrival,
+                      e.clientConfirmedArrivalAt,
+                    ),
                   );
-                  const allComplete = conversation.assigned_employees.every(
-                    (e) => isEmployeeComplete(e),
+                  const allComplete = assignedEmployees.every((e) =>
+                    isEmployeeComplete(e),
                   );
                   const allWorkflowComplete =
                     allDispatched && allArrived && allComplete;
@@ -9085,6 +9132,7 @@ export default function ChatScreen() {
                     {/* CLIENT: Team Backjob Arrival Confirmation (PROJECT/FIXED) */}
                     {conversation.my_role === "CLIENT" &&
                       isTeamBackjobFlow &&
+                      !isTeamDailyBackjobFlow &&
                       !conversation.backjob?.backjob_started &&
                       pendingTeamArrivalWorkers.length > 0 && (
                         <View style={styles.teamProjectArrivalSection}>
