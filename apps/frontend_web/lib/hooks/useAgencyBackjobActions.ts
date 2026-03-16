@@ -7,6 +7,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { API_BASE } from "@/lib/api/config";
 
+async function refreshAgencyBackjobQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["agency-messages"] }),
+    queryClient.invalidateQueries({ queryKey: ["agency-conversations"] }),
+    queryClient.invalidateQueries({ queryKey: ["agency-backjobs"] }),
+  ]);
+}
+
 /**
  * Client confirms backjob work has started
  * This is the first step in the backjob workflow
@@ -35,10 +43,8 @@ export function useConfirmBackjobStarted() {
 
       return response.json();
     },
-    onSuccess: () => {
-      // Invalidate messages to refetch with updated backjob status
-      queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
-      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+    onSuccess: async () => {
+      await refreshAgencyBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       console.error("Failed to confirm backjob started:", error.message);
@@ -75,9 +81,8 @@ export function useMarkBackjobComplete() {
 
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
-      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+    onSuccess: async () => {
+      await refreshAgencyBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       console.error("Failed to mark backjob complete:", error.message);
@@ -115,9 +120,8 @@ export function useApproveBackjobCompletion() {
 
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
-      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+    onSuccess: async () => {
+      await refreshAgencyBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       console.error("Failed to approve backjob completion:", error.message);
@@ -152,10 +156,8 @@ export function useConfirmBackjobScheduledDate() {
 
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
-      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["agency-backjobs"] });
+    onSuccess: async () => {
+      await refreshAgencyBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       console.error("Failed to confirm backjob schedule:", error.message);

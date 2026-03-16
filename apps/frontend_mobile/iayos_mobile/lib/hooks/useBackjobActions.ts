@@ -7,6 +7,27 @@ import { ENDPOINTS, apiRequest } from "../api/config";
 import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 
+type BackjobMutationResult = {
+  success?: boolean;
+  already_processed?: boolean;
+  message?: string;
+};
+
+async function refreshBackjobQueries(queryClient: ReturnType<typeof useQueryClient>, jobId?: number) {
+  const refreshes = [
+    queryClient.invalidateQueries({ queryKey: ["messages"] }),
+    queryClient.invalidateQueries({ queryKey: ["conversations"] }),
+    queryClient.invalidateQueries({ queryKey: ["myJobs"] }),
+    queryClient.invalidateQueries({ queryKey: ["myBackjobs"] }),
+  ];
+
+  if (typeof jobId === "number") {
+    refreshes.push(queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] }));
+  }
+
+  await Promise.all(refreshes);
+}
+
 /**
  * Client confirms backjob work has started
  * This is the first step in the backjob workflow
@@ -30,18 +51,19 @@ export function useConfirmBackjobStarted() {
 
       return response.json();
     },
-    onSuccess: (_, jobId) => {
+    onSuccess: async (result: BackjobMutationResult, jobId) => {
       Toast.show({
         type: "success",
-        text1: "Backjob Started",
-        text2: "Worker has been notified that backjob work has begun",
+        text1: result.already_processed ? "Already Confirmed" : "Backjob Started",
+        text2:
+          result.message ||
+          (result.already_processed
+            ? "Backjob start was already confirmed"
+            : "Worker has been notified that backjob work has begun"),
       });
 
-      // Invalidate messages to refetch with updated backjob status
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+      // Awaited refresh keeps mutation in pending state until UI-sync queries are queued.
+      await refreshBackjobQueries(queryClient, jobId);
     },
     onError: (error: Error) => {
       Toast.show({
@@ -77,17 +99,20 @@ export function useMarkBackjobComplete() {
 
       return response.json();
     },
-    onSuccess: (_, { jobId }) => {
+    onSuccess: async (result: BackjobMutationResult, { jobId }) => {
       Toast.show({
         type: "success",
-        text1: "Backjob Marked Complete",
-        text2: "Waiting for client approval",
+        text1: result.already_processed
+          ? "Already Marked Complete"
+          : "Backjob Marked Complete",
+        text2:
+          result.message ||
+          (result.already_processed
+            ? "Backjob was already marked complete"
+            : "Waiting for client approval"),
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+      await refreshBackjobQueries(queryClient, jobId);
     },
     onError: (error: Error) => {
       Toast.show({
@@ -124,18 +149,18 @@ export function useApproveBackjobCompletion() {
 
       return response.json();
     },
-    onSuccess: (_, { jobId }) => {
+    onSuccess: async (result: BackjobMutationResult, { jobId }) => {
       Toast.show({
         type: "success",
-        text1: "Backjob Completed!",
-        text2: "The dispute has been resolved",
+        text1: result.already_processed ? "Already Completed" : "Backjob Completed!",
+        text2:
+          result.message ||
+          (result.already_processed
+            ? "This backjob was already resolved"
+            : "The dispute has been resolved"),
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+      await refreshBackjobQueries(queryClient, jobId);
     },
     onError: (error: Error) => {
       Toast.show({
@@ -176,17 +201,14 @@ export function useSetBackjobScheduledDate() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       Toast.show({
         type: "success",
         text1: "Schedule Updated",
         text2: "Waiting for worker confirmation",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+      await refreshBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       Toast.show({
@@ -220,17 +242,18 @@ export function useConfirmBackjobScheduledDate() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async (result: BackjobMutationResult) => {
       Toast.show({
         type: "success",
-        text1: "Schedule Confirmed",
-        text2: "Backjob is ready for scheduled execution",
+        text1: result.already_processed ? "Already Confirmed" : "Schedule Confirmed",
+        text2:
+          result.message ||
+          (result.already_processed
+            ? "Schedule was already confirmed"
+            : "Backjob is ready for scheduled execution"),
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+      await refreshBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       Toast.show({
@@ -272,17 +295,14 @@ export function useRequestBackjobRenegotiation() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       Toast.show({
         type: "success",
         text1: "Re-negotiation Requested",
         text2: "Admin has been notified to reopen the schedule discussion",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-      queryClient.invalidateQueries({ queryKey: ["myBackjobs"] });
+      await refreshBackjobQueries(queryClient);
     },
     onError: (error: Error) => {
       Toast.show({
