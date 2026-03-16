@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Backjob PROJECT RATE Completion Flow (Per-Worker Assignment)**
+  - Fixed team PROJECT/FIXED backjob `Mark My Assignment Complete` button to use per-assignment completion endpoint instead of dispute-level mark-complete, preventing one worker from completing the entire backjob.
+  - Updated worker waiting-for-approval and client approve-completion conditions to use `isTeamBackjobFlow` (all team types) instead of `isTeamDailyBackjobFlow` (DAILY only).
+  - **Impact**: Team PROJECT RATE backjobs now require each worker to individually mark their assignment complete before client can approve, matching the working DAILY team backjob behavior.
+
 - **Agency Wallet/Receipt Parity + Mobile UI Refresh (Selected PR #912 Changes)**
   - Applied receipt-related mobile updates so buffer release date/remaining-day details derive correctly when explicit fields are missing.
   - Applied selected mobile UI updates from PR #912 (agency chat banner/attendance presentation and profile/job/worker visual refinements).
