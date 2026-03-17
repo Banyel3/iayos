@@ -863,6 +863,24 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
         worker = job.assignedWorkerID
         agency = getattr(job, 'assignedAgencyFK', None)
 
+        # For team jobs with skill slots, gather all assigned workers
+        from accounts.models import JobWorkerAssignment
+        team_workers = []
+        if not worker:
+            assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=['ACTIVE', 'COMPLETED']
+            ).select_related(
+                'workerID__profileID__accountFK'
+            )
+            for a in assignments:
+                w = a.workerID
+                team_workers.append({
+                    'id': str(w.profileID.accountFK.accountID),
+                    'name': f"{w.profileID.firstName} {w.profileID.lastName}",
+                    'email': w.profileID.accountFK.email,
+                })
+
         # Admin can always audit conversation history for this job dispute.
         # Some legacy data can contain more than one conversation row for a job;
         # prefer the thread that actually has chat history.
@@ -904,6 +922,7 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
                     'name': f"{worker.profileID.firstName} {worker.profileID.lastName}",
                     'email': worker.profileID.accountFK.email,
                 } if worker else None,
+                'workers': team_workers if team_workers else None,
                 'agency': {
                     'id': str(agency.agencyId) if agency else None,
                     'name': agency.businessName if agency else None,
