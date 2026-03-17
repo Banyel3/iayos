@@ -486,46 +486,55 @@ def process_refund(
         Success/error response
     """
     try:
-        original_txn = Transaction.objects.select_related('walletID').get(
-            transactionID=transaction_id
-        )
+        with transaction.atomic():
+            original_txn = Transaction.objects.select_related('walletID').get(
+                transactionID=transaction_id
+            )
 
-        # Validate refund amount
-        if Decimal(str(amount)) > original_txn.amount:
-            return {
-                'success': False,
-                'error': 'Refund amount cannot exceed original transaction amount'
-            }
+            # Validate refund amount
+            refund_amount = Decimal(str(amount))
+            if refund_amount > original_txn.amount:
+                return {
+                    'success': False,
+                    'error': 'Refund amount cannot exceed original transaction amount'
+                }
 
-        # Determine which wallet receives the funds.
-        # target_wallet is used by resolve_dispute to route money to the correct
-        # party (client vs worker). If not provided, fall back to the wallet
-        # that was associated with the original transaction.
-        credit_wallet = target_wallet if target_wallet is not None else original_txn.walletID
+            # Determine which wallet receives the funds.
+            # target_wallet is used by resolve_dispute to route money to the correct
+            # party (client vs worker). If not provided, fall back to the wallet
+            # that was associated with the original transaction.
+            credit_wallet = target_wallet if target_wallet is not None else original_txn.walletID
 
-        # Create refund / earning transaction
-        refund_txn = Transaction.objects.create(
-            walletID=credit_wallet,
-            transactionType=txn_type,
-            amount=Decimal(str(amount)),
-            status='COMPLETED',
-            paymentMethod=refund_to,
-            description=f"{'Refund' if txn_type == 'REFUND' else 'Dispute earning'} for TXN-{transaction_id}: {reason}",
-            referenceNumber=f"{txn_type}-{transaction_id}-{timezone.now().timestamp()}",
-            relatedJobPosting=original_txn.relatedJobPosting,
-            completedAt=timezone.now()
-        )
+            if credit_wallet:
+                # Lock wallet row to keep balanceAfter and credited balance consistent.
+                credit_wallet = Wallet.objects.select_for_update().get(walletID=credit_wallet.walletID)
+                new_balance = credit_wallet.balance + refund_amount
+            else:
+                # Keep DB constraint satisfied even when no wallet is linked.
+                new_balance = Decimal('0.00')
 
-        # Credit the target wallet
-        if credit_wallet:
-            credit_wallet.balance += Decimal(str(amount))
-            credit_wallet.save()
-            refund_txn.balanceAfter = credit_wallet.balance
-            refund_txn.save()
+            # Create refund / earning transaction with balanceAfter set at insert time.
+            refund_txn = Transaction.objects.create(
+                walletID=credit_wallet,
+                transactionType=txn_type,
+                amount=refund_amount,
+                balanceAfter=new_balance,
+                status='COMPLETED',
+                paymentMethod=refund_to,
+                description=f"{'Refund' if txn_type == 'REFUND' else 'Dispute earning'} for TXN-{transaction_id}: {reason}",
+                referenceNumber=f"{txn_type}-{transaction_id}-{timezone.now().timestamp()}",
+                relatedJobPosting=original_txn.relatedJobPosting,
+                completedAt=timezone.now()
+            )
 
-        # Update original transaction description for audit trail
-        original_txn.description = f"{original_txn.description or ''}\n{'Refunded' if txn_type == 'REFUND' else 'Dispute payment'}: ₱{amount} - {reason}".strip()
-        original_txn.save()
+            # Credit the target wallet
+            if credit_wallet:
+                credit_wallet.balance = new_balance
+                credit_wallet.save(update_fields=['balance', 'updatedAt'])
+
+            # Update original transaction description for audit trail
+            original_txn.description = f"{original_txn.description or ''}\n{'Refunded' if txn_type == 'REFUND' else 'Dispute payment'}: ₱{amount} - {reason}".strip()
+            original_txn.save(update_fields=['description', 'updatedAt'])
         
         # Log audit trail
         if admin:
