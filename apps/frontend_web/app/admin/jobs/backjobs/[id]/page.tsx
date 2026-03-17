@@ -35,6 +35,7 @@ interface DisputeDetail {
   disputed_by: string;
   client: { id: string; name: string; email: string };
   worker: { id: string; name: string; email: string } | null;
+  workers: { id: string; name: string; email: string }[] | null;
   agency: { id: string; name: string } | null;
   reason: string;
   description: string;
@@ -734,6 +735,27 @@ export default function BackjobDetailPage() {
                     </Link>
                   </div>
                 )}
+                {dispute.workers && dispute.workers.map((w) => (
+                  <div key={w.id} className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                    <div className="h-9 w-9 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold text-sm">
+                      {w.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400">Worker</p>
+                      <p className="font-semibold text-gray-800 truncate">
+                        {w.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {w.email}
+                      </p>
+                    </div>
+                    <Link href={`/admin/users/workers/${w.id}`}>
+                      <Badge className="bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer text-xs">
+                        View
+                      </Badge>
+                    </Link>
+                  </div>
+                ))}
                 {dispute.agency && (
                   <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
                     <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm">
