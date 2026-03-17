@@ -842,6 +842,13 @@ def get_transaction_stats_optimized() -> Dict[str, Any]:
         total_volume=Coalesce(Sum('amount', filter=Q(status='COMPLETED')), Value(0), output_field=DecimalField()),
         total_count=Count('transactionID'),
         
+        # Revenue should be actual captured platform fees
+        completed_platform_fees=Coalesce(
+            Sum('amount', filter=Q(transactionType='FEE', status='COMPLETED')),
+            Value(0),
+            output_field=DecimalField()
+        ),
+        
         # Pending
         pending_count=Count('transactionID', filter=Q(status='PENDING')),
         pending_amount=Coalesce(Sum('amount', filter=Q(status='PENDING')), Value(0), output_field=DecimalField()),
@@ -873,13 +880,13 @@ def get_transaction_stats_optimized() -> Dict[str, Any]:
     total_volume = float(stats['total_volume'])
     escrow_held = float(stats['escrow_held'])
     refunded_amount = float(stats['refunded_amount'])
-    platform_fees = round(total_volume * float(settings.PLATFORM_FEE_RATE), 2)
+    platform_fees = float(stats['completed_platform_fees'])
     average_transaction = round(total_volume / total_count, 2) if total_count > 0 else 0.0
 
     return {
         'total_transactions': total_count,
         'total_volume': total_volume,
-        'total_revenue': total_volume,        # alias
+        'total_revenue': platform_fees,
         'pending_count': stats['pending_count'],
         'pending_amount': float(stats['pending_amount']),
         'escrow_held': escrow_held,
