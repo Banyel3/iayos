@@ -64,7 +64,12 @@ export default function PaymentStatusBadge({
   size = "medium",
   style,
 }: PaymentStatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? {
+    label: status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown",
+    backgroundColor: "#F3F4F6",
+    textColor: "#6B7280",
+    icon: null,
+  };
 
   const sizeStyles = {
     small: {
