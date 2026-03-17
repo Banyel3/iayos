@@ -12414,6 +12414,7 @@ def approve_agency_project_job(
     from accounts.models import Job, JobEmployeeAssignment, Transaction, Wallet
     from django.utils import timezone
     from django.db import transaction
+    from django.db.models import Sum
     from decimal import Decimal
     
     try:
@@ -12498,8 +12499,20 @@ def approve_agency_project_job(
                 ]
             }, status=400)
         
-        # Calculate payment (fix: downpaymentAmount doesn't exist, use escrowAmount)
-        remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
+        # Calculate expected remaining payment and settle only outstanding amount.
+        expected_remaining_balance = job.budget - (job.escrowAmount or Decimal('0.00'))
+
+        already_paid_non_escrow = Transaction.objects.filter(
+            relatedJobPosting=job,
+            transactionType='PAYMENT',
+            status='COMPLETED',
+        ).exclude(
+            description__icontains='Escrow payment'
+        ).aggregate(total=Sum('amount')).get('total') or Decimal('0.00')
+
+        remaining_balance = expected_remaining_balance - Decimal(str(already_paid_non_escrow))
+        if remaining_balance < Decimal('0.00'):
+            remaining_balance = Decimal('0.00')
         
         with transaction.atomic():
             from jobs.payment_buffer_service import add_pending_earnings
@@ -12558,11 +12571,26 @@ def approve_agency_project_job(
                     paymentMethod='CASH',
                 )
 
-            # Canonical settlement: ledger agency receivable in pending earnings before job flags.
-            # Agency receives the FULL budget (escrow + remaining), not just the remaining
-            # payment portion. The escrow (50%) was paid by the client at job creation and
-            # is held by the platform; it must be credited to the agency here.
-            agency_receivable_amount = job.budget
+            # Canonical settlement: ledger only the outstanding agency receivable.
+            # This prevents over-crediting when some employees were already approved
+            # through the per-employee endpoint before a later bulk approval.
+            agency_receivable_target = Decimal(str(job.budget or Decimal('0.00')))
+            agency_wallet_ids = list(
+                Wallet.objects.filter(accountFK=job.assignedAgencyFK.accountFK)
+                .values_list('walletID', flat=True)
+            )
+            agency_receivable_already_ledgered = Decimal('0.00')
+            if agency_wallet_ids:
+                agency_receivable_already_ledgered = Transaction.objects.filter(
+                    walletID_id__in=agency_wallet_ids,
+                    relatedJobPosting=job,
+                    transactionType__in=['PENDING_EARNING', 'EARNING'],
+                    status__in=['PENDING', 'COMPLETED'],
+                ).aggregate(total=Sum('amount')).get('total') or Decimal('0.00')
+
+            agency_receivable_amount = agency_receivable_target - Decimal(str(agency_receivable_already_ledgered))
+            if agency_receivable_amount < Decimal('0.00'):
+                agency_receivable_amount = Decimal('0.00')
 
             if payment_method in ['WALLET', 'CASH'] and agency_receivable_amount > Decimal('0.00'):
                 settlement_result = add_pending_earnings(
