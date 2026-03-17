@@ -79,7 +79,7 @@ def get_dashboard_stats_optimized() -> Dict[str, Any]:
     financial_stats = Transaction.objects.aggregate(
         total_revenue=Coalesce(Sum('amount', filter=Q(status='COMPLETED')), Value(0), output_field=DecimalField()),
         escrow_held=Coalesce(
-            Sum('amount', filter=Q(transactionType='ESCROW', status='PENDING')),
+            Sum('amount', filter=Q(transactionType='PAYMENT', status='PENDING')),
             Value(0),
             output_field=DecimalField()
         ),
