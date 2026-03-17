@@ -11459,35 +11459,36 @@ def finish_daily_job(request, job_id: int):
 
     if refundable_escrow > Decimal('0.00'):
         client_account = job.clientID.profileID.accountFK
-        client_wallet, _ = Wallet.objects.select_for_update().get_or_create(accountFK=client_account)
-        client_wallet.balance += refundable_escrow
+        with db_transaction.atomic():
+            client_wallet, _ = Wallet.objects.select_for_update().get_or_create(accountFK=client_account)
+            client_wallet.balance += refundable_escrow
 
-        if client_wallet.reservedBalance > Decimal('0.00'):
-            reserved_release = min(client_wallet.reservedBalance, refundable_escrow)
-            client_wallet.reservedBalance -= reserved_release
+            if client_wallet.reservedBalance > Decimal('0.00'):
+                reserved_release = min(client_wallet.reservedBalance, refundable_escrow)
+                client_wallet.reservedBalance -= reserved_release
 
-        client_wallet.save()
+            client_wallet.save()
 
-        Transaction.objects.create(
-            walletID=client_wallet,
-            transactionType=Transaction.TransactionType.REFUND,
-            amount=refundable_escrow,
-            balanceAfter=client_wallet.balance,
-            status=Transaction.TransactionStatus.COMPLETED,
-            description=f'Unused daily escrow refund at job finish - Job #{job.jobID}',
-            relatedJobPosting=job,
-            paymentMethod='WALLET',
-        )
+            Transaction.objects.create(
+                walletID=client_wallet,
+                transactionType=Transaction.TransactionType.REFUND,
+                amount=refundable_escrow,
+                balanceAfter=client_wallet.balance,
+                status=Transaction.TransactionStatus.COMPLETED,
+                description=f'Unused daily escrow refund at job finish - Job #{job.jobID}',
+                relatedJobPosting=job,
+                paymentMethod='WALLET',
+            )
 
-        Notification.objects.create(
-            accountFK=client_account,
-            notificationType='PAYMENT_REFUNDED',
-            title='Unused Escrow Refunded',
-            message=(
-                f"Daily job '{job.title}' finished. Refunded ₱{refundable_escrow} unused daily escrow to your wallet."
-            ),
-            relatedJobID=job.jobID,
-        )
+            Notification.objects.create(
+                accountFK=client_account,
+                notificationType='PAYMENT_REFUNDED',
+                title='Unused Escrow Refunded',
+                message=(
+                    f"Daily job '{job.title}' finished. Refunded ₱{refundable_escrow} unused daily escrow to your wallet."
+                ),
+                relatedJobID=job.jobID,
+            )
 
     # Finish the job and unlock review flow for both parties.
     now = timezone.now()
