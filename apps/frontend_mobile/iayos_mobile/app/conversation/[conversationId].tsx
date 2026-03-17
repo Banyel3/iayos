@@ -1541,6 +1541,15 @@ export default function ChatScreen() {
         {
           text: "Submit",
           onPress: () => {
+            if (isTeamDailyBackjobFlow) {
+              // Team DAILY backjob completion must use the dispute/backjob endpoint.
+              markBackjobCompleteMutation.mutate({
+                jobId: conversation.job.id,
+                notes: undefined,
+              });
+              return;
+            }
+
             markTeamAssignmentCompleteMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
