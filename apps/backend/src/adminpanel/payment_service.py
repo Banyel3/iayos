@@ -534,7 +534,7 @@ def process_refund(
 
             # Update original transaction description for audit trail
             original_txn.description = f"{original_txn.description or ''}\n{'Refunded' if txn_type == 'REFUND' else 'Dispute payment'}: ₱{amount} - {reason}".strip()
-            original_txn.save(update_fields=['description', 'updatedAt'])
+            original_txn.save(update_fields=['description'])
         
         # Log audit trail
         if admin:
