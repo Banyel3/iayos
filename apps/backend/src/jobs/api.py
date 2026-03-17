@@ -11641,7 +11641,9 @@ def finish_project_multiday_job(request, job_id: int):
     old_status = job.status
 
     with db_transaction.atomic():
-        receivable_amount = Decimal(str(job.remainingPayment or Decimal('0.00'))) + Decimal(str(job.materialsCost or Decimal('0.00')))
+        # Agency/worker receives the FULL budget (escrow + remaining), not just the
+        # remaining 50%. The escrow was paid by the client at creation and held by the platform.
+        receivable_amount = Decimal(str(job.budget or Decimal('0.00'))) + Decimal(str(job.materialsCost or Decimal('0.00')))
         recipient_account = None
         recipient_type = None
 
@@ -12264,11 +12266,21 @@ def approve_agency_project_employee(
                 )
 
             # Canonical settlement: agency receivable must be ledgered to pending earnings first.
-            if payment_method in ['WALLET', 'CASH'] and payment_amount > Decimal('0.00'):
+            # The agency receives the FULL per-employee share of the budget (escrow + remaining),
+            # not just the remaining payment. The escrow (50%) was paid by the client at job
+            # creation and is held by the platform; it must be credited to the agency here.
+            all_active_for_share = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
+            )
+            total_employees_for_share = all_active_for_share.count() or 1
+            full_per_employee_share = job.budget / total_employees_for_share
+
+            if payment_method in ['WALLET', 'CASH'] and full_per_employee_share > Decimal('0.00'):
                 settlement_result = add_pending_earnings(
                     job=job,
                     recipient_account=job.assignedAgencyFK.accountFK,
-                    amount=payment_amount,
+                    amount=full_per_employee_share,
                     recipient_type='agency',
                     idempotency_key=f"agency-project-assignment-{assignment.assignmentID}",
                 )
@@ -12286,8 +12298,8 @@ def approve_agency_project_employee(
 
             # Track employee completion stats when this specific assignment is completed
             employee.totalJobsCompleted = (employee.totalJobsCompleted or 0) + 1
-            if payment_amount > 0:
-                employee.totalEarnings = (employee.totalEarnings or Decimal('0.00')) + payment_amount
+            if full_per_employee_share > 0:
+                employee.totalEarnings = (employee.totalEarnings or Decimal('0.00')) + full_per_employee_share
             employee.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
         
         # Send system message
@@ -12547,14 +12559,10 @@ def approve_agency_project_job(
                 )
 
             # Canonical settlement: ledger agency receivable in pending earnings before job flags.
-            # Derive receivable amount first so it can also be reused in employee share fallback.
-            assignment_total = Decimal('0.00')
-            for assignment in assignments:
-                share = assignment.paymentAmount or Decimal('0.00')
-                if share > 0:
-                    assignment_total += share
-
-            agency_receivable_amount = assignment_total if assignment_total > Decimal('0.00') else job.budget
+            # Agency receives the FULL budget (escrow + remaining), not just the remaining
+            # payment portion. The escrow (50%) was paid by the client at job creation and
+            # is held by the platform; it must be credited to the agency here.
+            agency_receivable_amount = job.budget
 
             if payment_method in ['WALLET', 'CASH'] and agency_receivable_amount > Decimal('0.00'):
                 settlement_result = add_pending_earnings(
@@ -12574,15 +12582,13 @@ def approve_agency_project_job(
             assignments.update(status='COMPLETED')
 
             # Track employee completion stats per assignment in this bulk approval path
-            employee_count = assignments.count()
+            employee_count = assignments.count() or 1
+            per_employee_full_share = agency_receivable_amount / employee_count
             for assignment in assignments:
                 emp = assignment.employee
-                share = assignment.paymentAmount or Decimal('0.00')
-                if share <= Decimal('0.00') and employee_count > 0:
-                    share = agency_receivable_amount / employee_count
                 emp.totalJobsCompleted = (emp.totalJobsCompleted or 0) + 1
-                if share > 0:
-                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + share
+                if per_employee_full_share > 0:
+                    emp.totalEarnings = (emp.totalEarnings or Decimal('0.00')) + per_employee_full_share
                 emp.save(update_fields=['totalJobsCompleted', 'totalEarnings', 'updatedAt'])
             
             # Mark job as completed
