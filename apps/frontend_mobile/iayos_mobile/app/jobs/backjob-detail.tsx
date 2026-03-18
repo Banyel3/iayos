@@ -76,7 +76,9 @@ interface BackjobListItem {
   } | null;
 }
 
-const parseNumericParam = (value: string | string[] | undefined): number | null => {
+const parseNumericParam = (
+  value: string | string[] | undefined,
+): number | null => {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return null;
   const parsed = Number(raw);
@@ -85,8 +87,12 @@ const parseNumericParam = (value: string | string[] | undefined): number | null 
 
 export default function BackjobDetailScreen() {
   const params = useLocalSearchParams();
-  const disputeIdParam = parseNumericParam(params.disputeId as string | string[] | undefined);
-  const jobIdParam = parseNumericParam(params.jobId as string | string[] | undefined);
+  const disputeIdParam = parseNumericParam(
+    params.disputeId as string | string[] | undefined,
+  );
+  const jobIdParam = parseNumericParam(
+    params.jobId as string | string[] | undefined,
+  );
 
   const [backjob, setBackjob] = useState<BackjobDetail | null>(null);
   const [job, setJob] = useState<JobInfo | null>(null);
@@ -114,7 +120,9 @@ export default function BackjobDetailScreen() {
         resolution: item.resolution,
         resolved_date: item.resolved_date,
         scheduled_date: item.scheduled_date,
-        evidence_images: (item.evidence_images || []).map((img) => getAbsoluteMediaUrl(img)) as string[],
+        evidence_images: (item.evidence_images || []).map((img) =>
+          getAbsoluteMediaUrl(img),
+        ) as string[],
         backjob_started: false,
         worker_marked_complete: false,
         client_confirmed: false,
@@ -130,7 +138,9 @@ export default function BackjobDetailScreen() {
     setIsLoading(true);
     try {
       if (!jobIdParam && !disputeIdParam) {
-        console.error("[BackjobDetail] Missing both jobId and disputeId route params");
+        console.error(
+          "[BackjobDetail] Missing both jobId and disputeId route params",
+        );
         setBackjob({ has_backjob: false, dispute: null });
         return;
       }
@@ -170,16 +180,21 @@ export default function BackjobDetailScreen() {
 
       // Secondary path: fetch by job ID.
       if (resolvedJobId) {
-        if (__DEV__) console.log(`[BackjobDetail] Fetching backjob status for jobId: ${resolvedJobId}`);
-        const backjobResponse = await apiRequest(ENDPOINTS.BACKJOB_STATUS(resolvedJobId));
+        if (__DEV__)
+          console.log(
+            `[BackjobDetail] Fetching backjob status for jobId: ${resolvedJobId}`,
+          );
+        const backjobResponse = await apiRequest(
+          ENDPOINTS.BACKJOB_STATUS(resolvedJobId),
+        );
 
         if (backjobResponse.ok) {
           const result = (await backjobResponse.json()) as any;
           const data = (result.data || result) as BackjobDetail;
 
           if (data.dispute?.evidence_images) {
-            data.dispute.evidence_images = data.dispute.evidence_images.map((img) =>
-              getAbsoluteMediaUrl(img),
+            data.dispute.evidence_images = data.dispute.evidence_images.map(
+              (img) => getAbsoluteMediaUrl(img),
             ) as string[];
           }
 
@@ -209,7 +224,8 @@ export default function BackjobDetailScreen() {
           const backjobs = fallbackData.backjobs || [];
 
           const matched = backjobs.find((item) => {
-            if (disputeIdParam && item.dispute_id === disputeIdParam) return true;
+            if (disputeIdParam && item.dispute_id === disputeIdParam)
+              return true;
             if (resolvedJobId && item.job_id === resolvedJobId) return true;
             return false;
           });
@@ -238,18 +254,26 @@ export default function BackjobDetailScreen() {
 
       // Fetch job details only when we have a resolvable job ID.
       if (!resolvedJobId) {
-        console.warn("[BackjobDetail] Unable to resolve job ID for job detail fetch");
+        console.warn(
+          "[BackjobDetail] Unable to resolve job ID for job detail fetch",
+        );
         return;
       }
 
-      if (__DEV__) console.log(`[BackjobDetail] Fetching job details for jobId: ${resolvedJobId}`);
-      const jobResponse = await apiRequest(ENDPOINTS.JOB_DETAILS(resolvedJobId));
+      if (__DEV__)
+        console.log(
+          `[BackjobDetail] Fetching job details for jobId: ${resolvedJobId}`,
+        );
+      const jobResponse = await apiRequest(
+        ENDPOINTS.JOB_DETAILS(resolvedJobId),
+      );
 
       if (jobResponse.ok) {
         const result = (await jobResponse.json()) as any;
         const jobData = result.data || result;
 
-        if (__DEV__) console.log(`[BackjobDetail] Job details loaded: ${jobData.title}`);
+        if (__DEV__)
+          console.log(`[BackjobDetail] Job details loaded: ${jobData.title}`);
 
         setJob({
           id: jobData.id || jobData.jobID,
@@ -260,13 +284,15 @@ export default function BackjobDetailScreen() {
           category: jobData.category?.name || jobData.category || "General",
           client: jobData.client
             ? {
-              ...jobData.client,
-              avatar: getAbsoluteMediaUrl(jobData.client.avatar),
-            }
+                ...jobData.client,
+                avatar: getAbsoluteMediaUrl(jobData.client.avatar),
+              }
             : null,
         });
       } else {
-        console.error(`[BackjobDetail] Job details fetch failed: ${jobResponse.status}`);
+        console.error(
+          `[BackjobDetail] Job details fetch failed: ${jobResponse.status}`,
+        );
       }
     } catch (error) {
       console.error("[BackjobDetail] Error fetching backjob details:", error);
@@ -276,7 +302,6 @@ export default function BackjobDetailScreen() {
       setIsLoading(false);
     }
   };
-
 
   const openImageViewer = (index: number) => {
     setSelectedImageIndex(index);
@@ -395,17 +420,33 @@ export default function BackjobDetailScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* SECTION: BACKJOB OVERVIEW */}
-        <View style={[styles.mainSection, !isDetailsExpanded && { paddingBottom: 12 }]}>
+        <View
+          style={[
+            styles.mainSection,
+            !isDetailsExpanded && { paddingBottom: 12 },
+          ]}
+        >
           <TouchableOpacity
             style={[
               styles.mainSectionHeader,
-              !isDetailsExpanded && { marginBottom: 0 }
+              !isDetailsExpanded && { marginBottom: 0 },
             ]}
             onPress={() => setIsDetailsExpanded(!isDetailsExpanded)}
             activeOpacity={0.7}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-              <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                flex: 1,
+              }}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={18}
+                color={Colors.primary}
+              />
               <Text style={styles.mainSectionTitle}>Details</Text>
             </View>
             <Ionicons
@@ -470,7 +511,9 @@ export default function BackjobDetailScreen() {
                         style={styles.clientAvatar}
                       />
                     ) : (
-                      <View style={[styles.clientAvatar, styles.avatarPlaceholder]}>
+                      <View
+                        style={[styles.clientAvatar, styles.avatarPlaceholder]}
+                      >
                         <Ionicons
                           name="person"
                           size={24}
@@ -502,31 +545,35 @@ export default function BackjobDetailScreen() {
               </View>
 
               {/* Evidence Images */}
-              {dispute.evidence_images && dispute.evidence_images.length > 0 && (
-                <View style={[styles.subSection, { marginBottom: 0 }]}>
-                  <Text style={styles.subSectionTitle}>
-                    Evidence Photos ({dispute.evidence_images.length})
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.evidenceScroll}
-                  >
-                    {dispute.evidence_images.map((uri, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={styles.evidenceImageContainer}
-                        onPress={() => openImageViewer(index)}
-                      >
-                        <Image source={{ uri }} style={styles.evidenceImage} />
-                        <View style={styles.imageOverlay}>
-                          <Ionicons name="expand" size={20} color="#FFF" />
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
+              {dispute.evidence_images &&
+                dispute.evidence_images.length > 0 && (
+                  <View style={[styles.subSection, { marginBottom: 0 }]}>
+                    <Text style={styles.subSectionTitle}>
+                      Evidence Photos ({dispute.evidence_images.length})
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.evidenceScroll}
+                    >
+                      {dispute.evidence_images.map((uri, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.evidenceImageContainer}
+                          onPress={() => openImageViewer(index)}
+                        >
+                          <Image
+                            source={{ uri }}
+                            style={styles.evidenceImage}
+                          />
+                          <View style={styles.imageOverlay}>
+                            <Ionicons name="expand" size={20} color="#FFF" />
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
             </>
           )}
         </View>
@@ -534,15 +581,25 @@ export default function BackjobDetailScreen() {
         {/* SECTION: STATUS & UPDATES */}
         <View style={styles.mainSection}>
           <View style={[styles.mainSectionHeader, { marginBottom: 12 }]}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-              <Ionicons name="notifications-outline" size={18} color={Colors.primary} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                flex: 1,
+              }}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={18}
+                color={Colors.primary}
+              />
               <Text style={styles.mainSectionTitle}>Status</Text>
             </View>
           </View>
 
           <>
             <View style={styles.sectionDivider} />
-
 
             {/* Timeline */}
             <View style={styles.subSection}>
@@ -552,7 +609,12 @@ export default function BackjobDetailScreen() {
                 {dispute.status === "RESOLVED" && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
-                      <View style={[styles.timelineDot, { backgroundColor: Colors.success }]} />
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          { backgroundColor: Colors.success },
+                        ]}
+                      />
                       <View style={styles.timelineConnector} />
                     </View>
                     <View style={styles.timelineContent}>
@@ -568,18 +630,38 @@ export default function BackjobDetailScreen() {
                 {dispute.worker_marked_complete && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
-                      <View style={[
-                        styles.timelineDot,
-                        { backgroundColor: Colors.success, borderColor: Colors.success },
-                        dispute.status === "RESOLVED" && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
-                      ]} />
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          {
+                            backgroundColor: Colors.success,
+                            borderColor: Colors.success,
+                          },
+                          dispute.status === "RESOLVED" && {
+                            backgroundColor: Colors.textSecondary,
+                            borderColor: Colors.textSecondary,
+                          },
+                        ]}
+                      />
                       <View style={styles.timelineConnector} />
                     </View>
                     <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineLabel, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
+                      <Text
+                        style={[
+                          styles.timelineLabel,
+                          dispute.status === "RESOLVED" &&
+                            styles.timelineDoneText,
+                        ]}
+                      >
                         Worker Marked Complete
                       </Text>
-                      <Text style={[styles.timelineDate, dispute.status === "RESOLVED" && styles.timelineDoneText]}>
+                      <Text
+                        style={[
+                          styles.timelineDate,
+                          dispute.status === "RESOLVED" &&
+                            styles.timelineDoneText,
+                        ]}
+                      >
                         Waiting for client approval
                       </Text>
                     </View>
@@ -590,18 +672,41 @@ export default function BackjobDetailScreen() {
                 {dispute.backjob_started && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
-                      <View style={[
-                        styles.timelineDot,
-                        { backgroundColor: Colors.info, borderColor: Colors.info },
-                        (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
-                      ]} />
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          {
+                            backgroundColor: Colors.info,
+                            borderColor: Colors.info,
+                          },
+                          (dispute.status === "RESOLVED" ||
+                            dispute.worker_marked_complete) && {
+                            backgroundColor: Colors.textSecondary,
+                            borderColor: Colors.textSecondary,
+                          },
+                        ]}
+                      />
                       <View style={styles.timelineConnector} />
                     </View>
                     <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && styles.timelineDoneText]}>
+                      <Text
+                        style={[
+                          styles.timelineLabel,
+                          (dispute.status === "RESOLVED" ||
+                            dispute.worker_marked_complete) &&
+                            styles.timelineDoneText,
+                        ]}
+                      >
                         Backjob Work Started
                       </Text>
-                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.worker_marked_complete) && styles.timelineDoneText]}>
+                      <Text
+                        style={[
+                          styles.timelineDate,
+                          (dispute.status === "RESOLVED" ||
+                            dispute.worker_marked_complete) &&
+                            styles.timelineDoneText,
+                        ]}
+                      >
                         Worker has begun working on the backjob
                       </Text>
                     </View>
@@ -612,25 +717,66 @@ export default function BackjobDetailScreen() {
                 {dispute.scheduled_date && (
                   <View style={styles.timelineItem}>
                     <View style={styles.timelineLineContainer}>
-                      <View style={[
-                        styles.timelineDot,
-                        { backgroundColor: dispute.worker_schedule_confirmed ? Colors.success : Colors.warning, borderColor: dispute.worker_schedule_confirmed ? Colors.success : Colors.warning },
-                        (dispute.status === "RESOLVED" || dispute.backjob_started) && { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }
-                      ]} />
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          {
+                            backgroundColor: dispute.worker_schedule_confirmed
+                              ? Colors.success
+                              : Colors.warning,
+                            borderColor: dispute.worker_schedule_confirmed
+                              ? Colors.success
+                              : Colors.warning,
+                          },
+                          (dispute.status === "RESOLVED" ||
+                            dispute.backjob_started) && {
+                            backgroundColor: Colors.textSecondary,
+                            borderColor: Colors.textSecondary,
+                          },
+                        ]}
+                      />
                       <View style={styles.timelineConnector} />
                     </View>
                     <View style={styles.timelineContent}>
-                      <Text style={[styles.timelineLabel, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
-                        {dispute.worker_schedule_confirmed ? "Worker Confirmed Schedule" : "⏳ Pending Negotiation"}
+                      <Text
+                        style={[
+                          styles.timelineLabel,
+                          (dispute.status === "RESOLVED" ||
+                            dispute.backjob_started) &&
+                            styles.timelineDoneText,
+                        ]}
+                      >
+                        {dispute.worker_schedule_confirmed
+                          ? "Worker Confirmed Schedule"
+                          : "⏳ Pending Negotiation"}
                       </Text>
-                      <Text style={[styles.timelineDate, (dispute.status === "RESOLVED" || dispute.backjob_started) ? styles.timelineDoneText : (dispute.worker_schedule_confirmed ? { color: Colors.textPrimary } : { color: Colors.warning })]}>
+                      <Text
+                        style={[
+                          styles.timelineDate,
+                          dispute.status === "RESOLVED" ||
+                          dispute.backjob_started
+                            ? styles.timelineDoneText
+                            : dispute.worker_schedule_confirmed
+                              ? { color: Colors.textPrimary }
+                              : { color: Colors.warning },
+                        ]}
+                      >
                         📅 {formatDate(dispute.scheduled_date, false)}
                       </Text>
-                      {dispute.worker_schedule_confirmed && dispute.worker_schedule_confirmed_at && (
-                        <Text style={[styles.timelineSubText, (dispute.status === "RESOLVED" || dispute.backjob_started) && styles.timelineDoneText]}>
-                          Confirmed on {formatDate(dispute.worker_schedule_confirmed_at)}
-                        </Text>
-                      )}
+                      {dispute.worker_schedule_confirmed &&
+                        dispute.worker_schedule_confirmed_at && (
+                          <Text
+                            style={[
+                              styles.timelineSubText,
+                              (dispute.status === "RESOLVED" ||
+                                dispute.backjob_started) &&
+                                styles.timelineDoneText,
+                            ]}
+                          >
+                            Confirmed on{" "}
+                            {formatDate(dispute.worker_schedule_confirmed_at)}
+                          </Text>
+                        )}
                     </View>
                   </View>
                 )}
@@ -638,35 +784,65 @@ export default function BackjobDetailScreen() {
                 {/* 6. Admin Reviewed / Pending Admin Banner */}
                 <View style={styles.timelineItem}>
                   <View style={styles.timelineLineContainer}>
-                    <View style={[
-                      styles.timelineDot,
-                      { backgroundColor: dispute.status === "OPEN" ? Colors.warning : (dispute.admin_rejected_at ? Colors.error : Colors.textSecondary) },
-                      dispute.status !== "OPEN" && { borderColor: dispute.admin_rejected_at ? Colors.error : Colors.textSecondary }
-                    ]} />
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        {
+                          backgroundColor:
+                            dispute.status === "OPEN"
+                              ? Colors.warning
+                              : dispute.admin_rejected_at
+                                ? Colors.error
+                                : Colors.textSecondary,
+                        },
+                        dispute.status !== "OPEN" && {
+                          borderColor: dispute.admin_rejected_at
+                            ? Colors.error
+                            : Colors.textSecondary,
+                        },
+                      ]}
+                    />
                     <View style={styles.timelineConnector} />
                   </View>
                   <View style={styles.timelineContent}>
                     {dispute.status === "OPEN" ? (
                       <View style={styles.pendingAdminBanner}>
                         <View style={styles.pendingAdminBannerHeader}>
-                          <Ionicons name="hourglass-outline" size={16} color={Colors.warning} />
-                          <Text style={styles.pendingAdminBannerTitle}>Admin Review Pending</Text>
+                          <Ionicons
+                            name="hourglass-outline"
+                            size={16}
+                            color={Colors.warning}
+                          />
+                          <Text style={styles.pendingAdminBannerTitle}>
+                            Admin Review Pending
+                          </Text>
                         </View>
                         <Text style={styles.pendingAdminBannerText}>
-                          Waiting for admin to approve backjob request. You will be notified once work is approved.
+                          Waiting for admin to approve backjob request. You will
+                          be notified once work is approved.
                         </Text>
                       </View>
                     ) : (
                       <>
-                        <Text style={[
-                          styles.timelineLabel,
-                          styles.timelineDoneText,
-                          dispute.admin_rejected_at && { color: Colors.error }
-                        ]}>
-                          Admin Reviewed: {dispute.admin_rejected_at ? "Denied" : "Approved"}
+                        <Text
+                          style={[
+                            styles.timelineLabel,
+                            styles.timelineDoneText,
+                            dispute.admin_rejected_at && {
+                              color: Colors.error,
+                            },
+                          ]}
+                        >
+                          Admin Reviewed:{" "}
+                          {dispute.admin_rejected_at ? "Denied" : "Approved"}
                         </Text>
-                        <Text style={[styles.timelineDate, styles.timelineDoneText]}>
-                          {stripEmails(dispute.admin_rejection_reason) || (dispute.admin_rejected_at ? "Backjob request was denied by admin" : "Backjob request has been approved by admin")}
+                        <Text
+                          style={[styles.timelineDate, styles.timelineDoneText]}
+                        >
+                          {stripEmails(dispute.admin_rejection_reason) ||
+                            (dispute.admin_rejected_at
+                              ? "Backjob request was denied by admin"
+                              : "Backjob request has been approved by admin")}
                         </Text>
                       </>
                     )}
@@ -676,11 +852,25 @@ export default function BackjobDetailScreen() {
                 {/* 7. Requested (Oldest) */}
                 <View style={[styles.timelineItem, { marginBottom: 0 }]}>
                   <View style={styles.timelineLineContainer}>
-                    <View style={[styles.timelineDot, { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary }]} />
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        {
+                          backgroundColor: Colors.textSecondary,
+                          borderColor: Colors.textSecondary,
+                        },
+                      ]}
+                    />
                   </View>
                   <View style={styles.timelineContent}>
-                    <Text style={[styles.timelineLabel, styles.timelineDoneText]}>Requested</Text>
-                    <Text style={[styles.timelineDate, styles.timelineDoneText]}>
+                    <Text
+                      style={[styles.timelineLabel, styles.timelineDoneText]}
+                    >
+                      Requested
+                    </Text>
+                    <Text
+                      style={[styles.timelineDate, styles.timelineDoneText]}
+                    >
                       {formatDate(dispute.opened_date)}
                     </Text>
                   </View>
@@ -698,7 +888,9 @@ export default function BackjobDetailScreen() {
                     { backgroundColor: `${Colors.success}10` },
                   ]}
                 >
-                  <Text style={styles.resolution}>{stripEmails(dispute.resolution)}</Text>
+                  <Text style={styles.resolution}>
+                    {stripEmails(dispute.resolution)}
+                  </Text>
                 </View>
               </View>
             )}
@@ -748,8 +940,8 @@ export default function BackjobDetailScreen() {
                 setSelectedImageIndex(
                   Math.min(
                     (dispute.evidence_images?.length || 1) - 1,
-                    selectedImageIndex + 1
-                  )
+                    selectedImageIndex + 1,
+                  ),
                 )
               }
               disabled={
@@ -762,7 +954,7 @@ export default function BackjobDetailScreen() {
                 size={28}
                 color={
                   selectedImageIndex ===
-                    (dispute.evidence_images?.length || 1) - 1
+                  (dispute.evidence_images?.length || 1) - 1
                     ? "#666"
                     : "#FFF"
                 }
