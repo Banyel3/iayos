@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Backjob Detail Dispute-First Resolution Fallback Hardening**
+  - Improved route-param parsing for `jobId` and `disputeId` in mobile backjob detail.
+  - Prioritized dispute-id detail lookup, with fallback to job-status and then `my-backjobs` matching.
+  - Normalized evidence image URLs across all fallback paths for consistent rendering.
+  - **Impact**: Backjob detail screen is more resilient for legacy/degraded payload paths and less likely to show false not-found states.
+
 - **KYC FRONTID ID-Type OCR Validation Enforcement**
   - Mobile KYC validation now sends selected `id_type` when validating `FRONTID`.
   - Backend `/api/accounts/kyc/validate-document` now requires `id_type` for `FRONTID` and validates OCR keyword groups against that exact ID type (e.g., `DRIVERSLICENSE`).
