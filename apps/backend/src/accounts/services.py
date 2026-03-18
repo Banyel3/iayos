@@ -1123,8 +1123,8 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
             file_data = file.read()
             file.seek(0)  # Reset file pointer for upload
             
-            # Cache file data for face matching (FRONTID and SELFIE)
-            if key in ['FRONTID', 'SELFIE']:
+            # Cache file data for face matching (FRONTID, SELFIE, and optional CLEARANCE)
+            if key in ['FRONTID', 'SELFIE', 'CLEARANCE']:
                 file_data_cache[key] = file_data
             
             file_url = upload_kyc_doc(
@@ -1237,13 +1237,13 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
             })
 
         # ============================================
-        # FACE MATCHING: Compare selfie with ID photo
-        # Runs ASYNC in background thread to avoid
-        # proxy timeout (dlib encoding takes 5-15s)
+        # BLOCKING FACE MATCHING
+        # - Always require FRONTID <-> SELFIE match
+        # - If clearance is submitted (not skipped), also require CLEARANCE <-> SELFIE match
+        # Any face matching failure auto-rejects immediately.
         # ============================================
-        # Ensure pre-staged FRONTID/SELFIE bytes are in cache so face matching
-        # runs even when files were uploaded in a prior request (pre-staged flow).
-        for _face_key in ['FRONTID', 'SELFIE']:
+        # Ensure pre-staged bytes are in cache so face matching runs for staged uploads too.
+        for _face_key in ['FRONTID', 'SELFIE', 'CLEARANCE']:
             if _face_key not in file_data_cache and pre_uploaded_urls and _face_key in pre_uploaded_urls:
                 try:
                     _pre_path = pre_uploaded_urls[_face_key]
@@ -1261,184 +1261,107 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                 except Exception as _face_dl_err:
                     print(f"⚠️ Could not download {_face_key} for face matching: {_face_dl_err}")
 
-        face_match_result = None
-        if 'FRONTID' in file_data_cache and 'SELFIE' in file_data_cache:
-            print("🔍 Scheduling ASYNC face matching between ID and selfie...")
-            import threading
-            
-            # Copy data for the background thread (Django request data won't be available later)
-            frontid_data = file_data_cache['FRONTID']
-            selfie_data = file_data_cache['SELFIE']
-            kyc_id = kyc_record.kycID
-            user_id = user.accountID
-            
-            def _run_face_match_async(frontid_bytes, selfie_bytes, kyc_record_id, account_id):
-                """Background thread: run face comparison and store results in DB."""
-                import django
-                django.setup()  # Ensure Django is ready in this thread
-                try:
-                    from accounts.document_verification_service import verify_face_match as _verify_face_match
-                    from accounts.models import KYCExtractedData, kyc as KYCModel, Notification
-                    
-                    print(f"🧵 [ASYNC FACE MATCH] Starting for kycID={kyc_record_id}...")
-                    result = _verify_face_match(
-                        id_image_data=frontid_bytes,
-                        selfie_image_data=selfie_bytes,
+        face_match_result = {
+            "status": "skipped",
+            "message": "Face comparison not executed.",
+            "comparisons": {}
+        }
+
+        # Blocking requirement: FRONTID and SELFIE must be present and match.
+        blocking_missing = []
+        if 'FRONTID' not in file_data_cache:
+            blocking_missing.append('FRONTID')
+        if 'SELFIE' not in file_data_cache:
+            blocking_missing.append('SELFIE')
+
+        clearance_submitted = ('CLEARANCE' in file_data_cache) or (
+            pre_uploaded_urls and 'CLEARANCE' in pre_uploaded_urls
+        )
+
+        if blocking_missing:
+            msg = f"Blocking face matching failed: missing required files ({', '.join(blocking_missing)})."
+            print(f"❌ {msg}")
+            any_failed = True
+            failure_messages.append(msg)
+        else:
+            print("🔍 Running BLOCKING face matching between FRONTID and SELFIE...")
+
+            id_selfie_result = verify_face_match(
+                id_image_data=file_data_cache['FRONTID'],
+                selfie_image_data=file_data_cache['SELFIE'],
+                similarity_threshold=0.55
+            )
+            face_match_result["comparisons"]["frontid_selfie"] = id_selfie_result
+
+            if id_selfie_result.get('skipped'):
+                msg = f"FRONTID/SELFIE face match unavailable: {id_selfie_result.get('error') or 'service skipped'}"
+                print(f"❌ {msg}")
+                any_failed = True
+                failure_messages.append(msg)
+            elif not id_selfie_result.get('match'):
+                similarity = id_selfie_result.get('similarity', 0)
+                msg = f"Selfie does not match ID photo (similarity: {similarity:.0%})."
+                print(f"❌ {msg}")
+                any_failed = True
+                failure_messages.append(msg)
+            else:
+                print("✅ FRONTID/SELFIE face match passed")
+
+            # If clearance is submitted (not skipped), require selfie-clearance face match too.
+            if clearance_submitted:
+                if 'CLEARANCE' not in file_data_cache:
+                    msg = "CLEARANCE was submitted but bytes were unavailable for blocking face match."
+                    print(f"❌ {msg}")
+                    any_failed = True
+                    failure_messages.append(msg)
+                else:
+                    print("🔍 Running BLOCKING face matching between CLEARANCE and SELFIE...")
+                    clearance_selfie_result = verify_face_match(
+                        id_image_data=file_data_cache['CLEARANCE'],
+                        selfie_image_data=file_data_cache['SELFIE'],
                         similarity_threshold=0.55
                     )
-                    
-                    # Store result in KYCExtractedData
-                    kyc_rec = KYCModel.objects.get(kycID=kyc_record_id)
-                    extracted, _ = KYCExtractedData.objects.get_or_create(
-                        kycID=kyc_rec,
-                        defaults={'extraction_status': 'CONFIRMED'}
-                    )
-                    
-                    # Fix A: key is 'error' not 'reason' in FaceComparisonResult.to_dict()
-                    if result.get('skipped'):
-                        print(f"🧵 [ASYNC FACE MATCH] Skipped: {result.get('error')}")
-                        # face_recognition model not installed — leave KYC as PENDING
-                        # for manual admin review instead of auto-approving.
-                        kyc_rec.notes = (
-                            "Pending manual review: Face comparison unavailable "
-                            "(face_recognition model not installed on server). "
-                            "Please verify ID and selfie match manually."
-                        )
-                        kyc_rec.save(update_fields=['notes'])
-                        try:
-                            from accounts.models import Accounts
-                            account = Accounts.objects.get(accountID=account_id)
-                            Notification.objects.create(
-                                accountFK=account,
-                                notificationType=Notification.NotificationType.KYC_APPROVED,
-                                title='KYC Under Manual Review 🔍',
-                                message='Your KYC submission is being reviewed by our team. You will be notified within 1-2 business days.',
-                            )
-                            print(f"🧵 [ASYNC FACE MATCH] 🔍 KYC flagged for manual review (kycID={kyc_record_id}) — face model unavailable")
-                        except Exception as notif_err:
-                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
-                        return
-                    
-                    similarity = result.get('similarity', 0)
-                    method = result.get('method', 'unknown')
-                    is_verified = method in ('face_recognition', 'insightface', 'azure')
-                    
-                    extracted.face_match_score = similarity
-                    extracted.face_match_completed = is_verified
-                    extracted.save(update_fields=['face_match_score', 'face_match_completed'])
-                    
-                    if result.get('match'):
-                        print(f"🧵 [ASYNC FACE MATCH] ✅ PASSED: similarity={similarity:.2f} (kycID={kyc_record_id})")
-                        # Fix C: auto-approval was completely missing from the happy path.
-                        # The reject branch correctly wrote REJECTED but APPROVED was never
-                        # written — KYC stayed PENDING forever even after a passing face match.
-                        try:
-                            from accounts.models import Accounts, kycFiles
-                            kyc_rec.kyc_status = 'APPROVED'
-                            kyc_rec.notes = f"Auto-approved: Face match passed (similarity: {similarity:.0%})."
-                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
-                            _create_ai_kyc_audit_log(
-                                kyc_rec,
-                                "APPROVED",
-                                f"AI auto-approved: Face match passed (similarity: {similarity:.0%}).",
-                            )
-                            account = Accounts.objects.get(accountID=account_id)
-                            account.KYCVerified = True
-                            # Set verification_level based on whether clearance was submitted
-                            has_clearance = kycFiles.objects.filter(
-                                kycID=kyc_rec,
-                                idType__in=['NBI', 'POLICE']
-                            ).exists()
-                            account.verification_level = 2 if has_clearance else 1
-                            account.save(update_fields=['KYCVerified', 'verification_level'])
-                            Notification.objects.create(
-                                accountFK=account,
-                                notificationType=Notification.NotificationType.KYC_APPROVED,
-                                title='KYC Verified ✅',
-                                message='Your identity documents have been verified successfully.',
-                            )
-                            print(f"🧵 [ASYNC FACE MATCH] ✅ KYC auto-approved (kycID={kyc_record_id})")
-                        except Exception as approve_err:
-                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Auto-approve error: {approve_err}")
-                    else:
-                        if similarity > 0:
-                            # Faces detected but don't match → auto-reject
-                            print(f"🧵 [ASYNC FACE MATCH] ❌ FAILED: similarity={similarity:.2f} < 0.55 (kycID={kyc_record_id})")
-                            kyc_rec.kyc_status = 'Rejected'
-                            kyc_rec.notes = f"Auto-rejected: Selfie does not match ID photo (similarity: {similarity:.0%})"
-                            kyc_rec.save(update_fields=['kyc_status', 'notes'])
-                            _create_ai_kyc_audit_log(
-                                kyc_rec,
-                                "Rejected",
-                                f"AI auto-rejected: Selfie does not match ID photo (similarity: {similarity:.0%}).",
-                            )
-                            
-                            # Notify user
-                            try:
-                                from accounts.models import Accounts
-                                account = Accounts.objects.get(accountID=account_id)
-                                Notification.objects.create(
-                                    accountFK=account,
-                                    notificationType=Notification.NotificationType.KYC_REJECTED,
-                                    title='KYC Verification Failed ❌',
-                                    message=f'Your selfie does not match your ID photo (similarity: {similarity:.0%}). Please resubmit with matching photos.',
-                                )
-                            except Exception as notif_err:
-                                print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
-                        else:
-                            # Fix D: face_recognition available but couldn't encode faces
-                            # (bad photo quality / no face detected). Flag for manual review
-                            # instead of silently doing nothing.
-                            print(f"🧵 [ASYNC FACE MATCH] ⚠️ Could not extract faces: {result.get('error')}")
-                            kyc_rec.notes = (
-                                f"Pending manual review: Unable to extract face encodings from documents. "
-                                f"Error: {result.get('error')}"
-                            )
-                            kyc_rec.save(update_fields=['notes'])
-                            try:
-                                from accounts.models import Accounts
-                                account = Accounts.objects.get(accountID=account_id)
-                                Notification.objects.create(
-                                    accountFK=account,
-                                    notificationType=Notification.NotificationType.KYC_APPROVED,
-                                    title='KYC Under Review 🔍',
-                                    message='Your KYC submission is being reviewed manually by our team. You will be notified within 1-2 business days.',
-                                )
-                            except Exception as notif_err:
-                                print(f"🧵 [ASYNC FACE MATCH] ⚠️ Notification error: {notif_err}")
-                    
-                    print(f"🧵 [ASYNC FACE MATCH] Complete for kycID={kyc_record_id}")
-                    
-                except Exception as async_err:
-                    print(f"🧵 [ASYNC FACE MATCH] ❌ Error for kycID={kyc_record_id}: {str(async_err)}")
-                    import traceback
-                    traceback.print_exc()
-            
-            # Launch background thread
-            thread = threading.Thread(
-                target=_run_face_match_async,
-                args=(frontid_data, selfie_data, kyc_id, user_id),
-                daemon=True,
-                name=f"face-match-kyc-{kyc_id}"
-            )
-            thread.start()
-            print(f"🧵 Face match thread started (daemon) for kycID={kyc_id}")
-            
-            face_match_result = {
-                "status": "processing",
-                "message": "Face comparison is running in the background. Results will be stored automatically."
-            }
-        else:
-            missing = []
-            if 'FRONTID' not in file_data_cache:
-                missing.append('FRONTID')
-            if 'SELFIE' not in file_data_cache:
-                missing.append('SELFIE')
-            print(f"⏭️  Skipping face matching - missing: {', '.join(missing)}")
+                    face_match_result["comparisons"]["clearance_selfie"] = clearance_selfie_result
 
-        # If any document failed AI verification, set KYC status to REJECTED
-        # (Only applies when skip_ai_verification=False)
-        if any_failed and not skip_ai_verification:
+                    if clearance_selfie_result.get('skipped'):
+                        msg = f"CLEARANCE/SELFIE face match unavailable: {clearance_selfie_result.get('error') or 'service skipped'}"
+                        print(f"❌ {msg}")
+                        any_failed = True
+                        failure_messages.append(msg)
+                    elif not clearance_selfie_result.get('match'):
+                        similarity = clearance_selfie_result.get('similarity', 0)
+                        msg = f"Selfie does not match clearance face (similarity: {similarity:.0%})."
+                        print(f"❌ {msg}")
+                        any_failed = True
+                        failure_messages.append(msg)
+                    else:
+                        print("✅ CLEARANCE/SELFIE face match passed")
+
+            # Persist face match summary for admin review visibility.
+            try:
+                from accounts.models import KYCExtractedData
+
+                extracted, _ = KYCExtractedData.objects.get_or_create(
+                    kycID=kyc_record,
+                    defaults={'extraction_status': 'CONFIRMED'}
+                )
+
+                primary_similarity = (
+                    face_match_result.get("comparisons", {})
+                    .get("frontid_selfie", {})
+                    .get("similarity", 0)
+                )
+                extracted.face_match_score = primary_similarity
+                extracted.face_match_completed = True
+                extracted.save(update_fields=['face_match_score', 'face_match_completed'])
+            except Exception as face_store_err:
+                print(f"⚠️ Could not persist face match summary: {face_store_err}")
+
+            face_match_result["status"] = "completed"
+            face_match_result["message"] = "Blocking face matching completed."
+
+        # If any AI verification or blocking face match failed, auto-reject immediately.
+        if any_failed:
             kyc_record.kyc_status = 'Rejected'
             # Format rejection messages in a user-friendly way with bullet points
             formatted_reasons = "\n".join([f"• {msg}" for msg in failure_messages])
@@ -1450,6 +1373,16 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                 f"AI auto-rejected: {'; '.join(failure_messages)}",
             )
             print(f"❌ KYC auto-rejected due to AI verification failures")
+
+            try:
+                Notification.objects.create(
+                    accountFK=user,
+                    notificationType=Notification.NotificationType.KYC_REJECTED,
+                    title='KYC Verification Failed ❌',
+                    message='Your KYC documents were auto-rejected because required face matching failed. Please resubmit with matching photos.',
+                )
+            except Exception as notif_err:
+                print(f"⚠️ Notification error (rejection): {notif_err}")
             
             return {
                 "message": "KYC documents could not be verified",
@@ -1460,6 +1393,36 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                 "files": uploaded_files,
                 "face_match": face_match_result
             }
+
+        # Blocking face matching passed and no AI failures -> auto-approve now.
+        try:
+            from accounts.models import kycFiles as KycFilesModel
+
+            kyc_record.kyc_status = 'APPROVED'
+            kyc_record.notes = "Auto-approved: Blocking face matching checks passed."
+            kyc_record.save(update_fields=['kyc_status', 'notes'])
+            _create_ai_kyc_audit_log(
+                kyc_record,
+                "APPROVED",
+                "AI auto-approved: Blocking face matching checks passed.",
+            )
+
+            user.KYCVerified = True
+            has_clearance = KycFilesModel.objects.filter(
+                kycID=kyc_record,
+                idType__in=['NBI', 'POLICE']
+            ).exists()
+            user.verification_level = 2 if has_clearance else 1
+            user.save(update_fields=['KYCVerified', 'verification_level'])
+
+            Notification.objects.create(
+                accountFK=user,
+                notificationType=Notification.NotificationType.KYC_APPROVED,
+                title='KYC Verified ✅',
+                message='Your identity documents have been verified successfully.',
+            )
+        except Exception as approve_err:
+            print(f"⚠️ Auto-approve post-check error: {approve_err}")
 
         # Verify all files were saved
         saved_files_count = kycFiles.objects.filter(kycID=kyc_record).count()
@@ -1627,7 +1590,7 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
         return {
             "message": "KYC documents uploaded successfully",
             "kyc_id": kyc_record.kycID,
-            "status": "PENDING",
+            "status": kyc_record.kyc_status,
             "files": uploaded_files,
             "face_match": face_match_result  # Include face matching result
         }
