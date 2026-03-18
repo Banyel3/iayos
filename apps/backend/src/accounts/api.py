@@ -806,6 +806,7 @@ def validate_kyc_document(request):
     Request: multipart/form-data
     - file: The document image file
     - document_type: Type of document (FRONTID, BACKID, CLEARANCE, SELFIE)
+    - id_type: ID type for FRONTID validation (NATIONALID, DRIVERSLICENSE, PASSPORT, UMID, PHILHEALTH)
     
     Returns:
     - valid: boolean - whether document passes validation
@@ -817,6 +818,7 @@ def validate_kyc_document(request):
     try:
         file = request.FILES.get("file")
         document_type = request.POST.get("document_type", "").upper()
+        id_type = request.POST.get("id_type", "").upper()
         
         if not file:
             return {"valid": False, "error": "No file provided", "details": {}}
@@ -829,8 +831,19 @@ def validate_kyc_document(request):
         valid_types = ['FRONTID', 'BACKID', 'CLEARANCE', 'SELFIE']
         if document_type not in valid_types:
             return {"valid": False, "error": f"Invalid document_type for individual KYC. Must be one of: {', '.join(valid_types)}", "details": {}}
+
+        valid_id_types = ['NATIONALID', 'DRIVERSLICENSE', 'PASSPORT', 'UMID', 'PHILHEALTH']
+        if document_type == 'FRONTID':
+            if not id_type:
+                return {"valid": False, "error": "ID type is required for FRONTID validation", "details": {}}
+            if id_type not in valid_id_types:
+                return {
+                    "valid": False,
+                    "error": f"Invalid id_type for FRONTID. Must be one of: {', '.join(valid_id_types)}",
+                    "details": {}
+                }
         
-        print(f"🔍 [MOBILE VALIDATE] Document type: {document_type}, File: {file.name} ({file.size} bytes)")
+        print(f"🔍 [MOBILE VALIDATE] Document type: {document_type}, id_type: {id_type or 'N/A'}, File: {file.name} ({file.size} bytes)")
         
         # Read file data
         file_data = file.read()
@@ -842,7 +855,8 @@ def validate_kyc_document(request):
         from agency.validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
         
         file_hash = generate_file_hash(file_data)
-        cache_key = f"mobile_{document_type}"  # Prefix to distinguish from agency cache
+        # Use id_type-specific cache keys for FRONTID to avoid cross-ID-type cache reuse.
+        cache_key = f"mobile_{document_type}_{id_type}" if document_type == 'FRONTID' else f"mobile_{document_type}"
         
         cached_result = get_cached_validation(file_hash, cache_key)
         if cached_result:
@@ -873,6 +887,23 @@ def validate_kyc_document(request):
         try:
             verifier = DocumentVerificationService(skip_face_service=skip_face)
             result = verifier.validate_document_quick(file_data, document_type, require_face=require_face)
+
+            # FRONTID must match the selected ID type keywords (e.g., DRIVERSLICENSE).
+            # Quick validation handles quality + face only; this adds OCR keyword enforcement.
+            if result.get("valid") and document_type == "FRONTID":
+                keyword_result = verifier.validate_text_only_document(
+                    file_data,
+                    id_type,
+                    skip_keyword_check=False,
+                )
+                if not keyword_result.get("valid"):
+                    result = {
+                        "valid": False,
+                        "error": keyword_result.get("error") or "Required document text not found.",
+                        "details": keyword_result.get("details", {}),
+                    }
+                else:
+                    result.setdefault("details", {})["keyword_check"] = keyword_result.get("details", {}).get("keyword_check")
             
             print(f"   {'✅' if result['valid'] else '❌'} Validation result: valid={result['valid']}, error={result.get('error')}")
             

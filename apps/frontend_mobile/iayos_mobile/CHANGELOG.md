@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **KYC FRONTID ID-Type OCR Validation Enforcement**
+  - Mobile KYC validation now sends selected `id_type` when validating `FRONTID`.
+  - Backend `/api/accounts/kyc/validate-document` now requires `id_type` for `FRONTID` and validates OCR keyword groups against that exact ID type (e.g., `DRIVERSLICENSE`).
+  - Front-ID validation cache keys now include `id_type` to prevent cross-type cache reuse.
+  - **Impact**: A front ID image must now contain expected text for the selected ID type, preventing mismatched document-type submissions from passing validation.
+
 - **Team DAILY Backjob Start Flow Parity (Single-Job Pattern)**
   - Updated team DAILY backjob client-start gate so `Confirm Started` unlocks after workers finish schedule confirmations (same progression pattern as single-job backjobs).
   - Disabled team arrival-confirmation step specifically for DAILY backjobs and kept arrival gating for non-DAILY team backjobs.
