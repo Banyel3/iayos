@@ -399,7 +399,11 @@ export default function KYCUploadScreen() {
     config.setValidating(true);
 
     try {
-      const result = await validateDocument(imageFile, config.docType);
+      const result = await validateDocument(
+        imageFile,
+        config.docType,
+        config.docType === "FRONTID" ? selectedIDType : undefined,
+      );
 
       if (!result.valid) {
         // Validation failed - clear file and show error
@@ -445,6 +449,7 @@ export default function KYCUploadScreen() {
   const validateDocument = async (
     file: ImageFile,
     documentType: string,
+    idType?: IDType,
   ): Promise<{ valid: boolean; error?: string }> => {
     try {
       const formData = new FormData();
@@ -454,6 +459,9 @@ export default function KYCUploadScreen() {
         type: file.type,
       } as any);
       formData.append("document_type", documentType);
+      if (documentType === "FRONTID" && idType) {
+        formData.append("id_type", idType);
+      }
 
       // Log the endpoint URL for debugging
       const endpointUrl = ENDPOINTS.KYC_VALIDATE_DOCUMENT;
