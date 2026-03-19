@@ -13579,6 +13579,47 @@ def get_daily_escrow_estimate(
     }
 
 
+@router.get("/{job_id}/escrow-status", auth=dual_auth)
+def get_escrow_status(request, job_id: int):
+    """
+    Get the current escrow health for an active job.
+    Returns whether the client needs to deposit additional funds.
+
+    Only accessible by the job's client on IN_PROGRESS or ASSIGNED jobs.
+    """
+    user = request.auth
+
+    try:
+        job = Job.objects.select_related("clientID__profileID__accountFK").get(
+            jobID=job_id
+        )
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    # Only the client who owns the job can see escrow status
+    if not job.clientID or job.clientID.profileID.accountFK != user:
+        return Response(
+            {"error": "Only the job client can view escrow status"}, status=403
+        )
+
+    if job.status not in ("IN_PROGRESS", "ASSIGNED"):
+        return Response(
+            {"error": "Escrow status is only available for active jobs"},
+            status=400,
+        )
+
+    from accounts.mobile_services import _compute_escrow_status
+
+    escrow_status = _compute_escrow_status(job)
+    if escrow_status is None:
+        return Response(
+            {"error": "Could not compute escrow status for this payment model"},
+            status=400,
+        )
+
+    return {"success": True, "data": escrow_status}
+
+
 # endregion
 
 

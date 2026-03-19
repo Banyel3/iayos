@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Escrow Top-Up Prompts for Active Jobs (General)**
+  - Clients now see a warning banner on active job details when the current escrow balance is insufficient to cover remaining work obligations.
+  - Shows the exact deficit amount and a "Deposit Funds" button linking to the wallet deposit screen.
+  - Works for both DAILY jobs (tracks per-worker remaining days vs escrow balance) and PROJECT jobs (checks wallet balance vs remaining 50% payment).
+  - Accounts for early-completed workers (Panelist #2) when computing remaining escrow obligations on team jobs.
+  - Backend: New `_compute_escrow_status(job)` helper in `mobile_services.py` — computes escrow health for DAILY and PROJECT payment models.
+  - Backend: New `GET /{job_id}/escrow-status` endpoint in `jobs/api.py` — lightweight polling endpoint for escrow status.
+  - Backend: Escrow status automatically included in job detail response for clients on active jobs.
+  - Mobile: New `JOB_ESCROW_STATUS` API config constant, `EscrowStatus` interface, and deficit banner on active job detail screen.
+
 - **Per-Worker Early Completion with Full Pay on DAILY Team Jobs (Panelist #2)**
   - Clients can mark individual workers as "done early" on active DAILY team jobs.
   - The worker receives their full contracted amount (daily_rate × duration_days); any remaining balance (total contracted − already earned) is paid out as a lump-sum to the worker's pending earnings.

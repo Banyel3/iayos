@@ -697,6 +697,9 @@ export const ENDPOINTS = {
   DAILY_SUMMARY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/summary`,
   DAILY_ESCROW_ESTIMATE: `${API_URL}/api/jobs/daily/escrow-estimate`,
+  // Escrow status (top-up prompt)
+  JOB_ESCROW_STATUS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/escrow-status`,
   // Extensions
   DAILY_EXTENSIONS: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/extensions`,

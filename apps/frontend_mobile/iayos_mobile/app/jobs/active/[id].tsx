@@ -41,6 +41,16 @@ import { useDailyFinishJob } from "@/lib/hooks/useDailyPayment";
 // Interfaces
 // ============================================================================
 
+interface EscrowStatus {
+  payment_model: "DAILY" | "PROJECT";
+  escrow_deposited: number;
+  escrow_consumed: number;
+  escrow_remaining: number;
+  escrow_required_for_completion: number;
+  needs_top_up: boolean;
+  top_up_amount: number;
+}
+
 interface ActiveJobDetail {
   id: string;
   title: string;
@@ -84,6 +94,7 @@ interface ActiveJobDetail {
   total_workers_needed?: number;
   total_workers_assigned?: number;
   team_fill_percentage?: number;
+  escrow_status?: EscrowStatus | null;
 }
 
 // ============================================================================
@@ -224,6 +235,7 @@ export default function ActiveJobDetailScreen() {
         total_workers_needed: data.total_workers_needed,
         total_workers_assigned: data.total_workers_assigned,
         team_fill_percentage: data.team_fill_percentage,
+        escrow_status: data.escrow_status || null,
       } as ActiveJobDetail;
     },
   });
@@ -817,6 +829,59 @@ export default function ActiveJobDetailScreen() {
             <Text style={[styles.statusBannerText, { color: "#065F46" }]}>
               Job completed successfully!
             </Text>
+          </View>
+        )}
+
+        {/* Escrow Top-Up Banner (client only) */}
+        {!isWorker && job.escrow_status?.needs_top_up && (
+          <View
+            style={[
+              styles.statusBanner,
+              {
+                backgroundColor: "#FEF2F2",
+                borderLeftWidth: 4,
+                borderLeftColor: "#EF4444",
+              },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                <Ionicons name="warning" size={20} color="#DC2626" />
+                <Text
+                  style={{
+                    color: "#991B1B",
+                    fontWeight: "700",
+                    fontSize: 14,
+                    marginLeft: 8,
+                  }}
+                >
+                  Escrow Funds Low
+                </Text>
+              </View>
+              <Text style={{ color: "#7F1D1D", fontSize: 13, lineHeight: 18 }}>
+                This job needs an additional{" "}
+                <Text style={{ fontWeight: "700" }}>
+                  {"\u20B1"}
+                  {job.escrow_status.top_up_amount.toLocaleString()}
+                </Text>{" "}
+                to cover remaining work. Please deposit funds to avoid delays.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/wallet" as never)}
+                style={{
+                  backgroundColor: "#DC2626",
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 8,
+                  alignSelf: "flex-start",
+                  marginTop: 10,
+                }}
+              >
+                <Text style={{ color: "#FFFFFF", fontWeight: "600", fontSize: 13 }}>
+                  Deposit Funds
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
