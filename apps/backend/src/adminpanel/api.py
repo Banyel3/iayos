@@ -351,14 +351,13 @@ def delete_kyc_record(request, kyc_id: int, kyc_type: str = "USER"):
 def create_agency_kyc_from_paths(request):
     """Admin helper: create AgencyKYC and file records from already-uploaded Supabase paths.
 
-    Expects JSON body: { accountID: int, businessName?: str, businessDesc?: str, files: { <FILE_TYPE>: <path>, ... } }
+    Expects JSON body: { accountID: int, businessDesc?: str, files: { <FILE_TYPE>: <path>, ... } }
     FILE_TYPE values: BUSINESS_PERMIT, REP_ID_FRONT, REP_ID_BACK, ADDRESS_PROOF, AUTH_LETTER
     """
     import json
     try:
         body = json.loads(request.body.decode('utf-8'))
         account_id = body.get('accountID')
-        businessName = body.get('businessName')
         businessDesc = body.get('businessDesc')
         files = body.get('files', {})
 
@@ -366,7 +365,7 @@ def create_agency_kyc_from_paths(request):
             return {"success": False, "error": "accountID is required"}
 
         from agency.services import create_agency_kyc_from_paths as svc
-        result = svc(account_id, files, businessName=businessName, businessDesc=businessDesc)
+        result = svc(account_id, files, businessDesc=businessDesc)
         return {"success": True, **result}
     except ValueError as e:
         return {"success": False, "error": str(e)}
