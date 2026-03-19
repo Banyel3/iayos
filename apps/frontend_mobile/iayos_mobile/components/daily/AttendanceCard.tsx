@@ -14,7 +14,8 @@ import { format, parseISO } from "date-fns";
 interface AttendanceCardProps {
   attendance: DailyAttendance;
   isWorker: boolean;
-  onConfirm?: () => void;
+  onConfirm?: () => void;       // Client: "Mark Worker Arrived" (verify-arrival)
+  onDayComplete?: () => void;   // Client: "Mark Day Complete" (mark-day-complete)
   onAdjust?: () => void;
   isConfirming?: boolean;
 }
@@ -23,11 +24,15 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
   attendance,
   isWorker,
   onConfirm,
+  onDayComplete,
   onAdjust,
   isConfirming = false,
 }) => {
-  const canWorkerConfirm = isWorker && !attendance.worker_confirmed;
-  const canClientConfirm = !isWorker && !attendance.client_confirmed;
+  // Simplified flow: worker_confirmed is auto-set by verify-arrival.
+  // Worker no longer has a manual "confirm" step.
+  const canClientMarkArrived = !isWorker && !attendance.time_in;
+  const canClientMarkDayComplete =
+    !isWorker && !!attendance.time_in && !attendance.client_confirmed;
   const canAdjust = !isWorker && !attendance.client_confirmed;
   const bothConfirmed = attendance.worker_confirmed && attendance.client_confirmed;
 
@@ -100,10 +105,20 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
         />
       </View>
 
-      {/* Action Buttons */}
-      {(canWorkerConfirm || canClientConfirm) && (
+      {/* Worker info banner — no action needed, client handles arrival */}
+      {isWorker && !attendance.time_in && (
+        <View style={styles.workerBanner}>
+          <Ionicons name="information-circle-outline" size={16} color={Colors.info} />
+          <Text style={styles.workerBannerText}>
+            The client will mark your arrival for this day.
+          </Text>
+        </View>
+      )}
+
+      {/* Action Buttons — Simplified two-step client flow */}
+      {(canClientMarkArrived || canClientMarkDayComplete) && (
         <View style={styles.actionsContainer}>
-          {canWorkerConfirm && onConfirm && (
+          {canClientMarkArrived && onConfirm && (
             <TouchableOpacity
               style={styles.confirmButton}
               onPress={onConfirm}
@@ -111,12 +126,12 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
             >
               <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
               <Text style={styles.confirmButtonText}>
-                {isConfirming ? "Confirming..." : "Confirm My Attendance"}
+                {isConfirming ? "Confirming..." : "Mark Worker Arrived"}
               </Text>
             </TouchableOpacity>
           )}
 
-          {canClientConfirm && (
+          {canClientMarkDayComplete && (
             <View style={styles.clientActions}>
               {onAdjust && (
                 <TouchableOpacity
@@ -128,15 +143,15 @@ export const AttendanceCard: React.FC<AttendanceCardProps> = ({
                   <Text style={styles.adjustButtonText}>Adjust</Text>
                 </TouchableOpacity>
               )}
-              {onConfirm && (
+              {onDayComplete && (
                 <TouchableOpacity
                   style={styles.confirmButton}
-                  onPress={onConfirm}
+                  onPress={onDayComplete}
                   disabled={isConfirming}
                 >
-                  <Ionicons name="checkmark-circle" size={16} color={Colors.white} />
+                  <Ionicons name="checkmark-done" size={16} color={Colors.white} />
                   <Text style={styles.confirmButtonText}>
-                    {isConfirming ? "..." : "Confirm & Pay"}
+                    {isConfirming ? "..." : "Mark Day Complete"}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -273,6 +288,20 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.warning,
+  },
+  workerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: `${Colors.info}15`,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+  },
+  workerBannerText: {
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.info,
   },
 });
 

@@ -705,38 +705,18 @@ export default function JobsScreen() {
           {job.description}
         </Text>
 
-        {(job.worker_marked_on_the_way ||
-          job.worker_marked_job_started ||
-          job.client_confirmed_work_started) &&
+        {job.client_confirmed_work_started &&
           job.status !== "COMPLETED" &&
           job.status !== "CANCELLED" && (
             <View style={styles.lifecycleRow}>
-              {job.worker_marked_on_the_way && (
-                <View style={styles.lifecycleBadge}>
-                  <Ionicons name="navigate" size={12} color={Colors.primary} />
-                  <Text style={styles.lifecycleText}>On the way</Text>
-                </View>
-              )}
-              {job.worker_marked_job_started && (
-                <View style={styles.lifecycleBadge}>
-                  <Ionicons
-                    name="play-circle"
-                    size={12}
-                    color={Colors.warning}
-                  />
-                  <Text style={styles.lifecycleText}>Job started</Text>
-                </View>
-              )}
-              {job.client_confirmed_work_started && (
-                <View style={styles.lifecycleBadge}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={12}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.lifecycleText}>Arrival confirmed</Text>
-                </View>
-              )}
+              <View style={styles.lifecycleBadge}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={12}
+                  color={Colors.success}
+                />
+                <Text style={styles.lifecycleText}>Arrival confirmed</Text>
+              </View>
             </View>
           )}
 
