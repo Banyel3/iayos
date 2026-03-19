@@ -310,7 +310,7 @@ class DocumentVerificationService:
             logger.info(f"   Image: {width}x{height}")
             
             # Step 1: Check image quality (resolution + blur)
-            quality_result = self._check_image_quality(image)
+            quality_result = self._check_image_quality(image, document_type)
             
             if quality_result["status"] == "FAILED":
                 error_msg = quality_result.get("reason", "Image quality check failed")
@@ -493,7 +493,7 @@ class DocumentVerificationService:
             width, height = image.size
 
             # 1) Quality check
-            quality_result = self._check_image_quality(image)
+            quality_result = self._check_image_quality(image, document_type)
             if quality_result["status"] == "FAILED":
                 reason = quality_result.get("reason", "Image quality too low")
                 logger.warning(f"   ❌ Text-only quality failed: {reason}")
@@ -585,7 +585,7 @@ class DocumentVerificationService:
             logger.info(f"   Image loaded: {width}x{height}, mode={image.mode}")
             
             # Step 1: Check image quality
-            quality_result = self._check_image_quality(image)
+            quality_result = self._check_image_quality(image, document_type)
             details["quality"] = quality_result
             
             if quality_result["status"] == "FAILED":
@@ -717,7 +717,7 @@ class DocumentVerificationService:
                 warnings=[f"Verification error: {str(e)}"]
             )
 
-    def _check_image_quality(self, image: Image.Image) -> Dict[str, Any]:
+    def _check_image_quality(self, image: Image.Image, document_type: str = "") -> Dict[str, Any]:
         """
         Check image quality (resolution, blur, orientation)
         
@@ -763,10 +763,18 @@ class DocumentVerificationService:
             logger.warning(f"Blur detection failed: {e}")
             warnings.append("Could not analyze image sharpness")
         
-        # Check orientation (landscape vs portrait for IDs)
-        # Most IDs are landscape, but this is just a warning
-        if height > width * 1.5:
-            warnings.append("Image appears to be in portrait orientation - IDs are typically landscape")
+        # Enforce portrait orientation for mobile KYC capture documents.
+        # Users are guided to hold phone upright in the KYC camera flow.
+        doc_type = (document_type or "").upper()
+        portrait_required_docs = {"FRONTID", "BACKID", "CLEARANCE", "NBI", "POLICE"}
+        if doc_type in portrait_required_docs and width > height * 1.1:
+            return {
+                "status": "FAILED",
+                "rejection_reason": "INVALID_ORIENTATION",
+                "score": 0.3,
+                "reason": "Document orientation is incorrect. Please upload in portrait orientation.",
+                "warnings": []
+            }
         
         # Calculate quality score
         resolution_score = min(1.0, (width * height) / (1920 * 1080))
@@ -1480,7 +1488,7 @@ def should_auto_reject(result: VerificationResult) -> Tuple[bool, str]:
             RejectionReason.MISSING_REQUIRED_TEXT: "Could not verify document authenticity. Please ensure the document shows required text clearly.",
             RejectionReason.IMAGE_TOO_BLURRY: "Image is too blurry. Please upload a clearer photo.",
             RejectionReason.RESOLUTION_TOO_LOW: "Image resolution is too low. Please upload a higher quality image.",
-            RejectionReason.INVALID_ORIENTATION: "Document orientation is incorrect. Please upload in landscape orientation.",
+            RejectionReason.INVALID_ORIENTATION: "Document orientation is incorrect. Please upload in portrait orientation.",
             RejectionReason.UNREADABLE_DOCUMENT: "Document is unreadable. Please upload a clearer image.",
         }
         message = messages.get(result.rejection_reason, "Document verification failed. Please try again with a clearer image.")
