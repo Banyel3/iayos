@@ -19,7 +19,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from django.conf import settings
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -301,8 +301,12 @@ class DocumentVerificationService:
         logger.info(f"🔍 Quick validation for {document_type}, require_face={require_face}")
         
         try:
-            # Load image
+            # Load image — apply EXIF orientation before any processing.
+            # Web uploads (agency KYC) carry EXIF rotation tags that PIL does NOT
+            # auto-apply; mobile is fine because Expo manipulateAsync already bakes
+            # orientation into the pixel data before upload.
             image = Image.open(io.BytesIO(file_data))
+            image = ImageOps.exif_transpose(image)
             if image.mode != 'RGB':
                 image = image.convert('RGB')
             
@@ -487,6 +491,7 @@ class DocumentVerificationService:
 
         try:
             image = Image.open(io.BytesIO(file_data))
+            image = ImageOps.exif_transpose(image)
             if image.mode != "RGB":
                 image = image.convert("RGB")
 
@@ -577,6 +582,7 @@ class DocumentVerificationService:
         try:
             # Load image
             image = Image.open(io.BytesIO(file_data))
+            image = ImageOps.exif_transpose(image)
             if image.mode != 'RGB':
                 image = image.convert('RGB')
             
