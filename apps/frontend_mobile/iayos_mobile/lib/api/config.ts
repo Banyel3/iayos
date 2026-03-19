@@ -332,6 +332,10 @@ export const ENDPOINTS = {
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/approve-completion`,
+  // Simplified arrival flow: client taps "Worker Has Arrived" → single action
+  CONFIRM_WORKER_ARRIVED: (id: number) =>
+    `${API_BASE_URL}/jobs/${id}/confirm-worker-arrived`,
+  // Legacy aliases kept for backwards-compat (backend returns no-op success)
   CONFIRM_WORK_STARTED: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/confirm-work-started`,
   MARK_ON_THE_WAY: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-on-the-way`,
@@ -542,6 +546,9 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/verify-arrival`,
   CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-checkout`,
+  // Simplified daily flow: client taps "Mark Day Complete" → sets time_out + triggers payment
+  CLIENT_MARK_DAY_COMPLETE: (jobId: number, attendanceId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-day-complete`,
   DAILY_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/extend-one-day`,
   DAILY_FINISH_JOB: (jobId: number) =>

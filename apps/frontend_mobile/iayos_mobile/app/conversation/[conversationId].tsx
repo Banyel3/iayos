@@ -40,9 +40,7 @@ import {
 } from "../../lib/hooks/useWebSocket";
 import { useImageUpload } from "../../lib/hooks/useImageUpload";
 import {
-  useConfirmWorkStarted,
-  useMarkOnTheWay,
-  useMarkJobStarted,
+  useConfirmWorkerArrived,
   useCancelJob,
   useMarkComplete,
   useApproveCompletion,
@@ -196,7 +194,6 @@ export default function ChatScreen() {
     return d;
   });
   const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
-  const [isMarkOnTheWayLocked, setIsMarkOnTheWayLocked] = useState(false);
   const [localBackjobScheduleConfirmed, setLocalBackjobScheduleConfirmed] =
     useState(false);
 
@@ -786,9 +783,7 @@ export default function ChatScreen() {
   const sendMutation = useSendMessageMutation();
 
   // Job action mutations
-  const confirmWorkStartedMutation = useConfirmWorkStarted();
-  const markOnTheWayMutation = useMarkOnTheWay();
-  const markJobStartedMutation = useMarkJobStarted();
+  const confirmWorkerArrivedMutation = useConfirmWorkerArrived();
   const cancelJobMutation = useCancelJob();
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
@@ -1287,68 +1282,21 @@ export default function ChatScreen() {
   }, [conversation?.messages.length]);
 
   // Handle confirm work started (CLIENT only)
-  const handleConfirmWorkStarted = () => {
+  const handleConfirmWorkerArrived = () => {
     if (!conversation) return;
 
-    // For agency jobs, show employee name if assigned, otherwise agency name
     const workerName =
-      conversation.assigned_employee?.name ||
-      conversation.other_participant?.name ||
-      "the worker";
+      conversation.other_participant?.name || "the worker";
 
     Alert.alert(
-      "Confirm Work Started",
-      `Are you sure ${workerName} has arrived and started working?`,
+      "Mark Worker Arrived",
+      `Confirm that ${workerName} has arrived at the job site?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Confirm",
           onPress: () => {
-            confirmWorkStartedMutation.mutate(conversation.job.id);
-          },
-        },
-      ],
-    );
-  };
-
-  // Handle worker self-status: on the way
-  const handleMarkOnTheWay = () => {
-    if (!conversation) return;
-    if (markOnTheWayMutation.isPending || isMarkOnTheWayLocked) return;
-
-    Alert.alert(
-      "Mark On The Way",
-      "Confirm that you're now heading to the job location.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: () => {
-            setIsMarkOnTheWayLocked(true);
-            markOnTheWayMutation.mutate(conversation.job.id, {
-              onError: () => {
-                setIsMarkOnTheWayLocked(false);
-              },
-            });
-          },
-        },
-      ],
-    );
-  };
-
-  // Handle worker self-status: job started
-  const handleMarkJobStarted = () => {
-    if (!conversation) return;
-
-    Alert.alert(
-      "Mark Job Started",
-      "Confirm that you have arrived and started work.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: () => {
-            markJobStartedMutation.mutate(conversation.job.id);
+            confirmWorkerArrivedMutation.mutate(conversation.job.id);
           },
         },
       ],
@@ -6080,12 +6028,13 @@ export default function ChatScreen() {
                     return (
                       <View style={[styles.actionButton, styles.waitingButton]}>
                         <Ionicons
-                          name="time-outline"
+                          name="navigate-outline"
                           size={20}
                           color={Colors.textSecondary}
                         />
                         <Text style={styles.waitingButtonText}>
-                          Waiting for client to confirm your arrival...
+                          Please proceed to the client's location. The client
+                          will mark your arrival.
                         </Text>
                       </View>
                     );
@@ -6620,44 +6569,22 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* CLIENT: Waiting for worker to mark on the way (Regular Jobs Only) */}
+              {/* CLIENT: Mark Worker Arrived button (Regular Jobs Only — simplified flow) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                !conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
-                  <View style={[styles.actionButton, styles.waitingButton]}>
-                    <Ionicons
-                      name="time-outline"
-                      size={20}
-                      color={Colors.textSecondary}
-                    />
-                    <Text style={styles.waitingButtonText}>
-                      Waiting for worker to mark on the way...
-                    </Text>
-                  </View>
-                )}
-
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
-                conversation.my_role === "CLIENT" &&
-                canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
+                !conversation.job.clientConfirmedWorkStarted && (
                   <TouchableOpacity
                     style={[
                       styles.actionButton,
                       styles.confirmWorkStartedButton,
                     ]}
-                    onPress={handleConfirmWorkStarted}
-                    disabled={confirmWorkStartedMutation.isPending}
+                    onPress={handleConfirmWorkerArrived}
+                    disabled={confirmWorkerArrivedMutation.isPending}
                   >
-                    {confirmWorkStartedMutation.isPending ? (
+                    {confirmWorkerArrivedMutation.isPending ? (
                       <ActivityIndicator size="small" color={Colors.white} />
                     ) : (
                       <>
@@ -6667,7 +6594,7 @@ export default function ChatScreen() {
                           color={Colors.white}
                         />
                         <Text style={styles.actionButtonText}>
-                          Confirm Worker Has Arrived
+                          Mark Worker Arrived
                         </Text>
                       </>
                     )}
@@ -6694,93 +6621,24 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
+              {/* WORKER: Proceed to client location message (Regular Jobs Only — simplified flow) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                !conversation.job.workerMarkedOnTheWay &&
-                !isMarkOnTheWayLocked && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.onTheWayButton]}
-                    onPress={handleMarkOnTheWay}
-                    disabled={
-                      markOnTheWayMutation.isPending || isMarkOnTheWayLocked
-                    }
-                  >
-                    {markOnTheWayMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="navigate"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>
-                          Mark On The Way
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
-                conversation.my_role === "WORKER" &&
-                canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
+                !conversation.job.clientConfirmedWorkStarted && (
                   <View style={[styles.actionButton, styles.waitingButton]}>
                     <Ionicons
-                      name="time-outline"
-                      size={24}
+                      name="navigate-outline"
+                      size={20}
                       color={Colors.textSecondary}
                     />
-                    <View style={{ flex: 1, marginLeft: 4 }}>
-                      <Text
-                        style={styles.waitingButtonText}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                      >
-                        Waiting for client to confirm worker arrival...
-                      </Text>
-                    </View>
+                    <Text style={styles.waitingButtonText}>
+                      Please proceed to the client's location. The client will
+                      mark your arrival.
+                    </Text>
                   </View>
-                )}
-
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
-                conversation.my_role === "WORKER" &&
-                canUseRegularProjectActions &&
-                conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.jobStartedButton]}
-                    onPress={handleMarkJobStarted}
-                    disabled={markJobStartedMutation.isPending}
-                  >
-                    {markJobStartedMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="play-circle"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>
-                          Mark Job Started
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
                 )}
 
               {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
@@ -6790,7 +6648,6 @@ export default function ChatScreen() {
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedJobStarted &&
                 !conversation.job.workerMarkedComplete && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.markCompleteButton]}

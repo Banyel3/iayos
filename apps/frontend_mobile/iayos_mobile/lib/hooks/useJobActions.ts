@@ -78,7 +78,57 @@ function patchConversationTeamAssignmentState(
 }
 
 /**
- * Client confirms worker has arrived and work has started
+ * Client confirms worker has arrived — simplified single-tap flow.
+ * Calls the new /confirm-worker-arrived endpoint (idempotent, no prerequisites).
+ */
+export function useConfirmWorkerArrived() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const url = ENDPOINTS.CONFIRM_WORKER_ARRIVED(jobId);
+      const response = await apiRequest(url, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm worker arrived"),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, jobId) => {
+      const nowIso = new Date().toISOString();
+      patchConversationJobState(queryClient, jobId, {
+        clientConfirmedWorkStarted: true,
+        clientConfirmedWorkStartedAt: nowIso,
+      });
+
+      Toast.show({
+        type: "success",
+        text1: "Worker Arrival Confirmed",
+        text2: "Worker has been notified that you confirmed their arrival",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Confirmation Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * @deprecated Legacy alias — backend now returns a no-op success.
+ * Use useConfirmWorkerArrived() instead.
  */
 export function useConfirmWorkStarted() {
   const queryClient = useQueryClient();
@@ -108,12 +158,10 @@ export function useConfirmWorkStarted() {
 
       Toast.show({
         type: "success",
-        text1: "Work Started Confirmed",
-        text2: "Worker has been notified that you confirmed work started",
+        text1: "Worker Arrival Confirmed",
+        text2: "Worker has been notified",
       });
 
-      // Keep optimistic conversation cache as source of truth immediately after mutation.
-      // WebSocket job_status_update + polling will reconcile server state without stale flicker.
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
@@ -128,104 +176,89 @@ export function useConfirmWorkStarted() {
 }
 
 /**
- * Worker marks that they are on the way to the job site
+ * @deprecated No-op — backend stub returns success. Worker no longer needs to tap this.
  */
 export function useMarkOnTheWay() {
-  const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (jobId: number) => {
-      const response = await apiRequest(ENDPOINTS.MARK_ON_THE_WAY(jobId), {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        const error = (await response.json().catch(() => ({}))) as {
-          error?: string;
-          message?: string;
-        };
-        throw new Error(getErrorMessage(error, "Failed to mark on the way"));
-      }
-
-      return response.json() as Promise<{
-        worker_marked_on_the_way_at?: string;
-      }>;
-    },
-    onSuccess: (data, jobId) => {
-      patchConversationJobState(queryClient, jobId, {
-        workerMarkedOnTheWay: true,
-        workerMarkedOnTheWayAt:
-          data?.worker_marked_on_the_way_at || new Date().toISOString(),
-      });
-      Toast.show({
-        type: "success",
-        text1: "Status Updated",
-        text2: "Marked as on the way",
-      });
-
-      // Avoid immediate messages invalidation to prevent refetch racing with stale lifecycle payload.
-      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
-      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
-    },
-    onError: (error: Error) => {
-      Toast.show({
-        type: "error",
-        text1: "Update Failed",
-        text2: error.message,
-      });
-      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
-    },
+    mutationFn: async (_jobId: number) => ({ deprecated: true }),
+    onSuccess: () => {},
   });
 }
 
 /**
- * Worker marks that they have started the job
+ * @deprecated No-op — backend stub returns success. Worker no longer needs to tap this.
  */
 export function useMarkJobStarted() {
+  return useMutation({
+    mutationFn: async (_jobId: number) => ({ deprecated: true }),
+    onSuccess: () => {},
+  });
+}
+
+/**
+ * Client marks the day complete for a daily-rate job attendance record.
+ * Sets time_out and triggers payment for the day.
+ */
+export function useMarkDayComplete() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (jobId: number) => {
-      const response = await apiRequest(ENDPOINTS.MARK_JOB_STARTED(jobId), {
+    mutationFn: async ({
+      jobId,
+      attendanceId,
+      paymentMethod,
+      cashProofImage,
+    }: {
+      jobId: number;
+      attendanceId: number;
+      paymentMethod?: "WALLET" | "CASH";
+      cashProofImage?: string;
+    }) => {
+      const url = ENDPOINTS.CLIENT_MARK_DAY_COMPLETE(jobId, attendanceId);
+
+      const formData = new FormData();
+      if (paymentMethod) formData.append("payment_method", paymentMethod);
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          type: "image/jpeg",
+          name: `cash_proof_${jobId}_${attendanceId}_${Date.now()}.jpg`,
+        } as any);
+      }
+
+      const response = await apiRequest(url, {
         method: "POST",
+        body: formData as any,
       });
 
       if (!response.ok) {
-        const error = (await response.json().catch(() => ({}))) as {
-          error?: string;
-          message?: string;
-        };
-        throw new Error(getErrorMessage(error, "Failed to mark job started"));
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to mark day complete"));
       }
 
-      return response.json() as Promise<{
-        worker_marked_job_started_at?: string;
-      }>;
+      return response.json();
     },
-    onSuccess: (data, jobId) => {
-      patchConversationJobState(queryClient, jobId, {
-        workerMarkedOnTheWay: true,
-        workerMarkedJobStarted: true,
-        workerMarkedJobStartedAt:
-          data?.worker_marked_job_started_at || new Date().toISOString(),
-      });
+    onSuccess: (_data, { jobId }) => {
       Toast.show({
         type: "success",
-        text1: "Status Updated",
-        text2: "Marked as job started",
+        text1: "Day Marked Complete",
+        text2: "Payment for today has been processed",
       });
 
-      // Avoid immediate messages invalidation to prevent refetch racing with stale lifecycle payload.
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
     },
     onError: (error: Error) => {
       Toast.show({
         type: "error",
-        text1: "Update Failed",
+        text1: "Failed to Mark Day Complete",
         text2: error.message,
       });
-      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
     },
   });
 }
