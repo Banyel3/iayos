@@ -763,18 +763,14 @@ class DocumentVerificationService:
             logger.warning(f"Blur detection failed: {e}")
             warnings.append("Could not analyze image sharpness")
         
-        # Enforce portrait orientation for mobile KYC capture documents.
-        # Users are guided to hold phone upright in the KYC camera flow.
+        # Orientation is warning-only for KYC documents.
+        # Some IDs are captured in landscape framing while phone is held portrait.
         doc_type = (document_type or "").upper()
         portrait_required_docs = {"FRONTID", "BACKID", "CLEARANCE", "NBI", "POLICE"}
         if doc_type in portrait_required_docs and width > height * 1.1:
-            return {
-                "status": "FAILED",
-                "rejection_reason": "INVALID_ORIENTATION",
-                "score": 0.3,
-                "reason": "Document orientation is incorrect. Please upload in portrait orientation.",
-                "warnings": []
-            }
+            warnings.append(
+                "Landscape-oriented document detected. Ensure text is clear and fully visible."
+            )
         
         # Calculate quality score
         resolution_score = min(1.0, (width * height) / (1920 * 1080))

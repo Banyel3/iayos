@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **KYC Step 3 Split Name Fields (FN/MN/LN)**
+  - Updated KYC `Verify ID Information` form to collect and display separate `First Name`, `Middle Name`, and `Last Name` fields instead of a single `Full Name` input.
+  - Added fallback mapping to split legacy OCR `full_name` values into FN/MN/LN during form initialization.
+  - Kept `full_name` synchronized from split fields for backward-compatible submission payloads and backend consumers.
+  - **Impact**: Step 3 now matches required name structure while preserving compatibility with existing OCR/backend flows.
+
+- **KYC ID Guide Orientation Alignment (Horizontal Frame)**
+  - Reverted KYC camera front/back ID guide to a horizontal card rectangle while the phone remains in portrait orientation.
+  - Aligned backend quality behavior so landscape-oriented document crops are warning-only, not hard-rejected for FRONTID/BACKID/CLEARANCE checks.
+  - **Impact**: Camera guide now matches accepted capture behavior for driver's license and similar ID cards, reducing misleading validation failures.
+
 - **KYC FrontID Validation ID-Type Stale State Fix**
   - Fixed camera return-event listeners in mobile KYC upload to use current `selectedIDType`/`selectedClearanceType` state instead of stale initial values.
   - Added a guard that blocks front ID upload validation when no ID type is currently selected, showing a clear prompt before API validation.

@@ -33,7 +33,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // ID card standard dimensions: 85.6mm x 53.98mm (aspect ratio ~1.586)
 const FRAME_WIDTH = SCREEN_WIDTH * 0.85;
-const FRAME_HEIGHT_ID = Math.min(FRAME_WIDTH * 1.52, SCREEN_HEIGHT * 0.62); // Portrait framing for ID capture
+const FRAME_HEIGHT_ID = Math.min(FRAME_WIDTH / 1.586, SCREEN_HEIGHT * 0.42); // Horizontal ID card framing on portrait screen
 const FRAME_HEIGHT_CLEARANCE = FRAME_WIDTH * 0.9; // Taller for clearance docs
 const OVAL_SIZE = SCREEN_WIDTH * 0.7; // For selfie
 

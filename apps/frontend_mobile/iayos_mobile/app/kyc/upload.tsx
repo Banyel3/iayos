@@ -84,6 +84,43 @@ const CLEARANCE_TYPES = [
   { value: "NBI", label: "NBI Clearance" },
 ];
 
+const splitNameParts = (fullName: string): {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+} => {
+  const tokens = fullName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return { firstName: "", middleName: "", lastName: "" };
+  }
+
+  if (tokens.length === 1) {
+    return { firstName: tokens[0], middleName: "", lastName: "" };
+  }
+
+  if (tokens.length === 2) {
+    return { firstName: tokens[0], middleName: "", lastName: tokens[1] };
+  }
+
+  return {
+    firstName: tokens[0],
+    middleName: tokens.slice(1, -1).join(" "),
+    lastName: tokens[tokens.length - 1],
+  };
+};
+
+const buildDisplayName = (values: Record<string, string>): string => {
+  const first = values.first_name?.trim() ?? "";
+  const middle = values.middle_name?.trim() ?? "";
+  const last = values.last_name?.trim() ?? "";
+  const combined = [first, middle, last].filter(Boolean).join(" ");
+  return combined || values.full_name?.trim() || "";
+};
+
 export default function KYCUploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -680,6 +717,28 @@ export default function KYCUploadScreen() {
               initialValues[key] = field.value || "";
             }
           });
+
+          // Backward compatibility: if OCR only returns full_name, split it for Step 3 fields.
+          if (!initialValues.first_name && !initialValues.last_name) {
+            const parsedName = splitNameParts(initialValues.full_name || "");
+            initialValues.first_name = parsedName.firstName;
+            initialValues.middle_name = parsedName.middleName;
+            initialValues.last_name = parsedName.lastName;
+          }
+
+          const rebuiltName = [
+            initialValues.first_name,
+            initialValues.middle_name,
+            initialValues.last_name,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+
+          if (rebuiltName) {
+            initialValues.full_name = rebuiltName;
+          }
+
           setIdFormValues(initialValues);
 
           if (
@@ -690,6 +749,7 @@ export default function KYCUploadScreen() {
               profileName: extractResult.profile_name || "Your profile name",
               ocrName:
                 extractResult.ocr_name ||
+                rebuiltName ||
                 extractResult.fields.full_name?.value ||
                 "Extracted ID name",
               score: extractResult.name_match_score,
@@ -700,7 +760,9 @@ export default function KYCUploadScreen() {
         } else {
           // No extraction - enable manual entry mode
           setIdFormValues({
-            full_name: "",
+            first_name: "",
+            middle_name: "",
+            last_name: "",
             id_number: "",
             birth_date: "",
             address: "",
@@ -717,7 +779,9 @@ export default function KYCUploadScreen() {
         );
         setIdExtractionData(null);
         setIdFormValues({
-          full_name: "",
+          first_name: "",
+          middle_name: "",
+          last_name: "",
           id_number: "",
           birth_date: "",
           address: "",
@@ -735,18 +799,29 @@ export default function KYCUploadScreen() {
     // Step 3: ID verification - validate form fields
     if (currentStep === 3) {
       const validateIDForm = (): boolean => {
-        const name = idFormValues.full_name?.trim() ?? "";
-        if (!name) {
-          Alert.alert("Required", "Please enter your full name");
+        const firstName = idFormValues.first_name?.trim() ?? "";
+        const middleName = idFormValues.middle_name?.trim() ?? "";
+        const lastName = idFormValues.last_name?.trim() ?? "";
+        const normalizedFullName = [firstName, middleName, lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+
+        if (!firstName) {
+          Alert.alert("Required", "Please enter your first name");
           return false;
         }
-        if (!name.includes(" ")) {
-          Alert.alert(
-            "Required",
-            "Please enter your full name (first and last name)",
-          );
+
+        if (!lastName) {
+          Alert.alert("Required", "Please enter your last name");
           return false;
         }
+
+        // Keep legacy full_name aligned with split fields for backend compatibility.
+        setIdFormValues((prev) => ({
+          ...prev,
+          full_name: normalizedFullName,
+        }));
 
         const idNum = idFormValues.id_number?.trim() ?? "";
         if (!idNum) {
@@ -1714,11 +1789,11 @@ export default function KYCUploadScreen() {
             {ID_TYPES.find((t) => t.value === selectedIDType)?.label ||
               selectedIDType}
           </Text>
-          {idFormValues.full_name && (
+          {buildDisplayName(idFormValues) ? (
             <Text style={styles.reviewItemDetail}>
-              Name: {idFormValues.full_name}
+              Name: {buildDisplayName(idFormValues)}
             </Text>
-          )}
+          ) : null}
           {idFormValues.id_number && (
             <Text style={styles.reviewItemDetail}>
               ID #: {idFormValues.id_number}

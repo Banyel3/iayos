@@ -391,7 +391,9 @@ export const KYCExtractionForm: React.FC<KYCExtractionFormProps> = ({
   const fieldConfigs: FieldConfig[] =
     type === "id"
       ? [
-          { key: "full_name", label: "Full Name", required: true },
+          { key: "first_name", label: "First Name", required: true },
+          { key: "middle_name", label: "Middle Name" },
+          { key: "last_name", label: "Last Name", required: true },
           { key: "id_number", label: "ID Number", required: true },
           { key: "birth_date", label: "Date of Birth", inputType: "date" },
           { key: "address", label: "Address" },
