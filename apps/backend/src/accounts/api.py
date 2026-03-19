@@ -1115,6 +1115,9 @@ def extract_id_from_ocr(request):
     def get_empty_fields():
         return {
             "full_name": {"value": "", "confidence": 0, "editable": True},
+            "first_name": {"value": "", "confidence": 0, "editable": True},
+            "middle_name": {"value": "", "confidence": 0, "editable": True},
+            "last_name": {"value": "", "confidence": 0, "editable": True},
             "id_number": {"value": "", "confidence": 0, "editable": True},
             "birth_date": {"value": "", "confidence": 0, "editable": True},
             "address": {"value": "", "confidence": 0, "editable": True},
@@ -1194,6 +1197,21 @@ def extract_id_from_ocr(request):
                 "full_name": {
                     "value": parsed_data.full_name.value or "",
                     "confidence": parsed_data.full_name.confidence,
+                    "editable": True
+                },
+                "first_name": {
+                    "value": parsed_data.first_name.value or "",
+                    "confidence": parsed_data.first_name.confidence,
+                    "editable": True
+                },
+                "middle_name": {
+                    "value": parsed_data.middle_name.value or "",
+                    "confidence": parsed_data.middle_name.confidence,
+                    "editable": True
+                },
+                "last_name": {
+                    "value": parsed_data.last_name.value or "",
+                    "confidence": parsed_data.last_name.confidence,
                     "editable": True
                 },
                 "id_number": {

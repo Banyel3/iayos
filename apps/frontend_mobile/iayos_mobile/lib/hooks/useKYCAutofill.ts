@@ -287,6 +287,9 @@ export interface IDExtractionResponse {
   has_extraction: boolean;
   fields: {
     full_name?: ExtractedFieldWithConfidence;
+    first_name?: ExtractedFieldWithConfidence;
+    middle_name?: ExtractedFieldWithConfidence;
+    last_name?: ExtractedFieldWithConfidence;
     id_number?: ExtractedFieldWithConfidence;
     birth_date?: ExtractedFieldWithConfidence;
     address?: ExtractedFieldWithConfidence;

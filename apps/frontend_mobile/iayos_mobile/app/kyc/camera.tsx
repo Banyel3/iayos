@@ -7,7 +7,7 @@
  * Works with Expo Go - no custom dev client required.
  */
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   StatusBar,
   Platform,
   Linking,
+  Alert,
 } from "react-native";
 import { CameraView, useCameraPermissions, FlashMode } from "expo-camera";
 import { Stack, useRouter, useLocalSearchParams } from "expo-router";
@@ -24,6 +25,7 @@ import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { Colors, Typography } from "@/constants/theme";
 import { cameraEvents } from "@/lib/utils/cameraEvents";
 
@@ -31,7 +33,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // ID card standard dimensions: 85.6mm x 53.98mm (aspect ratio ~1.586)
 const FRAME_WIDTH = SCREEN_WIDTH * 0.85;
-const FRAME_HEIGHT_ID = FRAME_WIDTH * 0.63; // For ID cards
+const FRAME_HEIGHT_ID = Math.min(FRAME_WIDTH * 1.52, SCREEN_HEIGHT * 0.62); // Portrait framing for ID capture
 const FRAME_HEIGHT_CLEARANCE = FRAME_WIDTH * 0.9; // Taller for clearance docs
 const OVAL_SIZE = SCREEN_WIDTH * 0.7; // For selfie
 
@@ -190,6 +192,26 @@ export default function KYCCameraScreen() {
   const config = getGuideConfig(documentType);
   const isSelfie = documentType === "selfie";
 
+  useEffect(() => {
+    const lockPortrait = async () => {
+      try {
+        await ScreenOrientation.lockAsync(
+          ScreenOrientation.OrientationLock.PORTRAIT_UP,
+        );
+      } catch (error) {
+        console.warn("[KYC Camera] Failed to lock orientation:", error);
+      }
+    };
+
+    lockPortrait();
+
+    return () => {
+      ScreenOrientation.unlockAsync().catch((error: unknown) => {
+        console.warn("[KYC Camera] Failed to unlock orientation:", error);
+      });
+    };
+  }, []);
+
   // Permission not determined yet
   if (!permission) {
     return (
@@ -288,6 +310,23 @@ export default function KYCCameraScreen() {
 
     setIsCapturing(true);
     try {
+      try {
+        const orientation = await ScreenOrientation.getOrientationAsync();
+        const isPortraitOrientation =
+          orientation === ScreenOrientation.Orientation.PORTRAIT_UP ||
+          orientation === ScreenOrientation.Orientation.PORTRAIT_DOWN;
+
+        if (!isPortraitOrientation) {
+          Alert.alert(
+            "Hold Phone Upright",
+            "Please keep your phone in portrait mode before taking the photo.",
+          );
+          return;
+        }
+      } catch (orientationError) {
+        console.warn("[KYC Camera] Orientation check failed:", orientationError);
+      }
+
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.9,
         skipProcessing: false,
@@ -452,6 +491,14 @@ export default function KYCCameraScreen() {
                   color={Colors.white}
                 />
                 <Text style={styles.tipText}>Clear text</Text>
+              </View>
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="phone-portrait-outline"
+                  size={16}
+                  color={Colors.white}
+                />
+                <Text style={styles.tipText}>Hold phone upright (portrait)</Text>
               </View>
             </>
           )}

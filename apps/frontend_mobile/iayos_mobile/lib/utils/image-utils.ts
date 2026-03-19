@@ -51,7 +51,7 @@ export const compressImage = async (
     // If already small enough (<2MB), skip heavy compression
     if (originalSize < 2 * 1024 * 1024) {
       // Light compression only
-      const manipResult = await manipulateAsync(uri, [], {
+      const manipResult = await manipulateAsync(uri, [{ rotate: 0 }], {
         compress: quality,
         format: format === "jpeg" ? SaveFormat.JPEG : SaveFormat.PNG,
       });
@@ -70,6 +70,7 @@ export const compressImage = async (
     const manipResult = await manipulateAsync(
       uri,
       [
+        { rotate: 0 },
         {
           resize: {
             width: maxWidth,
@@ -188,7 +189,7 @@ export const compressForKYC = async (uri: string): Promise<CompressedImage> => {
 
     // If already under target, apply light compression only
     if (originalSize <= KYC_TARGET_SIZE) {
-      const result = await manipulateAsync(uri, [], {
+      const result = await manipulateAsync(uri, [{ rotate: 0 }], {
         compress: KYC_QUALITY,
         format: SaveFormat.JPEG,
       });
@@ -209,6 +210,7 @@ export const compressForKYC = async (uri: string): Promise<CompressedImage> => {
     const result = await manipulateAsync(
       uri,
       [
+        { rotate: 0 },
         {
           resize: {
             width: KYC_MAX_DIMENSION,

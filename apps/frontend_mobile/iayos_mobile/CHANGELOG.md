@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **KYC Split Name Extraction + Portrait Camera Guide Enforcement**
+  - `/api/accounts/kyc/extract-id` now returns split name fields (`first_name`, `middle_name`, `last_name`) alongside `full_name` for edit/confirmation flows.
+  - Mobile KYC extraction types now accept split-name OCR fields without breaking existing `full_name` handling.
+  - KYC camera now locks to portrait orientation and blocks capture when orientation is not portrait.
+  - Fixed KYC ID guide rectangle mismatch: front/back ID frame is now portrait-oriented instead of landscape-shaped on portrait devices.
+  - Added orientation normalization during image compression (`rotate: 0`) to keep uploaded KYC images upright and consistent with preview.
+  - Backend quality checks now enforce portrait orientation for KYC capture documents (`FRONTID`, `BACKID`, `CLEARANCE`, `NBI`, `POLICE`) and return user-facing portrait retake guidance.
+  - **Impact**: More accurate name field extraction support and consistent portrait capture/validation behavior end-to-end for KYC uploads.
+
 - **KYC FrontID Anti-Drawing Review Signal + Clearance OCR Type Enforcement**
   - Mobile KYC per-step validation now sends `clearance_type` for `CLEARANCE` checks and requires users to pick NBI/Police type before clearance upload validation.
   - Mobile now shows a non-blocking manual-review notice when backend flags suspicious FrontID characteristics.
