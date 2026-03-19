@@ -4,7 +4,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("accounts", "0104_jobdispute_worker_schedule_confirmation"),
+        ("accounts", "0117_jobworkerassignment_early_completion"),
     ]
 
     operations = [
