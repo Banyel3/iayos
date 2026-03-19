@@ -95,6 +95,7 @@ interface WorkerDetail {
   phoneNumber?: string;
   profilePicture?: string;
   bio?: string;
+  jobTitle?: string;
   softSkills?: string;
   hourlyRate?: number;
   rating: number;
@@ -362,6 +363,7 @@ export default function WorkerDetailScreen() {
 
   const fullName = `${data.firstName} ${data.lastName}`;
   const primarySkillTitle =
+    data.jobTitle?.trim() ||
     data.skills?.find((skill) => skill.isPrimary || skill.skillType === "PRIMARY")
       ?.name ||
     data.specializations?.[0] ||

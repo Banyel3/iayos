@@ -817,7 +817,7 @@ def fetch_currentUser(accountID, profile_type=None):
                     # Get skills with certification counts
                     specializations_query = workerSpecialization.objects.filter(
                         workerID=worker_profile
-                    ).select_related('specializationID')
+                    ).select_related('specializationID').order_by('skillType', 'displayOrder', 'id')
                     
                     skills_list = []
                     for ws in specializations_query:
@@ -834,9 +834,16 @@ def fetch_currentUser(accountID, profile_type=None):
                             'certificationCount': cert_count,
                             'skillType': ws.skillType,
                             'isPrimary': ws.skillType == 'PRIMARY',
+                            'displayOrder': ws.displayOrder,
                         })
                     
                     profile_data["skills"] = skills_list
+                    explicit_job_title = (worker_profile.description or "").strip()
+                    first_primary_skill_name = next(
+                        (skill["name"] for skill in skills_list if skill.get("isPrimary")),
+                        "",
+                    )
+                    profile_data["jobTitle"] = explicit_job_title or first_primary_skill_name
                     print(f"   🔧 Added {len(skills_list)} skills to profile data")
                     
                 except WorkerProfile.DoesNotExist:

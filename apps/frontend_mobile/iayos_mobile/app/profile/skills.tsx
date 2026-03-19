@@ -1,7 +1,7 @@
 // Skills Management Screen
 // Workers can add, update, and remove skills (specializations) from their profile
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import DraggableFlatList, {
+  type RenderItemParams,
+  ScaleDecorator,
+} from "react-native-draggable-flatlist";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import {
   Colors,
@@ -34,11 +38,16 @@ import {
   useAddSkill,
   useUpdateSkill,
   useRemoveSkill,
+  useReorderSkills,
   type AvailableSkill,
   type WorkerSkill,
 } from "@/lib/hooks/useSkills";
 
 const MAX_WORKER_SKILLS = 5;
+const MAX_PRIMARY_SKILLS = 3;
+
+const isPrimarySkill = (skill: WorkerSkill) =>
+  skill.skillType === "PRIMARY" || skill.isPrimary;
 
 export default function SkillsScreen() {
   const router = useRouter();
@@ -59,6 +68,7 @@ export default function SkillsScreen() {
   const [editSkillType, setEditSkillType] = useState<"PRIMARY" | "SECONDARY">(
     "SECONDARY",
   );
+  const [displaySkills, setDisplaySkills] = useState<WorkerSkill[]>([]);
 
   // Queries
   const { data: availableSkills = [], isLoading: availableLoading } =
@@ -73,6 +83,31 @@ export default function SkillsScreen() {
   const addSkill = useAddSkill();
   const updateSkill = useUpdateSkill();
   const removeSkill = useRemoveSkill();
+  const reorderSkills = useReorderSkills();
+
+  const sortedMySkills = useMemo(() => {
+    return [...mySkills].sort((a, b) => {
+      const aPrimary = isPrimarySkill(a);
+      const bPrimary = isPrimarySkill(b);
+
+      if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+
+      const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      return a.id - b.id;
+    });
+  }, [mySkills]);
+
+  const primarySkillCount = useMemo(
+    () => sortedMySkills.filter((skill) => isPrimarySkill(skill)).length,
+    [sortedMySkills],
+  );
+
+  useEffect(() => {
+    setDisplaySkills(sortedMySkills);
+  }, [sortedMySkills]);
 
   // Get skills the worker doesn't have yet
   const mySkillIds = new Set(mySkills.map((s) => s.specializationId));
@@ -85,6 +120,97 @@ export default function SkillsScreen() {
     setRefreshing(false);
   }, [refetch]);
 
+  const onDragEndSkills = useCallback(
+    (data: WorkerSkill[]) => {
+      // Auto-correct dropped order so primary skills are always pinned on top.
+      const normalizedOrder = [
+        ...data.filter((item) => isPrimarySkill(item)),
+        ...data.filter((item) => !isPrimarySkill(item)),
+      ];
+
+      // Immediately reflect corrected order in UI.
+      setDisplaySkills(normalizedOrder);
+
+      // Defensive conversion for API schema expecting integer IDs.
+      const newIds = normalizedOrder
+        .map((item) => Number(item.id))
+        .filter((id) => Number.isInteger(id));
+      const oldIds = displaySkills
+        .map((item) => Number(item.id))
+        .filter((id) => Number.isInteger(id));
+
+      if (newIds.length !== displaySkills.length) {
+        setDisplaySkills(sortedMySkills);
+        Alert.alert("Error", "Failed to reorder skills due to invalid skill IDs.");
+        return;
+      }
+
+      if (JSON.stringify(newIds) === JSON.stringify(oldIds)) return;
+
+      reorderSkills.mutate(newIds, {
+        onError: (error) => {
+          setDisplaySkills(sortedMySkills);
+          Alert.alert("Error", error.message);
+        },
+      });
+    },
+    [displaySkills, reorderSkills, sortedMySkills],
+  );
+
+  const renderSkillItem = useCallback(
+    ({ item: skill, drag, isActive }: RenderItemParams<WorkerSkill>) => (
+      <ScaleDecorator>
+        <View style={[styles.skillCard, isActive && styles.skillCardDragging]}>
+          <Pressable
+            style={styles.reorderHandle}
+            onLongPress={drag}
+            delayLongPress={160}
+            disabled={reorderSkills.isPending}
+          >
+            <Ionicons
+              name="reorder-three"
+              size={20}
+              color={Colors.textSecondary}
+            />
+          </Pressable>
+          <View style={styles.skillInfo}>
+            <Text style={styles.skillName}>{skill.name}</Text>
+            {isPrimarySkill(skill) ? (
+              <View style={styles.primaryBadge}>
+                <Ionicons name="star" size={12} color={Colors.warning} />
+                <Text style={styles.primaryBadgeText}>Primary Skill</Text>
+              </View>
+            ) : null}
+            <Text style={styles.skillExperience}>
+              {skill.experienceYears} year
+              {skill.experienceYears !== 1 ? "s" : ""} experience
+            </Text>
+            {skill.description ? (
+              <Text style={styles.skillDescription} numberOfLines={2}>
+                {skill.description}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.skillActions}>
+            <Pressable
+              style={styles.editButton}
+              onPress={() => openEditModal(skill)}
+            >
+              <Ionicons name="pencil" size={18} color={Colors.primary} />
+            </Pressable>
+            <Pressable
+              style={styles.deleteButton}
+              onPress={() => handleRemoveSkill(skill)}
+            >
+              <Ionicons name="trash" size={18} color={Colors.error} />
+            </Pressable>
+          </View>
+        </View>
+      </ScaleDecorator>
+    ),
+    [reorderSkills.isPending],
+  );
+
   // Handle add skill
   const handleAddSkill = () => {
     if (!selectedSkill) return;
@@ -94,6 +220,14 @@ export default function SkillsScreen() {
     const years = parseInt(experienceYears, 10) || 0;
     if (years < 0 || years > 50) {
       Alert.alert("Invalid Input", "Experience years must be between 0 and 50");
+      return;
+    }
+
+    if (addSkillType === "PRIMARY" && primarySkillCount >= MAX_PRIMARY_SKILLS) {
+      Alert.alert(
+        "Primary Skill Limit Reached",
+        `You can only set up to ${MAX_PRIMARY_SKILLS} primary skills.`,
+      );
       return;
     }
 
@@ -131,6 +265,19 @@ export default function SkillsScreen() {
     const years = parseInt(experienceYears, 10) || 0;
     if (years < 0 || years > 50) {
       Alert.alert("Invalid Input", "Experience years must be between 0 and 50");
+      return;
+    }
+
+    if (
+      editSkillType === "PRIMARY" &&
+      editingSkill?.skillType !== "PRIMARY" &&
+      !editingSkill?.isPrimary &&
+      primarySkillCount >= MAX_PRIMARY_SKILLS
+    ) {
+      Alert.alert(
+        "Primary Skill Limit Reached",
+        `You can only set up to ${MAX_PRIMARY_SKILLS} primary skills.`,
+      );
       return;
     }
 
@@ -262,8 +409,9 @@ export default function SkillsScreen() {
           />
           <Text style={styles.infoText}>
             Add up to {MAX_WORKER_SKILLS} skills to showcase your expertise.
-            Keep one skill marked as Primary. Skills are used to filter jobs
-            and link certifications.
+            You can mark up to {MAX_PRIMARY_SKILLS} as Primary. Long press
+            the handle to drag and reorder. Primary skills always stay at
+            the top of your list.
           </Text>
         </View>
 
@@ -285,42 +433,14 @@ export default function SkillsScreen() {
             </Text>
           </View>
         ) : (
-          mySkills.map((skill) => (
-            <View key={skill.id} style={styles.skillCard}>
-              <View style={styles.skillInfo}>
-                <Text style={styles.skillName}>{skill.name}</Text>
-                {skill.skillType === "PRIMARY" ? (
-                  <View style={styles.primaryBadge}>
-                    <Ionicons name="star" size={12} color={Colors.warning} />
-                    <Text style={styles.primaryBadgeText}>Primary Skill</Text>
-                  </View>
-                ) : null}
-                <Text style={styles.skillExperience}>
-                  {skill.experienceYears} year
-                  {skill.experienceYears !== 1 ? "s" : ""} experience
-                </Text>
-                {skill.description ? (
-                  <Text style={styles.skillDescription} numberOfLines={2}>
-                    {skill.description}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={styles.skillActions}>
-                <Pressable
-                  style={styles.editButton}
-                  onPress={() => openEditModal(skill)}
-                >
-                  <Ionicons name="pencil" size={18} color={Colors.primary} />
-                </Pressable>
-                <Pressable
-                  style={styles.deleteButton}
-                  onPress={() => handleRemoveSkill(skill)}
-                >
-                  <Ionicons name="trash" size={18} color={Colors.error} />
-                </Pressable>
-              </View>
-            </View>
-          ))
+          <DraggableFlatList
+            data={displaySkills}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderSkillItem}
+            onDragEnd={({ data }) => onDragEndSkills(data)}
+            activationDistance={6}
+            scrollEnabled={false}
+          />
         )}
       </ScrollView>
 
@@ -381,7 +501,7 @@ export default function SkillsScreen() {
                   />
                   <Text style={styles.modalEmptyTitle}>All Skills Added!</Text>
                   <Text style={styles.modalEmptyText}>
-                    You've added all available specializations to your profile.
+                    You&apos;ve added all available specializations to your profile.
                   </Text>
                 </View>
               ) : (
@@ -447,8 +567,19 @@ export default function SkillsScreen() {
                               style={[
                                 styles.skillTypeChip,
                                 addSkillType === "PRIMARY" && styles.skillTypeChipActive,
+                                primarySkillCount >= MAX_PRIMARY_SKILLS &&
+                                  styles.skillTypeChipDisabled,
                               ]}
-                              onPress={() => setAddSkillType("PRIMARY")}
+                              onPress={() => {
+                                if (primarySkillCount >= MAX_PRIMARY_SKILLS) {
+                                  Alert.alert(
+                                    "Primary Skill Limit Reached",
+                                    `You can only set up to ${MAX_PRIMARY_SKILLS} primary skills.`,
+                                  );
+                                  return;
+                                }
+                                setAddSkillType("PRIMARY");
+                              }}
                             >
                               <Text
                                 style={[
@@ -572,8 +703,24 @@ export default function SkillsScreen() {
                             styles.skillTypeChip,
                             editSkillType === "PRIMARY" &&
                               styles.skillTypeChipActive,
+                            primarySkillCount >= MAX_PRIMARY_SKILLS &&
+                              editingSkill?.skillType !== "PRIMARY" &&
+                              !editingSkill?.isPrimary &&
+                              styles.skillTypeChipDisabled,
                           ]}
-                          onPress={() => setEditSkillType("PRIMARY")}
+                          onPress={() => {
+                            const isAlreadyPrimary =
+                              editingSkill?.skillType === "PRIMARY" ||
+                              editingSkill?.isPrimary;
+                            if (!isAlreadyPrimary && primarySkillCount >= MAX_PRIMARY_SKILLS) {
+                              Alert.alert(
+                                "Primary Skill Limit Reached",
+                                `You can only set up to ${MAX_PRIMARY_SKILLS} primary skills.`,
+                              );
+                              return;
+                            }
+                            setEditSkillType("PRIMARY");
+                          }}
                         >
                           <Text
                             style={[
@@ -774,8 +921,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     ...Shadows.sm,
   },
+  skillCardDragging: {
+    opacity: 0.95,
+  },
   skillInfo: {
     flex: 1,
+  },
+  reorderHandle: {
+    padding: Spacing.sm,
+    marginRight: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    alignSelf: "stretch",
+    justifyContent: "center",
   },
   skillName: {
     ...Typography.body.large,
@@ -994,6 +1151,9 @@ const styles = StyleSheet.create({
   skillTypeChipActive: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primaryLight,
+  },
+  skillTypeChipDisabled: {
+    opacity: 0.45,
   },
   skillTypeChipText: {
     ...Typography.body.medium,

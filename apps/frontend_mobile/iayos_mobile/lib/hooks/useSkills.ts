@@ -25,6 +25,7 @@ export interface WorkerSkill {
   certification: string;
   skillType?: "PRIMARY" | "SECONDARY";
   isPrimary?: boolean;
+  displayOrder?: number;
 }
 
 interface AvailableSkillsResponse {
@@ -74,6 +75,12 @@ interface RemoveSkillResponse {
   success: boolean;
   message: string;
   deletedCertifications: number;
+}
+
+interface ReorderSkillsResponse {
+  success: boolean;
+  message: string;
+  count: number;
 }
 
 // ===== QUERIES =====
@@ -218,6 +225,37 @@ export function useRemoveSkill() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["certifications"] }); // Refresh certs (may have cascade deleted)
+      queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+    },
+  });
+}
+
+/**
+ * Reorder worker skills by worker skill IDs.
+ */
+export function useReorderSkills() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (skillIds: number[]): Promise<ReorderSkillsResponse> => {
+      const response = await apiRequest(ENDPOINTS.REORDER_SKILLS, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skill_ids: skillIds }),
+      });
+
+      const data = (await response.json()) as ReorderSkillsResponse & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to reorder skills"));
+      }
+
+      return data as ReorderSkillsResponse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
     },
   });

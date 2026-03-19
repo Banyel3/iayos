@@ -2493,7 +2493,7 @@ def get_workers_list_mobile(user, latitude=None, longitude=None, page=1, limit=2
             from .models import workerSpecialization, WorkerCertification
             specializations_query = workerSpecialization.objects.filter(
                 workerID=worker
-            ).select_related('specializationID')
+            ).select_related('specializationID').order_by('skillType', 'displayOrder', 'id')
             
             # Build skills list with certification counts
             skills_list = []
@@ -2626,7 +2626,7 @@ def get_worker_detail_mobile(user, worker_id):
         from .models import workerSpecialization, WorkerCertification
         specializations_query = workerSpecialization.objects.filter(
             workerID=worker
-        ).select_related('specializationID')
+        ).select_related('specializationID').order_by('skillType', 'displayOrder', 'id')
 
         # Build skills array with certification counts
         skills_list = []
@@ -2643,8 +2643,16 @@ def get_worker_detail_mobile(user, worker_id):
                 'experienceYears': ws.experienceYears,
                 'certificationCount': cert_count,
                 'skillType': ws.skillType,
-                'isPrimary': ws.skillType == 'PRIMARY'
+                'isPrimary': ws.skillType == 'PRIMARY',
+                'displayOrder': ws.displayOrder,
             })
+
+        explicit_job_title = (worker.description or '').strip()
+        first_primary_skill_name = next(
+            (skill['name'] for skill in skills_list if skill.get('isPrimary')),
+            None,
+        )
+        resolved_job_title = explicit_job_title or first_primary_skill_name or None
 
         # Build detailed worker data
         worker_data = {
@@ -2771,20 +2779,11 @@ def get_worker_detail_mobile_v2(user, worker_id):
         # TODO: Implement actual response time tracking
         response_time = "Within 1 hour"  # Default
 
-        # Get specializations
-        from .models import workerSpecialization
-        specializations = [
-            ws.specializationID.specializationName
-            for ws in workerSpecialization.objects.filter(
-                workerID=worker
-            ).select_related('specializationID')
-        ]
-
         # Get skills with certification counts (structured data)
-        from .models import WorkerCertification
+        from .models import WorkerCertification, workerSpecialization
         specializations_query = workerSpecialization.objects.filter(
             workerID=worker
-        ).select_related('specializationID')
+        ).select_related('specializationID').order_by('skillType', 'displayOrder', 'id')
         
         skills_list = []
         for ws in specializations_query:
@@ -2800,8 +2799,18 @@ def get_worker_detail_mobile_v2(user, worker_id):
                 'experienceYears': ws.experienceYears,
                 'certificationCount': cert_count,
                 'skillType': ws.skillType,
-                'isPrimary': ws.skillType == 'PRIMARY'
+                'isPrimary': ws.skillType == 'PRIMARY',
+                'displayOrder': ws.displayOrder,
             })
+
+        # Keep plain specialization names aligned with sorted skill order.
+        specializations = [skill['name'] for skill in skills_list]
+        explicit_job_title = (worker.description or '').strip()
+        first_primary_skill_name = next(
+            (skill['name'] for skill in skills_list if skill.get('isPrimary')),
+            None,
+        )
+        resolved_job_title = explicit_job_title or first_primary_skill_name or None
 
         # Calculate distance if user has location
         distance = None
@@ -2877,6 +2886,7 @@ def get_worker_detail_mobile_v2(user, worker_id):
             'phoneNumber': profile.contactNum or None,
             'profilePicture': profile.profileImg or None,
             'bio': worker.bio or worker.description or None,
+            'jobTitle': resolved_job_title,
             'softSkills': worker.soft_skills or None,
             'hourlyRate': float(worker.hourly_rate) if worker.hourly_rate else None,
             'rating': round(float(avg_rating), 1),
