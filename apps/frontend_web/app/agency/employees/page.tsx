@@ -5,6 +5,7 @@ import { API_BASE } from "@/lib/api/config";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
+import { KycActionGate } from "@/app/agency/components/KycActionGate";
 import {
   Select,
   SelectContent,
@@ -642,6 +643,7 @@ export default function EmployeesPage() {
 
 
             {/* Add Employee Form */}
+            <KycActionGate>
             <Card>
               <CardHeader>
                 <CardTitle>Add Employee</CardTitle>
@@ -727,6 +729,7 @@ export default function EmployeesPage() {
                 </div>
               </CardContent>
             </Card>
+            </KycActionGate>
           </div>
 
           {/* Right Column - Employee List */}
@@ -852,6 +855,7 @@ export default function EmployeesPage() {
                             </div>
                           </div>
                         </div>
+                        <KycActionGate>
                         <div className="flex items-center gap-0.5 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                           <Button
                             variant="ghost"
@@ -878,6 +882,7 @@ export default function EmployeesPage() {
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
+                        </KycActionGate>
                       </div>
                     ))
                 )}
@@ -1020,6 +1025,7 @@ export default function EmployeesPage() {
               </div>
 
               <div className="flex gap-2">
+                <KycActionGate>
                 <Button
                   onClick={setEmployeeOfMonth}
                   className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white"
@@ -1027,6 +1033,7 @@ export default function EmployeesPage() {
                   <Award className="h-4 w-4 mr-2" />
                   Set as EOTM
                 </Button>
+                </KycActionGate>
                 <Button
                   onClick={() => {
                     setSettingEOTM(false);

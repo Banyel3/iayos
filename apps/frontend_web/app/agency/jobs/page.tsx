@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
+import { KycActionGate } from "@/app/agency/components/KycActionGate";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1118,14 +1119,15 @@ export default function AgencyJobsPage() {
                 {pendingInvites.length === 1 ? "invitation" : "invitations"}
               </div>
               {pendingInvites.map((job) => (
+                <KycActionGate key={job.jobID}>
                 <PendingInviteCard
-                  key={job.jobID}
                   job={job}
                   availableWorkers={getSuggestedWorkersForJob(job)}
                   onAccept={handleAcceptInvite}
                   onReject={handleRejectInviteClick}
                   accepting={accepting === job.jobID}
                 />
+                </KycActionGate>
               ))}
             </div>
           )}
@@ -1299,6 +1301,7 @@ export default function AgencyJobsPage() {
                           View Details
                         </Button>
                         {!job.assignedEmployee && job.status === "ACTIVE" && (
+                          <KycActionGate>
                           <Button
                             className="flex-1 h-10 bg-white border-2 border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50 transition-all text-sm font-semibold"
                             onClick={(e) => {
@@ -1314,6 +1317,7 @@ export default function AgencyJobsPage() {
                             )}
                             Assign
                           </Button>
+                          </KycActionGate>
                         )}
                       </div>
                     </div>

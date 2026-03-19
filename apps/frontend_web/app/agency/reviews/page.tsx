@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/generic_button";
+import { KycActionGate } from "@/app/agency/components/KycActionGate";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -340,6 +341,7 @@ export default function AgencyReviewsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
+                        <KycActionGate>
                         <div className="flex justify-end gap-2">
                           <Button
                             variant="outline"
@@ -359,6 +361,7 @@ export default function AgencyReviewsPage() {
                             <Flag className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+                        </KycActionGate>
                       </td>
                     </tr>
                   ))
