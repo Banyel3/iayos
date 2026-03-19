@@ -285,6 +285,9 @@ export default function JobDetailScreen() {
   const [selectedSkillSlot, setSelectedSkillSlot] = useState<SkillSlot | null>(
     null,
   );
+  const [pendingReturnToApplyModal, setPendingReturnToApplyModal] = useState<
+    "STANDARD" | "TEAM" | null
+  >(null);
   const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
 
@@ -594,6 +597,10 @@ export default function JobDetailScreen() {
       } as any);
     },
     onError: (error: Error) => {
+      if (/required skill/i.test(error.message)) {
+        showMissingRequiredSkillAlert(error.message, "STANDARD");
+        return;
+      }
       Alert.alert("Error", error.message);
     },
   });
@@ -1047,6 +1054,31 @@ export default function JobDetailScreen() {
     });
   };
 
+  const showMissingRequiredSkillAlert = useCallback(
+    (errorMessage: string, source: "STANDARD" | "TEAM" = "STANDARD") => {
+      Alert.alert("Required Skill Missing", errorMessage, [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Add a Skill",
+          onPress: () => {
+            if (source === "STANDARD") {
+              setShowApplicationModal(false);
+            } else {
+              setShowTeamApplyModal(false);
+            }
+            setPendingReturnToApplyModal(source);
+            // Keep current apply draft in local state and reopen the same modal on return.
+            router.push("/profile/skills" as any);
+          },
+        },
+      ]);
+    },
+    [router],
+  );
+
   const handleAcceptInvite = () => {
     setCountdownConfig({
       visible: true,
@@ -1126,7 +1158,14 @@ export default function JobDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
-    }, [queryClient]),
+      if (pendingReturnToApplyModal === "STANDARD") {
+        setShowApplicationModal(true);
+        setPendingReturnToApplyModal(null);
+      } else if (pendingReturnToApplyModal === "TEAM") {
+        setShowTeamApplyModal(true);
+        setPendingReturnToApplyModal(null);
+      }
+    }, [pendingReturnToApplyModal, queryClient]),
   );
 
   // Team job applications (for clients)
@@ -1200,7 +1239,7 @@ export default function JobDetailScreen() {
             style: "cancel",
           },
           {
-            text: "Add Skill First",
+            text: "Add a Skill",
             onPress: () => router.push("/profile/skills" as any),
           },
           {
@@ -1256,6 +1295,13 @@ export default function JobDetailScreen() {
           setProposalMessage("");
           setProposedBudget("");
           setEstimatedDuration("");
+        },
+        onError: (error: Error) => {
+          if (/required skill/i.test(error.message)) {
+            showMissingRequiredSkillAlert(error.message, "TEAM");
+            return;
+          }
+          Alert.alert("Application Failed", error.message);
         },
       },
     );
