@@ -99,6 +99,20 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
 
         uploaded_files = []
         file_hashes = getattr(payload, 'file_hashes', {})
+
+        # Keep cache-keying consistent with /api/agency/kyc/validate-document.
+        raw_id_type = (getattr(payload, 'rep_id_type', '') or '').upper()
+        valid_id_types = {
+            'PHILSYS_ID', 'DRIVERS_LICENSE', 'SSS_ID', 'PRC_ID',
+            'POSTAL_ID', 'VOTERS_ID', 'TIN_ID', 'SENIOR_CITIZEN_ID', 'OFW_ID',
+            'PASSPORT', 'NATIONALID', 'UMID', 'PHILHEALTH', 'FRONTID'
+        }
+        normalized_rep_id_type = raw_id_type if raw_id_type in valid_id_types else 'FRONTID'
+
+        def get_cache_doc_type(file_key: str) -> str:
+            if file_key in {'REP_ID_FRONT', 'REP_ID_BACK'}:
+                return f"{file_key}:{normalized_rep_id_type}"
+            return file_key
         
         # ============================================
         # PARALLEL FILE UPLOAD TO SUPABASE
@@ -137,16 +151,24 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 cached_validation = None
                 using_client_hash = bool(file_hash)
 
+                cache_doc_type = get_cache_doc_type(key)
+
                 if file_hash:
                     if file_hash != actual_hash:
                         raise ValueError(
                             f"{key}: File hash mismatch. Please re-validate this document before upload."
                         )
-                    cached_validation = get_cached_validation(file_hash, key)
+                    cached_validation = get_cached_validation(file_hash, cache_doc_type)
+                    # Backward compatibility with older cache keys
+                    if not cached_validation:
+                        cached_validation = get_cached_validation(file_hash, key)
                 else:
                     # Fallback: generate hash from file data if not provided
                     file_hash = actual_hash
-                    cached_validation = get_cached_validation(file_hash, key)
+                    cached_validation = get_cached_validation(file_hash, cache_doc_type)
+                    # Backward compatibility with older cache keys
+                    if not cached_validation:
+                        cached_validation = get_cached_validation(file_hash, key)
                 
                 # Extract validation results from cache (or use defaults)
                 ai_status = 'PENDING'
@@ -164,7 +186,7 @@ def upload_agency_kyc_fast(payload, business_permit, rep_front, rep_back, addres
                 verified_at = timezone.now()
                 
                 if cached_validation:
-                    print(f"✅ [CACHE] Using validation for {key}")
+                    print(f"✅ [CACHE] Using validation for {key} ({cache_doc_type})")
                     ai_status = cached_validation.get('ai_status', 'PENDING')
                     face_detected = cached_validation.get('face_detected')
                     face_count = cached_validation.get('face_count')

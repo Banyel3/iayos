@@ -536,6 +536,7 @@ const AgencyKYCPage = () => {
       formData.append("business_permit", businessPermit);
       formData.append("rep_id_front", repIDFront);
       formData.append("business_type", businessType);
+      formData.append("rep_id_type", repIdType);
 
       if (process.env.NODE_ENV === "development") {
         console.log("📝 Extracting OCR data for autofill...");
@@ -592,9 +593,10 @@ const AgencyKYCPage = () => {
 
   const handleSubmit = async () => {
     // Note: registrationNumber is no longer required here - it's extracted via OCR from the business permit
-    if (!businessPermit || !repIDFront || !repIDBack) {
+    if (!businessPermit || !repIDFront || !repIDBack || !repSelfie) {
       toast.warning("Incomplete", {
-        description: "Please complete all required fields and uploads",
+        description:
+          "Please complete all required fields and uploads, including representative selfie for face matching",
       });
       return;
     }
