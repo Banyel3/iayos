@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **KYC FrontID Validation ID-Type Stale State Fix**
+  - Fixed camera return-event listeners in mobile KYC upload to use current `selectedIDType`/`selectedClearanceType` state instead of stale initial values.
+  - Added a guard that blocks front ID upload validation when no ID type is currently selected, showing a clear prompt before API validation.
+  - Added backend compatibility for `id_type` aliases (`DRIVERS_LICENSE`, `NATIONAL_ID`, etc.) and fallback `IDType` field name in `/api/accounts/kyc/validate-document`.
+  - **Impact**: Prevents false `ID type is required for FRONTID validation` errors after users already selected an ID type.
+
 - **KYC Split Name Extraction + Portrait Camera Guide Enforcement**
   - `/api/accounts/kyc/extract-id` now returns split name fields (`first_name`, `middle_name`, `last_name`) alongside `full_name` for edit/confirmation flows.
   - Mobile KYC extraction types now accept split-name OCR fields without breaking existing `full_name` handling.
