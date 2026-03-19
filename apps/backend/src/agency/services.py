@@ -426,7 +426,7 @@ def get_agency_kyc_status(account_id):
         raise ValueError("User not found")
 
 
-def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessName: str | None = None, businessDesc: str | None = None):
+def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessDesc: str | None = None):
     """
     Create an AgencyKYC record and associated AgencyKycFile rows using existing Supabase storage paths.
 
@@ -471,14 +471,13 @@ def create_agency_kyc_from_paths(account_id: int, file_map: dict, businessName: 
                 "file_name": file_name
             })
 
-        # Update Agency profile if businessName/Desc provided
+        # Optionally update agency business description from submission context
         try:
             agency_profile = None
             from accounts.models import Agency as AgencyProfile
             agency_profile = AgencyProfile.objects.filter(accountFK=user).first()
-            if agency_profile and businessName:
-                agency_profile.businessName = businessName
-                agency_profile.businessDesc = businessDesc or agency_profile.businessDesc
+            if agency_profile and businessDesc:
+                agency_profile.businessDesc = businessDesc
                 agency_profile.save()
         except Exception:
             # Non-fatal if Agency profile not present

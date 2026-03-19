@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types";
 import { toast } from "sonner";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/form_button";
 import {
   useAgencyKYCAutofill,
@@ -593,7 +592,7 @@ const AgencyKYCPage = () => {
 
   const handleSubmit = async () => {
     // Note: registrationNumber is no longer required here - it's extracted via OCR from the business permit
-    if (!businessName || !businessPermit || !repIDFront || !repIDBack) {
+    if (!businessPermit || !repIDFront || !repIDBack) {
       toast.warning("Incomplete", {
         description: "Please complete all required fields and uploads",
       });
@@ -605,7 +604,6 @@ const AgencyKYCPage = () => {
     try {
       const formData = new FormData();
       // align field names with backend agency KYC endpoint
-      formData.append("businessName", businessName);
       formData.append("businessDesc", businessDesc);
       // Note: registrationNumber is optional - OCR extracts it from the uploaded business permit
       if (registrationNumber) {
@@ -707,7 +705,7 @@ const AgencyKYCPage = () => {
       AGENCY_KYC_FIELD_CONFIG.forEach((config) => {
         initialFields[config.key] = getFieldValue(config.key);
       });
-      // Also include form fields that user entered
+      // Business name comes from agency profile (single source of truth)
       if (businessName) initialFields["business_name"] = businessName;
       if (registrationNumber)
         initialFields["permit_number"] = registrationNumber;
@@ -803,7 +801,6 @@ const AgencyKYCPage = () => {
     setAgencyKycFiles([]);
 
     // Clear form fields
-    setBusinessName("");
     setBusinessDesc("");
     setRegistrationNumber("");
     setRepIdType("PHILSYS_ID");
@@ -942,12 +939,14 @@ const AgencyKYCPage = () => {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business name <span className="text-red-500">*</span>
+              Registered Business Name
             </label>
-            <Input
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-            />
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800">
+              {businessName || "Not set in agency profile"}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              This comes from your agency profile and cannot be edited in KYC.
+            </p>
           </div>
 
           <div className="mb-4">
