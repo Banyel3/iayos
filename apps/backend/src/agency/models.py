@@ -599,6 +599,28 @@ class AgencyKYCExtractedData(models.Model):
                 "confidence": confidence or 0.0,
                 "source": "confirmed" if is_confirmed else "ocr"
             }
+
+        def _split_name_parts(name_value: str) -> tuple[str, str, str]:
+            cleaned = " ".join((name_value or "").split())
+            if not cleaned:
+                return "", "", ""
+
+            parts = cleaned.split(" ")
+            if len(parts) == 1:
+                return parts[0], "", ""
+            if len(parts) == 2:
+                return parts[0], "", parts[1]
+
+            return parts[0], " ".join(parts[1:-1]), parts[-1]
+
+        rep_full_name_field = _make_field(
+            self.confirmed_rep_full_name,
+            self.extracted_rep_full_name,
+            self.confidence_rep_name,
+        )
+        rep_first_name, rep_middle_name, rep_last_name = _split_name_parts(
+            rep_full_name_field.get("value", ""),
+        )
         
         return {
             # Business Information
@@ -648,11 +670,22 @@ class AgencyKYCExtractedData(models.Model):
                 0.8
             ),
             # Representative Information
-            "rep_full_name": _make_field(
-                self.confirmed_rep_full_name,
-                self.extracted_rep_full_name,
-                self.confidence_rep_name
-            ),
+            "rep_full_name": rep_full_name_field,
+            "rep_first_name": {
+                "value": rep_first_name,
+                "confidence": self.confidence_rep_name,
+                "source": rep_full_name_field.get("source", "ocr"),
+            },
+            "rep_middle_name": {
+                "value": rep_middle_name,
+                "confidence": self.confidence_rep_name,
+                "source": rep_full_name_field.get("source", "ocr"),
+            },
+            "rep_last_name": {
+                "value": rep_last_name,
+                "confidence": self.confidence_rep_name,
+                "source": rep_full_name_field.get("source", "ocr"),
+            },
             "rep_id_number": _make_field(
                 self.confirmed_rep_id_number,
                 self.extracted_rep_id_number,

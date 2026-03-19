@@ -55,6 +55,9 @@ class ParsedAgencyKYCData:
     
     # Representative Information (from ID)
     rep_full_name: ExtractionResult = field(default_factory=ExtractionResult)
+    rep_first_name: ExtractionResult = field(default_factory=ExtractionResult)
+    rep_middle_name: ExtractionResult = field(default_factory=ExtractionResult)
+    rep_last_name: ExtractionResult = field(default_factory=ExtractionResult)
     rep_id_number: ExtractionResult = field(default_factory=ExtractionResult)
     rep_id_type: ExtractionResult = field(default_factory=ExtractionResult)
     rep_birth_date: ExtractionResult = field(default_factory=ExtractionResult)
@@ -78,6 +81,9 @@ class ParsedAgencyKYCData:
             "sec_number": self.sec_number.to_dict(),
             "tin": self.tin.to_dict(),
             "rep_full_name": self.rep_full_name.to_dict(),
+            "rep_first_name": self.rep_first_name.to_dict(),
+            "rep_middle_name": self.rep_middle_name.to_dict(),
+            "rep_last_name": self.rep_last_name.to_dict(),
             "rep_id_number": self.rep_id_number.to_dict(),
             "rep_id_type": self.rep_id_type.to_dict(),
             "rep_birth_date": self.rep_birth_date.to_dict(),
@@ -523,16 +529,108 @@ class AgencyKYCExtractionParser:
 
         kyc_parser = get_kyc_parser()
         parsed_personal = kyc_parser.parse_ocr_text(text, normalized_hint)
+
+        def _sanitize_rep_id_number(raw_value: str) -> str:
+            value = (raw_value or "").strip()
+            if not value:
+                return ""
+
+            upper_value = value.upper()
+            blocked_tokens = [
+                "EXPIRATION",
+                "EXPIRY",
+                "EXPIRES",
+                "DATE OF EXPIRY",
+                "VALID UNTIL",
+                "VALID THRU",
+            ]
+            if any(token in upper_value for token in blocked_tokens):
+                return ""
+
+            return value
+
+        def _derive_name_parts_from_full_name(full_name: str) -> Tuple[str, str, str]:
+            cleaned = " ".join((full_name or "").split())
+            if not cleaned:
+                return "", "", ""
+
+            parts = cleaned.split(" ")
+            if len(parts) == 1:
+                return parts[0], "", ""
+            if len(parts) == 2:
+                return parts[0], "", parts[1]
+
+            return parts[0], " ".join(parts[1:-1]), parts[-1]
+
+        def _sanitize_name_text(raw_name: str) -> str:
+            name = " ".join((raw_name or "").replace(".", " ").split())
+            if not name:
+                return ""
+
+            # Remove common OCR-captured labels from ID templates.
+            tokens = [
+                token
+                for token in name.split(" ")
+                if token.upper()
+                not in {
+                    "FIRST",
+                    "MIDDLE",
+                    "LAST",
+                    "NAME",
+                    "NAMES",
+                    "GIVEN",
+                    "SURNAME",
+                }
+            ]
+
+            sanitized = " ".join(tokens).strip()
+            return sanitized
         
         # Map personal KYC fields to representative fields
+        sanitized_full_name = _sanitize_name_text(parsed_personal.full_name.value)
         result.rep_full_name = ExtractionResult(
-            value=parsed_personal.full_name.value,
+            value=sanitized_full_name,
             confidence=parsed_personal.full_name.confidence,
             source_text=parsed_personal.full_name.source_text
         )
+
+        first_name = _sanitize_name_text(parsed_personal.first_name.value)
+        middle_name = _sanitize_name_text(parsed_personal.middle_name.value)
+        last_name = _sanitize_name_text(parsed_personal.last_name.value)
+
+        if not first_name and not middle_name and not last_name:
+            first_name, middle_name, last_name = _derive_name_parts_from_full_name(
+                sanitized_full_name,
+            )
+
+        name_part_confidence = parsed_personal.full_name.confidence * 0.9
+        result.rep_first_name = ExtractionResult(
+            value=first_name,
+            confidence=name_part_confidence,
+            source_text=parsed_personal.first_name.source_text
+            or parsed_personal.full_name.source_text,
+        )
+        result.rep_middle_name = ExtractionResult(
+            value=middle_name,
+            confidence=name_part_confidence,
+            source_text=parsed_personal.middle_name.source_text
+            or parsed_personal.full_name.source_text,
+        )
+        result.rep_last_name = ExtractionResult(
+            value=last_name,
+            confidence=name_part_confidence,
+            source_text=parsed_personal.last_name.source_text
+            or parsed_personal.full_name.source_text,
+        )
+
+        sanitized_id_number = _sanitize_rep_id_number(parsed_personal.id_number.value)
         result.rep_id_number = ExtractionResult(
-            value=parsed_personal.id_number.value,
-            confidence=parsed_personal.id_number.confidence,
+            value=sanitized_id_number,
+            confidence=(
+                parsed_personal.id_number.confidence
+                if sanitized_id_number
+                else max(0.0, parsed_personal.id_number.confidence * 0.2)
+            ),
             source_text=parsed_personal.id_number.source_text
         )
         result.rep_id_type = ExtractionResult(

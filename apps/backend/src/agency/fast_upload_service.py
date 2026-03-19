@@ -509,6 +509,9 @@ def extract_ocr_for_autofill(business_permit, rep_id_front, business_type, rep_i
                 parsed_rep = parser.parse_ocr_text(ocr_text, doc_type)
                 return {
                     "rep_full_name": parsed_rep.rep_full_name.value or "",
+                    "rep_first_name": parsed_rep.rep_first_name.value or "",
+                    "rep_middle_name": parsed_rep.rep_middle_name.value or "",
+                    "rep_last_name": parsed_rep.rep_last_name.value or "",
                     "rep_id_number": parsed_rep.rep_id_number.value or "",
                     "rep_id_type": parsed_rep.rep_id_type.value or doc_type,
                     "rep_birth_date": parsed_rep.rep_birth_date.value or "",
