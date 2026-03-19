@@ -68,6 +68,9 @@ const AgencyKYCPage = () => {
   // NEW: OCR Confirmation State (Step 5)
   const [ocrFields, setOcrFields] = useState<Record<string, string>>({});
   const [editedFields, setEditedFields] = useState<Set<string>>(new Set());
+  const [businessStepErrors, setBusinessStepErrors] = useState<
+    Record<string, string>
+  >({});
   const [isConfirmingOcr, setIsConfirmingOcr] = useState(false);
 
   // Hook for OCR autofill data
@@ -760,6 +763,42 @@ const AgencyKYCPage = () => {
   const handleOcrFieldChange = (key: string, value: string) => {
     setOcrFields((prev) => ({ ...prev, [key]: value }));
     setEditedFields((prev) => new Set(prev).add(key));
+    setBusinessStepErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validateBusinessInfoStep = () => {
+    const requiredBusinessFields = AGENCY_KYC_FIELD_CONFIG.filter(
+      (field) =>
+        field.section === "business" &&
+        field.required &&
+        (!field.applicableBusinessTypes ||
+          field.applicableBusinessTypes.includes(businessType)),
+    );
+
+    const nextErrors: Record<string, string> = {};
+    requiredBusinessFields.forEach((field) => {
+      const raw = ocrFields[field.key];
+      const value = raw === null || raw === undefined ? "" : String(raw).trim();
+      if (!value) {
+        nextErrors[field.key] = `${field.label} is required.`;
+      }
+    });
+
+    setBusinessStepErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error("Complete required business fields", {
+        description: "Please fill all required fields before continuing.",
+      });
+      return false;
+    }
+
+    return true;
   };
 
   // Issue #1: Initialize OCR fields when autofill data loads
@@ -1599,8 +1638,12 @@ const AgencyKYCPage = () => {
                           handleOcrFieldChange(field.key, e.target.value)
                         }
                         placeholder={field.placeholder}
+                        required={field.required}
+                        aria-invalid={Boolean(businessStepErrors[field.key])}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          editedFields.has(field.key)
+                          businessStepErrors[field.key]
+                            ? "border-red-500 bg-red-50"
+                            : editedFields.has(field.key)
                             ? "border-yellow-400 bg-yellow-50"
                             : "border-gray-300"
                         }`}
@@ -1620,6 +1663,11 @@ const AgencyKYCPage = () => {
                     {editedFields.has(field.key) && (
                       <p className="text-xs text-yellow-600 mt-1">
                         ✏️ Edited by you
+                      </p>
+                    )}
+                    {businessStepErrors[field.key] && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {businessStepErrors[field.key]}
                       </p>
                     )}
                   </div>
@@ -1656,7 +1704,10 @@ const AgencyKYCPage = () => {
                 ← Back
               </button>
               <button
-                onClick={() => setCurrentStep(4)}
+                onClick={() => {
+                  if (!validateBusinessInfoStep()) return;
+                  setCurrentStep(4);
+                }}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 Next: Representative ID
