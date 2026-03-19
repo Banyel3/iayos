@@ -1179,6 +1179,8 @@ def apply_to_skill_slot(
     proposed_budget: Decimal,
     budget_option: str = "ACCEPT",
     estimated_duration: Optional[str] = None,
+    proposed_daily_rate: Optional[Decimal] = None,
+    proposed_days: Optional[int] = None,
 ) -> dict:
     """
     Worker applies to a specific skill slot in a team job.
@@ -1298,6 +1300,8 @@ def apply_to_skill_slot(
         proposedBudget=proposed_budget,
         budgetOption=budget_option,
         estimatedDuration=estimated_duration,
+        proposed_daily_rate=proposed_daily_rate,
+        proposed_days=proposed_days,
         status="PENDING",
     )
 
@@ -1323,7 +1327,12 @@ def apply_to_skill_slot(
 
 
 @transaction.atomic
-def accept_team_application(job_id: int, application_id: int, client_user) -> dict:
+def accept_team_application(
+    job_id: int,
+    application_id: int,
+    client_user,
+    daily_rate_override: Optional[Decimal] = None,
+) -> dict:
     """
     Client accepts a worker's application to a team job skill slot.
     Creates assignment and adds worker to team conversation.
@@ -1441,6 +1450,19 @@ def accept_team_application(job_id: int, application_id: int, client_user) -> di
         or 0
     )
 
+    # Determine daily rate for assignment (DAILY payment model jobs)
+    assignment_daily_rate = None
+    if job.payment_model == "DAILY":
+        if daily_rate_override is not None:
+            # Client counter-proposed a rate
+            assignment_daily_rate = daily_rate_override
+        elif application.proposed_daily_rate is not None:
+            # Use worker's proposed rate (client accepted it by not overriding)
+            assignment_daily_rate = application.proposed_daily_rate
+        else:
+            # Fall back to job-level daily rate
+            assignment_daily_rate = job.daily_rate_agreed
+
     # Create assignment
     assignment = JobWorkerAssignment.objects.create(
         jobID=job,
@@ -1448,6 +1470,7 @@ def accept_team_application(job_id: int, application_id: int, client_user) -> di
         workerID=application.workerID,
         slot_position=max_position + 1,
         assignment_status="ACTIVE",
+        daily_rate_at_assignment=assignment_daily_rate,
     )
 
     # Update application status

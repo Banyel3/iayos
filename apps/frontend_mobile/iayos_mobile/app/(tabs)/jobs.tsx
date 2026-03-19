@@ -92,6 +92,9 @@ interface MyApplication {
   proposed_budget?: number;
   estimated_duration?: string;
   budget_option: "ACCEPT" | "NEGOTIATE";
+  proposed_daily_rate?: number | null;
+  proposed_days?: number | null;
+  payment_model?: "PROJECT" | "DAILY" | string;
   created_at: string;
   assigned_agency_id?: number | null;
   client_name: string;
@@ -1318,11 +1321,12 @@ export default function JobsScreen() {
                       </Text>
                     </View>
                     <Text style={styles.budgetText}>
-                      ₱
-                      {(app.budget_option === "NEGOTIATE" && app.proposed_budget
-                        ? app.proposed_budget
-                        : app.job_budget
-                      ).toLocaleString()}
+                      {app.payment_model === "DAILY" && app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
+                        ? `₱${app.proposed_daily_rate.toLocaleString()}/day × ${app.proposed_days || "?"} days`
+                        : `₱${(app.budget_option === "NEGOTIATE" && app.proposed_budget
+                            ? app.proposed_budget
+                            : app.job_budget
+                          ).toLocaleString()}`}
                     </Text>
                   </View>
                 </TouchableOpacity>

@@ -3255,6 +3255,10 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             proposedBudget=data.proposed_budget,
             estimatedDuration=data.estimated_duration or "",
             budgetOption=data.budget_option,
+            proposed_daily_rate=Decimal(str(data.proposed_daily_rate))
+            if data.proposed_daily_rate is not None
+            else None,
+            proposed_days=data.proposed_days,
             status=JobApplication.ApplicationStatus.PENDING,
         )
 
@@ -9639,6 +9643,7 @@ from jobs.schemas import (
     TeamJobDetailSchema,
     TeamJobApplicationSchema,
     AssignWorkerToSlotSchema,
+    AcceptTeamApplicationSchema,
     UpdateSkillSlotSchema,
     TeamWorkerCompletionSchema,
     TeamJobStartSchema,
@@ -9780,6 +9785,10 @@ def apply_to_team_job_endpoint(request, job_id: int, payload: TeamJobApplication
             proposed_budget=Decimal(str(payload.proposed_budget)),
             budget_option=payload.budget_option,
             estimated_duration=payload.estimated_duration,
+            proposed_daily_rate=Decimal(str(payload.proposed_daily_rate))
+            if payload.proposed_daily_rate is not None
+            else None,
+            proposed_days=payload.proposed_days,
         )
 
         if not result.get("success"):
@@ -9798,17 +9807,30 @@ def apply_to_team_job_endpoint(request, job_id: int, payload: TeamJobApplication
 
 @router.post("/team/{job_id}/applications/{application_id}/accept", auth=dual_auth)
 @require_kyc
-def accept_team_application_endpoint(request, job_id: int, application_id: int):
+def accept_team_application_endpoint(
+    request,
+    job_id: int,
+    application_id: int,
+    payload: AcceptTeamApplicationSchema = None,
+):
     """
     Client accepts a worker's application to a team job skill slot.
 
     Creates assignment and adds worker to team group conversation.
+    Optionally accepts a daily_rate_override to counter-propose a rate for DAILY jobs.
     """
     try:
         print(f"✅ Accepting team application #{application_id} for job #{job_id}")
 
+        daily_rate_override = None
+        if payload and payload.daily_rate_override is not None:
+            daily_rate_override = Decimal(str(payload.daily_rate_override))
+
         result = accept_team_application(
-            job_id=job_id, application_id=application_id, client_user=request.auth
+            job_id=job_id,
+            application_id=application_id,
+            client_user=request.auth,
+            daily_rate_override=daily_rate_override,
         )
 
         if not result.get("success"):
@@ -9981,6 +10003,10 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                     "proposal_message": app.proposalMessage,
                     "proposed_budget": float(app.proposedBudget),
                     "budget_option": app.budgetOption,
+                    "proposed_daily_rate": float(app.proposed_daily_rate)
+                    if app.proposed_daily_rate
+                    else None,
+                    "proposed_days": app.proposed_days,
                     "status": app.status,
                     "created_at": app.createdAt.isoformat(),
                 }

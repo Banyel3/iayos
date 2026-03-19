@@ -2068,6 +2068,20 @@ class JobApplication(models.Model):
     proposedBudget = models.DecimalField(max_digits=10, decimal_places=2)
     estimatedDuration = models.CharField(max_length=100, blank=True, null=True)
 
+    # Daily Rate Negotiation (for DAILY payment_model jobs)
+    proposed_daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Worker's proposed daily rate (only for DAILY payment_model jobs)",
+    )
+    proposed_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Worker's proposed number of work days (only for DAILY payment_model jobs)",
+    )
+
     # Budget Option
     class BudgetOption(models.TextChoices):
         ACCEPT = "ACCEPT", "Accept Client's Budget"

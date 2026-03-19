@@ -83,6 +83,9 @@ class JobApplicationSchema(Schema):
     selected_materials: Optional[list] = (
         None  # [{name, source, price, quantity, worker_material_id}]
     )
+    # Daily rate negotiation fields (for DAILY payment_model jobs)
+    proposed_daily_rate: Optional[float] = None
+    proposed_days: Optional[int] = None
 
 
 class SubmitReviewSchema(Schema):
@@ -241,6 +244,9 @@ class TeamJobApplicationSchema(Schema):
     estimated_duration: Optional[str] = None
     budget_option: str  # ACCEPT or NEGOTIATE
     skill_slot_id: int  # Which skill slot to apply for
+    # Daily rate negotiation fields (for DAILY payment_model jobs)
+    proposed_daily_rate: Optional[float] = None
+    proposed_days: Optional[int] = None
 
 
 class AssignWorkerToSlotSchema(Schema):
@@ -249,6 +255,14 @@ class AssignWorkerToSlotSchema(Schema):
     application_id: int  # The accepted application
     skill_slot_id: int  # The slot to assign to
     slot_position: Optional[int] = None  # Position (auto-assigned if not provided)
+
+
+class AcceptTeamApplicationSchema(Schema):
+    """Schema for client accepting a team application with optional rate override"""
+
+    daily_rate_override: Optional[float] = (
+        None  # Client can counter-propose a daily rate
+    )
 
 
 class UpdateSkillSlotSchema(Schema):

@@ -3401,6 +3401,11 @@ def mobile_get_my_applications(request):
                     "applied_skill_slot_name": app.applied_skill_slot.specialization_name
                     if app.applied_skill_slot
                     else None,
+                    "proposed_daily_rate": float(app.proposed_daily_rate)
+                    if app.proposed_daily_rate
+                    else None,
+                    "proposed_days": app.proposed_days,
+                    "payment_model": job.payment_model,
                 }
             )
 

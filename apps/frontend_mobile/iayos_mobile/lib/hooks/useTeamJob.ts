@@ -101,6 +101,10 @@ export interface TeamJobDetail {
   client_id: number | null;
   client_name: string;
   created_at: string;
+  // Payment model fields (for daily rate negotiation)
+  payment_model?: "PROJECT" | "DAILY" | string;
+  daily_rate_agreed?: number | null;
+  duration_days?: number | null;
 }
 
 export interface TeamJobApplication {
@@ -115,6 +119,8 @@ export interface TeamJobApplication {
   proposed_budget: number;
   budget_option: "ACCEPT" | "NEGOTIATE";
   estimated_duration: string | null;
+  proposed_daily_rate: number | null;
+  proposed_days: number | null;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   applied_at: string;
 }
@@ -159,6 +165,8 @@ export function useApplyToSkillSlot() {
       proposedBudget,
       budgetOption = "ACCEPT",
       estimatedDuration,
+      proposedDailyRate,
+      proposedDays,
     }: {
       jobId: number;
       skillSlotId: number;
@@ -166,6 +174,8 @@ export function useApplyToSkillSlot() {
       proposedBudget: number;
       budgetOption?: "ACCEPT" | "NEGOTIATE";
       estimatedDuration?: string;
+      proposedDailyRate?: number;
+      proposedDays?: number;
     }) => {
       const response = await apiRequest(
         ENDPOINTS.TEAM_APPLY_SKILL_SLOT(jobId),
@@ -177,6 +187,8 @@ export function useApplyToSkillSlot() {
             proposed_budget: proposedBudget,
             budget_option: budgetOption,
             estimated_duration: estimatedDuration,
+            proposed_daily_rate: proposedDailyRate || null,
+            proposed_days: proposedDays || null,
           }),
         },
       );
@@ -220,13 +232,22 @@ export function useAcceptTeamApplication() {
     mutationFn: async ({
       jobId,
       applicationId,
+      dailyRateOverride,
     }: {
       jobId: number;
       applicationId: number;
+      dailyRateOverride?: number;
     }) => {
+      const body: Record<string, unknown> = {};
+      if (dailyRateOverride !== undefined) {
+        body.daily_rate_override = dailyRateOverride;
+      }
       const response = await apiRequest(
         ENDPOINTS.TEAM_ACCEPT_APPLICATION(jobId, applicationId),
-        { method: "POST" },
+        {
+          method: "POST",
+          body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+        },
       );
 
       const data = (await response.json()) as {

@@ -286,6 +286,9 @@ export default function JobDetailScreen() {
   const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
     "ACCEPT",
   );
+  // Daily rate negotiation state (for DAILY payment_model jobs)
+  const [proposedDailyRate, setProposedDailyRate] = useState("");
+  const [proposedDays, setProposedDays] = useState("");
 
   // Team Job state
   const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
@@ -573,6 +576,8 @@ export default function JobDetailScreen() {
       proposed_budget: number;
       estimated_duration: string | null;
       budget_option: "ACCEPT" | "NEGOTIATE";
+      proposed_daily_rate?: number | null;
+      proposed_days?: number | null;
     }) => {
       const response = await apiRequest(ENDPOINTS.APPLY_JOB(parseInt(id)), {
         method: "POST",
@@ -599,6 +604,8 @@ export default function JobDetailScreen() {
       setProposedBudget("");
       setEstimatedDuration("");
       setBudgetOption("ACCEPT");
+      setProposedDailyRate("");
+      setProposedDays("");
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
@@ -1017,6 +1024,14 @@ export default function JobDetailScreen() {
     setBudgetOption("ACCEPT");
     setProposalMessage("");
     setEstimatedDuration("");
+    // Pre-populate daily rate fields for DAILY payment model jobs
+    if (job?.payment_model === "DAILY") {
+      setProposedDailyRate(job?.daily_rate_agreed?.toString() || "");
+      setProposedDays(job?.duration_days?.toString() || "");
+    } else {
+      setProposedDailyRate("");
+      setProposedDays("");
+    }
 
     // Show payment education modal first (only the very first time)
     if (showWorkerPaymentInfo) {
@@ -1040,7 +1055,20 @@ export default function JobDetailScreen() {
       return;
     }
 
-    if (
+    const isDailyJob = job?.payment_model === "DAILY";
+
+    if (isDailyJob && budgetOption === "NEGOTIATE") {
+      const dailyRate = parseFloat(proposedDailyRate);
+      const days = parseInt(proposedDays);
+      if (!dailyRate || dailyRate <= 0) {
+        Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (!days || days <= 0) {
+        Alert.alert("Error", "Please enter a valid number of days");
+        return;
+      }
+    } else if (
       budgetOption === "NEGOTIATE" &&
       (!proposedBudget || parseFloat(proposedBudget) <= 0)
     ) {
@@ -1048,16 +1076,28 @@ export default function JobDetailScreen() {
       return;
     }
 
-    const budgetValue =
-      budgetOption === "ACCEPT"
-        ? parseFloat(job?.budget.replace(/[^0-9.]/g, "") || "0")
-        : parseFloat(proposedBudget);
+    let budgetValue: number;
+    let dailyRateValue: number | null = null;
+    let daysValue: number | null = null;
+
+    if (isDailyJob && budgetOption === "NEGOTIATE") {
+      dailyRateValue = parseFloat(proposedDailyRate);
+      daysValue = parseInt(proposedDays);
+      budgetValue = dailyRateValue * daysValue;
+    } else {
+      budgetValue =
+        budgetOption === "ACCEPT"
+          ? parseFloat(job?.budget.replace(/[^0-9.]/g, "") || "0")
+          : parseFloat(proposedBudget);
+    }
 
     submitApplication.mutate({
       proposal_message: proposalMessage,
       proposed_budget: budgetValue,
       estimated_duration: estimatedDuration || null,
       budget_option: budgetOption,
+      proposed_daily_rate: dailyRateValue,
+      proposed_days: daysValue,
     });
   };
 
@@ -1236,6 +1276,14 @@ export default function JobDetailScreen() {
               setBudgetOption("ACCEPT");
               setProposalMessage("");
               setEstimatedDuration("");
+              // Pre-populate daily rate fields for DAILY payment model jobs
+              if (job?.payment_model === "DAILY") {
+                setProposedDailyRate(job?.daily_rate_agreed?.toString() || "");
+                setProposedDays(job?.duration_days?.toString() || "");
+              } else {
+                setProposedDailyRate("");
+                setProposedDays("");
+              }
               setShowTeamApplyModal(true);
             },
           },
@@ -1249,6 +1297,14 @@ export default function JobDetailScreen() {
     setBudgetOption("ACCEPT");
     setProposalMessage("");
     setEstimatedDuration("");
+    // Pre-populate daily rate fields for DAILY payment model jobs
+    if (job?.payment_model === "DAILY") {
+      setProposedDailyRate(job?.daily_rate_agreed?.toString() || "");
+      setProposedDays(job?.duration_days?.toString() || "");
+    } else {
+      setProposedDailyRate("");
+      setProposedDays("");
+    }
     setShowTeamApplyModal(true);
   };
 
@@ -1260,10 +1316,28 @@ export default function JobDetailScreen() {
       return;
     }
 
-    const budgetValue =
-      budgetOption === "ACCEPT"
-        ? selectedSkillSlot.budget_per_worker
-        : parseFloat(proposedBudget);
+    const isDailyJob = job?.payment_model === "DAILY";
+
+    // For DAILY jobs with NEGOTIATE, use daily rate * days as the proposed budget
+    let budgetValue: number;
+    if (isDailyJob && budgetOption === "NEGOTIATE") {
+      const dailyRate = parseFloat(proposedDailyRate);
+      const days = parseInt(proposedDays);
+      if (!dailyRate || dailyRate <= 0) {
+        Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (!days || days <= 0) {
+        Alert.alert("Error", "Please enter a valid number of days");
+        return;
+      }
+      budgetValue = dailyRate * days;
+    } else {
+      budgetValue =
+        budgetOption === "ACCEPT"
+          ? selectedSkillSlot.budget_per_worker
+          : parseFloat(proposedBudget);
+    }
 
     applyToSkillSlot.mutate(
       {
@@ -1273,6 +1347,8 @@ export default function JobDetailScreen() {
         proposedBudget: budgetValue,
         budgetOption: budgetOption,
         estimatedDuration: estimatedDuration || undefined,
+        proposedDailyRate: isDailyJob && budgetOption === "NEGOTIATE" ? parseFloat(proposedDailyRate) : undefined,
+        proposedDays: isDailyJob && budgetOption === "NEGOTIATE" ? parseInt(proposedDays) : undefined,
       },
       {
         onSuccess: () => {
@@ -1281,6 +1357,8 @@ export default function JobDetailScreen() {
           setProposalMessage("");
           setProposedBudget("");
           setEstimatedDuration("");
+          setProposedDailyRate("");
+          setProposedDays("");
         },
       },
     );
@@ -2569,7 +2647,9 @@ export default function JobDetailScreen() {
                       color={Colors.textSecondary}
                     />
                     <Text style={styles.applicationDetailText}>
-                      ₱{app.proposed_budget?.toLocaleString()}
+                      {app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
+                        ? `₱${app.proposed_daily_rate?.toLocaleString()}/day × ${app.proposed_days || "?"} days (₱${app.proposed_budget?.toLocaleString()} total)`
+                        : `₱${app.proposed_budget?.toLocaleString()}`}
                     </Text>
                   </View>
                 </View>
@@ -3733,7 +3813,11 @@ export default function JobDetailScreen() {
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Apply for Job</Text>
-            <TouchableOpacity onPress={() => setShowApplicationModal(false)}>
+            <TouchableOpacity onPress={() => {
+              setShowApplicationModal(false);
+              setProposedDailyRate("");
+              setProposedDays("");
+            }}>
               <Ionicons name="close" size={28} color={Colors.textPrimary} />
             </TouchableOpacity>
           </View>
@@ -3767,7 +3851,9 @@ export default function JobDetailScreen() {
                   }
                 />
                 <Text style={styles.budgetOptionText}>
-                  Accept {job?.budget}
+                  {job?.payment_model === "DAILY"
+                    ? `Accept ₱${job?.daily_rate_agreed?.toLocaleString() || "0"}/day × ${job?.duration_days || "?"} days`
+                    : `Accept ${job?.budget}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -3796,17 +3882,51 @@ export default function JobDetailScreen() {
             </View>
 
             {budgetOption === "NEGOTIATE" && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Proposed Budget</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your proposed budget"
-                  placeholderTextColor={Colors.textHint}
-                  value={proposedBudget}
-                  onChangeText={setProposedBudget}
-                  keyboardType="numeric"
-                />
-              </View>
+              job?.payment_model === "DAILY" ? (
+                <View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Proposed Daily Rate (₱)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your proposed daily rate"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDailyRate}
+                      onChangeText={setProposedDailyRate}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Number of Days</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter proposed number of days"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDays}
+                      onChangeText={setProposedDays}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  {proposedDailyRate && proposedDays && (
+                    <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                      <Text style={[styles.label, { marginBottom: 0 }]}>
+                        Total Proposed: ₱{(parseFloat(proposedDailyRate) * parseInt(proposedDays || "0")).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Proposed Budget</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your proposed budget"
+                    placeholderTextColor={Colors.textHint}
+                    value={proposedBudget}
+                    onChangeText={setProposedBudget}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )
             )}
 
             {/* Proposal Message */}
@@ -3938,6 +4058,8 @@ export default function JobDetailScreen() {
         onRequestClose={() => {
           setShowTeamApplyModal(false);
           setSelectedSkillSlot(null);
+          setProposedDailyRate("");
+          setProposedDays("");
         }}
       >
         <SafeAreaView style={styles.modalContainer}>
@@ -3950,6 +4072,8 @@ export default function JobDetailScreen() {
                 setProposalMessage("");
                 setProposedBudget("");
                 setEstimatedDuration("");
+                setProposedDailyRate("");
+                setProposedDays("");
               }}
             >
               <Ionicons name="close" size={24} color={Colors.textPrimary} />
@@ -3973,8 +4097,9 @@ export default function JobDetailScreen() {
                       color={Colors.textSecondary}
                     />
                     <Text style={styles.skillSlotInfoText}>
-                      ₱{selectedSkillSlot.budget_per_worker.toLocaleString()}
-                      /worker
+                      {job?.payment_model === "DAILY"
+                        ? `₱${job?.daily_rate_agreed?.toLocaleString() || "0"}/day × ${job?.duration_days || "?"} days`
+                        : `₱${selectedSkillSlot.budget_per_worker.toLocaleString()}/worker`}
                     </Text>
                   </View>
                   <View style={styles.skillSlotInfoItem}>
@@ -4016,8 +4141,9 @@ export default function JobDetailScreen() {
                   }
                 />
                 <Text style={styles.budgetOptionText}>
-                  Accept ₱
-                  {selectedSkillSlot?.budget_per_worker.toLocaleString()}
+                  {job?.payment_model === "DAILY"
+                    ? `Accept ₱${job?.daily_rate_agreed?.toLocaleString() || "0"}/day × ${job?.duration_days || "?"} days`
+                    : `Accept ₱${selectedSkillSlot?.budget_per_worker.toLocaleString()}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -4046,17 +4172,51 @@ export default function JobDetailScreen() {
             </View>
 
             {budgetOption === "NEGOTIATE" && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Proposed Budget</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your proposed budget"
-                  placeholderTextColor={Colors.textHint}
-                  value={proposedBudget}
-                  onChangeText={setProposedBudget}
-                  keyboardType="numeric"
-                />
-              </View>
+              job?.payment_model === "DAILY" ? (
+                <View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Proposed Daily Rate (₱)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your proposed daily rate"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDailyRate}
+                      onChangeText={setProposedDailyRate}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Number of Days</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter proposed number of days"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDays}
+                      onChangeText={setProposedDays}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  {proposedDailyRate && proposedDays && (
+                    <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                      <Text style={[styles.label, { marginBottom: 0 }]}>
+                        Total Proposed: ₱{(parseFloat(proposedDailyRate) * parseInt(proposedDays || "0")).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Proposed Budget</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your proposed budget"
+                    placeholderTextColor={Colors.textHint}
+                    value={proposedBudget}
+                    onChangeText={setProposedBudget}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )
             )}
 
             {/* Proposal Message */}
