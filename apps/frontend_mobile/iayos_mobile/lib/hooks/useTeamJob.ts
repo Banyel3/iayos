@@ -14,12 +14,34 @@ export interface SkillSlot {
   specialization_name: string;
   workers_needed: number;
   workers_assigned: number;
+  freelancers_assigned: number;
+  employees_assigned: number;
   openings_remaining: number;
   budget_allocated: number;
   budget_per_worker: number;
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
   status: "OPEN" | "PARTIALLY_FILLED" | "FILLED" | "CLOSED";
   notes: string | null;
+  agency_invite: {
+    agency_id: number;
+    agency_name: string;
+    invite_status: "PENDING" | "ACCEPTED" | "REJECTED";
+    invite_responded_at: string | null;
+  } | null;
+  employee_assignments: EmployeeSlotAssignment[];
+}
+
+export interface EmployeeSlotAssignment {
+  assignment_id: string;
+  employee_id: string;
+  employee_name: string;
+  status: "ASSIGNED" | "IN_PROGRESS" | "COMPLETED";
+  dispatched: boolean;
+  client_confirmed_arrival: boolean;
+  agency_marked_complete: boolean;
+  client_approved: boolean;
+  is_primary_contact: boolean;
+  assigned_at: string;
 }
 
 export interface WorkerAssignment {
@@ -35,6 +57,23 @@ export interface WorkerAssignment {
   assigned_at: string;
   worker_marked_complete: boolean;
   individual_rating: number | null;
+  type?: "freelance";
+}
+
+export interface AgencyEmployeeAssignment {
+  assignment_id: string;
+  employee_id: string;
+  employee_name: string;
+  skill_slot_id: number | null;
+  specialization_name: string;
+  status: "ASSIGNED" | "IN_PROGRESS" | "COMPLETED";
+  dispatched: boolean;
+  client_confirmed_arrival: boolean;
+  agency_marked_complete: boolean;
+  client_approved: boolean;
+  is_primary_contact: boolean;
+  assigned_at: string;
+  type: "agency_employee";
 }
 
 export interface TeamJobDetail {
@@ -45,14 +84,20 @@ export interface TeamJobDetail {
   total_budget: number;
   status: string;
   is_team_job: boolean;
+  is_mixed_team: boolean;
+  has_agency_invites: boolean;
   budget_allocation_type: string;
   team_start_threshold: number;
   total_workers_needed: number;
   total_workers_assigned: number;
+  total_freelancers: number;
+  total_agency_employees: number;
+  multi_slot_workers: number[];
   team_fill_percentage: number;
   can_start: boolean;
   skill_slots: SkillSlot[];
   worker_assignments: WorkerAssignment[];
+  agency_employee_assignments: AgencyEmployeeAssignment[];
   client_id: number | null;
   client_name: string;
   created_at: string;
@@ -455,5 +500,108 @@ export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
       }>;
     },
     enabled: enabled && jobId > 0,
+  });
+}
+
+// ============================================================================
+// Agency Employee Hooks (Per-Slot Mixed Team)
+// ============================================================================
+
+/**
+ * Client confirms arrival of an agency employee on a team job
+ */
+export function useConfirmTeamEmployeeArrival() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: string;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_CONFIRM_EMPLOYEE_ARRIVAL(jobId, parseInt(assignmentId)),
+        { method: "POST" },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to confirm employee arrival"),
+        );
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert(
+        "Arrival Confirmed",
+        data.message || "Employee arrival has been confirmed.",
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["team-job", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", variables.jobId.toString()],
+      });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
+ * Agency marks an employee as complete on a team job
+ */
+export function useMarkTeamEmployeeComplete() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: string;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_MARK_EMPLOYEE_COMPLETE(jobId, parseInt(assignmentId)),
+        { method: "POST" },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to mark employee complete"),
+        );
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert(
+        "Marked Complete",
+        data.message || "Employee has been marked as complete.",
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["team-job", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", variables.jobId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
   });
 }

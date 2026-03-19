@@ -47,6 +47,8 @@ import PriceSuggestionCard from "@/components/PriceSuggestionCard";
 import SuggestionBubbles from "@/components/SuggestionBubbles";
 import SearchBar from "@/components/ui/SearchBar";
 import CountdownConfirmModal from "@/components/CountdownConfirmModal";
+import { useAgencies } from "@/lib/hooks/useAgencies";
+import type { Agency } from "@/lib/hooks/useAgencies";
 
 interface Specialization {
   id: number;
@@ -64,6 +66,8 @@ interface SkillSlot {
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
   budget_allocated?: number;
   notes?: string;
+  agency_id?: number;
+  agency_name?: string;
 }
 
 type AllocationMethod =
@@ -154,6 +158,13 @@ export default function CreateTeamJobScreen() {
 
   const [specSearchQuery, setSpecSearchQuery] = useState("");
 
+  // Agency picker state (per-slot agency invite)
+  const [agencyPickerVisible, setAgencyPickerVisible] = useState(false);
+  const [agencyPickerSlotId, setAgencyPickerSlotId] = useState<string | null>(
+    null,
+  );
+  const [agencySearchQuery, setAgencySearchQuery] = useState("");
+
   // Wallet balance
   const {
     data: walletData,
@@ -197,6 +208,26 @@ export default function CreateTeamJobScreen() {
 
   // Fetch barangays
   const { data: barangays } = useBarangays(1); // Zamboanga City
+
+  // Fetch agencies for per-slot invite picker
+  const { data: agenciesData, isLoading: agenciesLoading } = useAgencies({
+    sortBy: "rating",
+    limit: 50,
+  });
+
+  // Filter agencies by search query
+  const filteredAgencies = useMemo(() => {
+    const agencies = agenciesData?.agencies || [];
+    const search = agencySearchQuery.trim().toLowerCase();
+    if (!search) return agencies;
+    return agencies.filter(
+      (a: Agency) =>
+        a.name.toLowerCase().includes(search) ||
+        (a.specializations || []).some((s: string) =>
+          s.toLowerCase().includes(search),
+        ),
+    );
+  }, [agenciesData, agencySearchQuery]);
 
   // Calculate totals
   const totalWorkersNeeded = useMemo(() => {
@@ -517,6 +548,38 @@ export default function CreateTeamJobScreen() {
     );
   };
 
+  // Open agency picker for a specific slot
+  const openAgencyPicker = (slotId: string) => {
+    setAgencyPickerSlotId(slotId);
+    setAgencySearchQuery("");
+    setAgencyPickerVisible(true);
+  };
+
+  // Select agency for a slot
+  const selectAgencyForSlot = (agency: Agency) => {
+    if (!agencyPickerSlotId) return;
+    setSkillSlots((prev) =>
+      prev.map((slot) =>
+        slot.id === agencyPickerSlotId
+          ? { ...slot, agency_id: agency.id, agency_name: agency.name }
+          : slot,
+      ),
+    );
+    setAgencyPickerVisible(false);
+    setAgencyPickerSlotId(null);
+  };
+
+  // Remove agency from a slot
+  const removeAgencyFromSlot = (slotId: string) => {
+    setSkillSlots((prev) =>
+      prev.map((slot) =>
+        slot.id === slotId
+          ? { ...slot, agency_id: undefined, agency_name: undefined }
+          : slot,
+      ),
+    );
+  };
+
   // Add material
   const handleAddMaterial = () => {
     if (materialInput.trim() && !materials.includes(materialInput.trim())) {
@@ -613,6 +676,7 @@ export default function CreateTeamJobScreen() {
             ? slot.budget_allocated
             : undefined,
         notes: slot.notes,
+        agency_id: slot.agency_id || undefined,
       })),
       payment_method: "WALLET",
     };
@@ -866,6 +930,82 @@ export default function CreateTeamJobScreen() {
                             </Text>
                           </TouchableOpacity>
                         </View>
+                      </View>
+                      {/* Per-slot Agency Invite */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginTop: Spacing.xs,
+                        }}
+                      >
+                        {slot.agency_id ? (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              flex: 1,
+                              gap: 6,
+                            }}
+                          >
+                            <Ionicons
+                              name="business"
+                              size={14}
+                              color={Colors.primary}
+                            />
+                            <Text
+                              style={{
+                                ...Typography.body.small,
+                                color: Colors.primary,
+                                fontWeight: "600",
+                                flex: 1,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {slot.agency_name}
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => removeAgencyFromSlot(slot.id)}
+                              hitSlop={{
+                                top: 8,
+                                bottom: 8,
+                                left: 8,
+                                right: 8,
+                              }}
+                            >
+                              <Ionicons
+                                name="close-circle"
+                                size={18}
+                                color={Colors.error}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            onPress={() => openAgencyPicker(slot.id)}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 4,
+                              paddingVertical: 2,
+                            }}
+                          >
+                            <Ionicons
+                              name="business-outline"
+                              size={14}
+                              color={Colors.textSecondary}
+                            />
+                            <Text
+                              style={{
+                                ...Typography.body.small,
+                                color: Colors.textSecondary,
+                              }}
+                            >
+                              Invite Agency (optional)
+                            </Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                       {allocationMethod === "MANUAL_ALLOCATION" && (
                         <View
@@ -1587,6 +1727,203 @@ export default function CreateTeamJobScreen() {
                 </TouchableOpacity>
               )}
             />
+          </View>
+        </Modal>
+
+        {/* Agency Picker Modal (per-slot invite) */}
+        <Modal
+          visible={agencyPickerVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setAgencyPickerVisible(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Invite Agency</Text>
+              <TouchableOpacity
+                onPress={() => setAgencyPickerVisible(false)}
+              >
+                <Ionicons
+                  name="close"
+                  size={28}
+                  color={Colors.textPrimary}
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
+              <SearchBar
+                value={agencySearchQuery}
+                onChangeText={setAgencySearchQuery}
+                placeholder="Search agencies..."
+                showFilterButton={false}
+              />
+              <Text
+                style={{
+                  ...Typography.body.small,
+                  color: Colors.textSecondary,
+                  marginTop: Spacing.xs,
+                  marginBottom: Spacing.sm,
+                }}
+              >
+                Select an agency to invite for this skill slot. The agency
+                will be notified and can accept or decline.
+              </Text>
+            </View>
+            {agenciesLoading ? (
+              <View
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <ActivityIndicator size="large" color={Colors.primary} />
+              </View>
+            ) : (
+              <FlatList
+                data={filteredAgencies}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={{ paddingHorizontal: Spacing.md }}
+                ListEmptyComponent={
+                  <View
+                    style={{
+                      padding: Spacing.xl,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons
+                      name="business-outline"
+                      size={40}
+                      color={Colors.textHint}
+                    />
+                    <Text
+                      style={{
+                        ...Typography.body.medium,
+                        color: Colors.textSecondary,
+                        marginTop: Spacing.sm,
+                        textAlign: "center",
+                      }}
+                    >
+                      No agencies found
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  // Check if this agency is already assigned to another slot
+                  const alreadyAssignedSlot = skillSlots.find(
+                    (s) =>
+                      s.agency_id === item.id &&
+                      s.id !== agencyPickerSlotId,
+                  );
+                  return (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        padding: Spacing.md,
+                        borderBottomWidth: 1,
+                        borderBottomColor: Colors.border,
+                        opacity: alreadyAssignedSlot ? 0.5 : 1,
+                      }}
+                      onPress={() => {
+                        if (!alreadyAssignedSlot) {
+                          selectAgencyForSlot(item);
+                        }
+                      }}
+                      disabled={!!alreadyAssignedSlot}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: Colors.primary + "15",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginRight: Spacing.sm,
+                        }}
+                      >
+                        <Ionicons
+                          name="business"
+                          size={20}
+                          color={Colors.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            ...Typography.body.medium,
+                            fontWeight: "600",
+                            color: Colors.textPrimary,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {item.name}
+                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: 2,
+                          }}
+                        >
+                          {item.rating > 0 && (
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 2,
+                              }}
+                            >
+                              <Ionicons
+                                name="star"
+                                size={12}
+                                color={Colors.warning}
+                              />
+                              <Text
+                                style={{
+                                  ...Typography.body.small,
+                                  color: Colors.textSecondary,
+                                }}
+                              >
+                                {item.rating.toFixed(1)}
+                              </Text>
+                            </View>
+                          )}
+                          <Text
+                            style={{
+                              ...Typography.body.small,
+                              color: Colors.textSecondary,
+                            }}
+                          >
+                            {item.completedJobs} jobs done
+                          </Text>
+                        </View>
+                        {alreadyAssignedSlot && (
+                          <Text
+                            style={{
+                              ...Typography.body.small,
+                              color: Colors.warning,
+                              marginTop: 2,
+                            }}
+                          >
+                            Already assigned to another slot
+                          </Text>
+                        )}
+                      </View>
+                      {!alreadyAssignedSlot && (
+                        <Ionicons
+                          name="add-circle-outline"
+                          size={24}
+                          color={Colors.primary}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
           </View>
         </Modal>
 

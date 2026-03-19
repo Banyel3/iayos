@@ -233,11 +233,13 @@ export default function ActiveJobDetailScreen() {
 
   const isTeamDaily = job?.is_team_job && job?.payment_model === "DAILY";
 
-  // Determine if this worker is assigned to this team job
-  const myAssignment =
+  // Determine if this worker is assigned to this team job (supports multi-slot)
+  const myAssignments =
     job?.is_team_job && job?.worker_assignments
-      ? job.worker_assignments.find((a) => a.worker_id === currentWorkerId)
-      : null;
+      ? job.worker_assignments.filter((a) => a.worker_id === currentWorkerId)
+      : [];
+  // Keep single reference for backward-compat
+  const myAssignment = myAssignments.length > 0 ? myAssignments[0] : null;
 
   // Keep completion gating aligned with backend, which only checks ACTIVE assignments.
   const activeAssignments = job?.worker_assignments

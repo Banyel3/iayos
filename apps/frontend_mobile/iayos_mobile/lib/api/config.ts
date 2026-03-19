@@ -402,6 +402,12 @@ export const ENDPOINTS = {
   TEAM_START_AVAILABLE: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/start-available`,
 
+  // Team Job — Agency Employee Operations (per-slot mixed teams)
+  TEAM_CONFIRM_EMPLOYEE_ARRIVAL: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/confirm-arrival`,
+  TEAM_MARK_EMPLOYEE_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/mark-complete`,
+
   // Agency PROJECT Job Workflow (mirrors DAILY job workflow)
   // Flow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays
   AGENCY_DISPATCH_PROJECT_EMPLOYEE: (jobId: number, employeeId: number) =>

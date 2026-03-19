@@ -117,11 +117,24 @@ def _is_daily_job_participant(job: Job, user) -> bool:
     if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK == user:
         return True
 
-    return JobWorkerAssignment.objects.filter(
+    # Check freelance worker team assignments
+    if JobWorkerAssignment.objects.filter(
         jobID=job,
         workerID__profileID__accountFK=user,
         assignment_status__in=["ACTIVE", "COMPLETED"],
-    ).exists()
+    ).exists():
+        return True
+
+    # Check agency employees assigned to team job slots (per-slot invite)
+    if JobEmployeeAssignment.objects.filter(
+        job=job,
+        employee__agency=user,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        skill_slot__isnull=False,
+    ).exists():
+        return True
+
+    return False
 
 
 def _resolve_daily_actor_type(job: Job, user) -> Optional[str]:
@@ -144,6 +157,15 @@ def _resolve_daily_actor_type(job: Job, user) -> Optional[str]:
         assignment_status__in=["ACTIVE", "COMPLETED"],
     ).exists():
         return "WORKER"
+
+    # Check agency employees assigned to team job slots (per-slot invite)
+    if JobEmployeeAssignment.objects.filter(
+        job=job,
+        employee__agency=user,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        skill_slot__isnull=False,
+    ).exists():
+        return "AGENCY"
 
     return None
 
@@ -9669,6 +9691,7 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
                 "budget_allocated": slot.budget_allocated,
                 "skill_level_required": slot.skill_level_required or "ENTRY",
                 "notes": slot.notes,
+                "agency_id": slot.agency_id,
             }
             for slot in payload.skill_slots
         ]
@@ -10097,6 +10120,64 @@ def worker_mark_team_complete(
 
     result = worker_complete_team_assignment(
         assignment_id=assignment_id, worker_user=request.auth, notes=notes
+    )
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Failed to mark complete")}, status=400
+        )
+
+    return result
+
+
+# --- Agency Employee Lifecycle on Team Jobs ---
+
+
+@router.post("/{job_id}/team/employees/{assignment_id}/confirm-arrival", auth=dual_auth)
+@require_kyc
+def confirm_team_employee_arrival_endpoint(request, job_id: int, assignment_id: int):
+    """
+    Client confirms that an agency employee has arrived for a team job.
+    """
+    from jobs.team_job_services import confirm_team_employee_arrival
+
+    result = confirm_team_employee_arrival(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        client_user=request.auth,
+    )
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Failed to confirm arrival")}, status=400
+        )
+
+    return result
+
+
+@router.post("/{job_id}/team/employees/{assignment_id}/mark-complete", auth=dual_auth)
+@require_kyc
+def agency_mark_team_employee_complete_endpoint(
+    request, job_id: int, assignment_id: int
+):
+    """
+    Agency marks their employee's work as complete on a team job.
+    """
+    from jobs.team_job_services import agency_complete_team_employee
+
+    try:
+        job = JobPosting.objects.get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    project_gate_error = _project_multi_day_gate_error(job)
+    if project_gate_error:
+        return Response(project_gate_error, status=400)
+
+    result = agency_complete_team_employee(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        agency_user=request.auth,
     )
 
     if not result.get("success"):
@@ -11233,6 +11314,73 @@ def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
     assignment = None
     employee_id = data.employee_id
 
+    # Multi-slot fan-out: if worker_id is provided for a team job,
+    # log attendance for ALL of the worker's active assignments on this job
+    if data.worker_id and job.is_team_job and not data.assignment_id:
+        from accounts.models import JobWorkerAssignment, WorkerProfile
+
+        try:
+            worker_profile = WorkerProfile.objects.select_related(
+                "profileID__accountFK"
+            ).get(id=data.worker_id)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker not found"}, status=404)
+
+        # Auth check: must be client or the worker themselves
+        is_client_actor = bool(
+            job.clientID and job.clientID.profileID.accountFK == user
+        )
+        is_worker_actor = bool(worker_profile.profileID.accountFK == user)
+        if not is_client_actor and not is_worker_actor:
+            return Response(
+                {"error": "Not authorized to log attendance for this worker"},
+                status=403,
+            )
+
+        worker_assignments = list(
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                workerID=worker_profile,
+                assignment_status="ACTIVE",
+            )
+        )
+
+        if not worker_assignments:
+            return Response(
+                {"error": "Worker has no active assignments on this job"}, status=400
+            )
+
+        # Fan out: log attendance for each assignment
+        results = []
+        for assign in worker_assignments:
+            result = DailyPaymentService.log_attendance(
+                job=job,
+                work_date=work_date,
+                worker=worker_profile,
+                assignment=assign,
+                time_in=time_in,
+                time_out=time_out,
+                status=status,
+                notes=data.notes or "",
+            )
+            results.append(result)
+
+        # Check if any failed
+        failures = [r for r in results if not r.get("success")]
+        if failures and len(failures) == len(results):
+            return Response(
+                {"error": failures[0].get("error", "Failed to log attendance")},
+                status=400,
+            )
+
+        return {
+            "success": True,
+            "fan_out": True,
+            "assignments_logged": len([r for r in results if r.get("success")]),
+            "total_assignments": len(worker_assignments),
+            "results": results,
+        }
+
     if data.assignment_id:
         from accounts.models import JobWorkerAssignment
 
@@ -11288,6 +11436,14 @@ def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
         is_agency_actor = bool(
             job.assignedAgencyFK and job.assignedAgencyFK.accountFK == user
         )
+        # For mixed team jobs: also check per-slot agency invites
+        if not is_agency_actor and employee_id:
+            is_agency_actor = JobEmployeeAssignment.objects.filter(
+                job=job,
+                employee_id=employee_id,
+                employee__agency=user,
+                skill_slot__isnull=False,
+            ).exists()
         if not is_client_actor and not is_agency_actor:
             return Response(
                 {"error": "Not authorized to log attendance for agency employees"},

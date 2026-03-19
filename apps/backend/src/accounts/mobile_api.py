@@ -34,7 +34,11 @@ from .schemas import (
     GoogleIdTokenSchema,
     MobileCreateReportSchema,
 )
-from .authentication import jwt_auth, dual_auth, require_kyc  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
+from .authentication import (
+    jwt_auth,
+    dual_auth,
+    require_kyc,
+)  # Use Bearer token auth for mobile, dual_auth for endpoints that support both
 from .profile_metrics_service import get_profile_metrics
 from django.conf import settings
 from django.utils import timezone
@@ -74,8 +78,10 @@ def _get_ph_current_time():
     """Return current wall-clock time in Philippines regardless of Django TZ config."""
     return dt_datetime.now(PH_TIMEZONE).time()
 
+
 # Create mobile router
 mobile_router = Router(tags=["Mobile API"])
+
 
 # Lightweight structured logging helper for mobile endpoints
 def _log_mobile(event: str, **details):
@@ -105,7 +111,9 @@ def _derive_duration_days(job) -> int:
 
     expected_duration = str(getattr(job, "expectedDuration", "") or "").strip().lower()
     if expected_duration:
-        unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration)
+        unit_match = re.search(
+            r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration
+        )
         if unit_match:
             value = int(unit_match.group(1) or 1)
             unit = unit_match.group(2) or "day"
@@ -208,7 +216,9 @@ def _supports_daily_attendance_flow(job) -> bool:
 
     return _derive_duration_days(job) > 1
 
-#region MOBILE AUTH ENDPOINTS
+
+# region MOBILE AUTH ENDPOINTS
+
 
 @mobile_router.post("/auth/register")
 def mobile_register(request, payload: createAccountSchema):
@@ -220,36 +230,31 @@ def mobile_register(request, payload: createAccountSchema):
 
     try:
         result = create_account_individ(payload)
-        
+
         # Automatically send OTP email server-side (don't rely on frontend)
         try:
-            _send_otp_email_internal(result['email'])
+            _send_otp_email_internal(result["email"])
             print(f"✅ OTP email auto-sent for: {result['email']}")
         except Exception as email_err:
             print(f"⚠️ Failed to auto-send OTP email: {email_err}")
             # Registration still succeeds; user can use resend-otp
-        
+
         # Registration returns accountID (OTP kept server-side)
         # Don't auto-login, require email verification
         return {
-            'success': True,
-            'data': result,
-            'message': 'Registration successful. Please verify your email.'
+            "success": True,
+            "data": result,
+            "message": "Registration successful. Please verify your email.",
         }
     except ValueError as e:
         print(f"❌ Mobile registration error: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=400
-        )
+        return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"❌ Mobile registration exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Registration failed. Please try again."},
-            status=500
-        )
+        return Response({"error": "Registration failed. Please try again."}, status=500)
 
 
 @mobile_router.post("/auth/login")
@@ -262,15 +267,15 @@ def mobile_login(request, payload: logInSchema):
     import json
 
     print(f"📱 [MOBILE LOGIN] Request received for: {payload.email}")
-    
+
     try:
         result = login_account(payload)
         print(f"   Login result type: {type(result)}")
 
         # login_account returns JsonResponse, extract the content
-        if hasattr(result, 'content'):
+        if hasattr(result, "content"):
             # It's a JsonResponse, extract the JSON data
-            response_data = json.loads(result.content.decode('utf-8'))
+            response_data = json.loads(result.content.decode("utf-8"))
             return response_data
         else:
             # It's already a dict
@@ -278,17 +283,14 @@ def mobile_login(request, payload: logInSchema):
 
     except ValueError as e:
         print(f"[ERROR] Mobile login error: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=401
-        )
+        return Response({"error": str(e)}, status=401)
     except Exception as e:
         print(f"[ERROR] Mobile login exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": "Login failed. Please check your credentials."},
-            status=500
+            {"error": "Login failed. Please check your credentials."}, status=500
         )
 
 
@@ -312,17 +314,21 @@ def mobile_google_signin(request, payload: GoogleIdTokenSchema):
     from .services import generateCookie
 
     id_token = payload.id_token
-    profile_type = payload.profile_type or 'CLIENT'
+    profile_type = payload.profile_type or "CLIENT"
 
     _log_mobile("GOOGLE_SIGNIN", step="verify_token")
 
     # 1. Verify the ID token with Google
     try:
-        google_verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+        google_verify_url = (
+            f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
+        )
         verify_resp = http_requests.get(google_verify_url, timeout=10)
 
         if verify_resp.status_code != 200:
-            _log_mobile("GOOGLE_SIGNIN", error="invalid_token", status=verify_resp.status_code)
+            _log_mobile(
+                "GOOGLE_SIGNIN", error="invalid_token", status=verify_resp.status_code
+            )
             return Response({"error": "Invalid Google ID token"}, status=401)
 
         token_data = verify_resp.json()
@@ -331,27 +337,31 @@ def mobile_google_signin(request, payload: GoogleIdTokenSchema):
         return Response({"error": "Failed to verify Google token"}, status=500)
 
     # 2. Validate the audience (must match our Google Client ID)
-    google_client_id = django_settings.SOCIALACCOUNT_PROVIDERS.get('google', {}).get('APP', {}).get('client_id', '')
+    google_client_id = (
+        django_settings.SOCIALACCOUNT_PROVIDERS.get("google", {})
+        .get("APP", {})
+        .get("client_id", "")
+    )
     # Also accept Android/iOS client IDs from env
     allowed_client_ids = [
         google_client_id,
-        os.getenv('GOOGLE_ANDROID_CLIENT_ID', ''),
-        os.getenv('GOOGLE_IOS_CLIENT_ID', ''),
-        os.getenv('GOOGLE_EXPO_CLIENT_ID', ''),
+        os.getenv("GOOGLE_ANDROID_CLIENT_ID", ""),
+        os.getenv("GOOGLE_IOS_CLIENT_ID", ""),
+        os.getenv("GOOGLE_EXPO_CLIENT_ID", ""),
     ]
     allowed_client_ids = [cid for cid in allowed_client_ids if cid]  # Remove empty
 
-    token_aud = token_data.get('aud', '')
+    token_aud = token_data.get("aud", "")
     if token_aud not in allowed_client_ids:
         _log_mobile("GOOGLE_SIGNIN", error="audience_mismatch", aud=token_aud)
         return Response({"error": "Token audience mismatch"}, status=401)
 
     # 3. Extract user info from the verified token
-    email = token_data.get('email')
-    email_verified = token_data.get('email_verified', 'false') == 'true'
-    first_name = token_data.get('given_name', '')
-    last_name = token_data.get('family_name', '')
-    picture = token_data.get('picture', '')
+    email = token_data.get("email")
+    email_verified = token_data.get("email_verified", "false") == "true"
+    first_name = token_data.get("given_name", "")
+    last_name = token_data.get("family_name", "")
+    picture = token_data.get("picture", "")
 
     if not email:
         return Response({"error": "No email in Google token"}, status=400)
@@ -367,7 +377,7 @@ def mobile_google_signin(request, payload: GoogleIdTokenSchema):
         # Create new account (Google-verified email, no password needed)
         user = Accounts.objects.create(
             email=email,
-            password='',  # No password for Google users
+            password="",  # No password for Google users
             isVerified=True,  # Google verified the email
         )
         # Set first/last name if available
@@ -382,7 +392,7 @@ def mobile_google_signin(request, payload: GoogleIdTokenSchema):
     # 5. Auto-verify email if not already
     if not user.isVerified and email_verified:
         user.isVerified = True
-        user.save(update_fields=['isVerified'])
+        user.save(update_fields=["isVerified"])
 
     # 6. Create Profile if user is new
     needs_profile_completion = False
@@ -397,17 +407,17 @@ def mobile_google_signin(request, payload: GoogleIdTokenSchema):
         _log_mobile("GOOGLE_SIGNIN", step="created_profile", profile_type=profile_type)
 
         # Create the type-specific profile
-        if profile_type.upper() == 'WORKER':
+        if profile_type.upper() == "WORKER":
             WorkerProfile.objects.create(
                 profileID=profile,
-                description='',
+                description="",
                 totalEarningGross=0,
                 workerRating=0,
             )
         else:
             ClientProfile.objects.create(
                 profileID=profile,
-                description='',
+                description="",
                 totalJobsPosted=0,
                 clientRating=0,
             )
@@ -420,27 +430,29 @@ def mobile_google_signin(request, payload: GoogleIdTokenSchema):
         # Update profile picture from Google if not set
         if not profile.profileImg and picture:
             profile.profileImg = picture
-            profile.save(update_fields=['profileImg'])
+            profile.save(update_fields=["profileImg"])
 
     # 7. Generate JWT tokens
-    auth_response = generateCookie(user, profile_type=profile.profileType if not created else profile_type.upper())
+    auth_response = generateCookie(
+        user, profile_type=profile.profileType if not created else profile_type.upper()
+    )
     auth_data = json.loads(auth_response.content)
 
     return {
-        'success': True,
-        'access': auth_data['access'],
-        'refresh': auth_data['refresh'],
-        'user': {
-            'accountID': user.accountID,
-            'email': user.email,
-            'isVerified': user.isVerified,
-            'firstName': first_name,
-            'lastName': last_name,
-            'profileImg': picture,
-            'profileType': profile.profileType if profile else profile_type.upper(),
-            'needs_profile_completion': needs_profile_completion,
+        "success": True,
+        "access": auth_data["access"],
+        "refresh": auth_data["refresh"],
+        "user": {
+            "accountID": user.accountID,
+            "email": user.email,
+            "isVerified": user.isVerified,
+            "firstName": first_name,
+            "lastName": last_name,
+            "profileImg": picture,
+            "profileType": profile.profileType if profile else profile_type.upper(),
+            "needs_profile_completion": needs_profile_completion,
         },
-        'message': 'Google sign-in successful',
+        "message": "Google sign-in successful",
     }
 
 
@@ -454,16 +466,10 @@ def mobile_logout(request):
 
     try:
         result = logout_account()
-        return {
-            'success': True,
-            'message': 'Logged out successfully'
-        }
+        return {"success": True, "message": "Logged out successfully"}
     except Exception as e:
         print(f"❌ Mobile logout error: {str(e)}")
-        return Response(
-            {"error": "Logout failed"},
-            status=500
-        )
+        return Response({"error": "Logout failed"}, status=500)
 
 
 @mobile_router.post("/auth/send-verification-email")
@@ -474,19 +480,16 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
     """
     import requests
     from django.conf import settings
-    
+
     print(f"📧 [Mobile] Send verification email request for: {payload.email}")
-    
+
     try:
         # Validate required environment variables
         resend_api_key = settings.RESEND_API_KEY
         if not resend_api_key:
             print("❌ [Mobile] RESEND_API_KEY not configured")
-            return Response(
-                {"error": "Email service not configured"},
-                status=500
-            )
-        
+            return Response({"error": "Email service not configured"}, status=500)
+
         # Generate HTML email template
         html_template = f"""
         <!DOCTYPE html>
@@ -527,56 +530,57 @@ def mobile_send_verification_email(request, payload: SendVerificationEmailSchema
         </body>
         </html>
         """
-        
+
         # Call Resend API
         resend_url = f"{settings.RESEND_BASE_URL}/emails"
         headers = {
             "Authorization": f"Bearer {resend_api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        
+
         resend_payload = {
             "from": "team@devante.online",
             "to": [payload.email],
             "subject": "Verify Your Email - iAyos",
-            "html": html_template
+            "html": html_template,
         }
-        
+
         print(f"📧 [Mobile] Sending email to: {payload.email}")
-        response = requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
-        
+        response = requests.post(
+            resend_url, headers=headers, json=resend_payload, timeout=10
+        )
+
         if response.status_code == 200:
             result = response.json()
             print(f"✅ [Mobile] Email sent successfully. ID: {result.get('id')}")
             return {
                 "success": True,
-                "messageId": result.get('id'),
-                "method": "resend-api"
+                "messageId": result.get("id"),
+                "method": "resend-api",
             }
         else:
-            print(f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}")
+            print(
+                f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}"
+            )
             return Response(
                 {
                     "error": "Failed to send verification email",
-                    "details": response.text if settings.DEBUG else None
+                    "details": response.text if settings.DEBUG else None,
                 },
-                status=502
+                status=502,
             )
-            
+
     except requests.exceptions.Timeout:
         print("❌ [Mobile] Resend API timeout")
         return Response(
-            {"error": "Email service timeout. Please try again."},
-            status=504
+            {"error": "Email service timeout. Please try again."}, status=504
         )
     except Exception as e:
         print(f"❌ [Mobile] Send email exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to send verification email"},
-            status=500
-        )
+        return Response({"error": "Failed to send verification email"}, status=500)
 
 
 @mobile_router.post("/auth/send-otp-email")
@@ -596,44 +600,50 @@ def _send_otp_email_internal(email: str):
     import requests as http_requests
     from django.conf import settings
     from .models import Accounts
-    
+
     print(f"📧 [Mobile] Send OTP email request for: {email}")
-    
+
     try:
         # Look up the user and their current OTP from the database
         user = Accounts.objects.filter(email__iexact=email).first()
         if not user:
             return Response({"error": "Account not found"}, status=404)
-        
+
         otp_code = user.email_otp
         if not otp_code:
-            return Response({"error": "No OTP generated. Please register or request a new OTP."}, status=400)
-        
+            return Response(
+                {"error": "No OTP generated. Please register or request a new OTP."},
+                status=400,
+            )
+
         # Check if OTP has expired
         from django.utils import timezone
+
         if user.email_otp_expiry and user.email_otp_expiry < timezone.now():
-            return Response({"error": "OTP has expired. Please request a new one."}, status=400)
-        
+            return Response(
+                {"error": "OTP has expired. Please request a new one."}, status=400
+            )
+
         expires_in_minutes = 5
         if user.email_otp_expiry:
             remaining = (user.email_otp_expiry - timezone.now()).total_seconds() / 60
             expires_in_minutes = max(1, int(remaining))
-        
+
         # Validate required environment variables
         resend_api_key = settings.RESEND_API_KEY
-        resend_base_url = getattr(settings, 'RESEND_BASE_URL', 'https://api.resend.com')
-        
+        resend_base_url = getattr(settings, "RESEND_BASE_URL", "https://api.resend.com")
+
         print(f"🔍 [Mobile] Checking email service configuration...")
         print(f"🔍 [Mobile] RESEND_API_KEY configured: {bool(resend_api_key)}")
         print(f"🔍 [Mobile] RESEND_BASE_URL: {resend_base_url}")
-        
+
         if not resend_api_key:
             print("❌ [Mobile] RESEND_API_KEY not configured in environment")
             return Response(
                 {"error": "Email service not configured. Please contact support."},
-                status=500
+                status=500,
             )
-        
+
         # Generate OTP HTML email template
         html_template = f"""
         <!DOCTYPE html>
@@ -683,59 +693,60 @@ def _send_otp_email_internal(email: str):
         </body>
         </html>
         """
-        
+
         # Call Resend API
         resend_url = f"{resend_base_url}/emails"
         headers = {
             "Authorization": f"Bearer {resend_api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
-        
+
         resend_payload = {
             "from": "team@devante.online",
             "to": [email],
             "subject": f"Your iAyos Verification Code: {otp_code}",
-            "html": html_template
+            "html": html_template,
         }
-        
+
         print(f"📧 [Mobile] Sending OTP email to: {email}")
         print(f"📧 [Mobile] Using Resend URL: {resend_url}")
-        response = http_requests.post(resend_url, headers=headers, json=resend_payload, timeout=10)
+        response = http_requests.post(
+            resend_url, headers=headers, json=resend_payload, timeout=10
+        )
         print(f"📧 [Mobile] Resend API Response Status: {response.status_code}")
         print(f"📧 [Mobile] Resend API Response Body: {response.text[:500]}")
-        
+
         if response.status_code in (200, 201, 202):
             result = response.json()
             print(f"✅ [Mobile] OTP email sent successfully. ID: {result.get('id')}")
             return {
                 "success": True,
-                "messageId": result.get('id'),
-                "method": "resend-api-otp"
+                "messageId": result.get("id"),
+                "method": "resend-api-otp",
             }
         else:
-            print(f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}")
+            print(
+                f"❌ [Mobile] Resend API error: {response.status_code} - {response.text}"
+            )
             return Response(
                 {
                     "error": "Failed to send verification email",
-                    "details": response.text if settings.DEBUG else None
+                    "details": response.text if settings.DEBUG else None,
                 },
-                status=502
+                status=502,
             )
-            
+
     except http_requests.exceptions.Timeout:
         print("❌ [Mobile] Resend API timeout")
         return Response(
-            {"error": "Email service timeout. Please try again."},
-            status=504
+            {"error": "Email service timeout. Please try again."}, status=504
         )
     except Exception as e:
         print(f"❌ [Mobile] Send OTP email exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to send verification email"},
-            status=500
-        )
+        return Response({"error": "Failed to send verification email"}, status=500)
 
 
 @mobile_router.get("/payment-verified", auth=None)
@@ -746,7 +757,7 @@ def payment_verification_redirect(request, success: bool = True, method_id: int 
     This page is displayed after PayMongo redirects back.
     """
     from django.http import HttpResponse
-    
+
     if success:
         html = """
         <!DOCTYPE html>
@@ -892,13 +903,15 @@ def payment_verification_redirect(request, success: bool = True, method_id: int 
         </body>
         </html>
         """
-    
-    return HttpResponse(html, content_type='text/html')
+
+    return HttpResponse(html, content_type="text/html")
 
 
 @mobile_router.get("/auth/profile", auth=jwt_auth)
 def mobile_get_profile(request):
-    print(f"📱 [MOBILE PROFILE] Request received for user: {request.auth.email if request.auth else 'None'}")
+    print(
+        f"📱 [MOBILE PROFILE] Request received for user: {request.auth.email if request.auth else 'None'}"
+    )
     """
     Get current user profile for mobile
     Returns mobile-optimized user data
@@ -908,21 +921,21 @@ def mobile_get_profile(request):
 
     try:
         user = request.auth
-        
+
         # Get profile_type from JWT if available
-        profile_type = getattr(user, 'profile_type', None)
-        
-        print(f"[SUCCESS] Mobile /auth/profile - User: {user.email}, Profile Type: {profile_type}")
+        profile_type = getattr(user, "profile_type", None)
+
+        print(
+            f"[SUCCESS] Mobile /auth/profile - User: {user.email}, Profile Type: {profile_type}"
+        )
         result = fetch_currentUser(user.accountID, profile_type=profile_type)
         return result
     except Exception as e:
         print(f"[ERROR] Mobile profile error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch profile"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch profile"}, status=500)
 
 
 @mobile_router.get("/profile/metrics", auth=jwt_auth)
@@ -935,11 +948,9 @@ def mobile_profile_metrics(request):
     except Exception as e:
         print(f"[ERROR] Mobile profile metrics error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch profile metrics"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch profile metrics"}, status=500)
 
 
 @mobile_router.post("/auth/assign-role", auth=jwt_auth)
@@ -963,18 +974,13 @@ def mobile_assign_role(request, payload: AssignRoleMobileSchema):
         return result
     except ValueError as e:
         print(f"[ERROR] Mobile assign role error: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=400
-        )
+        return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"[ERROR] Mobile assign role exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to assign role"},
-            status=500
-        )
+        return Response({"error": "Failed to assign role"}, status=500)
 
 
 @mobile_router.post("/auth/refresh")
@@ -988,44 +994,35 @@ def mobile_refresh_token(request):
 
     try:
         # Get refresh token from Authorization header
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
             return Response(
-                {"error": "Refresh token required in Authorization header"},
-                status=401
+                {"error": "Refresh token required in Authorization header"}, status=401
             )
 
-        refresh_token_value = auth_header.replace('Bearer ', '')
+        refresh_token_value = auth_header.replace("Bearer ", "")
 
         if not refresh_token_value:
-            return Response(
-                {"error": "Refresh token not found"},
-                status=401
-            )
+            return Response({"error": "Refresh token not found"}, status=401)
 
         result = refresh_token_service(refresh_token_value)
 
         # Extract JSON from JsonResponse if needed
-        if hasattr(result, 'content'):
-            response_data = json.loads(result.content.decode('utf-8'))
+        if hasattr(result, "content"):
+            response_data = json.loads(result.content.decode("utf-8"))
             return response_data
         else:
             return result
 
     except ValueError as e:
         print(f"❌ Mobile refresh token error: {str(e)}")
-        return Response(
-            {"error": "Invalid or expired refresh token"},
-            status=401
-        )
+        return Response({"error": "Invalid or expired refresh token"}, status=401)
     except Exception as e:
         print(f"❌ Mobile refresh token exception: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Token refresh failed"},
-            status=500
-        )
+        return Response({"error": "Token refresh failed"}, status=500)
 
 
 @mobile_router.post("/auth/forgot-password")
@@ -1037,26 +1034,19 @@ def mobile_forgot_password(request, payload: forgotPasswordSchema):
 
     try:
         result = forgot_password_request(payload)
-        return {
-            'success': True,
-            'message': 'Password reset email sent'
-        }
+        return {"success": True, "message": "Password reset email sent"}
     except ValueError as e:
         print(f"❌ Mobile forgot password error: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=400
-        )
+        return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"❌ Mobile forgot password exception: {str(e)}")
-        return Response(
-            {"error": "Failed to send reset email"},
-            status=500
-        )
+        return Response({"error": "Failed to send reset email"}, status=500)
 
 
 @mobile_router.post("/auth/reset-password")
-def mobile_reset_password(request, payload: resetPasswordSchema, verifyToken: str, id: int):
+def mobile_reset_password(
+    request, payload: resetPasswordSchema, verifyToken: str, id: int
+):
     """
     Reset password with token for mobile
     """
@@ -1064,22 +1054,13 @@ def mobile_reset_password(request, payload: resetPasswordSchema, verifyToken: st
 
     try:
         result = reset_password_verify(verifyToken, id, payload)
-        return {
-            'success': True,
-            'message': 'Password reset successful'
-        }
+        return {"success": True, "message": "Password reset successful"}
     except ValueError as e:
         print(f"❌ Mobile reset password error: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=400
-        )
+        return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"❌ Mobile reset password exception: {str(e)}")
-        return Response(
-            {"error": "Password reset failed"},
-            status=500
-        )
+        return Response({"error": "Password reset failed"}, status=500)
 
 
 @mobile_router.get("/auth/verify")
@@ -1092,26 +1073,22 @@ def mobile_verify_email(request, verifyToken: str, accountID: int):
     try:
         result = _verify_account(verifyToken, accountID)
         return {
-            'success': True,
-            'message': 'Email verified successfully',
-            'data': result
+            "success": True,
+            "message": "Email verified successfully",
+            "data": result,
         }
     except ValueError as e:
         print(f"❌ Mobile email verification error: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=400
-        )
+        return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"❌ Mobile email verification exception: {str(e)}")
-        return Response(
-            {"error": "Email verification failed"},
-            status=500
-        )
+        return Response({"error": "Email verification failed"}, status=500)
 
-#endregion
 
-#region MOBILE JOB ENDPOINTS
+# endregion
+
+# region MOBILE JOB ENDPOINTS
+
 
 @mobile_router.get("/jobs/list", auth=jwt_auth)
 def mobile_job_list(
@@ -1123,25 +1100,27 @@ def mobile_job_list(
     max_distance: float = None,  # NEW: Distance filter
     sort_by: str = None,  # NEW: Sort option
     page: int = 1,
-    limit: int = 20
+    limit: int = 20,
 ):
     """
     Get paginated job listings optimized for mobile
     Returns minimal fields for list view performance
-    
+
     NEW PARAMETERS:
     - max_distance: Filter jobs within X km radius (requires user location)
-    - sort_by: 'distance_asc', 'distance_desc', 'budget_asc', 'budget_desc', 
+    - sort_by: 'distance_asc', 'distance_desc', 'budget_asc', 'budget_desc',
                'created_desc', 'urgency_desc'
     """
     from .mobile_services import get_mobile_job_list
 
     print(f"📱 [MOBILE JOB LIST] Request received")
     print(f"   User: {request.auth.email}")
-    print(f"   Filters: category={category}, budget={min_budget}-{max_budget}, location={location}")
+    print(
+        f"   Filters: category={category}, budget={min_budget}-{max_budget}, location={location}"
+    )
     print(f"   Distance: max_distance={max_distance} km, sort_by={sort_by}")
     print(f"   Pagination: page={page}, limit={limit}")
-    
+
     try:
         result = get_mobile_job_list(
             user=request.auth,
@@ -1152,228 +1131,270 @@ def mobile_job_list(
             max_distance=max_distance,  # NEW
             sort_by=sort_by,  # NEW
             page=page,
-            limit=limit
+            limit=limit,
         )
-        
+
         print(f"   Result success: {result.get('success')}")
-        if result.get('success'):
-            job_count = len(result['data'].get('jobs', []))
+        if result.get("success"):
+            job_count = len(result["data"].get("jobs", []))
             print(f"   Returning {job_count} jobs")
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
-            error_msg = result.get('error', 'Failed to fetch jobs')
+            error_msg = result.get("error", "Failed to fetch jobs")
             print(f"[ERROR] Mobile job list service error: {error_msg}")
-            return Response(
-                {"error": error_msg},
-                status=400
-            )
+            return Response({"error": error_msg}, status=400)
     except Exception as e:
         print(f"[ERROR] Mobile job list error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch job listings"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch job listings"}, status=500)
 
 
 @mobile_router.get("/jobs/my-jobs", auth=jwt_auth)
 def mobile_my_jobs(
-    request, 
-    status: Optional[str] = None,
-    page: int = 1,
-    limit: int = 20
+    request, status: Optional[str] = None, page: int = 1, limit: int = 20
 ):
     """Return jobs relevant to the authenticated user (client or worker)."""
-    from .models import Profile, ClientProfile, WorkerProfile, JobPosting, JobApplication, JobDispute
+    from .models import (
+        Profile,
+        ClientProfile,
+        WorkerProfile,
+        JobPosting,
+        JobApplication,
+        JobDispute,
+    )
     from jobs.models import JobPosting
     from django.db.models import Q
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print(f"📱 [MY JOBS] Request received")
     print(f"   User: {request.auth.email}")
     print(f"   Query params: status={status}, page={page}, limit={limit}")
-    print(f"   Query params types: status={type(status).__name__}, page={type(page).__name__}, limit={type(limit).__name__}")
-    
+    print(
+        f"   Query params types: status={type(status).__name__}, page={type(page).__name__}, limit={type(limit).__name__}"
+    )
+
     try:
         status_filter = status
 
         print(f"\n   🔍 Processing parameters:")
-        print(f"      Status filter: {status_filter} (type: {type(status_filter).__name__})")
+        print(
+            f"      Status filter: {status_filter} (type: {type(status_filter).__name__})"
+        )
         print(f"      Page: {page} (type: {type(page).__name__})")
         print(f"      Limit: {limit} (type: {type(limit).__name__})")
-        
+
         # Get user's profile
         print(f"\n   👤 Fetching user profile...")
         try:
             # Get profile_type from JWT if available, try both if not found
-            profile_type = getattr(request.auth, 'profile_type', None)
-            
+            profile_type = getattr(request.auth, "profile_type", None)
+
             if profile_type:
                 profile = Profile.objects.filter(
-                    accountFK=request.auth,
-                    profileType=profile_type
+                    accountFK=request.auth, profileType=profile_type
                 ).first()
             else:
                 # Fallback: get any profile
                 profile = Profile.objects.filter(accountFK=request.auth).first()
-            
+
             if not profile:
                 print(f"      ❌ Profile not found for user!")
                 return Response({"error": "Profile not found"}, status=400)
-            
-            print(f"      Profile found: ID={profile.profileID}, Type={profile.profileType}")
+
+            print(
+                f"      Profile found: ID={profile.profileID}, Type={profile.profileType}"
+            )
         except Exception as e:
             print(f"      ❌ Error fetching profile: {e}")
             return Response({"error": "Failed to fetch profile"}, status=500)
-        
+
         # CLIENT: Jobs they posted
-        if profile.profileType == 'CLIENT':
+        if profile.profileType == "CLIENT":
             print(f"\n   📋 CLIENT mode: Fetching posted jobs...")
             try:
                 client_profile = ClientProfile.objects.get(profileID=profile)
-                print(f"      Client profile found: ID={client_profile.profileID.profileID}")
+                print(
+                    f"      Client profile found: ID={client_profile.profileID.profileID}"
+                )
             except ClientProfile.DoesNotExist:
                 # Auto-create ClientProfile if it doesn't exist
                 print(f"      ⚠️ Client profile not found, creating one...")
                 client_profile = ClientProfile.objects.create(
-                    profileID=profile,
-                    description="",
-                    totalJobsPosted=0,
-                    clientRating=0
+                    profileID=profile, description="", totalJobsPosted=0, clientRating=0
                 )
-                print(f"      ✅ Created client profile: ID={client_profile.profileID.profileID}")
-            
-            jobs_qs = JobPosting.objects.filter(
-                clientID=client_profile
-            ).select_related(
-                'categoryID',
-                'assignedWorkerID__profileID__accountFK',
-                'assignedAgencyFK__accountFK'
-            ).prefetch_related('photos')
+                print(
+                    f"      ✅ Created client profile: ID={client_profile.profileID.profileID}"
+                )
+
+            jobs_qs = (
+                JobPosting.objects.filter(clientID=client_profile)
+                .select_related(
+                    "categoryID",
+                    "assignedWorkerID__profileID__accountFK",
+                    "assignedAgencyFK__accountFK",
+                )
+                .prefetch_related("photos")
+            )
             print(f"      Jobs query created for client")
-        
+
         # WORKER: Jobs they applied to or assigned to
-        elif profile.profileType == 'WORKER':
+        elif profile.profileType == "WORKER":
             print(f"\n   🔧 WORKER mode: Fetching applied/assigned jobs...")
             try:
                 worker_profile = WorkerProfile.objects.get(profileID=profile)
-                print(f"      Worker profile found: ID={worker_profile.profileID.profileID}")
+                print(
+                    f"      Worker profile found: ID={worker_profile.profileID.profileID}"
+                )
             except WorkerProfile.DoesNotExist:
                 print(f"      ❌ Worker profile not found!")
                 return Response({"error": "Worker profile not found"}, status=400)
-            
+
             applied_job_ids = JobApplication.objects.filter(
                 workerID=worker_profile
-            ).values_list('jobID', flat=True)
+            ).values_list("jobID", flat=True)
             print(f"      Found {len(applied_job_ids)} applications")
-            
-            jobs_qs = JobPosting.objects.filter(
-                Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
-            ).select_related(
-                'clientID__profileID__accountFK',
-                'categoryID',
-                'assignedAgencyFK__accountFK'
-            ).prefetch_related('photos')
+
+            jobs_qs = (
+                JobPosting.objects.filter(
+                    Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
+                )
+                .select_related(
+                    "clientID__profileID__accountFK",
+                    "categoryID",
+                    "assignedAgencyFK__accountFK",
+                )
+                .prefetch_related("photos")
+            )
             print(f"      Jobs query created for worker")
         else:
             print(f"      ❌ Invalid profile type: {profile.profileType}")
             return Response({"error": "Invalid profile type"}, status=400)
-        
+
         # Filter by status if provided (supports comma-separated values like "COMPLETED,CANCELLED")
         if status_filter:
-            statuses = [s.strip().upper() for s in status_filter.split(',')]
+            statuses = [s.strip().upper() for s in status_filter.split(",")]
             print(f"\n   🔎 Filtering by status: {statuses}")
             if len(statuses) == 1:
                 jobs_qs = jobs_qs.filter(status=statuses[0])
             else:
                 jobs_qs = jobs_qs.filter(status__in=statuses)
-        
+
         # Order by created date
-        jobs_qs = jobs_qs.order_by('-createdAt')
-        
+        jobs_qs = jobs_qs.order_by("-createdAt")
+
         total_count = jobs_qs.count()
         print(f"\n   📊 Query results:")
         print(f"      Total jobs found: {total_count}")
-        
+
         # Pagination
         offset = (page - 1) * limit
-        jobs = jobs_qs[offset:offset + limit]
+        jobs = jobs_qs[offset : offset + limit]
         print(f"      Returning jobs {offset + 1} to {offset + len(jobs)}")
-        
+
         job_list = []
         for idx, job in enumerate(jobs):
-            print(f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'")
+            print(
+                f"      Processing job {idx + 1}/{len(jobs)}: ID={job.jobID}, Title='{job.title[:30]}...'"
+            )
 
             # Backward-compatibility self-heal for legacy jobs:
             # If reviews/completion indicate the job should be closed, finalize job + conversation state.
             try:
-                from .models import JobWorkerAssignment, JobReview, JobEmployeeAssignment
+                from .models import (
+                    JobWorkerAssignment,
+                    JobReview,
+                    JobEmployeeAssignment,
+                )
                 from profiles.models import Conversation
-                from profiles.conversation_service import should_auto_archive, archive_conversation
+                from profiles.conversation_service import (
+                    should_auto_archive,
+                    archive_conversation,
+                )
 
                 should_mark_completed = False
 
                 if (
-                    job.status in ['ACTIVE', 'IN_PROGRESS']
+                    job.status in ["ACTIVE", "IN_PROGRESS"]
                     and job.workerMarkedComplete
                     and job.clientMarkedComplete
                 ):
                     if job.is_team_job:
                         assigned_worker_account_ids = set(
                             JobWorkerAssignment.objects.filter(
-                                jobID=job,
-                                assignment_status__in=['ACTIVE', 'COMPLETED']
-                            ).values_list('workerID__profileID__accountFK_id', flat=True).distinct()
+                                jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
+                            )
+                            .values_list("workerID__profileID__accountFK_id", flat=True)
+                            .distinct()
                         )
 
                         if assigned_worker_account_ids:
                             worker_reviewer_ids = set(
                                 JobReview.objects.filter(
-                                    jobID=job,
-                                    reviewerType='WORKER'
-                                ).values_list('reviewerID_id', flat=True).distinct()
+                                    jobID=job, reviewerType="WORKER"
+                                )
+                                .values_list("reviewerID_id", flat=True)
+                                .distinct()
                             )
                             client_reviewed_worker_ids = set(
                                 JobReview.objects.filter(
                                     jobID=job,
-                                    reviewerType='CLIENT',
-                                    revieweeID__isnull=False
-                                ).values_list('revieweeID_id', flat=True).distinct()
+                                    reviewerType="CLIENT",
+                                    revieweeID__isnull=False,
+                                )
+                                .values_list("revieweeID_id", flat=True)
+                                .distinct()
                             )
 
                             should_mark_completed = (
-                                assigned_worker_account_ids.issubset(worker_reviewer_ids)
-                                and assigned_worker_account_ids.issubset(client_reviewed_worker_ids)
+                                assigned_worker_account_ids.issubset(
+                                    worker_reviewer_ids
+                                )
+                                and assigned_worker_account_ids.issubset(
+                                    client_reviewed_worker_ids
+                                )
                             )
                     else:
-                        is_agency_job = bool(getattr(job, 'assignedAgencyFK', None) or getattr(job, 'assignedEmployeeID', None))
+                        is_agency_job = bool(
+                            getattr(job, "assignedAgencyFK", None)
+                            or getattr(job, "assignedEmployeeID", None)
+                        )
                         if is_agency_job:
                             client_account = job.clientID.profileID.accountFK
 
                             assigned_employee_ids = set(
                                 JobEmployeeAssignment.objects.filter(
                                     job=job,
-                                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                                ).values_list('employee_id', flat=True)
+                                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                                ).values_list("employee_id", flat=True)
                             )
-                            legacy_assigned_employee = getattr(job, 'assignedEmployeeID', None)
-                            if not assigned_employee_ids and legacy_assigned_employee is not None:
-                                assigned_employee_ids.add(legacy_assigned_employee.employeeID)
+                            legacy_assigned_employee = getattr(
+                                job, "assignedEmployeeID", None
+                            )
+                            if (
+                                not assigned_employee_ids
+                                and legacy_assigned_employee is not None
+                            ):
+                                assigned_employee_ids.add(
+                                    legacy_assigned_employee.employeeID
+                                )
 
                             client_reviewed_employee_ids = set(
                                 JobReview.objects.filter(
                                     jobID=job,
                                     reviewerID=client_account,
-                                    reviewerType='CLIENT',
+                                    reviewerType="CLIENT",
                                     revieweeEmployeeID__isnull=False,
-                                ).values_list('revieweeEmployeeID_id', flat=True)
+                                ).values_list("revieweeEmployeeID_id", flat=True)
                             )
 
                             all_employees_reviewed = (
-                                assigned_employee_ids.issubset(client_reviewed_employee_ids)
+                                assigned_employee_ids.issubset(
+                                    client_reviewed_employee_ids
+                                )
                                 if assigned_employee_ids
                                 else True
                             )
@@ -1381,148 +1402,189 @@ def mobile_my_jobs(
                             client_reviewed_agency = JobReview.objects.filter(
                                 jobID=job,
                                 reviewerID=client_account,
-                                reviewerType='CLIENT',
+                                reviewerType="CLIENT",
                                 revieweeAgencyID__isnull=False,
                             ).exists()
 
                             agency_account = None
                             if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                                 agency_account = job.assignedAgencyFK.accountFK
-                            elif job.assignedEmployeeID and getattr(job.assignedEmployeeID, 'agency', None):
+                            elif job.assignedEmployeeID and getattr(
+                                job.assignedEmployeeID, "agency", None
+                            ):
                                 agency_account = job.assignedEmployeeID.agency
 
                             if agency_account:
                                 counterpart_reviewed = JobReview.objects.filter(
                                     jobID=job,
                                     reviewerID=agency_account,
-                                    reviewerType__in=['AGENCY', 'WORKER']
+                                    reviewerType__in=["AGENCY", "WORKER"],
                                 ).exists()
                             else:
                                 counterpart_reviewed = JobReview.objects.filter(
-                                    jobID=job,
-                                    reviewerType__in=['AGENCY', 'WORKER']
+                                    jobID=job, reviewerType__in=["AGENCY", "WORKER"]
                                 ).exists()
 
                             should_mark_completed = (
-                                all_employees_reviewed and client_reviewed_agency and counterpart_reviewed
+                                all_employees_reviewed
+                                and client_reviewed_agency
+                                and counterpart_reviewed
                             )
                         else:
                             total_reviews = JobReview.objects.filter(jobID=job).count()
                             should_mark_completed = total_reviews >= 2
 
                 if should_mark_completed:
-                    job.status = 'COMPLETED'
+                    job.status = "COMPLETED"
                     if not job.completedAt:
                         job.completedAt = timezone.now()
-                    job.save(update_fields=['status', 'completedAt'])
-                    print(f"      ✅ [AUTO-HEAL] Job #{job.jobID} status updated to COMPLETED")
+                    job.save(update_fields=["status", "completedAt"])
+                    print(
+                        f"      ✅ [AUTO-HEAL] Job #{job.jobID} status updated to COMPLETED"
+                    )
 
                 # Conversation compatibility heal for all completed jobs.
-                if job.status == 'COMPLETED':
+                if job.status == "COMPLETED":
                     conv = Conversation.objects.filter(relatedJobPosting=job).first()
                     if conv:
                         fields_to_update = []
                         if conv.status != Conversation.ConversationStatus.COMPLETED:
                             conv.status = Conversation.ConversationStatus.COMPLETED
-                            fields_to_update.append('status')
+                            fields_to_update.append("status")
                         if fields_to_update:
                             conv.save(update_fields=fields_to_update)
-                            print(f"      ✅ [AUTO-HEAL] Conversation #{conv.conversationID} marked COMPLETED")
+                            print(
+                                f"      ✅ [AUTO-HEAL] Conversation #{conv.conversationID} marked COMPLETED"
+                            )
 
                         if should_auto_archive(conv):
                             archive_result = archive_conversation(conv)
-                            print(f"      📦 [AUTO-HEAL] {archive_result.get('message', 'Conversation auto-archived')}")
+                            print(
+                                f"      📦 [AUTO-HEAL] {archive_result.get('message', 'Conversation auto-archived')}"
+                            )
 
             except Exception as heal_err:
                 print(f"      ⚠️ [AUTO-HEAL] Skipped for job #{job.jobID}: {heal_err}")
 
-            assigned_agency = getattr(job, 'assignedAgencyFK', None)
+            assigned_agency = getattr(job, "assignedAgencyFK", None)
 
             job_data = {
-                'job_id': job.jobID,
-                'title': job.title,
-                'description': job.description,
-                'budget': float(job.budget) if job.budget else 0.0,
-                'location': job.location or '',
-                'status': job.status,
-                'urgency_level': job.urgency,
-                'category_name': job.categoryID.specializationName if job.categoryID else 'General',
-                'created_at': job.createdAt.isoformat() if job.createdAt else None,
-                'job_type': job.jobType,  # LISTING or INVITE
-                'invite_status': job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
-                'assigned_worker_id': job.assignedWorkerID.profileID.profileID if job.assignedWorkerID else None,
-                'assigned_agency_id': assigned_agency.agencyId if assigned_agency else None,
-                'has_backjob': JobDispute.objects.filter(jobID=job).exists(),  # Check if backjob/dispute exists
+                "job_id": job.jobID,
+                "title": job.title,
+                "description": job.description,
+                "budget": float(job.budget) if job.budget else 0.0,
+                "location": job.location or "",
+                "status": job.status,
+                "urgency_level": job.urgency,
+                "category_name": job.categoryID.specializationName
+                if job.categoryID
+                else "General",
+                "created_at": job.createdAt.isoformat() if job.createdAt else None,
+                "job_type": job.jobType,  # LISTING or INVITE
+                "invite_status": job.inviteStatus,  # PENDING, ACCEPTED, REJECTED
+                "assigned_worker_id": job.assignedWorkerID.profileID.profileID
+                if job.assignedWorkerID
+                else None,
+                "assigned_agency_id": assigned_agency.agencyId
+                if assigned_agency
+                else None,
+                "has_backjob": JobDispute.objects.filter(
+                    jobID=job
+                ).exists(),  # Check if backjob/dispute exists
                 # Team Job Fields
-                'is_team_job': job.is_team_job,
-                'total_workers_needed': job.total_workers_needed if job.is_team_job else None,
-                'total_workers_assigned': job.total_workers_assigned if job.is_team_job else None,
-                'team_fill_percentage': job.team_fill_percentage if job.is_team_job else None,
+                "is_team_job": job.is_team_job,
+                "total_workers_needed": job.total_workers_needed
+                if job.is_team_job
+                else None,
+                "total_workers_assigned": job.total_workers_assigned
+                if job.is_team_job
+                else None,
+                "team_fill_percentage": job.team_fill_percentage
+                if job.is_team_job
+                else None,
                 # Application count for clients to see how many workers applied
-                'application_count': job.applications.count() if profile.profileType == 'CLIENT' else None,
+                "application_count": job.applications.count()
+                if profile.profileType == "CLIENT"
+                else None,
             }
-            
+
             if job.clientID:
                 client_prof = job.clientID.profileID
-                job_data['client_name'] = f"{client_prof.firstName or ''} {client_prof.lastName or ''}".strip()
-                job_data['client_img'] = client_prof.profileImg or ''
-            
+                job_data["client_name"] = (
+                    f"{client_prof.firstName or ''} {client_prof.lastName or ''}".strip()
+                )
+                job_data["client_img"] = client_prof.profileImg or ""
+
             if job.assignedWorkerID:
                 worker_prof = job.assignedWorkerID.profileID
-                job_data['worker_name'] = f"{worker_prof.firstName or ''} {worker_prof.lastName or ''}".strip()
-                job_data['worker_img'] = worker_prof.profileImg or ''
+                job_data["worker_name"] = (
+                    f"{worker_prof.firstName or ''} {worker_prof.lastName or ''}".strip()
+                )
+                job_data["worker_img"] = worker_prof.profileImg or ""
 
             if assigned_agency:
-                job_data['agency_name'] = getattr(assigned_agency, 'businessName', '')
-                job_data['agency_logo'] = getattr(assigned_agency, 'logo', '')
-            
-            if profile.profileType == 'WORKER':
+                job_data["agency_name"] = getattr(assigned_agency, "businessName", "")
+                job_data["agency_logo"] = getattr(assigned_agency, "logo", "")
+
+            if profile.profileType == "WORKER":
                 application = JobApplication.objects.filter(
-                    jobID=job,
-                    workerID=worker_profile
+                    jobID=job, workerID=worker_profile
                 ).first()
                 if application:
-                    job_data['application_status'] = application.status
-            
+                    job_data["application_status"] = application.status
+
             # DEBUG: Log the job data being added
-            print(f"         → job_type={job_data.get('job_type')}, invite_status={job_data.get('invite_status')}, assigned_worker_id={job_data.get('assigned_worker_id')}")
-            
+            print(
+                f"         → job_type={job_data.get('job_type')}, invite_status={job_data.get('invite_status')}, assigned_worker_id={job_data.get('assigned_worker_id')}"
+            )
+
             # EXTRA DEBUG for INVITE jobs
-            if job_data.get('job_type') == 'INVITE':
+            if job_data.get("job_type") == "INVITE":
                 print(f"         🎯 INVITE JOB DETAILS:")
                 print(f"            - Job ID: {job.jobID}")
                 print(f"            - Title: {job.title}")
                 print(f"            - assignedWorkerID: {job.assignedWorkerID}")
                 if job.assignedWorkerID:
-                    print(f"            - assignedWorkerID.profileID: {job.assignedWorkerID.profileID}")
-                    print(f"            - assignedWorkerID.profileID.profileID: {job.assignedWorkerID.profileID.profileID}")
-                print(f"            - assigned_worker_id in response: {job_data.get('assigned_worker_id')}")
-                print(f"            - Current worker profile ID: {worker_profile.profileID.profileID if profile.profileType == 'WORKER' else 'N/A'}")
-            
+                    print(
+                        f"            - assignedWorkerID.profileID: {job.assignedWorkerID.profileID}"
+                    )
+                    print(
+                        f"            - assignedWorkerID.profileID.profileID: {job.assignedWorkerID.profileID.profileID}"
+                    )
+                print(
+                    f"            - assigned_worker_id in response: {job_data.get('assigned_worker_id')}"
+                )
+                print(
+                    f"            - Current worker profile ID: {worker_profile.profileID.profileID if profile.profileType == 'WORKER' else 'N/A'}"
+                )
+
             job_list.append(job_data)
-        
+
         print(f"\n   ✅ SUCCESS: Returning {len(job_list)} jobs")
         print(f"      Total count: {total_count}")
         print(f"      Page: {page}/{(total_count + limit - 1) // limit}")
-        print("="*80 + "\n")
-        
+        print("=" * 80 + "\n")
+
         return {
-            'jobs': job_list,
-            'total_count': total_count,
-            'page': page,
-            'pages': (total_count + limit - 1) // limit,
-            'profile_type': profile.profileType
+            "jobs": job_list,
+            "total_count": total_count,
+            "page": page,
+            "pages": (total_count + limit - 1) // limit,
+            "profile_type": profile.profileType,
         }
-        
+
     except Exception as e:
         print(f"\n❌ [ERROR] Mobile my jobs exception occurred!")
         print(f"   Error type: {type(e).__name__}")
         print(f"   Error message: {str(e)}")
-        print(f"   User: {request.auth.email if hasattr(request, 'auth') else 'Unknown'}")
+        print(
+            f"   User: {request.auth.email if hasattr(request, 'auth') else 'Unknown'}"
+        )
         print(f"\n   Full traceback:")
         import traceback
+
         traceback.print_exc()
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
         return Response({"error": f"Failed to fetch jobs: {str(e)}"}, status=500)
 
 
@@ -1536,19 +1598,15 @@ def mobile_job_categories(request, worker_id: Optional[int] = None):
     try:
         result = get_job_categories_mobile(worker_id=worker_id)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch categories')},
-                status=400
+                {"error": result.get("error", "Failed to fetch categories")}, status=400
             )
     except Exception as e:
         print(f"[ERROR] Mobile categories error: {str(e)}")
-        return Response(
-            {"error": "Failed to fetch categories"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch categories"}, status=500)
 
 
 @mobile_router.get("/skills/available", auth=jwt_auth)
@@ -1560,31 +1618,24 @@ def mobile_available_skills(request):
     from .models import Specializations
 
     try:
-        skills = Specializations.objects.all().order_by('specializationName')
-        
+        skills = Specializations.objects.all().order_by("specializationName")
+
         skills_data = [
             {
-                'id': skill.specializationID,
-                'name': skill.specializationName,
-                'description': skill.description or '',
-                'minimumRate': float(skill.minimumRate) if skill.minimumRate else 0.0,
-                'rateType': skill.rateType,
-                'skillLevel': skill.skillLevel,
+                "id": skill.specializationID,
+                "name": skill.specializationName,
+                "description": skill.description or "",
+                "minimumRate": float(skill.minimumRate) if skill.minimumRate else 0.0,
+                "rateType": skill.rateType,
+                "skillLevel": skill.skillLevel,
             }
             for skill in skills
         ]
-        
-        return {
-            'success': True,
-            'data': skills_data,
-            'count': len(skills_data)
-        }
+
+        return {"success": True, "data": skills_data, "count": len(skills_data)}
     except Exception as e:
         print(f"[ERROR] Mobile available skills error: {str(e)}")
-        return Response(
-            {"error": "Failed to fetch available skills"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch available skills"}, status=500)
 
 
 @mobile_router.get("/skills/my-skills", auth=jwt_auth)
@@ -1598,54 +1649,48 @@ def mobile_my_skills(request):
 
     try:
         user = request.auth
-        
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=404)
+
         # Get worker's specializations
-        worker_skills = workerSpecialization.objects.filter(
-            workerID=worker_profile
-        ).select_related('specializationID').annotate(
-            primary_sort=Case(
-                When(skillType='PRIMARY', then=Value(0)),
-                default=Value(1),
-                output_field=IntegerField(),
+        worker_skills = (
+            workerSpecialization.objects.filter(workerID=worker_profile)
+            .select_related("specializationID")
+            .annotate(
+                primary_sort=Case(
+                    When(skillType="PRIMARY", then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )
             )
-        ).order_by('primary_sort', 'specializationID__specializationName')
-        
+            .order_by("primary_sort", "specializationID__specializationName")
+        )
+
         skills_data = [
             {
-                'id': ws.id,  # workerSpecialization ID - used for linking certifications
-                'specializationId': ws.specializationID.specializationID,  # Specializations table ID
-                'name': ws.specializationID.specializationName,
-                'description': ws.specializationID.description or '',
-                'experienceYears': ws.experienceYears,
-                'certification': ws.certification or '',
-                'skillType': ws.skillType,
-                'isPrimary': ws.skillType == 'PRIMARY',
+                "id": ws.id,  # workerSpecialization ID - used for linking certifications
+                "specializationId": ws.specializationID.specializationID,  # Specializations table ID
+                "name": ws.specializationID.specializationName,
+                "description": ws.specializationID.description or "",
+                "experienceYears": ws.experienceYears,
+                "certification": ws.certification or "",
+                "skillType": ws.skillType,
+                "isPrimary": ws.skillType == "PRIMARY",
             }
             for ws in worker_skills
         ]
-        
-        return {
-            'success': True,
-            'data': skills_data,
-            'count': len(skills_data)
-        }
+
+        return {"success": True, "data": skills_data, "count": len(skills_data)}
     except Exception as e:
         print(f"[ERROR] Mobile my skills error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch your skills"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch your skills"}, status=500)
 
 
 @mobile_router.get("/skills/available", auth=jwt_auth)
@@ -1657,33 +1702,27 @@ def mobile_available_skills(request):
     from .models import Specializations
 
     try:
-        specializations = Specializations.objects.all().order_by('specializationName')
-        
+        specializations = Specializations.objects.all().order_by("specializationName")
+
         skills_data = [
             {
-                'id': spec.specializationID,
-                'name': spec.specializationName,
-                'description': spec.description or '',
-                'minimumRate': float(spec.minimumRate),
-                'rateType': spec.rateType,
-                'skillLevel': spec.skillLevel,
+                "id": spec.specializationID,
+                "name": spec.specializationName,
+                "description": spec.description or "",
+                "minimumRate": float(spec.minimumRate),
+                "rateType": spec.rateType,
+                "skillLevel": spec.skillLevel,
             }
             for spec in specializations
         ]
-        
-        return {
-            'success': True,
-            'data': skills_data,
-            'count': len(skills_data)
-        }
+
+        return {"success": True, "data": skills_data, "count": len(skills_data)}
     except Exception as e:
         print(f"[ERROR] Mobile available skills error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch available skills"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch available skills"}, status=500)
 
 
 @mobile_router.post("/skills/add", auth=jwt_auth)
@@ -1697,60 +1736,54 @@ def mobile_add_skill(request, payload: AddSkillSchema):
 
     try:
         user = request.auth
-        
+
         # Get values from schema
         specialization_id = payload.specialization_id
         experience_years = payload.experience_years
-        requested_skill_type = (payload.skill_type or 'SECONDARY').upper()
-        
+        requested_skill_type = (payload.skill_type or "SECONDARY").upper()
+
         if not specialization_id:
-            return Response(
-                {"error": "specialization_id is required"},
-                status=400
-            )
-        
+            return Response({"error": "specialization_id is required"}, status=400)
+
         if experience_years < 0 or experience_years > 50:
             return Response(
-                {"error": "experience_years must be between 0 and 50"},
-                status=400
+                {"error": "experience_years must be between 0 and 50"}, status=400
             )
 
-        if requested_skill_type not in ['PRIMARY', 'SECONDARY']:
+        if requested_skill_type not in ["PRIMARY", "SECONDARY"]:
             return Response(
-                {"error": "skill_type must be PRIMARY or SECONDARY"},
-                status=400
+                {"error": "skill_type must be PRIMARY or SECONDARY"}, status=400
             )
-        
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=404)
+
         # Check specialization exists
         try:
-            specialization = Specializations.objects.get(specializationID=specialization_id)
-        except Specializations.DoesNotExist:
-            return Response(
-                {"error": "Specialization not found"},
-                status=404
+            specialization = Specializations.objects.get(
+                specializationID=specialization_id
             )
-        
+        except Specializations.DoesNotExist:
+            return Response({"error": "Specialization not found"}, status=404)
+
         # Check if worker already has this skill
         if workerSpecialization.objects.filter(
-            workerID=worker_profile,
-            specializationID=specialization
+            workerID=worker_profile, specializationID=specialization
         ).exists():
             return Response(
-                {"error": f"You already have '{specialization.specializationName}' as a skill"},
-                status=400
+                {
+                    "error": f"You already have '{specialization.specializationName}' as a skill"
+                },
+                status=400,
             )
 
         # Enforce max skills while grandfathering existing records above cap.
-        current_skill_count = workerSpecialization.objects.filter(workerID=worker_profile).count()
+        current_skill_count = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).count()
         if current_skill_count >= MAX_WORKER_SKILLS:
             return Response(
                 {
@@ -1760,56 +1793,58 @@ def mobile_add_skill(request, payload: AddSkillSchema):
                 },
                 status=400,
             )
-        
+
         # Ensure we always keep a primary skill once at least one skill exists.
         has_existing_skills = current_skill_count > 0
         has_primary_skill = workerSpecialization.objects.filter(
-            workerID=worker_profile,
-            skillType='PRIMARY'
+            workerID=worker_profile, skillType="PRIMARY"
         ).exists()
 
         # First skill is always primary. If data drift exists with no primary,
         # promote the next added skill to PRIMARY automatically.
-        skill_type_to_set = 'PRIMARY' if not has_existing_skills or not has_primary_skill else requested_skill_type
+        skill_type_to_set = (
+            "PRIMARY"
+            if not has_existing_skills or not has_primary_skill
+            else requested_skill_type
+        )
 
         # If setting a new primary skill, demote existing primary.
-        if skill_type_to_set == 'PRIMARY':
+        if skill_type_to_set == "PRIMARY":
             workerSpecialization.objects.filter(
-                workerID=worker_profile,
-                skillType='PRIMARY'
-            ).update(skillType='SECONDARY')
+                workerID=worker_profile, skillType="PRIMARY"
+            ).update(skillType="SECONDARY")
 
         # Create worker specialization
         worker_skill = workerSpecialization.objects.create(
             workerID=worker_profile,
             specializationID=specialization,
             experienceYears=experience_years,
-            certification='',
+            certification="",
             skillType=skill_type_to_set,
         )
-        
-        print(f"✅ [SKILL] Added skill '{specialization.specializationName}' to {user.email}")
-        
+
+        print(
+            f"✅ [SKILL] Added skill '{specialization.specializationName}' to {user.email}"
+        )
+
         return {
-            'success': True,
-            'message': f"Added '{specialization.specializationName}' to your skills",
-            'data': {
-                'id': specialization.specializationID,
-                'workerSkillId': worker_skill.id,
-                'name': specialization.specializationName,
-                'experienceYears': experience_years,
-                'skillType': worker_skill.skillType,
-                'isPrimary': worker_skill.skillType == 'PRIMARY',
-            }
+            "success": True,
+            "message": f"Added '{specialization.specializationName}' to your skills",
+            "data": {
+                "id": specialization.specializationID,
+                "workerSkillId": worker_skill.id,
+                "name": specialization.specializationName,
+                "experienceYears": experience_years,
+                "skillType": worker_skill.skillType,
+                "isPrimary": worker_skill.skillType == "PRIMARY",
+            },
         }
     except Exception as e:
         print(f"[ERROR] Mobile add skill error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to add skill"},
-            status=500
-        )
+        return Response({"error": "Failed to add skill"}, status=500)
 
 
 @mobile_router.put("/skills/{skill_id}", auth=jwt_auth)
@@ -1825,103 +1860,102 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
     try:
         user = request.auth
         experience_years = payload.experience_years
-        requested_skill_type = payload.skill_type.upper() if payload.skill_type else None
+        requested_skill_type = (
+            payload.skill_type.upper() if payload.skill_type else None
+        )
 
         if experience_years is None and requested_skill_type is None:
             return Response(
-                {"error": "At least one field is required: experience_years or skill_type"},
-                status=400
+                {
+                    "error": "At least one field is required: experience_years or skill_type"
+                },
+                status=400,
             )
 
-        if experience_years is not None and (experience_years < 0 or experience_years > 50):
+        if experience_years is not None and (
+            experience_years < 0 or experience_years > 50
+        ):
             return Response(
-                {"error": "experience_years must be between 0 and 50"},
-                status=400
+                {"error": "experience_years must be between 0 and 50"}, status=400
             )
 
-        if requested_skill_type and requested_skill_type not in ['PRIMARY', 'SECONDARY']:
+        if requested_skill_type and requested_skill_type not in [
+            "PRIMARY",
+            "SECONDARY",
+        ]:
             return Response(
-                {"error": "skill_type must be PRIMARY or SECONDARY"},
-                status=400
+                {"error": "skill_type must be PRIMARY or SECONDARY"}, status=400
             )
-        
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=404)
+
         # Get worker's skill (prefer specialization ID; allow legacy workerSpecialization ID)
         worker_skill = workerSpecialization.objects.filter(
-            workerID=worker_profile,
-            specializationID_id=skill_id
+            workerID=worker_profile, specializationID_id=skill_id
         ).first()
 
         if not worker_skill:
             worker_skill = workerSpecialization.objects.filter(
-                workerID=worker_profile,
-                id=skill_id
+                workerID=worker_profile, id=skill_id
             ).first()
 
         if not worker_skill:
-            return Response(
-                {"error": "Skill not found in your profile"},
-                status=404
-            )
-        
+            return Response({"error": "Skill not found in your profile"}, status=404)
+
         if experience_years is not None:
             worker_skill.experienceYears = experience_years
 
-        if requested_skill_type == 'PRIMARY':
+        if requested_skill_type == "PRIMARY":
             workerSpecialization.objects.filter(
-                workerID=worker_profile,
-                skillType='PRIMARY'
-            ).exclude(id=worker_skill.id).update(skillType='SECONDARY')
-            worker_skill.skillType = 'PRIMARY'
-        elif requested_skill_type == 'SECONDARY':
-            is_current_primary = worker_skill.skillType == 'PRIMARY'
+                workerID=worker_profile, skillType="PRIMARY"
+            ).exclude(id=worker_skill.id).update(skillType="SECONDARY")
+            worker_skill.skillType = "PRIMARY"
+        elif requested_skill_type == "SECONDARY":
+            is_current_primary = worker_skill.skillType == "PRIMARY"
             if is_current_primary:
-                replacement_primary = workerSpecialization.objects.filter(
-                    workerID=worker_profile
-                ).exclude(id=worker_skill.id).first()
+                replacement_primary = (
+                    workerSpecialization.objects.filter(workerID=worker_profile)
+                    .exclude(id=worker_skill.id)
+                    .first()
+                )
 
                 if not replacement_primary:
                     return Response(
-                        {"error": "At least one primary skill is required"},
-                        status=400
+                        {"error": "At least one primary skill is required"}, status=400
                     )
 
-                replacement_primary.skillType = 'PRIMARY'
-                replacement_primary.save(update_fields=['skillType'])
+                replacement_primary.skillType = "PRIMARY"
+                replacement_primary.save(update_fields=["skillType"])
 
-            worker_skill.skillType = 'SECONDARY'
+            worker_skill.skillType = "SECONDARY"
 
         worker_skill.save()
-        
-        print(f"✅ [SKILL] Updated skill experience for {user.email}: {worker_skill.specializationID.specializationName} = {experience_years} years")
-        
+
+        print(
+            f"✅ [SKILL] Updated skill experience for {user.email}: {worker_skill.specializationID.specializationName} = {experience_years} years"
+        )
+
         return {
-            'success': True,
-            'message': 'Skill updated successfully',
-            'data': {
-                'id': skill_id,
-                'name': worker_skill.specializationID.specializationName,
-                'experienceYears': worker_skill.experienceYears,
-                'skillType': worker_skill.skillType,
-                'isPrimary': worker_skill.skillType == 'PRIMARY',
-            }
+            "success": True,
+            "message": "Skill updated successfully",
+            "data": {
+                "id": skill_id,
+                "name": worker_skill.specializationID.specializationName,
+                "experienceYears": worker_skill.experienceYears,
+                "skillType": worker_skill.skillType,
+                "isPrimary": worker_skill.skillType == "PRIMARY",
+            },
         }
     except Exception as e:
         print(f"[ERROR] Mobile update skill error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to update skill"},
-            status=500
-        )
+        return Response({"error": "Failed to update skill"}, status=500)
 
 
 @mobile_router.delete("/skills/{skill_id}", auth=jwt_auth)
@@ -1936,45 +1970,37 @@ def mobile_remove_skill(request, skill_id: int):
 
     try:
         user = request.auth
-        
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=404)
+
         # Get worker's skill (prefer specialization ID; allow legacy workerSpecialization ID)
         worker_skill = workerSpecialization.objects.filter(
-            workerID=worker_profile,
-            specializationID_id=skill_id
+            workerID=worker_profile, specializationID_id=skill_id
         ).first()
 
         if not worker_skill:
             worker_skill = workerSpecialization.objects.filter(
-                workerID=worker_profile,
-                id=skill_id
+                workerID=worker_profile, id=skill_id
             ).first()
 
         if not worker_skill:
-            return Response(
-                {"error": "Skill not found in your profile"},
-                status=404
-            )
-        
+            return Response({"error": "Skill not found in your profile"}, status=404)
+
         skill_name = worker_skill.specializationID.specializationName
-        removed_primary = worker_skill.skillType == 'PRIMARY'
-        
+        removed_primary = worker_skill.skillType == "PRIMARY"
+
         # Check for linked certifications
         linked_certs_count = WorkerCertification.objects.filter(
-            workerID=worker_profile,
-            specializationID=worker_skill
+            workerID=worker_profile, specializationID=worker_skill
         ).count()
-        
+
         # Delete the skill (will cascade delete linked certifications)
         from django.db import transaction as db_transaction
+
         with db_transaction.atomic():
             worker_skill.delete()
 
@@ -1985,27 +2011,26 @@ def mobile_remove_skill(request, skill_id: int):
                 ).first()
                 if replacement_primary:
                     workerSpecialization.objects.filter(
-                        workerID=worker_profile,
-                        skillType='PRIMARY'
-                    ).exclude(id=replacement_primary.id).update(skillType='SECONDARY')
-                    replacement_primary.skillType = 'PRIMARY'
-                    replacement_primary.save(update_fields=['skillType'])
-        
-        print(f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)")
-        
+                        workerID=worker_profile, skillType="PRIMARY"
+                    ).exclude(id=replacement_primary.id).update(skillType="SECONDARY")
+                    replacement_primary.skillType = "PRIMARY"
+                    replacement_primary.save(update_fields=["skillType"])
+
+        print(
+            f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)"
+        )
+
         return {
-            'success': True,
-            'message': f"Removed '{skill_name}' from your skills",
-            'deletedCertifications': linked_certs_count
+            "success": True,
+            "message": f"Removed '{skill_name}' from your skills",
+            "deletedCertifications": linked_certs_count,
         }
     except Exception as e:
         print(f"[ERROR] Mobile remove skill error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to remove skill"},
-            status=500
-        )
+        return Response({"error": "Failed to remove skill"}, status=500)
 
 
 @mobile_router.get("/locations/cities")
@@ -2014,19 +2039,13 @@ def get_cities(request):
     Get all cities (public endpoint for registration)
     """
     from .models import City
-    
+
     try:
-        cities = City.objects.all().values('cityID', 'name', 'province', 'region')
-        return {
-            'success': True,
-            'cities': list(cities)
-        }
+        cities = City.objects.all().values("cityID", "name", "province", "region")
+        return {"success": True, "cities": list(cities)}
     except Exception as e:
         print(f"[ERROR] Get cities error: {str(e)}")
-        return Response(
-            {"error": "Failed to fetch cities"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch cities"}, status=500)
 
 
 @mobile_router.get("/locations/cities/{city_id}/barangays")
@@ -2035,22 +2054,18 @@ def get_barangays(request, city_id: int):
     Get all barangays for a specific city (public endpoint for registration)
     """
     from .models import Barangay
-    
+
     try:
-        barangays = Barangay.objects.filter(city_id=city_id).values(
-            'barangayID', 'name', 'zipCode'
-        ).order_by('name')
-        
-        return {
-            'success': True,
-            'barangays': list(barangays)
-        }
+        barangays = (
+            Barangay.objects.filter(city_id=city_id)
+            .values("barangayID", "name", "zipCode")
+            .order_by("name")
+        )
+
+        return {"success": True, "barangays": list(barangays)}
     except Exception as e:
         print(f"[ERROR] Get barangays error: {str(e)}")
-        return Response(
-            {"error": "Failed to fetch barangays"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch barangays"}, status=500)
 
 
 @mobile_router.get("/jobs/my-backjobs", auth=jwt_auth)
@@ -2062,26 +2077,26 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
     """
     from .models import Profile, WorkerProfile, Agency, Job, JobDispute
     from django.db.models import Q
-    
+
     try:
         print(f"📋 [MOBILE] Fetching backjobs for user {request.auth.email}")
-        
+
         # Determine if user is worker or agency
         profile = Profile.objects.filter(accountFK=request.auth).first()
         agency = Agency.objects.filter(accountFK=request.auth).first()
-        
+
         if not profile and not agency:
             return Response({"error": "Profile not found"}, status=404)
-        
+
         # Build query for disputes where the related job was assigned to this worker/agency
         disputes_query = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__clientID__profileID__accountFK',
-            'jobID__assignedWorkerID__profileID',
-            'jobID__assignedAgencyFK',
-            'jobID__categoryID'
-        ).prefetch_related('evidence')
-        
+            "jobID",
+            "jobID__clientID__profileID__accountFK",
+            "jobID__assignedWorkerID__profileID",
+            "jobID__assignedAgencyFK",
+            "jobID__categoryID",
+        ).prefetch_related("evidence")
+
         # Filter by jobs assigned to this user
         if agency:
             disputes_query = disputes_query.filter(jobID__assignedAgencyFK=agency)
@@ -2103,10 +2118,13 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
                 Q(jobID__assignedWorkerID=worker_profile)
                 | Q(
                     jobID__worker_assignments__workerID=worker_profile,
-                    jobID__worker_assignments__assignment_status__in=['ACTIVE', 'COMPLETED'],
+                    jobID__worker_assignments__assignment_status__in=[
+                        "ACTIVE",
+                        "COMPLETED",
+                    ],
                 )
             ).distinct()
-        
+
         # OPEN and IN_NEGOTIATION are visible for awareness; execution actions
         # remain guarded by existing status checks in workflow endpoints.
         if status:
@@ -2115,49 +2133,61 @@ def get_my_backjobs_mobile(request, status: Optional[str] = None):
             disputes_query = disputes_query.filter(
                 status__in=["OPEN", "IN_NEGOTIATION", "UNDER_REVIEW", "RESOLVED"]
             )
-        
-        disputes = disputes_query.order_by('-openedDate')
-        
+
+        disputes = disputes_query.order_by("-openedDate")
+
         backjobs_data = []
         for dispute in disputes:
             job = dispute.jobID
             client = job.clientID.profileID if job.clientID else None
-            
+
             evidence_urls = [e.imageURL for e in dispute.evidence.all()]
-            
-            backjobs_data.append({
-                "dispute_id": dispute.disputeID,
-                "job_id": job.jobID,
-                "job_title": job.title,
-                "job_description": job.description,
-                "job_budget": float(job.budget),
-                "job_location": job.location,
-                "job_category": job.categoryID.specializationName if job.categoryID else None,
-                "reason": dispute.reason,
-                "description": dispute.description,
-                "status": dispute.status,
-                "priority": dispute.priority,
-                "opened_date": dispute.openedDate.isoformat() if dispute.openedDate else None,
-                "resolution": dispute.resolution,
-                "resolved_date": dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
-                "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
-                "evidence_images": evidence_urls,
-                "client": {
-                    "id": client.profileID if client else None,
-                    "name": f"{client.firstName} {client.lastName}" if client else "Unknown",
-                    "avatar": client.profileImg if client else None
-                } if client else None
-            })
-        
+
+            backjobs_data.append(
+                {
+                    "dispute_id": dispute.disputeID,
+                    "job_id": job.jobID,
+                    "job_title": job.title,
+                    "job_description": job.description,
+                    "job_budget": float(job.budget),
+                    "job_location": job.location,
+                    "job_category": job.categoryID.specializationName
+                    if job.categoryID
+                    else None,
+                    "reason": dispute.reason,
+                    "description": dispute.description,
+                    "status": dispute.status,
+                    "priority": dispute.priority,
+                    "opened_date": dispute.openedDate.isoformat()
+                    if dispute.openedDate
+                    else None,
+                    "resolution": dispute.resolution,
+                    "resolved_date": dispute.resolvedDate.isoformat()
+                    if dispute.resolvedDate
+                    else None,
+                    "scheduled_date": dispute.scheduled_date.isoformat()
+                    if dispute.scheduled_date
+                    else None,
+                    "evidence_images": evidence_urls,
+                    "client": {
+                        "id": client.profileID if client else None,
+                        "name": f"{client.firstName} {client.lastName}"
+                        if client
+                        else "Unknown",
+                        "avatar": client.profileImg if client else None,
+                    }
+                    if client
+                    else None,
+                }
+            )
+
         print(f"📋 [MOBILE] Found {len(backjobs_data)} backjobs")
-        return {
-            "backjobs": backjobs_data,
-            "total": len(backjobs_data)
-        }
-        
+        return {"backjobs": backjobs_data, "total": len(backjobs_data)}
+
     except Exception as e:
         print(f"❌ Error fetching backjobs: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": "Failed to fetch backjobs"}, status=500)
 
@@ -2170,46 +2200,46 @@ def mobile_job_detail(request, job_id: int):
     """
     from .mobile_services import get_mobile_job_detail
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"📱 [MOBILE JOB DETAIL] REQUEST STARTED")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"📋 Job ID received: {job_id}")
     print(f"📋 Job ID type: {type(job_id)}")
     print(f"📋 Job ID repr: {repr(job_id)}")
     print(f"👤 User: {request.auth.email if request.auth else 'None'}")
     print(f"🔗 Request path: {request.path if hasattr(request, 'path') else 'N/A'}")
-    print(f"{'='*60}\n")
-    
+    print(f"{'=' * 60}\n")
+
     try:
         result = get_mobile_job_detail(job_id=job_id, user=request.auth)
-        
+
         print(f"📊 Service result success: {result.get('success')}")
-        if not result.get('success'):
+        if not result.get("success"):
             print(f"❌ Service error: {result.get('error')}")
 
-        if result['success']:
+        if result["success"]:
             print(f"✅ [MOBILE JOB DETAIL] Success - Returning job data")
-            print(f"{'='*60}\n")
-            return result['data']
+            print(f"{'=' * 60}\n")
+            return result["data"]
         else:
-            status_code = 404 if 'not found' in result.get('error', '').lower() else 400
-            print(f"❌ [MOBILE JOB DETAIL] Failed with status {status_code}: {result.get('error')}")
-            print(f"{'='*60}\n")
+            status_code = 404 if "not found" in result.get("error", "").lower() else 400
+            print(
+                f"❌ [MOBILE JOB DETAIL] Failed with status {status_code}: {result.get('error')}"
+            )
+            print(f"{'=' * 60}\n")
             return Response(
-                {"error": result.get('error', 'Failed to fetch job')},
-                status=status_code
+                {"error": result.get("error", "Failed to fetch job")},
+                status=status_code,
             )
     except Exception as e:
         print(f"❌ [MOBILE JOB DETAIL] EXCEPTION OCCURRED")
         print(f"❌ Exception type: {type(e).__name__}")
         print(f"❌ Exception message: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        print(f"{'='*60}\n")
-        return Response(
-            {"error": "Failed to fetch job details"},
-            status=500
-        )
+        print(f"{'=' * 60}\n")
+        return Response({"error": "Failed to fetch job details"}, status=500)
 
 
 @mobile_router.post("/jobs/create", auth=jwt_auth)
@@ -2225,27 +2255,24 @@ def mobile_create_job(request, payload: CreateJobMobileSchema):
     print(f"   User: {request.auth.email}")
     print(f"   Title: {payload.title}")
     print(f"   Budget: {payload.budget}")
-    
+
     try:
         job_data = payload.dict()
         result = create_mobile_job(user=request.auth, job_data=job_data)
         print(f"   Create job result: {result.get('success')}")
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Job creation failed')},
-                status=400
+                {"error": result.get("error", "Job creation failed")}, status=400
             )
     except Exception as e:
         print(f"❌ Mobile create job error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to create job"},
-            status=500
-        )
+        return Response({"error": "Failed to create job"}, status=500)
 
 
 @mobile_router.get("/jobs/test-invite", auth=jwt_auth)
@@ -2275,7 +2302,7 @@ def mobile_create_invite_job(request, payload: CreateInviteJobMobileSchema):
     """
     from .mobile_services import create_mobile_invite_job
 
-    print("="*80)
+    print("=" * 80)
     print(f"📱 [MOBILE CREATE INVITE JOB] Endpoint HIT!")
     print(f"   Request path: {request.path}")
     print(f"   Request method: {request.method}")
@@ -2285,28 +2312,25 @@ def mobile_create_invite_job(request, payload: CreateInviteJobMobileSchema):
     print(f"   Title: {payload.title}")
     print(f"   Worker ID: {payload.worker_id}, Agency ID: {payload.agency_id}")
     print(f"   Budget: ₱{payload.budget}")
-    print("="*80)
-    
+    print("=" * 80)
+
     try:
         job_data = payload.dict()
         result = create_mobile_invite_job(user=request.auth, job_data=job_data)
         print(f"   Create invite job result: {result.get('success')}")
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Invite job creation failed')},
-                status=400
+                {"error": result.get("error", "Invite job creation failed")}, status=400
             )
     except Exception as e:
         print(f"❌ Mobile create invite job error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to create invite job"},
-            status=500
-        )
+        return Response({"error": "Failed to create invite job"}, status=500)
 
 
 @mobile_router.delete("/jobs/{job_id}", auth=jwt_auth)
@@ -2320,30 +2344,27 @@ def mobile_delete_job(request, job_id: int):
     """
     from .mobile_services import delete_mobile_job
 
-    print("="*80)
+    print("=" * 80)
     print(f"🗑️  [MOBILE DELETE JOB] Endpoint HIT!")
     print(f"   Job ID: {job_id}")
     print(f"   User: {request.auth.email}")
-    print("="*80)
-    
+    print("=" * 80)
+
     try:
         result = delete_mobile_job(job_id=job_id, user=request.auth)
-        
-        if result['success']:
-            return {"message": result.get('message', 'Job deleted successfully')}
+
+        if result["success"]:
+            return {"message": result.get("message", "Job deleted successfully")}
         else:
             return Response(
-                {"error": result.get('error', 'Failed to delete job')},
-                status=400
+                {"error": result.get("error", "Failed to delete job")}, status=400
             )
     except Exception as e:
         print(f"❌ Mobile delete job error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to delete job"},
-            status=500
-        )
+        return Response({"error": "Failed to delete job"}, status=500)
 
 
 @mobile_router.patch("/jobs/{job_id}", auth=jwt_auth)
@@ -2351,7 +2372,7 @@ def mobile_delete_job(request, job_id: int):
 def mobile_update_job(request, job_id: int, payload: UpdateJobMobileSchema):
     """
     Update an existing job posting (PATCH - partial update)
-    
+
     Rules:
     - Only the client who created the job can edit it
     - Only ACTIVE jobs can be edited (not IN_PROGRESS or COMPLETED)
@@ -2364,42 +2385,37 @@ def mobile_update_job(request, job_id: int, payload: UpdateJobMobileSchema):
     """
     from .mobile_services import update_mobile_job
 
-    print("="*80)
+    print("=" * 80)
     print(f"📝 [MOBILE UPDATE JOB] Endpoint HIT!")
     print(f"   Job ID: {job_id}")
     print(f"   User: {request.auth.email}")
     print(f"   Payload: {payload.dict(exclude_none=True)}")
-    print("="*80)
-    
+    print("=" * 80)
+
     try:
         # Only include non-None values
         job_data = {k: v for k, v in payload.dict().items() if v is not None}
-        
+
         if not job_data:
-            return Response(
-                {"error": "No fields provided to update"},
-                status=400
-            )
-        
+            return Response({"error": "No fields provided to update"}, status=400)
+
         result = update_mobile_job(job_id=job_id, user=request.auth, job_data=job_data)
-        
-        if result['success']:
+
+        if result["success"]:
             return result
         else:
             # Include additional info for specific errors (like insufficient balance)
-            error_response = {"error": result.get('error', 'Update failed')}
-            for key in ['required_additional', 'available', 'message']:
+            error_response = {"error": result.get("error", "Update failed")}
+            for key in ["required_additional", "available", "message"]:
                 if key in result:
                     error_response[key] = result[key]
             return Response(error_response, status=400)
     except Exception as e:
         print(f"❌ Mobile update job error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to update job"},
-            status=500
-        )
+        return Response({"error": "Failed to update job"}, status=500)
 
 
 @mobile_router.get("/jobs/{job_id}/applications", auth=jwt_auth)
@@ -2410,114 +2426,118 @@ def mobile_get_job_applications(request, job_id: int):
     """
     from .models import Profile, ClientProfile, JobApplication
     from jobs.models import JobPosting
-    
+
     try:
-        print(f"📋 [MOBILE] Fetching applications for job {job_id} by {request.auth.email}")
-        
+        print(
+            f"📋 [MOBILE] Fetching applications for job {job_id} by {request.auth.email}"
+        )
+
         # Get user's profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             profile = Profile.objects.filter(accountFK=request.auth).first()
-            
-        if not profile or profile.profileType != 'CLIENT':
+
+        if not profile or profile.profileType != "CLIENT":
             return Response(
-                {"error": "Only clients can view job applications"},
-                status=403
+                {"error": "Only clients can view job applications"}, status=403
             )
-        
+
         # Get client profile
         try:
             client_profile = ClientProfile.objects.get(profileID=profile)
         except ClientProfile.DoesNotExist:
-            return Response(
-                {"error": "Client profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Client profile not found"}, status=403)
+
         # Get the job posting
         try:
             job = JobPosting.objects.get(jobID=job_id)
         except JobPosting.DoesNotExist:
-            return Response(
-                {"error": "Job posting not found"},
-                status=404
-            )
+            return Response({"error": "Job posting not found"}, status=404)
 
-        
         # Verify this client owns the job
         if job.clientID.profileID.profileID != client_profile.profileID.profileID:
             return Response(
                 {"error": "You can only view applications for your own job postings"},
-                status=403
+                status=403,
             )
-        
+
         # Get all applications for this job
-        applications = JobApplication.objects.filter(
-            jobID_id=job_id
-        ).select_related(
-            'workerID__profileID__accountFK'
-        ).order_by('-createdAt')
-        
+        applications = (
+            JobApplication.objects.filter(jobID_id=job_id)
+            .select_related("workerID__profileID__accountFK")
+            .order_by("-createdAt")
+        )
+
         # Format the response
         applications_data = []
         for app in applications:
             worker_profile = app.workerID.profileID
             worker_account = worker_profile.accountFK
-            
-            applications_data.append({
-                "id": app.applicationID,
-                "worker": {
-                    "id": app.workerID.profileID.profileID,
-                    "name": f"{worker_profile.firstName} {worker_profile.lastName}".strip(),
-                    "avatar": worker_profile.profileImg or "",
-                    "rating": app.workerID.workerRating if hasattr(app.workerID, 'workerRating') else 0,
-                    "city": worker_account.city or ""
-                },
-                "proposal_message": app.proposalMessage or "",
-                "proposed_budget": float(app.proposedBudget) if app.proposedBudget else 0.0,
-                "estimated_duration": app.estimatedDuration or "",
-                "budget_option": app.budgetOption,
-                "status": app.status,
-                "created_at": app.createdAt.isoformat() if app.createdAt else None,
-                "updated_at": app.updatedAt.isoformat() if app.updatedAt else None
-            })
-        
-        print(f"✅ [MOBILE] Found {len(applications_data)} applications for job {job_id}")
-        
+
+            applications_data.append(
+                {
+                    "id": app.applicationID,
+                    "worker": {
+                        "id": app.workerID.profileID.profileID,
+                        "name": f"{worker_profile.firstName} {worker_profile.lastName}".strip(),
+                        "avatar": worker_profile.profileImg or "",
+                        "rating": app.workerID.workerRating
+                        if hasattr(app.workerID, "workerRating")
+                        else 0,
+                        "city": worker_account.city or "",
+                    },
+                    "proposal_message": app.proposalMessage or "",
+                    "proposed_budget": float(app.proposedBudget)
+                    if app.proposedBudget
+                    else 0.0,
+                    "estimated_duration": app.estimatedDuration or "",
+                    "budget_option": app.budgetOption,
+                    "status": app.status,
+                    "created_at": app.createdAt.isoformat() if app.createdAt else None,
+                    "updated_at": app.updatedAt.isoformat() if app.updatedAt else None,
+                }
+            )
+
+        print(
+            f"✅ [MOBILE] Found {len(applications_data)} applications for job {job_id}"
+        )
+
         # Get platform's ML prediction for the job
         estimated_completion = None
         try:
             from ml.prediction import predict_for_job_instance
+
             ml_prediction = predict_for_job_instance(job)
             if ml_prediction:
                 estimated_completion = ml_prediction
         except Exception as ml_error:
             print(f"⚠️ [MOBILE] ML prediction failed for job applications: {ml_error}")
-        
+
         return {
             "success": True,
             "applications": applications_data,
             "total": len(applications_data),
             "job_title": job.title,
-            "estimated_completion": estimated_completion
+            "estimated_completion": estimated_completion,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error fetching job applications: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to fetch applications: {str(e)}"},
-            status=500
+            {"error": f"Failed to fetch applications: {str(e)}"}, status=500
         )
 
 
-@mobile_router.post("/jobs/{job_id}/applications/{application_id}/accept", auth=jwt_auth)
+@mobile_router.post(
+    "/jobs/{job_id}/applications/{application_id}/accept", auth=jwt_auth
+)
 @require_kyc
 def mobile_accept_application(request, job_id: int, application_id: int):
     """
@@ -2528,147 +2548,148 @@ def mobile_accept_application(request, job_id: int, application_id: int):
     """
     from .models import Profile, ClientProfile, JobApplication
     from jobs.models import JobPosting
-    
+
     try:
-        print(f"✅ [MOBILE] Accepting application {application_id} for job {job_id} by {request.auth.email}")
-        
+        print(
+            f"✅ [MOBILE] Accepting application {application_id} for job {job_id} by {request.auth.email}"
+        )
+
         # Get user's profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             profile = Profile.objects.filter(accountFK=request.auth).first()
-            
-        if not profile or profile.profileType != 'CLIENT':
+
+        if not profile or profile.profileType != "CLIENT":
             return Response(
-                {"error": "Only clients can accept applications"},
-                status=403
+                {"error": "Only clients can accept applications"}, status=403
             )
-        
+
         # Get the job
         try:
             job = JobPosting.objects.get(jobID=job_id)
         except JobPosting.DoesNotExist:
-            return Response(
-                {"error": "Job posting not found"},
-                status=404
-            )
-        
+            return Response({"error": "Job posting not found"}, status=404)
+
         # Verify ownership
         if job.clientID.profileID.profileID != profile.profileID:
             return Response(
                 {"error": "You can only accept applications for your own jobs"},
-                status=403
+                status=403,
             )
-        
+
         # Get the application
         try:
             application = JobApplication.objects.get(
-                applicationID=application_id,
-                jobID=job
+                applicationID=application_id, jobID=job
             )
         except JobApplication.DoesNotExist:
-            return Response(
-                {"error": "Application not found"},
-                status=404
-            )
-        
+            return Response({"error": "Application not found"}, status=404)
+
         # Check if application is still pending
         if application.status != "PENDING":
             return Response(
                 {"error": f"Application is already {application.status.lower()}"},
-                status=400
+                status=400,
             )
-        
+
         # CRITICAL: Prevent accepting if worker already has an active job (race condition prevention)
         # Freelance workers can only have 1 in-progress job at a time
         from accounts.models import JobWorkerAssignment
-        
+
         worker = application.workerID
-        
+
         active_regular_job = JobPosting.objects.filter(
-            assignedWorkerID=worker,
-            status=JobPosting.JobStatus.IN_PROGRESS
+            assignedWorkerID=worker, status=JobPosting.JobStatus.IN_PROGRESS
         ).first()
-        
+
         if active_regular_job:
             worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
             return Response(
                 {
                     "error": f"{worker_name} is already assigned to another job: '{active_regular_job.title}'. They must complete it before starting a new job.",
                     "worker_active_job_id": active_regular_job.jobID,
-                    "worker_active_job_title": active_regular_job.title
+                    "worker_active_job_title": active_regular_job.title,
                 },
-                status=400
+                status=400,
             )
-        
-        active_team_assignment = JobWorkerAssignment.objects.filter(
-            workerID=worker,
-            assignment_status='ACTIVE'
-        ).select_related('jobID').first()
-        
+
+        active_team_assignment = (
+            JobWorkerAssignment.objects.filter(
+                workerID=worker, assignment_status="ACTIVE"
+            )
+            .select_related("jobID")
+            .first()
+        )
+
         if active_team_assignment:
             worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
             return Response(
                 {
                     "error": f"{worker_name} is already assigned to a team job: '{active_team_assignment.jobID.title}'. They must complete it before starting a new job.",
                     "worker_active_job_id": active_team_assignment.jobID.jobID,
-                    "worker_active_job_title": active_team_assignment.jobID.title
+                    "worker_active_job_title": active_team_assignment.jobID.title,
                 },
-                status=400
+                status=400,
             )
-        
+
         # Use database transaction for atomicity
         from django.db import transaction as db_transaction
+
         with db_transaction.atomic():
             # Accept application inside atomic block to prevent race conditions
             application.status = "ACCEPTED"
             application.save()
-            
+
             # Update job status to IN_PROGRESS and assign the worker
             job.status = JobPosting.JobStatus.IN_PROGRESS
             job.assignedWorkerID = application.workerID
-            
+
             # If worker negotiated a different budget and it was accepted, update the job budget
             original_budget = job.budget
             if application.budgetOption == JobApplication.BudgetOption.NEGOTIATE:
-                print(f"💰 [MOBILE] Updating job budget from ₱{job.budget} to negotiated price ₱{application.proposedBudget}")
+                print(
+                    f"💰 [MOBILE] Updating job budget from ₱{job.budget} to negotiated price ₱{application.proposedBudget}"
+                )
                 job.budget = application.proposedBudget
-                
+
                 # Recalculate escrow and fees based on new budget
                 from decimal import Decimal
-                job.escrowAmount = Decimal(str(job.budget)) * Decimal('0.5')
-                job.remainingPayment = Decimal(str(job.budget)) * Decimal('0.5')
-            
+
+                job.escrowAmount = Decimal(str(job.budget)) * Decimal("0.5")
+                job.remainingPayment = Decimal(str(job.budget)) * Decimal("0.5")
+
             # Process payment: Convert reservation to actual deduction (for LISTING jobs)
             # LISTING jobs have escrowPaid=False and funds are reserved
             if not job.escrowPaid:
                 from decimal import Decimal
                 from .models import Wallet, Transaction, Notification
-                
+
                 # Get and lock client's wallet for charge conversion
                 wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
-                
+
                 # Calculate the total to charge (50% escrow + 10% platform fee)
                 escrow_amount = job.escrowAmount
-                platform_fee = Decimal(str(job.budget)) * Decimal('0.10')
+                platform_fee = Decimal(str(job.budget)) * Decimal("0.10")
                 total_to_charge = escrow_amount + platform_fee
-                
+
                 # Calculate original reserved amount (based on original budget before negotiation)
-                original_escrow = Decimal(str(original_budget)) * Decimal('0.5')
-                original_fee = Decimal(str(original_budget)) * Decimal('0.10')
+                original_escrow = Decimal(str(original_budget)) * Decimal("0.5")
+                original_fee = Decimal(str(original_budget)) * Decimal("0.10")
                 original_reserved = original_escrow + original_fee
-                
+
                 print(f"💳 [MOBILE] Processing payment for accepted application:")
-                print(f"   Original budget: ₱{original_budget}, reserved: ₱{original_reserved}")
+                print(
+                    f"   Original budget: ₱{original_budget}, reserved: ₱{original_reserved}"
+                )
                 print(f"   Final budget: ₱{job.budget}, to charge: ₱{total_to_charge}")
-                
+
                 # Release the original reservation
                 wallet.reservedBalance -= original_reserved
-                
+
                 # If negotiated price is different, check if we have enough balance
                 if total_to_charge > original_reserved:
                     additional_needed = total_to_charge - original_reserved
@@ -2680,12 +2701,14 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                             {
                                 "error": "Insufficient balance for negotiated price",
                                 "required": float(total_to_charge),
-                                "available": float(wallet.balance - wallet.reservedBalance),
-                                "message": f"The negotiated price requires ₱{total_to_charge} but you only have ₱{wallet.balance - wallet.reservedBalance} available."
+                                "available": float(
+                                    wallet.balance - wallet.reservedBalance
+                                ),
+                                "message": f"The negotiated price requires ₱{total_to_charge} but you only have ₱{wallet.balance - wallet.reservedBalance} available.",
                             },
-                            status=400
+                            status=400,
                         )
-                
+
                 # Final reserved-aware guard before deduction
                 if wallet.availableBalance < total_to_charge:
                     wallet.reservedBalance += original_reserved
@@ -2697,135 +2720,160 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                             "available": float(wallet.availableBalance),
                             "reserved": float(wallet.reservedBalance),
                         },
-                        status=400
+                        status=400,
                     )
 
                 # Deduct the actual amount from balance
                 wallet.balance -= total_to_charge
                 try:
-                    wallet.save(update_fields=['balance', 'reservedBalance', 'updatedAt'])
+                    wallet.save(
+                        update_fields=["balance", "reservedBalance", "updatedAt"]
+                    )
                 except Exception:
                     wallet.reservedBalance += original_reserved
                     db_transaction.set_rollback(True)
                     return Response(
                         {
                             "error": "Payment failed due to reserved wallet constraints",
-                            "message": "Please retry, deposit more funds, or use another payment method."
+                            "message": "Please retry, deposit more funds, or use another payment method.",
                         },
-                        status=400
+                        status=400,
                     )
-                
-                print(f"💸 [MOBILE] Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}")
-                
+
+                print(
+                    f"💸 [MOBILE] Deducted ₱{total_to_charge} from wallet. New balance: ₱{wallet.balance}"
+                )
+
                 # Update job escrow status
                 from django.utils import timezone
+
                 job.escrowPaid = True
                 job.escrowPaidAt = timezone.now()
-                
+
                 # Update pending transactions to completed
                 pending_escrow = Transaction.objects.filter(
                     relatedJobPosting=job,
                     transactionType=Transaction.TransactionType.PAYMENT,
-                    status=Transaction.TransactionStatus.PENDING
+                    status=Transaction.TransactionStatus.PENDING,
                 ).first()
-                
+
                 if pending_escrow:
                     pending_escrow.status = Transaction.TransactionStatus.COMPLETED
                     pending_escrow.completedAt = timezone.now()
                     pending_escrow.amount = escrow_amount  # Update if negotiated
                     pending_escrow.balanceAfter = wallet.balance
                     pending_escrow.save()
-                    print(f"✅ [MOBILE] Updated escrow transaction {pending_escrow.transactionID} to COMPLETED")
-                
+                    print(
+                        f"✅ [MOBILE] Updated escrow transaction {pending_escrow.transactionID} to COMPLETED"
+                    )
+
                 pending_fee = Transaction.objects.filter(
                     relatedJobPosting=job,
                     transactionType=Transaction.TransactionType.FEE,
-                    status=Transaction.TransactionStatus.PENDING
+                    status=Transaction.TransactionStatus.PENDING,
                 ).first()
-                
+
                 if pending_fee:
                     pending_fee.status = Transaction.TransactionStatus.COMPLETED
                     pending_fee.completedAt = timezone.now()
                     pending_fee.amount = platform_fee  # Update if negotiated
                     pending_fee.balanceAfter = wallet.balance
                     pending_fee.save()
-                    print(f"✅ [MOBILE] Updated fee transaction {pending_fee.transactionID} to COMPLETED")
-                
+                    print(
+                        f"✅ [MOBILE] Updated fee transaction {pending_fee.transactionID} to COMPLETED"
+                    )
+
                 # Create escrow payment notification
                 Notification.objects.create(
                     accountFK=request.auth,
                     notificationType="ESCROW_PAID",
                     title=f"Payment Processed",
                     message=f"₱{total_to_charge} has been deducted from your wallet for '{job.title}' (₱{escrow_amount} escrow + ₱{platform_fee} platform fee).",
-                    relatedJobID=job.jobID
+                    relatedJobID=job.jobID,
                 )
-            
+
             job.save()
-            
+
             # Create JobMaterial records from the application's selected_materials
             if application.selected_materials:
                 from accounts.models import JobMaterial
                 from django.utils import timezone as tz
+
                 for mat in application.selected_materials:
-                    source = mat.get('source', 'TO_PURCHASE')
+                    source = mat.get("source", "TO_PURCHASE")
                     JobMaterial.objects.create(
                         jobID=job,
-                        workerMaterialID_id=mat.get('worker_material_id'),
-                        name=mat.get('name', 'Unknown Material'),
-                        description=mat.get('description', ''),
-                        quantity=mat.get('quantity', 1),
-                        unit=mat.get('unit', ''),
+                        workerMaterialID_id=mat.get("worker_material_id"),
+                        name=mat.get("name", "Unknown Material"),
+                        description=mat.get("description", ""),
+                        quantity=mat.get("quantity", 1),
+                        unit=mat.get("unit", ""),
                         source=source,
-                        added_by=mat.get('added_by', 'WORKER_SUPPLIED'),
-                        client_approved=True if source == 'FROM_PROFILE' else False,
-                        client_approved_at=tz.now() if source == 'FROM_PROFILE' else None,
+                        added_by=mat.get("added_by", "WORKER_SUPPLIED"),
+                        client_approved=True if source == "FROM_PROFILE" else False,
+                        client_approved_at=tz.now()
+                        if source == "FROM_PROFILE"
+                        else None,
                     )
                 # Set materials_status on the job
-                has_to_purchase = any(m.get('source') == 'TO_PURCHASE' for m in application.selected_materials)
-                job.materials_status = 'PENDING_PURCHASE' if has_to_purchase else 'APPROVED'
-                job.save(update_fields=['materials_status'])
-                print(f"📦 [MOBILE] Created {len(application.selected_materials)} JobMaterial records")
-            
-            print(f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}")
+                has_to_purchase = any(
+                    m.get("source") == "TO_PURCHASE"
+                    for m in application.selected_materials
+                )
+                job.materials_status = (
+                    "PENDING_PURCHASE" if has_to_purchase else "APPROVED"
+                )
+                job.save(update_fields=["materials_status"])
+                print(
+                    f"📦 [MOBILE] Created {len(application.selected_materials)} JobMaterial records"
+                )
+
+            print(
+                f"✅ [MOBILE] Job {job_id} moved to IN_PROGRESS, assigned worker {application.workerID.profileID.profileID}"
+            )
             print(f"💵 [MOBILE] Final job budget: ₱{job.budget}")
-        
+
         # Create a conversation between client and worker
         from profiles.models import Conversation, Message
+
         conversation, created = Conversation.objects.get_or_create(
             relatedJobPosting=job,
             defaults={
-                'client': profile,
-                'worker': application.workerID.profileID,
-                'status': Conversation.ConversationStatus.ACTIVE
-            }
+                "client": profile,
+                "worker": application.workerID.profileID,
+                "status": Conversation.ConversationStatus.ACTIVE,
+            },
         )
-        
+
         # If conversation already existed, ensure worker FK is up to date
         if not created and conversation.worker != application.workerID.profileID:
             conversation.worker = application.workerID.profileID
-            conversation.save(update_fields=['worker'])
-            print(f"✅ [MOBILE] Updated conversation {conversation.conversationID} worker to {application.workerID.profileID.profileID}")
-        
+            conversation.save(update_fields=["worker"])
+            print(
+                f"✅ [MOBILE] Updated conversation {conversation.conversationID} worker to {application.workerID.profileID.profileID}"
+            )
+
         if created:
-            print(f"✅ [MOBILE] Created conversation {conversation.conversationID} for job {job_id}")
-            
+            print(
+                f"✅ [MOBILE] Created conversation {conversation.conversationID} for job {job_id}"
+            )
+
             # Create a system message to start the conversation
             Message.create_system_message(
                 conversation=conversation,
-                message_text=f"Application accepted! You can now chat about the job: {job.title}"
+                message_text=f"Application accepted! You can now chat about the job: {job.title}",
             )
-        
+
         # Only reject other applications for non-team (single-worker) jobs
         # Team jobs use separate accept_team_application endpoint and should not auto-reject
         if not job.is_team_job:
             # 1. Reject same-job pending applications and notify those workers
-            same_job_apps = JobApplication.objects.filter(
-                jobID=job,
-                status="PENDING"
-            ).exclude(
-                applicationID=application_id
-            ).select_related('workerID__profileID__accountFK')
-            
+            same_job_apps = (
+                JobApplication.objects.filter(jobID=job, status="PENDING")
+                .exclude(applicationID=application_id)
+                .select_related("workerID__profileID__accountFK")
+            )
+
             for other_app in same_job_apps:
                 Notification.objects.create(
                     accountFK=other_app.workerID.profileID.accountFK,
@@ -2833,24 +2881,27 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                     title="Application Not Selected",
                     message=f"Unfortunately, your application for '{job.title}' was not selected. Keep applying to find more opportunities!",
                     relatedJobID=job.jobID,
-                    relatedApplicationID=other_app.applicationID
+                    relatedApplicationID=other_app.applicationID,
                 )
             same_job_apps.update(status="REJECTED")
-            
+
             # 2. CROSS-JOB AUTO-REJECTION: Reject this worker's pending applications on OTHER jobs
             # Freelance workers can only have 1 in-progress job at a time
             # Note: Agencies can't apply to LISTING jobs (blocked at apply time), so this only affects freelancers
-            cross_job_apps = JobApplication.objects.filter(
-                workerID=application.workerID,
-                status="PENDING"
-            ).exclude(
-                jobID=job
-            ).select_related('jobID__clientID__profileID__accountFK')
-            
+            cross_job_apps = (
+                JobApplication.objects.filter(
+                    workerID=application.workerID, status="PENDING"
+                )
+                .exclude(jobID=job)
+                .select_related("jobID__clientID__profileID__accountFK")
+            )
+
             cross_job_count = cross_job_apps.count()
             if cross_job_count > 0:
-                print(f"🔄 [MOBILE] Auto-rejecting {cross_job_count} cross-job pending applications for worker {application.workerID.profileID.firstName}")
-                
+                print(
+                    f"🔄 [MOBILE] Auto-rejecting {cross_job_count} cross-job pending applications for worker {application.workerID.profileID.firstName}"
+                )
+
                 # Notify each affected client that the worker is no longer available
                 for cross_app in cross_job_apps:
                     try:
@@ -2860,42 +2911,50 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                             title="Worker No Longer Available",
                             message=f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName} has been hired for another job and is no longer available for '{cross_app.jobID.title}'.",
                             relatedJobID=cross_app.jobID.jobID,
-                            relatedApplicationID=cross_app.applicationID
+                            relatedApplicationID=cross_app.applicationID,
                         )
                     except Exception as notify_err:
-                        print(f"⚠️ [MOBILE] Failed to notify client for cross-job rejection: {notify_err}")
-                
+                        print(
+                            f"⚠️ [MOBILE] Failed to notify client for cross-job rejection: {notify_err}"
+                        )
+
                 cross_job_apps.update(status="REJECTED")
-                
+
                 # Notify the worker about auto-withdrawal
                 Notification.objects.create(
                     accountFK=application.workerID.profileID.accountFK,
                     notificationType="APPLICATIONS_AUTO_WITHDRAWN",
                     title="Other Applications Withdrawn",
                     message=f"Since you've been hired for '{job.title}', your {cross_job_count} other pending application{'s' if cross_job_count > 1 else ''} {'have' if cross_job_count > 1 else 'has'} been automatically withdrawn.",
-                    relatedJobID=job.jobID
+                    relatedJobID=job.jobID,
                 )
-                print(f"✅ [MOBILE] Auto-rejected {cross_job_count} cross-job applications")
-        
-        print(f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created")
-        
+                print(
+                    f"✅ [MOBILE] Auto-rejected {cross_job_count} cross-job applications"
+                )
+
+        print(
+            f"✅ [MOBILE] Application {application_id} accepted, worker assigned, conversation created"
+        )
+
         return {
             "success": True,
             "message": "Application accepted and worker assigned",
-            "conversation_id": conversation.conversationID
+            "conversation_id": conversation.conversationID,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error accepting application: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to accept application: {str(e)}"},
-            status=500
+            {"error": f"Failed to accept application: {str(e)}"}, status=500
         )
 
 
-@mobile_router.post("/jobs/{job_id}/applications/{application_id}/reject", auth=jwt_auth)
+@mobile_router.post(
+    "/jobs/{job_id}/applications/{application_id}/reject", auth=jwt_auth
+)
 @require_kyc
 def mobile_reject_application(request, job_id: int, application_id: int):
     """
@@ -2903,72 +2962,62 @@ def mobile_reject_application(request, job_id: int, application_id: int):
     """
     from .models import Profile, ClientProfile, JobApplication
     from jobs.models import JobPosting
-    
+
     try:
-        print(f"❌ [MOBILE] Rejecting application {application_id} for job {job_id} by {request.auth.email}")
-        
+        print(
+            f"❌ [MOBILE] Rejecting application {application_id} for job {job_id} by {request.auth.email}"
+        )
+
         # Get user's profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             profile = Profile.objects.filter(accountFK=request.auth).first()
-            
-        if not profile or profile.profileType != 'CLIENT':
+
+        if not profile or profile.profileType != "CLIENT":
             return Response(
-                {"error": "Only clients can reject applications"},
-                status=403
+                {"error": "Only clients can reject applications"}, status=403
             )
-        
+
         # Get the job
         try:
             job = JobPosting.objects.get(jobID=job_id)
         except JobPosting.DoesNotExist:
-            return Response(
-                {"error": "Job posting not found"},
-                status=404
-            )
-        
+            return Response({"error": "Job posting not found"}, status=404)
+
         # Verify ownership
         if job.clientID.profileID.profileID != profile.profileID:
             return Response(
                 {"error": "You can only reject applications for your own jobs"},
-                status=403
+                status=403,
             )
-        
+
         # Get the application
         try:
             application = JobApplication.objects.get(
-                applicationID=application_id,
-                jobID=job
+                applicationID=application_id, jobID=job
             )
         except JobApplication.DoesNotExist:
-            return Response(
-                {"error": "Application not found"},
-                status=404
-            )
-        
+            return Response({"error": "Application not found"}, status=404)
+
         # Reject the application
         application.status = "REJECTED"
         application.save()
-        
+
         print(f"✅ [MOBILE] Application {application_id} rejected")
-        
-        return {
-            "success": True,
-            "message": "Application rejected"
-        }
-        
+
+        return {"success": True, "message": "Application rejected"}
+
     except Exception as e:
         print(f"❌ [MOBILE] Error rejecting application: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to reject application: {str(e)}"},
-            status=500
+            {"error": f"Failed to reject application: {str(e)}"}, status=500
         )
 
 
@@ -2981,68 +3030,69 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
     Supports both Bearer token (mobile) and cookie (web) authentication
     """
     from django.db.models import Q
-    from .models import Profile, WorkerProfile, Agency, Notification, JobWorkerAssignment, workerSpecialization
+    from .models import (
+        Profile,
+        WorkerProfile,
+        Agency,
+        Notification,
+        JobWorkerAssignment,
+        workerSpecialization,
+    )
     from jobs.models import JobPosting
     from accounts.models import JobApplication
-    
+
     try:
         print(f"📝 [MOBILE] Worker {request.auth.email} applying for job {job_id}")
-        
+
         # CRITICAL: Block agencies from applying to jobs
         if Agency.objects.filter(accountFK=request.auth).exists():
             return Response(
-                {"error": "Agencies cannot apply to jobs. Please use the 'Accept Job' feature instead."},
-                status=403
+                {
+                    "error": "Agencies cannot apply to jobs. Please use the 'Accept Job' feature instead."
+                },
+                status=403,
             )
-        
+
         # Get user's profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             profile = Profile.objects.filter(accountFK=request.auth).first()
-            
-        if not profile or profile.profileType != 'WORKER':
-            return Response(
-                {"error": "Only workers can apply for jobs"},
-                status=403
-            )
-        
+
+        if not profile or profile.profileType != "WORKER":
+            return Response({"error": "Only workers can apply for jobs"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get the job posting
         try:
             job = JobPosting.objects.get(jobID=job_id)
         except JobPosting.DoesNotExist:
-            return Response(
-                {"error": "Job posting not found"},
-                status=404
-            )
-        
+            return Response({"error": "Job posting not found"}, status=404)
+
         # CRITICAL: Prevent users from applying to their own jobs (self-hiring)
         if job.clientID.profileID.accountFK == request.auth:
             return Response(
-                {"error": "You cannot apply to your own job posting"},
-                status=403
+                {"error": "You cannot apply to your own job posting"}, status=403
             )
 
         # Block workers from applying while currently working on another active assignment
-        active_regular_job = JobPosting.objects.filter(
-            assignedWorkerID=worker_profile,
-            status=JobPosting.JobStatus.IN_PROGRESS,
-        ).filter(
-            Q(cancellationReason__isnull=True) | Q(cancellationReason="")
-        ).exclude(jobID=job.jobID).first()
+        active_regular_job = (
+            JobPosting.objects.filter(
+                assignedWorkerID=worker_profile,
+                status=JobPosting.JobStatus.IN_PROGRESS,
+            )
+            .filter(Q(cancellationReason__isnull=True) | Q(cancellationReason=""))
+            .exclude(jobID=job.jobID)
+            .first()
+        )
 
         if active_regular_job:
             Notification.objects.create(
@@ -3076,14 +3126,17 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             )
             .filter(
                 Q(jobID__status=JobPosting.JobStatus.CANCELLED)
-                | (Q(jobID__cancellationReason__isnull=False) & ~Q(jobID__cancellationReason=""))
+                | (
+                    Q(jobID__cancellationReason__isnull=False)
+                    & ~Q(jobID__cancellationReason="")
+                )
             )
-            .values_list('assignmentID', flat=True)
+            .values_list("assignmentID", flat=True)
         )
         if stale_cancelled_ids:
-            JobWorkerAssignment.objects.filter(assignmentID__in=stale_cancelled_ids).update(
-                assignment_status=JobWorkerAssignment.AssignmentStatus.REMOVED
-            )
+            JobWorkerAssignment.objects.filter(
+                assignmentID__in=stale_cancelled_ids
+            ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.REMOVED)
 
         stale_completed_qs = JobWorkerAssignment.objects.filter(
             workerID=worker_profile,
@@ -3093,22 +3146,39 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             | Q(jobID__clientMarkedComplete=True)
         )
         if stale_cancelled_ids:
-            stale_completed_qs = stale_completed_qs.exclude(assignmentID__in=stale_cancelled_ids)
-        stale_completed_ids = list(stale_completed_qs.values_list('assignmentID', flat=True))
-        if stale_completed_ids:
-            JobWorkerAssignment.objects.filter(assignmentID__in=stale_completed_ids).update(
-                assignment_status=JobWorkerAssignment.AssignmentStatus.COMPLETED
+            stale_completed_qs = stale_completed_qs.exclude(
+                assignmentID__in=stale_cancelled_ids
             )
+        stale_completed_ids = list(
+            stale_completed_qs.values_list("assignmentID", flat=True)
+        )
+        if stale_completed_ids:
+            JobWorkerAssignment.objects.filter(
+                assignmentID__in=stale_completed_ids
+            ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.COMPLETED)
 
-        active_team_assignment = JobWorkerAssignment.objects.filter(
-            workerID=worker_profile,
-            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
-            jobID__status__in=[JobPosting.JobStatus.ACTIVE, JobPosting.JobStatus.IN_PROGRESS],
-        ).filter(
-            Q(jobID__cancellationReason__isnull=True) | Q(jobID__cancellationReason="")
-        ).select_related('jobID').first()
+        active_team_assignment = (
+            JobWorkerAssignment.objects.filter(
+                workerID=worker_profile,
+                assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+                jobID__status__in=[
+                    JobPosting.JobStatus.ACTIVE,
+                    JobPosting.JobStatus.IN_PROGRESS,
+                ],
+            )
+            .filter(
+                Q(jobID__cancellationReason__isnull=True)
+                | Q(jobID__cancellationReason="")
+            )
+            .select_related("jobID")
+            .first()
+        )
 
-        if active_team_assignment and active_team_assignment.jobID and active_team_assignment.jobID.jobID != job.jobID:
+        if (
+            active_team_assignment
+            and active_team_assignment.jobID
+            and active_team_assignment.jobID.jobID != job.jobID
+        ):
             Notification.objects.create(
                 accountFK=request.auth,
                 notificationType="JOB_APPLICATION_BLOCKED",
@@ -3130,14 +3200,13 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 },
                 status=400,
             )
-        
+
         # Check if job is still active
         if job.status != JobPosting.JobStatus.ACTIVE:
             return Response(
-                {"error": "This job is no longer accepting applications"},
-                status=400
+                {"error": "This job is no longer accepting applications"}, status=400
             )
-        
+
         # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
         existing_application = JobApplication.objects.filter(
             jobID=job,
@@ -3150,15 +3219,13 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
 
         if existing_application:
             return Response(
-                {"error": "You have already applied for this job"},
-                status=400
+                {"error": "You have already applied for this job"}, status=400
             )
 
         # Enforce required specialization for this job
         if job.categoryID:
             has_required_skill = workerSpecialization.objects.filter(
-                workerID=worker_profile,
-                specializationID=job.categoryID
+                workerID=worker_profile, specializationID=job.categoryID
             ).exists()
             if not has_required_skill:
                 return Response(
@@ -3167,32 +3234,27 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                         "required_skill": job.categoryID.specializationName,
                         "required_specialization_id": job.categoryID.specializationID,
                     },
-                    status=400
+                    status=400,
                 )
-        
+
         # Validate budget option
-        if payload.budget_option not in ['ACCEPT', 'NEGOTIATE']:
-            return Response(
-                {"error": "Invalid budget option"},
-                status=400
-            )
-        
+        if payload.budget_option not in ["ACCEPT", "NEGOTIATE"]:
+            return Response({"error": "Invalid budget option"}, status=400)
+
         # Validate proposal message
         if not payload.proposal_message or len(payload.proposal_message.strip()) < 10:
             return Response(
-                {"error": "Proposal message must be at least 10 characters"},
-                status=400
+                {"error": "Proposal message must be at least 10 characters"}, status=400
             )
-        
+
         # Validate proposed budget if negotiating
-        if payload.budget_option == 'NEGOTIATE' and not payload.proposed_budget:
+        if payload.budget_option == "NEGOTIATE" and not payload.proposed_budget:
             return Response(
-                {"error": "Proposed budget is required when negotiating"},
-                status=400
+                {"error": "Proposed budget is required when negotiating"}, status=400
             )
 
         if (
-            payload.budget_option == 'NEGOTIATE'
+            payload.budget_option == "NEGOTIATE"
             and payload.proposed_budget is not None
             and job.categoryID
             and job.categoryID.minimumRate
@@ -3211,20 +3273,22 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                     },
                     status=400,
                 )
-        
+
         # Create the application
         application = JobApplication.objects.create(
             jobID=job,
             workerID=worker_profile,
             proposalMessage=payload.proposal_message,
             proposedBudget=payload.proposed_budget or 0,
-            estimatedDuration=payload.estimated_duration or '',
+            estimatedDuration=payload.estimated_duration or "",
             budgetOption=payload.budget_option,
             selected_materials=payload.selected_materials or [],
-            status=JobApplication.ApplicationStatus.PENDING
+            status=JobApplication.ApplicationStatus.PENDING,
         )
 
-        print(f"✅ [MOBILE] Application {application.applicationID} created successfully")
+        print(
+            f"✅ [MOBILE] Application {application.applicationID} created successfully"
+        )
 
         # Create notification for the client
         worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}".strip()
@@ -3234,23 +3298,25 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             title=f"New Application for '{job.title}'",
             message=f"{worker_name} applied for your job posting. Review their proposal and qualifications.",
             relatedJobID=job.jobID,
-            relatedApplicationID=application.applicationID
+            relatedApplicationID=application.applicationID,
         )
-        print(f"📬 [MOBILE] Notification sent to client {job.clientID.profileID.accountFK.email}")
+        print(
+            f"📬 [MOBILE] Notification sent to client {job.clientID.profileID.accountFK.email}"
+        )
 
         return {
             "success": True,
             "message": "Application submitted successfully",
-            "application_id": application.applicationID
+            "application_id": application.applicationID,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error applying for job: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to submit application: {str(e)}"},
-            status=500
+            {"error": f"Failed to submit application: {str(e)}"}, status=500
         )
 
 
@@ -3262,90 +3328,97 @@ def mobile_get_my_applications(request):
     """
     from .models import Profile, WorkerProfile
     from accounts.models import JobApplication
-    
+
     try:
         print(f"📋 [MOBILE] Fetching applications for {request.auth.email}")
-        
+
         # Get user's profile using profile_type from JWT if available
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Fallback - assume WORKER for this endpoint
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-            
+
         if not profile:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Only workers can view applications"},
-                status=403
-            )
-        
+            return Response({"error": "Only workers can view applications"}, status=403)
+
         # Applied tab should only show pending actions.
         # Accepted applications should appear in IN_PROGRESS jobs.
-        applications = JobApplication.objects.filter(
-            workerID=worker_profile,
-            status=JobApplication.ApplicationStatus.PENDING,
-        ).select_related('jobID', 'jobID__clientID__profileID__accountFK', 'applied_skill_slot').order_by('-createdAt')
-        
+        applications = (
+            JobApplication.objects.filter(
+                workerID=worker_profile,
+                status=JobApplication.ApplicationStatus.PENDING,
+            )
+            .select_related(
+                "jobID", "jobID__clientID__profileID__accountFK", "applied_skill_slot"
+            )
+            .order_by("-createdAt")
+        )
+
         # Format the response
         applications_data = []
         for app in applications:
             job = app.jobID
             client_profile = job.clientID.profileID
-            
-            applications_data.append({
-                "application_id": app.applicationID,
-                "job_id": job.jobID,
-                "job_title": job.title,
-                "job_description": job.description,
-                "job_budget": float(job.budget),
-                "job_location": job.location,
-                "job_status": job.status,
-                "application_status": app.status,
-                "proposal_message": app.proposalMessage,
-                "proposed_budget": float(app.proposedBudget) if app.proposedBudget else None,
-                "estimated_duration": app.estimatedDuration,
-                "budget_option": app.budgetOption,
-                "created_at": app.createdAt.isoformat(),
-                "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
-                "client_img": (
-                    getattr(client_profile, 'profileImage', None)
-                    or getattr(client_profile, 'profileImg', None)
-                ),
-                "is_team_job": job.is_team_job,
-                "applied_skill_slot_id": app.applied_skill_slot.skillSlotID if app.applied_skill_slot else None,
-            })
-        
+
+            applications_data.append(
+                {
+                    "application_id": app.applicationID,
+                    "job_id": job.jobID,
+                    "job_title": job.title,
+                    "job_description": job.description,
+                    "job_budget": float(job.budget),
+                    "job_location": job.location,
+                    "job_status": job.status,
+                    "application_status": app.status,
+                    "proposal_message": app.proposalMessage,
+                    "proposed_budget": float(app.proposedBudget)
+                    if app.proposedBudget
+                    else None,
+                    "estimated_duration": app.estimatedDuration,
+                    "budget_option": app.budgetOption,
+                    "created_at": app.createdAt.isoformat(),
+                    "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
+                    "client_img": (
+                        getattr(client_profile, "profileImage", None)
+                        or getattr(client_profile, "profileImg", None)
+                    ),
+                    "is_team_job": job.is_team_job,
+                    "applied_skill_slot_id": app.applied_skill_slot.skillSlotID
+                    if app.applied_skill_slot
+                    else None,
+                    "applied_skill_slot_name": app.applied_skill_slot.specialization_name
+                    if app.applied_skill_slot
+                    else None,
+                }
+            )
+
         print(f"✅ [MOBILE] Found {len(applications_data)} applications")
-        
+
         return {
             "success": True,
             "applications": applications_data,
-            "total": len(applications_data)
+            "total": len(applications_data),
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error fetching applications: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to fetch applications: {str(e)}"},
-            status=500
+            {"error": f"Failed to fetch applications: {str(e)}"}, status=500
         )
 
 
@@ -3357,57 +3430,47 @@ def mobile_get_application_detail(request, application_id: int):
     """
     from .models import Profile, WorkerProfile
     from accounts.models import JobApplication
-    
+
     try:
-        print(f"📋 [MOBILE] Fetching application {application_id} for {request.auth.email}")
-        
+        print(
+            f"📋 [MOBILE] Fetching application {application_id} for {request.auth.email}"
+        )
+
         # Get user's profile using profile_type from JWT if available
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Fallback - assume WORKER for this endpoint
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-            
+
         if not profile:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Only workers can view applications"},
-                status=403
-            )
-        
+            return Response({"error": "Only workers can view applications"}, status=403)
+
         # Get the application
         try:
             application = JobApplication.objects.select_related(
-                'jobID', 'jobID__clientID', 'jobID__clientID__profileID',
-                'applied_skill_slot'
-            ).get(
-                applicationID=application_id,
-                workerID=worker_profile
-            )
+                "jobID",
+                "jobID__clientID",
+                "jobID__clientID__profileID",
+                "applied_skill_slot",
+            ).get(applicationID=application_id, workerID=worker_profile)
         except JobApplication.DoesNotExist:
-            return Response(
-                {"error": "Application not found"},
-                status=404
-            )
-        
+            return Response({"error": "Application not found"}, status=404)
+
         job = application.jobID
         client_profile = job.clientID.profileID
-        
+
         # Build response data
         application_data = {
             "application_id": application.applicationID,
@@ -3421,38 +3484,40 @@ def mobile_get_application_detail(request, application_id: int):
             "job_urgency": job.urgency,
             "application_status": application.status,
             "proposal_message": application.proposalMessage,
-            "proposed_budget": float(application.proposedBudget) if application.proposedBudget else None,
+            "proposed_budget": float(application.proposedBudget)
+            if application.proposedBudget
+            else None,
             "estimated_duration": application.estimatedDuration,
             "budget_option": application.budgetOption,
             "created_at": application.createdAt.isoformat(),
             "updated_at": application.updatedAt.isoformat(),
             "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
             "client_img": (
-                getattr(client_profile, 'profileImage', None)
-                or getattr(client_profile, 'profileImg', None)
+                getattr(client_profile, "profileImage", None)
+                or getattr(client_profile, "profileImg", None)
             ),
             "client_id": client_profile.profileID,
             "is_team_job": job.is_team_job,
-            "applied_skill_slot_id": application.applied_skill_slot.skillSlotID if application.applied_skill_slot else None,
-            "applied_skill_slot_name": application.applied_skill_slot.skill_required if application.applied_skill_slot else None,
-            "can_withdraw": application.status == JobApplication.ApplicationStatus.PENDING,
+            "applied_skill_slot_id": application.applied_skill_slot.skillSlotID
+            if application.applied_skill_slot
+            else None,
+            "applied_skill_slot_name": application.applied_skill_slot.skill_required
+            if application.applied_skill_slot
+            else None,
+            "can_withdraw": application.status
+            == JobApplication.ApplicationStatus.PENDING,
         }
-        
+
         print(f"✅ [MOBILE] Application {application_id} fetched successfully")
-        
-        return {
-            "success": True,
-            "application": application_data
-        }
-        
+
+        return {"success": True, "application": application_data}
+
     except Exception as e:
         print(f"❌ [MOBILE] Error fetching application detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to fetch application: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to fetch application: {str(e)}"}, status=500)
 
 
 @mobile_router.delete("/applications/{application_id}/withdraw", auth=dual_auth)
@@ -3465,67 +3530,59 @@ def mobile_withdraw_application(request, application_id: int):
     """
     from .models import Profile, WorkerProfile, Notification
     from accounts.models import JobApplication
-    
+
     try:
-        print(f"🔙 [MOBILE] Worker {request.auth.email} withdrawing application {application_id}")
-        
+        print(
+            f"🔙 [MOBILE] Worker {request.auth.email} withdrawing application {application_id}"
+        )
+
         # Get user's profile using profile_type from JWT if available
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Fallback - assume WORKER for this endpoint
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-            
+
         if not profile:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
             return Response(
-                {"error": "Only workers can withdraw applications"},
-                status=403
+                {"error": "Only workers can withdraw applications"}, status=403
             )
-        
+
         # Get the application
         try:
             application = JobApplication.objects.select_related(
-                'jobID', 'jobID__clientID', 'jobID__clientID__profileID'
-            ).get(
-                applicationID=application_id,
-                workerID=worker_profile
-            )
+                "jobID", "jobID__clientID", "jobID__clientID__profileID"
+            ).get(applicationID=application_id, workerID=worker_profile)
         except JobApplication.DoesNotExist:
-            return Response(
-                {"error": "Application not found"},
-                status=404
-            )
-        
+            return Response({"error": "Application not found"}, status=404)
+
         # Check if application can be withdrawn
         if application.status != JobApplication.ApplicationStatus.PENDING:
             return Response(
-                {"error": f"Cannot withdraw application with status '{application.status}'. Only pending applications can be withdrawn."},
-                status=400
+                {
+                    "error": f"Cannot withdraw application with status '{application.status}'. Only pending applications can be withdrawn."
+                },
+                status=400,
             )
-        
+
         # Update application status
         application.status = JobApplication.ApplicationStatus.WITHDRAWN
         application.save()
-        
+
         job = application.jobID
         worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}".strip()
-        
+
         # Create notification for the client
         Notification.objects.create(
             accountFK=job.clientID.profileID.accountFK,
@@ -3533,24 +3590,24 @@ def mobile_withdraw_application(request, application_id: int):
             title=f"Application Withdrawn for '{job.title}'",
             message=f"{worker_name} has withdrawn their application for your job posting.",
             relatedJobID=job.jobID,
-            relatedApplicationID=application.applicationID
+            relatedApplicationID=application.applicationID,
         )
-        
+
         print(f"✅ [MOBILE] Application {application_id} withdrawn successfully")
-        
+
         return {
             "success": True,
             "message": "Application withdrawn successfully",
-            "application_id": application.applicationID
+            "application_id": application.applicationID,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error withdrawing application: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to withdraw application: {str(e)}"},
-            status=500
+            {"error": f"Failed to withdraw application: {str(e)}"}, status=500
         )
 
 
@@ -3564,39 +3621,31 @@ def mobile_job_search(request, query: str, page: int = 1, limit: int = 20):
 
     print(f"📱 [MOBILE JOB SEARCH] Query: '{query}', Page: {page}, Limit: {limit}")
     print(f"   User: {request.auth.email}")
-    
+
     try:
         if not query or len(query) < 2:
             return Response(
-                {"error": "Search query must be at least 2 characters"},
-                status=400
+                {"error": "Search query must be at least 2 characters"}, status=400
             )
 
         result = search_mobile_jobs(
-            query=query,
-            user=request.auth,
-            page=page,
-            limit=limit
+            query=query, user=request.auth, page=page, limit=limit
         )
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
-            return Response(
-                {"error": result.get('error', 'Search failed')},
-                status=400
-            )
+            return Response({"error": result.get("error", "Search failed")}, status=400)
     except Exception as e:
         print(f"❌ Mobile job search error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Search operation failed"},
-            status=500
-        )
+        return Response({"error": "Search operation failed"}, status=500)
 
 
-#region SAVED JOBS ENDPOINTS
+# region SAVED JOBS ENDPOINTS
+
 
 @mobile_router.post("/jobs/{job_id}/save", auth=dual_auth)
 @require_kyc
@@ -3606,83 +3655,68 @@ def mobile_save_job(request, job_id: int):
     Only workers can save jobs
     """
     from .models import Profile, WorkerProfile, Job, SavedJob
-    
+
     try:
         print(f"💾 [MOBILE] Worker {request.auth.email} saving job {job_id}")
-        
+
         # Get user's profile using profile_type from JWT if available
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Fallback - assume WORKER for this endpoint
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-            
-        if not profile or profile.profileType != 'WORKER':
-            return Response(
-                {"error": "Only workers can save jobs"},
-                status=403
-            )
-        
+
+        if not profile or profile.profileType != "WORKER":
+            return Response({"error": "Only workers can save jobs"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get the job
         try:
             job = Job.objects.get(jobID=job_id)
         except Job.DoesNotExist:
-            return Response(
-                {"error": "Job not found"},
-                status=404
-            )
-        
+            return Response({"error": "Job not found"}, status=404)
+
         # Check if already saved
         existing_save = SavedJob.objects.filter(
-            jobID=job,
-            workerID=worker_profile
+            jobID=job, workerID=worker_profile
         ).first()
-        
+
         if existing_save:
             return {
                 "success": True,
                 "message": "Job already saved",
-                "saved_job_id": existing_save.savedJobID
+                "saved_job_id": existing_save.savedJobID,
             }
-        
+
         # Create saved job record
-        saved_job = SavedJob.objects.create(
-            jobID=job,
-            workerID=worker_profile
+        saved_job = SavedJob.objects.create(jobID=job, workerID=worker_profile)
+
+        print(
+            f"✅ [MOBILE] Job {job_id} saved successfully (ID: {saved_job.savedJobID})"
         )
-        
-        print(f"✅ [MOBILE] Job {job_id} saved successfully (ID: {saved_job.savedJobID})")
-        
+
         return {
             "success": True,
             "message": "Job saved successfully",
-            "saved_job_id": saved_job.savedJobID
+            "saved_job_id": saved_job.savedJobID,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error saving job: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to save job: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to save job: {str(e)}"}, status=500)
 
 
 @mobile_router.delete("/jobs/{job_id}/save", auth=dual_auth)
@@ -3693,66 +3727,49 @@ def mobile_unsave_job(request, job_id: int):
     Only workers can unsave jobs
     """
     from .models import Profile, WorkerProfile, Job, SavedJob
-    
+
     try:
         print(f"🗑️ [MOBILE] Worker {request.auth.email} unsaving job {job_id}")
-        
+
         # Get user's profile using profile_type from JWT if available
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Fallback - assume WORKER for this endpoint
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-            
-        if not profile or profile.profileType != 'WORKER':
-            return Response(
-                {"error": "Only workers can unsave jobs"},
-                status=403
-            )
-        
+
+        if not profile or profile.profileType != "WORKER":
+            return Response({"error": "Only workers can unsave jobs"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get and delete the saved job record
         deleted_count, _ = SavedJob.objects.filter(
-            jobID_id=job_id,
-            workerID=worker_profile
+            jobID_id=job_id, workerID=worker_profile
         ).delete()
-        
+
         if deleted_count == 0:
-            return Response(
-                {"error": "Saved job not found"},
-                status=404
-            )
-        
+            return Response({"error": "Saved job not found"}, status=404)
+
         print(f"✅ [MOBILE] Job {job_id} unsaved successfully")
-        
-        return {
-            "success": True,
-            "message": "Job unsaved successfully"
-        }
-        
+
+        return {"success": True, "message": "Job unsaved successfully"}
+
     except Exception as e:
         print(f"❌ [MOBILE] Error unsaving job: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to unsave job: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to unsave job: {str(e)}"}, status=500)
 
 
 @mobile_router.get("/jobs/saved", auth=dual_auth)
@@ -3762,110 +3779,105 @@ def mobile_get_saved_jobs(request, page: int = 1, limit: int = 20):
     Returns paginated list with job details
     """
     from .models import Profile, WorkerProfile, SavedJob
-    
+
     try:
         print(f"📋 [MOBILE] Fetching saved jobs for {request.auth.email}")
-        
+
         # Get user's profile using profile_type from JWT if available
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Fallback - assume WORKER for this endpoint
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-            
-        if not profile or profile.profileType != 'WORKER':
-            return Response(
-                {"error": "Only workers can view saved jobs"},
-                status=403
-            )
-        
+
+        if not profile or profile.profileType != "WORKER":
+            return Response({"error": "Only workers can view saved jobs"}, status=403)
+
         # Get worker profile
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=403
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=403)
+
         # Get saved jobs with pagination
-        saved_jobs = SavedJob.objects.filter(
-            workerID=worker_profile
-        ).select_related(
-            'jobID',
-            'jobID__clientID__profileID',
-            'jobID__categoryID'
-        ).order_by('-savedAt')
-        
+        saved_jobs = (
+            SavedJob.objects.filter(workerID=worker_profile)
+            .select_related("jobID", "jobID__clientID__profileID", "jobID__categoryID")
+            .order_by("-savedAt")
+        )
+
         # Paginate
         total = saved_jobs.count()
         start = (page - 1) * limit
         end = start + limit
         saved_jobs_page = saved_jobs[start:end]
-        
+
         # Format the response
         jobs_data = []
         for saved in saved_jobs_page:
             job = saved.jobID
             client_profile = job.clientID.profileID
-            
-            jobs_data.append({
-                "job_id": job.jobID,
-                "title": job.title,
-                "description": job.description,
-                "budget": float(job.budget),
-                "location": job.location,
-                "urgency_level": job.urgencyLevel,
-                "created_at": job.createdAt.isoformat(),
-                "category_name": job.categoryID.name if job.categoryID else "General",
-                "category_id": job.categoryID.specializationID if job.categoryID else None,
-                "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
-                "client_avatar": getattr(client_profile, 'profileImage', None),
-                "expected_duration": job.expectedDuration or "Not specified",
-                "job_status": job.status,
-                "saved_at": saved.savedAt.isoformat(),
-                "is_applied": hasattr(worker_profile, 'job_applications') and 
-                              worker_profile.job_applications.filter(jobID=job).exists(),
-                # Team job fields
-                "is_team_job": job.is_team_job,
-                "total_workers_needed": job.total_workers_needed,
-                "total_workers_assigned": job.total_workers_assigned,
-                "team_fill_percentage": job.team_fill_percentage,
-            })
-        
+
+            jobs_data.append(
+                {
+                    "job_id": job.jobID,
+                    "title": job.title,
+                    "description": job.description,
+                    "budget": float(job.budget),
+                    "location": job.location,
+                    "urgency_level": job.urgencyLevel,
+                    "created_at": job.createdAt.isoformat(),
+                    "category_name": job.categoryID.name
+                    if job.categoryID
+                    else "General",
+                    "category_id": job.categoryID.specializationID
+                    if job.categoryID
+                    else None,
+                    "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
+                    "client_avatar": getattr(client_profile, "profileImage", None),
+                    "expected_duration": job.expectedDuration or "Not specified",
+                    "job_status": job.status,
+                    "saved_at": saved.savedAt.isoformat(),
+                    "is_applied": hasattr(worker_profile, "job_applications")
+                    and worker_profile.job_applications.filter(jobID=job).exists(),
+                    # Team job fields
+                    "is_team_job": job.is_team_job,
+                    "total_workers_needed": job.total_workers_needed,
+                    "total_workers_assigned": job.total_workers_assigned,
+                    "team_fill_percentage": job.team_fill_percentage,
+                }
+            )
+
         print(f"✅ [MOBILE] Found {len(jobs_data)} saved jobs (total: {total})")
-        
+
         return {
             "success": True,
             "jobs": jobs_data,
             "total": total,
             "page": page,
             "limit": limit,
-            "has_next": end < total
+            "has_next": end < total,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error fetching saved jobs: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to fetch saved jobs: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to fetch saved jobs: {str(e)}"}, status=500)
 
 
-#endregion
+# endregion
 
-#endregion
+# endregion
 
-#region MOBILE DASHBOARD ENDPOINTS
+# region MOBILE DASHBOARD ENDPOINTS
+
 
 @mobile_router.get("/dashboard/stats", auth=jwt_auth)
 def mobile_dashboard_stats(request):
@@ -3879,21 +3891,19 @@ def mobile_dashboard_stats(request):
         user = request.auth
         result = get_dashboard_stats_mobile(user)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch dashboard stats')},
-                status=400
+                {"error": result.get("error", "Failed to fetch dashboard stats")},
+                status=400,
             )
     except Exception as e:
         print(f"❌ Mobile dashboard stats error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch dashboard stats"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch dashboard stats"}, status=500)
 
 
 @mobile_router.get("/dashboard/recent-jobs", auth=jwt_auth)
@@ -3909,21 +3919,19 @@ def mobile_dashboard_recent_jobs(request, limit: int = 5):
         user = request.auth
         result = get_dashboard_recent_jobs_mobile(user, limit)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch recent jobs')},
-                status=400
+                {"error": result.get("error", "Failed to fetch recent jobs")},
+                status=400,
             )
     except Exception as e:
         print(f"❌ Mobile recent jobs error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch recent jobs"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch recent jobs"}, status=500)
 
 
 @mobile_router.get("/dashboard/available-workers", auth=jwt_auth)
@@ -3937,25 +3945,24 @@ def mobile_dashboard_available_workers(request, limit: int = 10):
         user = request.auth
         result = get_available_workers_mobile(user, limit)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch workers')},
-                status=400
+                {"error": result.get("error", "Failed to fetch workers")}, status=400
             )
     except Exception as e:
         print(f"❌ Mobile available workers error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch workers"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch workers"}, status=500)
 
-#endregion
 
-#region MOBILE PROFILE ENDPOINTS
+# endregion
+
+# region MOBILE PROFILE ENDPOINTS
+
 
 @mobile_router.get("/profile/me", auth=jwt_auth)
 def mobile_get_current_profile(request):
@@ -3969,21 +3976,18 @@ def mobile_get_current_profile(request):
         user = request.auth
         result = get_user_profile_mobile(user)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch profile')},
-                status=400
+                {"error": result.get("error", "Failed to fetch profile")}, status=400
             )
     except Exception as e:
         print(f"[ERROR] Mobile get profile error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch profile"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch profile"}, status=500)
 
 
 @mobile_router.put("/profile/update", auth=jwt_auth)
@@ -4002,21 +4006,18 @@ def mobile_update_profile(request, payload: UpdateProfileMobileSchema):
         print(f"[MOBILE] Profile update - payload_dict: {payload_dict}")
         result = update_user_profile_mobile(user, payload_dict, request)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to update profile')},
-                status=400
+                {"error": result.get("error", "Failed to update profile")}, status=400
             )
     except Exception as e:
         print(f"[ERROR] Mobile update profile error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to update profile"},
-            status=500
-        )
+        return Response({"error": "Failed to update profile"}, status=500)
 
 
 @mobile_router.post("/profile/upload-image", auth=jwt_auth)
@@ -4038,17 +4039,14 @@ def mobile_upload_profile_image(request):
             files=list(request.FILES.keys()),
         )
 
-        if 'profile_image' not in request.FILES:
+        if "profile_image" not in request.FILES:
             _log_mobile(
                 "profile_image_upload:missing_file",
                 user=user.email if user else None,
             )
-            return Response(
-                {"error": "No image file provided"},
-                status=400
-            )
+            return Response({"error": "No image file provided"}, status=400)
 
-        image_file = request.FILES['profile_image']
+        image_file = request.FILES["profile_image"]
         _log_mobile(
             "profile_image_upload:file_received",
             filename=getattr(image_file, "name", None),
@@ -4057,44 +4055,53 @@ def mobile_upload_profile_image(request):
         )
         result = upload_profile_image_mobile(user, image_file)
 
-        if result['success']:
+        if result["success"]:
             _log_mobile(
                 "profile_image_upload:success",
                 user=user.email if user else None,
-                url=result['data'].get('profile_image_url') if isinstance(result.get('data'), dict) else None,
+                url=result["data"].get("profile_image_url")
+                if isinstance(result.get("data"), dict)
+                else None,
             )
-            return result['data']
+            return result["data"]
         else:
             _log_mobile(
                 "profile_image_upload:failed",
                 user=user.email if user else None,
-                error=result.get('error'),
+                error=result.get("error"),
             )
             return Response(
-                {"error": result.get('error', 'Failed to upload image')},
-                status=400
+                {"error": result.get("error", "Failed to upload image")}, status=400
             )
     except Exception as e:
         print(f"[ERROR] Mobile upload profile image error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         _log_mobile(
             "profile_image_upload:exception",
-            user=request.auth.email if hasattr(request, 'auth') and request.auth else None,
+            user=request.auth.email
+            if hasattr(request, "auth") and request.auth
+            else None,
             error=str(e),
         )
-        return Response(
-            {"error": "Failed to upload profile image"},
-            status=500
-        )
+        return Response({"error": "Failed to upload profile image"}, status=500)
 
-#endregion
 
-#region MOBILE WORKER & JOB LISTING ENDPOINTS
+# endregion
+
+# region MOBILE WORKER & JOB LISTING ENDPOINTS
+
 
 @mobile_router.get("/workers/list", auth=jwt_auth)
-def mobile_workers_list(request, latitude: float = None, longitude: float = None,
-                        page: int = 1, limit: int = 20, category: int = None):
+def mobile_workers_list(
+    request,
+    latitude: float = None,
+    longitude: float = None,
+    page: int = 1,
+    limit: int = 20,
+    category: int = None,
+):
     """
     Get list of workers for clients
     Optional location parameters for distance calculation
@@ -4104,70 +4111,73 @@ def mobile_workers_list(request, latitude: float = None, longitude: float = None
 
     try:
         user = request.auth
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"📋 MOBILE WORKERS LIST REQUEST")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"👤 User: {user.email} (ID: {user.accountID})")
         print(f"📍 Location: lat={latitude}, lon={longitude}")
         print(f"📄 Pagination: page={page}, limit={limit}")
         if category:
             print(f"🏷️ Category filter: {category}")
-        
+
         result = get_workers_list_mobile(
             user=user,
             latitude=latitude,
             longitude=longitude,
             page=page,
             limit=limit,
-            category=category
+            category=category,
         )
 
-        if result['success']:
-            worker_count = len(result['data'].get('workers', []))
-            total_count = result['data'].get('total_count', 0)
-            print(f"✅ Workers list retrieved: {worker_count}/{total_count} workers (page {page})")
-            print(f"{'='*60}\n")
-            return result['data']
-        else:
-            error_msg = result.get('error', 'Failed to fetch workers')
-            print(f"❌ Workers list failed: {error_msg}")
-            print(f"{'='*60}\n")
-            return Response(
-                {"error": error_msg},
-                status=400
+        if result["success"]:
+            worker_count = len(result["data"].get("workers", []))
+            total_count = result["data"].get("total_count", 0)
+            print(
+                f"✅ Workers list retrieved: {worker_count}/{total_count} workers (page {page})"
             )
+            print(f"{'=' * 60}\n")
+            return result["data"]
+        else:
+            error_msg = result.get("error", "Failed to fetch workers")
+            print(f"❌ Workers list failed: {error_msg}")
+            print(f"{'=' * 60}\n")
+            return Response({"error": error_msg}, status=400)
     except Exception as e:
         print(f"❌ MOBILE WORKERS LIST ERROR: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        print(f"{'='*60}\n")
-        return Response(
-            {"error": "Failed to fetch workers"},
-            status=500
-        )
+        print(f"{'=' * 60}\n")
+        return Response({"error": "Failed to fetch workers"}, status=500)
 
 
 @mobile_router.get("/agencies/list", auth=jwt_auth)
-def mobile_agencies_list(request, page: int = 1, limit: int = 20,
-                         city: str = None, province: str = None,
-                         min_rating: float = None, sort_by: str = "rating"):
+def mobile_agencies_list(
+    request,
+    page: int = 1,
+    limit: int = 20,
+    city: str = None,
+    province: str = None,
+    min_rating: float = None,
+    sort_by: str = "rating",
+):
     """
     Get list of agencies for clients
     Supports filtering and sorting
     """
     try:
         user = request.auth
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"📋 MOBILE AGENCIES LIST REQUEST")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"👤 User: {user.email} (ID: {user.accountID})")
         print(f"📄 Pagination: page={page}, limit={limit}")
         print(f"🔍 Filters: city={city}, province={province}, min_rating={min_rating}")
         print(f"📊 Sort by: {sort_by}")
-        
+
         # Use the existing client services for browsing agencies
         from client.services import browse_agencies
-        
+
         result = browse_agencies(
             page=page,
             limit=limit,
@@ -4175,25 +4185,25 @@ def mobile_agencies_list(request, page: int = 1, limit: int = 20,
             province=province,
             min_rating=min_rating,
             kyc_status="APPROVED",  # Only show approved agencies
-            sort_by=sort_by
+            sort_by=sort_by,
         )
-        
-        agency_count = len(result.get('agencies', []))
-        total_count = result.get('total', 0)
-        print(f"✅ Agencies list retrieved: {agency_count}/{total_count} agencies (page {page})")
-        print(f"{'='*60}\n")
-        
+
+        agency_count = len(result.get("agencies", []))
+        total_count = result.get("total", 0)
+        print(
+            f"✅ Agencies list retrieved: {agency_count}/{total_count} agencies (page {page})"
+        )
+        print(f"{'=' * 60}\n")
+
         return result
-        
+
     except Exception as e:
         print(f"❌ MOBILE AGENCIES LIST ERROR: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        print(f"{'='*60}\n")
-        return Response(
-            {"error": "Failed to fetch agencies"},
-            status=500
-        )
+        print(f"{'=' * 60}\n")
+        return Response({"error": "Failed to fetch agencies"}, status=500)
 
 
 @mobile_router.get("/agencies/detail/{agency_id}", auth=jwt_auth)
@@ -4205,31 +4215,25 @@ def mobile_agency_detail(request, agency_id: int):
     from .mobile_services import get_agency_detail_mobile
 
     print(f"📱 [AGENCY DETAIL] Request received for agency_id: {agency_id}")
-    
+
     try:
         user = request.auth
         result = get_agency_detail_mobile(user, agency_id)
 
-        if result['success']:
+        if result["success"]:
             print(f"   ✅ Agency details retrieved successfully")
-            return {
-                'success': True,
-                'agency': result['data']
-            }
+            return {"success": True, "agency": result["data"]}
         else:
             print(f"   ❌ Agency not found: {result.get('error')}")
             return Response(
-                {"error": result.get('error', 'Agency not found')},
-                status=404
+                {"error": result.get("error", "Agency not found")}, status=404
             )
     except Exception as e:
         print(f"❌ [ERROR] Mobile agency detail error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch agency details"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch agency details"}, status=500)
 
 
 @mobile_router.get("/clients/{client_id}", auth=jwt_auth)
@@ -4244,24 +4248,18 @@ def mobile_client_detail(request, client_id: int):
         user = request.auth
         result = get_client_detail_mobile(user, client_id)
 
-        if result['success']:
-            return {
-                'success': True,
-                'client': result['data']
-            }
+        if result["success"]:
+            return {"success": True, "client": result["data"]}
         else:
             return Response(
-                {"error": result.get('error', 'Client not found')},
-                status=404
+                {"error": result.get("error", "Client not found")}, status=404
             )
     except Exception as e:
         print(f"[ERROR] Mobile client detail error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch client details"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch client details"}, status=500)
 
 
 @mobile_router.get("/workers/{worker_id}", auth=jwt_auth)
@@ -4275,21 +4273,18 @@ def mobile_worker_detail(request, worker_id: int):
         user = request.auth
         result = get_worker_detail_mobile(user, worker_id)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Worker not found')},
-                status=404
+                {"error": result.get("error", "Worker not found")}, status=404
             )
     except Exception as e:
         print(f"[ERROR] Mobile worker detail error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch worker details"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch worker details"}, status=500)
 
 
 @mobile_router.get("/workers/detail/{worker_id}", auth=jwt_auth)
@@ -4301,31 +4296,25 @@ def mobile_worker_detail_v2(request, worker_id: int):
     from .mobile_services import get_worker_detail_mobile_v2
 
     print(f"📱 [WORKER DETAIL V2] Request received for worker_id: {worker_id}")
-    
+
     try:
         user = request.auth
         result = get_worker_detail_mobile_v2(user, worker_id)
 
-        if result['success']:
+        if result["success"]:
             print(f"   ✅ Worker details retrieved successfully")
-            return {
-                'success': True,
-                'worker': result['data']
-            }
+            return {"success": True, "worker": result["data"]}
         else:
             print(f"   ❌ Worker not found: {result.get('error')}")
             return Response(
-                {"error": result.get('error', 'Worker not found')},
-                status=404
+                {"error": result.get("error", "Worker not found")}, status=404
             )
     except Exception as e:
         print(f"❌ [ERROR] Mobile worker detail V2 error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch worker details"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch worker details"}, status=500)
 
 
 @mobile_router.get("/jobs/available", auth=jwt_auth)
@@ -4339,40 +4328,35 @@ def mobile_available_jobs(request, page: int = 1, limit: int = 20):
     print(f"📱 [MOBILE AVAILABLE JOBS] Request received")
     print(f"   User: {request.auth.email if request.auth else 'None'}")
     print(f"   Pagination: page={page}, limit={limit}")
-    
+
     try:
         user = request.auth
-        result = get_available_jobs_mobile(
-            user=user,
-            page=page,
-            limit=limit
-        )
-        
+        result = get_available_jobs_mobile(user=user, page=page, limit=limit)
+
         print(f"   Result success: {result.get('success')}")
-        if result.get('success'):
-            job_count = len(result['data'].get('jobs', []))
+        if result.get("success"):
+            job_count = len(result["data"].get("jobs", []))
             print(f"   ✅ Returning {job_count} available jobs")
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             print(f"   ❌ Error: {result.get('error')}")
             return Response(
-                {"error": result.get('error', 'Failed to fetch jobs')},
-                status=400
+                {"error": result.get("error", "Failed to fetch jobs")}, status=400
             )
     except Exception as e:
         print(f"[ERROR] Mobile available jobs error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch available jobs"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch available jobs"}, status=500)
 
-#endregion
 
-#region MOBILE WALLET ENDPOINTS
+# endregion
+
+# region MOBILE WALLET ENDPOINTS
+
 
 @mobile_router.get("/wallet/balance", auth=jwt_auth)
 def mobile_get_wallet_balance(request):
@@ -4386,51 +4370,53 @@ def mobile_get_wallet_balance(request):
         # Get or create wallet for the user
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
+            defaults={
+                "balance": Decimal("0.00"),
+                "reservedBalance": Decimal("0.00"),
+                "pendingEarnings": Decimal("0.00"),
+            },
         )
 
-        print(f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance} (₱{wallet.reservedBalance} reserved, ₱{wallet.pendingEarnings} pending)")
+        print(
+            f"💵 [Mobile] Balance request for user {request.auth.email}: ₱{wallet.balance} (₱{wallet.reservedBalance} reserved, ₱{wallet.pendingEarnings} pending)"
+        )
 
         # Aggregate wallet stats for dashboard cards
-        pending_total = (
-            wallet.transactions.filter(
-                status=Transaction.TransactionStatus.PENDING
-            ).aggregate(total=Sum('amount'))['total']
-            or Decimal('0.00')
-        )
+        pending_total = wallet.transactions.filter(
+            status=Transaction.TransactionStatus.PENDING
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
         now = timezone.now()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        this_month_total = (
-            wallet.transactions.filter(
-                createdAt__gte=month_start,
-                status=Transaction.TransactionStatus.COMPLETED,
-                transactionType__in=[
-                    Transaction.TransactionType.EARNING,
-                    Transaction.TransactionType.PAYMENT,
-                ],
-            ).aggregate(total=Sum('amount'))['total']
-            or Decimal('0.00')
-        )
+        this_month_total = wallet.transactions.filter(
+            createdAt__gte=month_start,
+            status=Transaction.TransactionStatus.COMPLETED,
+            transactionType__in=[
+                Transaction.TransactionType.EARNING,
+                Transaction.TransactionType.PAYMENT,
+            ],
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
-        total_earned = (
-            wallet.transactions.filter(
-                transactionType=Transaction.TransactionType.EARNING,
-                status=Transaction.TransactionStatus.COMPLETED,
-            ).aggregate(total=Sum('amount'))['total']
-            or Decimal('0.00')
-        )
+        total_earned = wallet.transactions.filter(
+            transactionType=Transaction.TransactionType.EARNING,
+            status=Transaction.TransactionStatus.COMPLETED,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
-        last_transaction = wallet.transactions.order_by('-completedAt', '-createdAt').first()
+        last_transaction = wallet.transactions.order_by(
+            "-completedAt", "-createdAt"
+        ).first()
         if last_transaction:
-            last_updated_source = last_transaction.completedAt or last_transaction.createdAt
+            last_updated_source = (
+                last_transaction.completedAt or last_transaction.createdAt
+            )
         else:
             last_updated_source = wallet.updatedAt
 
         # Get pending earnings details (Due Balance)
         from jobs.payment_buffer_service import get_pending_earnings_for_account
+
         pending_earnings_list = get_pending_earnings_for_account(request.auth)
-        
+
         return {
             "success": True,
             "balance": float(wallet.balance),
@@ -4444,7 +4430,9 @@ def mobile_get_wallet_balance(request):
             "pending": float(pending_total),
             "this_month": float(this_month_total),
             "total_earned": float(total_earned),
-            "last_updated": last_updated_source.isoformat() if last_updated_source else None,
+            "last_updated": last_updated_source.isoformat()
+            if last_updated_source
+            else None,
             "currency": "PHP",
             "created": created,
         }
@@ -4452,11 +4440,9 @@ def mobile_get_wallet_balance(request):
     except Exception as e:
         print(f"❌ [Mobile] Error fetching wallet balance: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch wallet balance"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch wallet balance"}, status=500)
 
 
 @mobile_router.get("/wallet/pending-earnings", auth=jwt_auth)
@@ -4464,7 +4450,7 @@ def mobile_get_pending_earnings(request):
     """
     Get detailed list of pending earnings (Due Balance) for the current user.
     Shows all completed jobs where payment is held in the 7-day buffer period.
-    
+
     Returns:
         - List of pending payments with job details and release dates
         - Total pending amount
@@ -4474,41 +4460,41 @@ def mobile_get_pending_earnings(request):
         from .models import Wallet
         from decimal import Decimal
         from jobs.payment_buffer_service import (
-            get_pending_earnings_for_account, 
-            get_payment_buffer_days
+            get_pending_earnings_for_account,
+            get_payment_buffer_days,
         )
-        
+
         # Get wallet for pending balance
         try:
             wallet = Wallet.objects.get(accountFK=request.auth)
             pending_total = float(wallet.pendingEarnings)
         except Wallet.DoesNotExist:
             pending_total = 0.0
-        
+
         # Get detailed list of pending earnings
         pending_list = get_pending_earnings_for_account(request.auth)
-        
+
         buffer_days = get_payment_buffer_days()
-        
-        print(f"📋 [Mobile] Pending earnings for {request.auth.email}: {len(pending_list)} payments, ₱{pending_total} total")
-        
+
+        print(
+            f"📋 [Mobile] Pending earnings for {request.auth.email}: {len(pending_list)} payments, ₱{pending_total} total"
+        )
+
         return {
             "success": True,
             "pending_earnings": pending_list,
             "total_pending": pending_total,
             "count": len(pending_list),
             "buffer_days": buffer_days,
-            "info_message": f"Payments are held for {buffer_days} days after job completion before being released to your wallet."
+            "info_message": f"Payments are held for {buffer_days} days after job completion before being released to your wallet.",
         }
-        
+
     except Exception as e:
         print(f"❌ [Mobile] Error fetching pending earnings: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch pending earnings"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch pending earnings"}, status=500)
 
 
 @mobile_router.get("/config", auth=None)
@@ -4516,7 +4502,7 @@ def get_mobile_config(request):
     """
     Get mobile app configuration including feature flags and version info.
     No authentication required - used for app initialization.
-    
+
     Version info is used for in-app update prompts:
     - min_version: Minimum supported app version (older versions blocked)
     - current_version: Latest available version
@@ -4525,44 +4511,52 @@ def get_mobile_config(request):
     """
     from django.conf import settings
     import requests
-    
+
     # Get version from settings (Render env vars - primary source)
-    min_version = getattr(settings, 'MOBILE_MIN_VERSION', None)
-    current_version = getattr(settings, 'MOBILE_CURRENT_VERSION', None)
-    force_update = getattr(settings, 'MOBILE_FORCE_UPDATE', True)
-    download_url = getattr(settings, 'MOBILE_DOWNLOAD_URL', 'https://github.com/Banyel3/iayos/releases/latest')
-    
+    min_version = getattr(settings, "MOBILE_MIN_VERSION", None)
+    current_version = getattr(settings, "MOBILE_CURRENT_VERSION", None)
+    force_update = getattr(settings, "MOBILE_FORCE_UPDATE", True)
+    download_url = getattr(
+        settings,
+        "MOBILE_DOWNLOAD_URL",
+        "https://github.com/Banyel3/iayos/releases/latest",
+    )
+
     # Fallback: fetch from GitHub API if env vars not set
     if not current_version:
         try:
             response = requests.get(
-                'https://api.github.com/repos/Banyel3/iayos/releases/latest',
+                "https://api.github.com/repos/Banyel3/iayos/releases/latest",
                 timeout=5,
-                headers={'Accept': 'application/vnd.github.v3+json'}
+                headers={"Accept": "application/vnd.github.v3+json"},
             )
             if response.status_code == 200:
                 release = response.json()
-                tag_name = release.get('tag_name', '')  # e.g., "mobile-v1.8.11"
-                if tag_name.startswith('mobile-v'):
-                    current_version = tag_name.replace('mobile-v', '')
+                tag_name = release.get("tag_name", "")  # e.g., "mobile-v1.8.11"
+                if tag_name.startswith("mobile-v"):
+                    current_version = tag_name.replace("mobile-v", "")
                     # Find APK asset URL
-                    for asset in release.get('assets', []):
-                        if asset.get('name', '').endswith('.apk'):
-                            download_url = asset.get('browser_download_url', download_url)
+                    for asset in release.get("assets", []):
+                        if asset.get("name", "").endswith(".apk"):
+                            download_url = asset.get(
+                                "browser_download_url", download_url
+                            )
                             break
         except Exception as e:
             print(f"[MOBILE CONFIG] GitHub API fallback failed: {e}")
-    
+
     # Final defaults if still not set
     if not current_version:
-        current_version = '1.9.0'
+        current_version = "1.9.0"
     if not min_version:
         min_version = current_version  # Default: require latest version
-    
+
     return {
-        "testing": getattr(settings, 'TESTING', False),
+        "testing": getattr(settings, "TESTING", False),
         "features": {
-            "gcash_direct_deposit": getattr(settings, 'TESTING', False),  # TODO: REMOVE FOR PROD
+            "gcash_direct_deposit": getattr(
+                settings, "TESTING", False
+            ),  # TODO: REMOVE FOR PROD
             "qrph_deposit": True,
             "auto_withdraw": True,
         },
@@ -4578,7 +4572,7 @@ def get_mobile_config(request):
             "current_version": current_version,
             "force_update": force_update,
             "download_url": download_url,
-        }
+        },
     }
 
 
@@ -4598,10 +4592,9 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
     from django.conf import settings
 
     # Check if testing mode is enabled
-    if not getattr(settings, 'TESTING', False):
+    if not getattr(settings, "TESTING", False):
         return Response(
-            {"error": "Direct deposit is only available in testing mode"},
-            status=404
+            {"error": "Direct deposit is only available in testing mode"}, status=404
         )
 
     try:
@@ -4613,23 +4606,16 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
         amount = payload.amount
 
         if amount <= 0:
-            return Response(
-                {"error": "Amount must be greater than 0"},
-                status=400
-            )
+            return Response({"error": "Amount must be greater than 0"}, status=400)
 
         if amount > 100000:
-            return Response(
-                {"error": "Maximum deposit is \u20b1100,000"},
-                status=400
-            )
+            return Response({"error": "Maximum deposit is \u20b1100,000"}, status=400)
 
         # Wrap in atomic block so wallet and transaction record update together
         with db_transaction.atomic():
             # Get or create wallet
             wallet, created = Wallet.objects.get_or_create(
-                accountFK=request.auth,
-                defaults={'balance': Decimal('0.00')}
+                accountFK=request.auth, defaults={"balance": Decimal("0.00")}
             )
 
             # Calculate new balance
@@ -4659,16 +4645,14 @@ def mobile_deposit_funds_gcash(request, payload: DepositFundsSchema):
             "provider": "direct_test",
             "method": "direct_test",
             "status": "completed",
-            "message": f"Test deposit of \u20b1{amount} added to your wallet instantly!"
+            "message": f"Test deposit of \u20b1{amount} added to your wallet instantly!",
         }
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to process direct deposit"},
-            status=500
-        )
+        return Response({"error": "Failed to process direct deposit"}, status=500)
 
 
 @mobile_router.post("/wallet/deposit", auth=jwt_auth)
@@ -4677,7 +4661,7 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
     """
     Mobile wallet deposit via PayMongo QR PH
     User scans QR code displayed in checkout and pays via any Philippine bank/e-wallet
-    
+
     SECURE FLOW:
     1. Create PENDING transaction (no balance change)
     2. Redirect user to PayMongo checkout (shows QR PH code)
@@ -4690,47 +4674,44 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
         from .payment_provider import get_payment_provider
         from decimal import Decimal
         from django.utils import timezone
-        
+
         amount = payload.amount
         payment_method = "QRPH"  # Universal QR payment - any PH bank/e-wallet
 
-        print(f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}")
-        
+        print(
+            f"📥 [Mobile] Deposit request: ₱{amount} via {payment_method} from {request.auth.email}"
+        )
+
         if amount <= 0:
-            return Response(
-                {"error": "Amount must be greater than 0"},
-                status=400
-            )
-        
+            return Response({"error": "Amount must be greater than 0"}, status=400)
+
         # Get or create wallet
         wallet, _ = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': 0.00}
+            accountFK=request.auth, defaults={"balance": 0.00}
         )
-        
+
         # Get user's profile for name
         try:
             # Get profile_type from JWT if available, try both if not found
-            profile_type = getattr(request.auth, 'profile_type', None)
-            
+            profile_type = getattr(request.auth, "profile_type", None)
+
             if profile_type:
                 profile = Profile.objects.filter(
-                    accountFK=request.auth,
-                    profileType=profile_type
+                    accountFK=request.auth, profileType=profile_type
                 ).first()
             else:
                 # Fallback: get any profile
                 profile = Profile.objects.filter(accountFK=request.auth).first()
-            
+
             if profile:
                 user_name = f"{profile.firstName} {profile.lastName}"
             else:
-                user_name = request.auth.email.split('@')[0]
+                user_name = request.auth.email.split("@")[0]
         except Exception:
-            user_name = request.auth.email.split('@')[0]
-        
+            user_name = request.auth.email.split("@")[0]
+
         print(f"💰 Current balance: ₱{wallet.balance}")
-        
+
         # Create PENDING transaction - funds NOT added yet!
         # Balance will be updated by webhook after payment is confirmed
         transaction = Transaction.objects.create(
@@ -4742,64 +4723,66 @@ def mobile_deposit_funds(request, payload: DepositFundsSchema):
             description=f"TOP UP via {payment_method.upper()} - ₱{amount}",
             paymentMethod=payment_method,
         )
-        
+
         print(f"   Transaction {transaction.transactionID} created as PENDING")
         print(f"   ⚠️ Funds will be added after payment confirmation")
-        
+
         # Create payment invoice using configured provider
         payment_provider = get_payment_provider()
         provider_name = payment_provider.provider_name
-        
+
         payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
-            transaction_id=transaction.transactionID
+            transaction_id=transaction.transactionID,
         )
-        
+
         if not payment_result.get("success"):
             # If payment provider fails, mark transaction as failed
             transaction.status = Transaction.TransactionStatus.FAILED
             transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
             transaction.save()
-            return Response(
-                {"error": "Failed to create payment invoice"},
-                status=500
-            )
-        
+            return Response({"error": "Failed to create payment invoice"}, status=500)
+
         # Update transaction with payment provider details
-        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
-        transaction.xenditExternalID = payment_result.get('external_id')
-        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
+        transaction.xenditInvoiceID = payment_result.get(
+            "checkout_id"
+        ) or payment_result.get("invoice_id")
+        transaction.xenditExternalID = payment_result.get("external_id")
+        transaction.invoiceURL = payment_result.get(
+            "checkout_url"
+        ) or payment_result.get("invoice_url")
         transaction.xenditPaymentChannel = payment_method.upper()
         transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
-        
-        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+
+        print(
+            f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}"
+        )
         print(f"   ⏳ Waiting for user to complete payment...")
-        
+
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "payment_url": payment_result.get("checkout_url")
+            or payment_result.get("invoice_url"),
             "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
             "current_balance": float(wallet.balance),  # Alias kept for backward compat
             "new_balance": float(wallet.balance),  # Frontend expects this field name
-            "expiry_date": payment_result.get('expiry_date'),
+            "expiry_date": payment_result.get("expiry_date"),
             "provider": provider_name,
             "status": "pending",
-            "message": "Payment invoice created. Complete payment to add funds to wallet."
+            "message": "Payment invoice created. Complete payment to add funds to wallet.",
         }
-        
+
     except Exception as e:
         print(f"❌ [Mobile] Error depositing funds: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to deposit funds"},
-            status=500
-        )
+        return Response({"error": "Failed to deposit funds"}, status=500)
 
 
 @mobile_router.post("/wallet/withdraw", auth=jwt_auth)
@@ -4815,84 +4798,73 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
         from decimal import Decimal
         from django.utils import timezone
         from django.db import transaction as db_transaction
-        
+
         amount = payload.amount
         payment_method_id = payload.payment_method_id
         notes = payload.notes or ""
 
-        print(f"💸 [Mobile] Withdraw request: ₱{amount} to payment method {payment_method_id} from {request.auth.email}")
-        
+        print(
+            f"💸 [Mobile] Withdraw request: ₱{amount} to payment method {payment_method_id} from {request.auth.email}"
+        )
+
         # Validate amount
         if amount <= 0:
-            return Response(
-                {"error": "Amount must be greater than 0"},
-                status=400
-            )
-        
+            return Response({"error": "Amount must be greater than 0"}, status=400)
+
         # Minimum withdrawal of ₱100
         if amount < 100:
-            return Response(
-                {"error": "Minimum withdrawal amount is ₱100"},
-                status=400
-            )
-        
+            return Response({"error": "Minimum withdrawal amount is ₱100"}, status=400)
+
         # Get wallet
         try:
             wallet = Wallet.objects.get(accountFK=request.auth)
         except Wallet.DoesNotExist:
-            return Response(
-                {"error": "Wallet not found"},
-                status=404
-            )
-        
+            return Response({"error": "Wallet not found"}, status=404)
+
         amount_decimal = Decimal(str(amount))
-        
+
         # Get payment method
         try:
             payment_method = UserPaymentMethod.objects.get(
-                id=payment_method_id,
-                accountFK=request.auth
+                id=payment_method_id, accountFK=request.auth
             )
         except UserPaymentMethod.DoesNotExist:
-            return Response(
-                {"error": "Payment method not found"},
-                status=404
-            )
-        
+            return Response({"error": "Payment method not found"}, status=404)
+
         # Validate payment method type
-        if payment_method.methodType not in ['GCASH', 'BANK']:
+        if payment_method.methodType not in ["GCASH", "BANK"]:
             return Response(
-                {"error": "Unsupported payment method for withdrawal"},
-                status=400
+                {"error": "Unsupported payment method for withdrawal"}, status=400
             )
 
-        if payment_method.methodType == 'BANK' and not payment_method.bankCode:
+        if payment_method.methodType == "BANK" and not payment_method.bankCode:
             return Response(
-                {"error": "Bank payout method is missing bank code. Please re-add this bank account."},
-                status=400
+                {
+                    "error": "Bank payout method is missing bank code. Please re-add this bank account."
+                },
+                status=400,
             )
-        
+
         # Get user's profile for name
         try:
-            profile_type = getattr(request.auth, 'profile_type', None)
-            
+            profile_type = getattr(request.auth, "profile_type", None)
+
             if profile_type:
                 profile = Profile.objects.filter(
-                    accountFK=request.auth,
-                    profileType=profile_type
+                    accountFK=request.auth, profileType=profile_type
                 ).first()
             else:
                 profile = Profile.objects.filter(accountFK=request.auth).first()
-            
+
             if profile:
                 user_name = f"{profile.firstName} {profile.lastName}"
             else:
-                user_name = request.auth.email.split('@')[0]
+                user_name = request.auth.email.split("@")[0]
         except Exception:
-            user_name = request.auth.email.split('@')[0]
-        
+            user_name = request.auth.email.split("@")[0]
+
         print(f"💰 Current balance: ₱{wallet.balance}")
-        
+
         # Use atomic transaction to ensure consistency
         with db_transaction.atomic():
             # Lock wallet row and re-check balance to prevent concurrent overdraft
@@ -4906,28 +4878,28 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                             f"(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved)"
                         )
                     },
-                    status=400
+                    status=400,
                 )
 
             # Deduct balance immediately
             old_balance = wallet.balance
             wallet.balance -= amount_decimal
             try:
-                wallet.save(update_fields=['balance', 'updatedAt'])
+                wallet.save(update_fields=["balance", "updatedAt"])
             except Exception:
                 return Response(
                     {
                         "error": "Withdrawal failed due to reserved wallet constraints. Please retry."
                     },
-                    status=400
+                    status=400,
                 )
-            
+
             # Create pending withdrawal transaction
-            if payment_method.methodType == 'BANK':
+            if payment_method.methodType == "BANK":
                 method_display = f"Bank ({payment_method.bankName or 'BANK'}) - {payment_method.accountNumber}"
             else:
-                method_display = f'GCash - {payment_method.accountNumber}'
-            
+                method_display = f"GCash - {payment_method.accountNumber}"
+
             transaction = Transaction.objects.create(
                 walletID=wallet,
                 transactionType=Transaction.TransactionType.WITHDRAWAL,
@@ -4935,33 +4907,38 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
                 balanceAfter=wallet.balance,
                 status=Transaction.TransactionStatus.PENDING,
                 description=f"Withdrawal to {method_display}",
-                paymentMethod=payment_method.methodType
+                paymentMethod=payment_method.methodType,
             )
-            
+
             print(f"✅ New balance: ₱{wallet.balance}")
-            
+
             # Generate a unique withdrawal request ID for admin tracking
             import uuid
-            withdrawal_request_id = f"WD-{transaction.transactionID}-{uuid.uuid4().hex[:8].upper()}"
-            
+
+            withdrawal_request_id = (
+                f"WD-{transaction.transactionID}-{uuid.uuid4().hex[:8].upper()}"
+            )
+
             # Store withdrawal request ID in transaction for admin reference
             transaction.xenditExternalID = withdrawal_request_id
             transaction.xenditPaymentChannel = payment_method.methodType
-            transaction.xenditPaymentMethod = 'MANUAL'
+            transaction.xenditPaymentMethod = "MANUAL"
             transaction.status = Transaction.TransactionStatus.PENDING
             transaction.save()
-            
+
             print(f"📄 Manual withdrawal request created: {withdrawal_request_id}")
             print(f"📊 Status: PENDING (requires admin approval)")
-            print(f"   Recipient: {payment_method.accountName} (***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'})")
+            print(
+                f"   Recipient: {payment_method.accountName} (***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'})"
+            )
             print(f"   Method: {payment_method.methodType}")
 
         success_message = (
             "Your funds will be transferred to your bank account within 1-3 business days after verification."
-            if payment_method.methodType == 'BANK'
+            if payment_method.methodType == "BANK"
             else "Your funds will be transferred to your GCash within 1-3 business days after verification."
         )
-        
+
         # Build response (no receipt_url for manual processing)
         response_data = {
             "success": True,
@@ -4976,132 +4953,136 @@ def mobile_withdraw_funds(request, payload: WithdrawFundsSchema):
             "bank_name": payment_method.bankName,
             "bank_code": payment_method.bankCode,
             "message": f"Withdrawal request submitted successfully. {success_message}",
-            "estimated_arrival": "1-3 business days"
+            "estimated_arrival": "1-3 business days",
         }
-        
+
         return response_data
-        
+
     except Exception as e:
         print(f"❌ [Mobile] Error withdrawing funds: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to process withdrawal"},
-            status=500
-        )
+        return Response({"error": "Failed to process withdrawal"}, status=500)
 
 
 @mobile_router.get("/wallet/transactions", auth=jwt_auth)
-def mobile_get_transactions(request, page: int = 1, limit: int = 20, type: Optional[str] = None):
+def mobile_get_transactions(
+    request, page: int = 1, limit: int = 20, type: Optional[str] = None
+):
     """Get wallet transaction history - Mobile with pagination"""
     try:
         from .models import Wallet, Transaction
-        
+
         # Get user's wallet
         wallet = Wallet.objects.filter(accountFK=request.auth).first()
-        
+
         if not wallet:
-            return {
-                "results": [],
-                "count": 0,
-                "has_next": False,
-                "next_page": None
-            }
-        
+            return {"results": [], "count": 0, "has_next": False, "next_page": None}
+
         # Build query with optional type filter
-        queryset = Transaction.objects.filter(walletID=wallet).select_related('relatedJobPosting')
-        
+        queryset = Transaction.objects.filter(walletID=wallet).select_related(
+            "relatedJobPosting"
+        )
+
         if type:
             type_mapping = {
-                'DEPOSIT': Transaction.TransactionType.DEPOSIT,
-                'PAYMENT': Transaction.TransactionType.PAYMENT,
-                'WITHDRAWAL': Transaction.TransactionType.WITHDRAWAL,
-                'EARNING': Transaction.TransactionType.EARNING,
-                'PENDING_EARNING': Transaction.TransactionType.PENDING_EARNING,
-                'PENDING': Transaction.TransactionType.PENDING_EARNING,
-                'REFUND': Transaction.TransactionType.REFUND,
+                "DEPOSIT": Transaction.TransactionType.DEPOSIT,
+                "PAYMENT": Transaction.TransactionType.PAYMENT,
+                "WITHDRAWAL": Transaction.TransactionType.WITHDRAWAL,
+                "EARNING": Transaction.TransactionType.EARNING,
+                "PENDING_EARNING": Transaction.TransactionType.PENDING_EARNING,
+                "PENDING": Transaction.TransactionType.PENDING_EARNING,
+                "REFUND": Transaction.TransactionType.REFUND,
             }
             if type.upper() in type_mapping:
                 queryset = queryset.filter(transactionType=type_mapping[type.upper()])
-        
+
         # Get total count
         total_count = queryset.count()
-        
+
         # Paginate
         offset = (page - 1) * limit
-        transactions = queryset.order_by('-createdAt')[offset:offset + limit]
-        
+        transactions = queryset.order_by("-createdAt")[offset : offset + limit]
+
         # Human-readable labels for each transaction type
         TYPE_LABELS = {
-            'DEPOSIT': 'Wallet Top-Up',
-            'PAYMENT': 'Job Escrow Payment',
-            'EARNING': 'Job Earnings',
-            'PENDING_EARNING': 'Pending Earnings',
-            'WITHDRAWAL': 'Withdrawal Request',
-            'REFUND': 'Refund',
-            'FEE': 'Platform Fee',
+            "DEPOSIT": "Wallet Top-Up",
+            "PAYMENT": "Job Escrow Payment",
+            "EARNING": "Job Earnings",
+            "PENDING_EARNING": "Pending Earnings",
+            "WITHDRAWAL": "Withdrawal Request",
+            "REFUND": "Refund",
+            "FEE": "Platform Fee",
         }
-        
+
         transaction_list = []
         for t in transactions:
             # Map transaction type to frontend format
             type_display = t.transactionType
             if t.transactionType == Transaction.TransactionType.EARNING:
-                type_display = 'EARNING'
-            
+                type_display = "EARNING"
+
             # Build job context
             job_data = None
             if t.relatedJobPosting:
                 job_data = {
-                    'id': t.relatedJobPosting.jobID,
-                    'title': t.relatedJobPosting.title,
-                    'status': t.relatedJobPosting.status,
+                    "id": t.relatedJobPosting.jobID,
+                    "title": t.relatedJobPosting.title,
+                    "status": t.relatedJobPosting.status,
                 }
-            
+
             # Only expose PayMongo checkout URL for completed deposits
             paymongo_checkout_url = None
             if (
-                t.status == 'COMPLETED'
+                t.status == "COMPLETED"
                 and t.transactionType == Transaction.TransactionType.DEPOSIT
                 and t.invoiceURL
             ):
                 paymongo_checkout_url = t.invoiceURL
-            
-            transaction_list.append({
-                'id': t.transactionID,
-                'type': type_display,
-                'transaction_type_label': TYPE_LABELS.get(t.transactionType, t.transactionType),
-                'title': t.description or TYPE_LABELS.get(t.transactionType, f'{t.transactionType} Transaction'),
-                'description': t.description or '',
-                'amount': float(t.amount),
-                'created_at': t.createdAt.isoformat(),
-                'status': t.status.lower() if t.status else 'pending',
-                'payment_method': t.paymentMethod or 'wallet',
-                'transaction_id': str(t.transactionID),
-                'reference_number': t.referenceNumber or t.xenditExternalID or None,
-                'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
-                'paymongo_checkout_url': paymongo_checkout_url,
-                'paymongo_payment_id': t.paymongoPaymentId or None,
-                'job': job_data,
-            })
-        
+
+            transaction_list.append(
+                {
+                    "id": t.transactionID,
+                    "type": type_display,
+                    "transaction_type_label": TYPE_LABELS.get(
+                        t.transactionType, t.transactionType
+                    ),
+                    "title": t.description
+                    or TYPE_LABELS.get(
+                        t.transactionType, f"{t.transactionType} Transaction"
+                    ),
+                    "description": t.description or "",
+                    "amount": float(t.amount),
+                    "created_at": t.createdAt.isoformat(),
+                    "status": t.status.lower() if t.status else "pending",
+                    "payment_method": t.paymentMethod or "wallet",
+                    "transaction_id": str(t.transactionID),
+                    "reference_number": t.referenceNumber or t.xenditExternalID or None,
+                    "balance_after": float(t.balanceAfter)
+                    if t.balanceAfter is not None
+                    else None,
+                    "paymongo_checkout_url": paymongo_checkout_url,
+                    "paymongo_payment_id": t.paymongoPaymentId or None,
+                    "job": job_data,
+                }
+            )
+
         has_next = (offset + limit) < total_count
-        
+
         return {
             "results": transaction_list,
             "count": total_count,
             "has_next": has_next,
-            "next_page": page + 1 if has_next else None
+            "next_page": page + 1 if has_next else None,
         }
 
     except Exception as e:
         print(f"❌ [Mobile] Error fetching transactions: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch transactions"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch transactions"}, status=500)
 
 
 @mobile_router.get("/wallet/transactions/{transaction_id}", auth=jwt_auth)
@@ -5121,7 +5102,7 @@ def mobile_get_transaction_detail(request, transaction_id: int):
             return Response({"error": "Not found"}, status=404)
 
         try:
-            t = Transaction.objects.select_related('relatedJobPosting').get(
+            t = Transaction.objects.select_related("relatedJobPosting").get(
                 transactionID=transaction_id, walletID=wallet
             )
         except Transaction.DoesNotExist:
@@ -5136,87 +5117,102 @@ def mobile_get_transaction_detail(request, transaction_id: int):
         ):
             try:
                 from .paymongo_service import PayMongoService
+
                 paymongo = PayMongoService()
                 pay_id = paymongo.get_checkout_session_payments(t.xenditInvoiceID)
                 if pay_id:
                     t.paymongoPaymentId = pay_id
-                    t.save(update_fields=['paymongoPaymentId'])
-                    print(f"✅ [Mobile] Lazy-backfilled paymongoPaymentId={pay_id} for txn {t.transactionID}")
+                    t.save(update_fields=["paymongoPaymentId"])
+                    print(
+                        f"✅ [Mobile] Lazy-backfilled paymongoPaymentId={pay_id} for txn {t.transactionID}"
+                    )
             except Exception as backfill_err:
-                print(f"⚠️ [Mobile] Could not backfill paymongoPaymentId for txn {t.transactionID}: {backfill_err}")
+                print(
+                    f"⚠️ [Mobile] Could not backfill paymongoPaymentId for txn {t.transactionID}: {backfill_err}"
+                )
 
         # Build job context
         job_data = None
         if t.relatedJobPosting:
             job_data = {
-                'id': t.relatedJobPosting.jobID,
-                'title': t.relatedJobPosting.title,
-                'status': t.relatedJobPosting.status,
+                "id": t.relatedJobPosting.jobID,
+                "title": t.relatedJobPosting.title,
+                "status": t.relatedJobPosting.status,
             }
 
         # Only expose PayMongo checkout URL for completed deposits
         paymongo_checkout_url = None
         if (
-            t.status == 'COMPLETED'
+            t.status == "COMPLETED"
             and t.transactionType == Transaction.TransactionType.DEPOSIT
             and t.invoiceURL
         ):
             paymongo_checkout_url = t.invoiceURL
 
         TYPE_LABELS = {
-            'DEPOSIT': 'Wallet Deposit',
-            'WITHDRAWAL': 'Withdrawal',
-            'PAYMENT': 'Job Payment',
-            'REFUND': 'Refund',
-            'EARNING': 'Job Earning',
-            'PLATFORM_FEE': 'Platform Fee',
-            'ESCROW': 'Escrow Payment',
-            'ESCROW_RELEASE': 'Escrow Release',
+            "DEPOSIT": "Wallet Deposit",
+            "WITHDRAWAL": "Withdrawal",
+            "PAYMENT": "Job Payment",
+            "REFUND": "Refund",
+            "EARNING": "Job Earning",
+            "PLATFORM_FEE": "Platform Fee",
+            "ESCROW": "Escrow Payment",
+            "ESCROW_RELEASE": "Escrow Release",
         }
         type_display = t.transactionType
-        if t.transactionType == 'EARNING' or (t.transactionType == 'DEPOSIT' and t.amount > 0 and t.relatedJobPosting):
-            type_display = 'EARNING'
+        if t.transactionType == "EARNING" or (
+            t.transactionType == "DEPOSIT" and t.amount > 0 and t.relatedJobPosting
+        ):
+            type_display = "EARNING"
 
         return {
-            'id': t.transactionID,
-            'type': type_display,
-            'transaction_type_label': TYPE_LABELS.get(t.transactionType, t.transactionType),
-            'title': t.description or TYPE_LABELS.get(t.transactionType, f'{t.transactionType} Transaction'),
-            'description': t.description or '',
-            'amount': float(t.amount),
-            'created_at': t.createdAt.isoformat(),
-            'status': t.status.lower() if t.status else 'pending',
-            'payment_method': t.paymentMethod or 'wallet',
-            'transaction_id': str(t.transactionID),
-            'reference_number': t.referenceNumber or t.xenditExternalID or None,
-            'balance_after': float(t.balanceAfter) if t.balanceAfter is not None else None,
-            'paymongo_checkout_url': paymongo_checkout_url,
-            'paymongo_payment_id': t.paymongoPaymentId or None,
-            'job': job_data,
+            "id": t.transactionID,
+            "type": type_display,
+            "transaction_type_label": TYPE_LABELS.get(
+                t.transactionType, t.transactionType
+            ),
+            "title": t.description
+            or TYPE_LABELS.get(t.transactionType, f"{t.transactionType} Transaction"),
+            "description": t.description or "",
+            "amount": float(t.amount),
+            "created_at": t.createdAt.isoformat(),
+            "status": t.status.lower() if t.status else "pending",
+            "payment_method": t.paymentMethod or "wallet",
+            "transaction_id": str(t.transactionID),
+            "reference_number": t.referenceNumber or t.xenditExternalID or None,
+            "balance_after": float(t.balanceAfter)
+            if t.balanceAfter is not None
+            else None,
+            "paymongo_checkout_url": paymongo_checkout_url,
+            "paymongo_payment_id": t.paymongoPaymentId or None,
+            "job": job_data,
         }
 
     except Exception as e:
         print(f"❌ [Mobile] Error fetching transaction detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": "Failed to fetch transaction detail"}, status=500)
 
-#endregion
 
-#region MOBILE REVIEW ENDPOINTS
+# endregion
+
+# region MOBILE REVIEW ENDPOINTS
+
 
 @mobile_router.post("/reviews/submit", auth=jwt_auth)
 @require_kyc
 def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema):
     """
     Submit a review after job completion
-    
+
     Supports:
     - Regular jobs: client-to-worker and worker-to-client reviews
     - Agency jobs: Client reviews individual employees (review_target='EMPLOYEE', employee_id=X)
                    and the agency itself (review_target='AGENCY')
     - Team jobs: Client reviews individual workers (review_target='TEAM_WORKER', worker_assignment_id=X)
-    
+
     Includes category ratings (quality, communication, punctuality, professionalism)
     """
     from .mobile_services import submit_review_mobile
@@ -5234,179 +5230,196 @@ def mobile_submit_review(request, job_id: int, payload: SubmitReviewMobileSchema
             review_type=payload.review_type,
             review_target=payload.review_target,
             employee_id=payload.employee_id,
-            worker_assignment_id=payload.worker_assignment_id
+            worker_assignment_id=payload.worker_assignment_id,
         )
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to submit review')},
-                status=400
+                {"error": result.get("error", "Failed to submit review")}, status=400
             )
     except Exception as e:
         print(f"❌ [Mobile] Submit review error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to submit review"},
-            status=500
-        )
+        return Response({"error": "Failed to submit review"}, status=500)
 
 
 @mobile_router.get("/reviews/pending/{job_id}", auth=jwt_auth)
 def mobile_get_pending_reviews(request, job_id: int):
     """
     Get pending reviews needed for a job.
-    
+
     For agency jobs: Returns list of employees not yet reviewed + agency review status
     For team jobs: Returns list of workers not yet reviewed
     For regular jobs: Returns whether worker/client review is pending
-    
+
     Used by mobile app to show review UI with correct targets.
     """
     from .models import Job, JobReview, JobEmployeeAssignment, JobWorkerAssignment
-    
+
     try:
         user = request.auth
-        
+
         try:
-            job = Job.objects.select_related('clientID', 'assignedWorkerID', 'assignedAgencyFK').get(jobID=job_id)
+            job = Job.objects.select_related(
+                "clientID", "assignedWorkerID", "assignedAgencyFK"
+            ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
-        
+
         # Determine user role
-        is_client = job.clientID and job.clientID.profileID.accountFK.accountID == user.accountID
+        is_client = (
+            job.clientID
+            and job.clientID.profileID.accountFK.accountID == user.accountID
+        )
         is_worker = False
-        
-        if job.assignedWorkerID and job.assignedWorkerID.profileID.accountFK.accountID == user.accountID:
+
+        if (
+            job.assignedWorkerID
+            and job.assignedWorkerID.profileID.accountFK.accountID == user.accountID
+        ):
             is_worker = True
         elif job.is_team_job:
             is_worker = JobWorkerAssignment.objects.filter(
                 jobID=job,
                 workerID__profileID__accountFK=user,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
+                assignment_status__in=["ACTIVE", "COMPLETED"],
             ).exists()
         elif job.assignedAgencyFK:
             # AgencyEmployee rows are agency-owned contacts, not user login accounts.
             is_worker = (
-                (job.assignedAgencyFK.accountFK.accountID == user.accountID)
-                or JobEmployeeAssignment.objects.filter(
-                    job=job,
-                    employee__agency=user,
-                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                ).exists()
-            )
-        
+                job.assignedAgencyFK.accountFK.accountID == user.accountID
+            ) or JobEmployeeAssignment.objects.filter(
+                job=job,
+                employee__agency=user,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            ).exists()
+
         if not is_client and not is_worker:
             return Response({"error": "You are not part of this job"}, status=403)
-        
+
         result = {
-            'job_id': job_id,
-            'job_type': 'team' if job.is_team_job else ('agency' if job.assignedAgencyFK else 'regular'),
-            'is_client': is_client,
-            'is_worker': is_worker,
-            'pending_reviews': []
+            "job_id": job_id,
+            "job_type": "team"
+            if job.is_team_job
+            else ("agency" if job.assignedAgencyFK else "regular"),
+            "is_client": is_client,
+            "is_worker": is_worker,
+            "pending_reviews": [],
         }
-        
+
         if is_client:
             # Client needs to review workers/employees/agency
             if job.assignedAgencyFK:
                 # Agency job - get pending employee reviews and agency review
                 assigned_employees = JobEmployeeAssignment.objects.filter(
-                    job=job,
-                    status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                ).select_related('employee', 'employee__agency')
-                
-                reviewed_employee_ids = set(JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID=user,
-                    revieweeEmployeeID__isnull=False
-                ).values_list('revieweeEmployeeID', flat=True))
-                
+                    job=job, status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"]
+                ).select_related("employee", "employee__agency")
+
+                reviewed_employee_ids = set(
+                    JobReview.objects.filter(
+                        jobID=job, reviewerID=user, revieweeEmployeeID__isnull=False
+                    ).values_list("revieweeEmployeeID", flat=True)
+                )
+
                 for assignment in assigned_employees:
                     if assignment.employee.employeeID not in reviewed_employee_ids:
-                        result['pending_reviews'].append({
-                            'type': 'EMPLOYEE',
-                            'employee_id': assignment.assignmentID,  # Use assignment ID
-                            'employee_name': assignment.employee.name,
-                            'employee_account_id': assignment.employee.agency.accountID if assignment.employee.agency else None
-                        })
-                
+                        result["pending_reviews"].append(
+                            {
+                                "type": "EMPLOYEE",
+                                "employee_id": assignment.assignmentID,  # Use assignment ID
+                                "employee_name": assignment.employee.name,
+                                "employee_account_id": assignment.employee.agency.accountID
+                                if assignment.employee.agency
+                                else None,
+                            }
+                        )
+
                 # Check if agency review is pending
                 agency_reviewed = JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID=user,
-                    revieweeAgencyID__isnull=False
+                    jobID=job, reviewerID=user, revieweeAgencyID__isnull=False
                 ).exists()
-                
+
                 if not agency_reviewed:
-                    result['pending_reviews'].append({
-                        'type': 'AGENCY',
-                        'agency_id': job.assignedAgencyFK.agencyId,
-                        'agency_name': job.assignedAgencyFK.businessName
-                    })
-                    
+                    result["pending_reviews"].append(
+                        {
+                            "type": "AGENCY",
+                            "agency_id": job.assignedAgencyFK.agencyId,
+                            "agency_name": job.assignedAgencyFK.businessName,
+                        }
+                    )
+
             elif job.is_team_job:
                 # Team job - get pending worker reviews
                 assigned_workers = JobWorkerAssignment.objects.filter(
-                    jobID=job,
-                    assignment_status__in=['ACTIVE', 'COMPLETED']
-                ).select_related('workerID', 'workerID__profileID', 'workerID__profileID__accountFK')
-                
-                reviewed_worker_ids = set(JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID=user,
-                    revieweeID__isnull=False
-                ).values_list('revieweeID', flat=True))
-                
+                    jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
+                ).select_related(
+                    "workerID", "workerID__profileID", "workerID__profileID__accountFK"
+                )
+
+                reviewed_worker_ids = set(
+                    JobReview.objects.filter(
+                        jobID=job, reviewerID=user, revieweeID__isnull=False
+                    ).values_list("revieweeID", flat=True)
+                )
+
                 for assignment in assigned_workers:
-                    worker_account_id = assignment.workerID.profileID.accountFK.accountID
+                    worker_account_id = (
+                        assignment.workerID.profileID.accountFK.accountID
+                    )
                     if worker_account_id not in reviewed_worker_ids:
-                        result['pending_reviews'].append({
-                            'type': 'TEAM_WORKER',
-                            'worker_assignment_id': assignment.assignmentID,
-                            'worker_name': f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip(),
-                            'worker_account_id': worker_account_id
-                        })
+                        result["pending_reviews"].append(
+                            {
+                                "type": "TEAM_WORKER",
+                                "worker_assignment_id": assignment.assignmentID,
+                                "worker_name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}".strip(),
+                                "worker_account_id": worker_account_id,
+                            }
+                        )
             else:
                 # Regular job - check if worker review pending
                 if job.assignedWorkerID:
                     worker_reviewed = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=user,
-                        revieweeID=job.assignedWorkerID.profileID.accountFK
+                        revieweeID=job.assignedWorkerID.profileID.accountFK,
                     ).exists()
-                    
+
                     if not worker_reviewed:
-                        result['pending_reviews'].append({
-                            'type': 'WORKER',
-                            'worker_id': job.assignedWorkerID.id,
-                            'worker_name': f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip(),
-                            'worker_account_id': job.assignedWorkerID.profileID.accountFK.accountID
-                        })
+                        result["pending_reviews"].append(
+                            {
+                                "type": "WORKER",
+                                "worker_id": job.assignedWorkerID.id,
+                                "worker_name": f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip(),
+                                "worker_account_id": job.assignedWorkerID.profileID.accountFK.accountID,
+                            }
+                        )
         else:
             # Worker needs to review client
             client_reviewed = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=user,
-                revieweeID=job.clientID.profileID.accountFK
+                jobID=job, reviewerID=user, revieweeID=job.clientID.profileID.accountFK
             ).exists()
-            
+
             if not client_reviewed:
-                result['pending_reviews'].append({
-                    'type': 'CLIENT',
-                    'client_id': job.clientID.id,
-                    'client_name': f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip(),
-                    'client_account_id': job.clientID.profileID.accountFK.accountID
-                })
-        
-        result['all_reviews_complete'] = len(result['pending_reviews']) == 0
+                result["pending_reviews"].append(
+                    {
+                        "type": "CLIENT",
+                        "client_id": job.clientID.id,
+                        "client_name": f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip(),
+                        "client_account_id": job.clientID.profileID.accountFK.accountID,
+                    }
+                )
+
+        result["all_reviews_complete"] = len(result["pending_reviews"]) == 0
         return result
-        
+
     except Exception as e:
         print(f"❌ [Mobile] Get pending reviews error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": "Failed to get pending reviews"}, status=500)
 
@@ -5420,27 +5433,20 @@ def mobile_get_worker_reviews(request, worker_id: int, page: int = 1, limit: int
     from .mobile_services import get_worker_reviews_mobile
 
     try:
-        result = get_worker_reviews_mobile(
-            worker_id=worker_id,
-            page=page,
-            limit=limit
-        )
+        result = get_worker_reviews_mobile(worker_id=worker_id, page=page, limit=limit)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch reviews')},
-                status=400
+                {"error": result.get("error", "Failed to fetch reviews")}, status=400
             )
     except Exception as e:
         print(f"❌ [Mobile] Get worker reviews error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch worker reviews"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch worker reviews"}, status=500)
 
 
 @mobile_router.get("/reviews/client/{client_id}", auth=jwt_auth)
@@ -5452,27 +5458,20 @@ def mobile_get_client_reviews(request, client_id: int, page: int = 1, limit: int
     from .mobile_services import get_client_reviews_mobile
 
     try:
-        result = get_client_reviews_mobile(
-            client_id=client_id,
-            page=page,
-            limit=limit
-        )
+        result = get_client_reviews_mobile(client_id=client_id, page=page, limit=limit)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch reviews')},
-                status=400
+                {"error": result.get("error", "Failed to fetch reviews")}, status=400
             )
     except Exception as e:
         print(f"❌ [Mobile] Get client reviews error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch client reviews"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch client reviews"}, status=500)
 
 
 @mobile_router.get("/reviews/job/{job_id}", auth=jwt_auth)
@@ -5486,21 +5485,19 @@ def mobile_get_job_reviews(request, job_id: int):
     try:
         result = get_job_reviews_mobile(job_id=job_id)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch job reviews')},
-                status=400
+                {"error": result.get("error", "Failed to fetch job reviews")},
+                status=400,
             )
     except Exception as e:
         print(f"❌ [Mobile] Get job reviews error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch job reviews"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch job reviews"}, status=500)
 
 
 @mobile_router.get("/reviews/my-reviews", auth=jwt_auth)
@@ -5514,27 +5511,21 @@ def mobile_get_my_reviews(request, type: str = "given", page: int = 1, limit: in
     try:
         user = request.auth
         result = get_my_reviews_mobile(
-            user=user,
-            review_type=type,
-            page=page,
-            limit=limit
+            user=user, review_type=type, page=page, limit=limit
         )
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch reviews')},
-                status=400
+                {"error": result.get("error", "Failed to fetch reviews")}, status=400
             )
     except Exception as e:
         print(f"❌ [Mobile] Get my reviews error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch my reviews"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch my reviews"}, status=500)
 
 
 @mobile_router.get("/reviews/stats/{worker_id}", auth=jwt_auth)
@@ -5548,21 +5539,19 @@ def mobile_get_review_stats(request, worker_id: int):
     try:
         result = get_review_stats_mobile(worker_id=worker_id)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch review stats')},
-                status=400
+                {"error": result.get("error", "Failed to fetch review stats")},
+                status=400,
             )
     except Exception as e:
         print(f"❌ [Mobile] Get review stats error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch review stats"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch review stats"}, status=500)
 
 
 @mobile_router.put("/reviews/{review_id}", auth=jwt_auth)
@@ -5597,21 +5586,18 @@ def mobile_edit_review(
             rating_professionalism=rating_professionalism,
         )
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to edit review')},
-                status=400
+                {"error": result.get("error", "Failed to edit review")}, status=400
             )
     except Exception as e:
         print(f"❌ [Mobile] Edit review error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to edit review"},
-            status=500
-        )
+        return Response({"error": "Failed to edit review"}, status=500)
 
 
 @mobile_router.post("/reviews/{review_id}/report", auth=jwt_auth)
@@ -5624,27 +5610,20 @@ def mobile_report_review(request, review_id: int, reason: str):
 
     try:
         user = request.auth
-        result = report_review_mobile(
-            user=user,
-            review_id=review_id,
-            reason=reason
-        )
+        result = report_review_mobile(user=user, review_id=review_id, reason=reason)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to report review')},
-                status=400
+                {"error": result.get("error", "Failed to report review")}, status=400
             )
     except Exception as e:
         print(f"❌ [Mobile] Report review error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to report review"},
-            status=500
-        )
+        return Response({"error": "Failed to report review"}, status=500)
 
 
 @mobile_router.post("/reports", auth=jwt_auth)
@@ -5662,16 +5641,17 @@ def mobile_create_report(request, payload: MobileCreateReportSchema):
             related_content_id=payload.related_content_id,
         )
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
 
         return Response(
-            {"error": result.get('error', 'Failed to submit report')},
+            {"error": result.get("error", "Failed to submit report")},
             status=400,
         )
     except Exception as e:
         print(f"❌ [Mobile] Create report error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
             {"error": "Failed to submit report"},
@@ -5697,16 +5677,17 @@ def mobile_get_my_reports(
             limit=limit,
         )
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
 
         return Response(
-            {"error": result.get('error', 'Failed to fetch reports')},
+            {"error": result.get("error", "Failed to fetch reports")},
             status=400,
         )
     except Exception as e:
         print(f"❌ [Mobile] My reports error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
             {"error": "Failed to fetch reports"},
@@ -5726,21 +5707,19 @@ def mobile_get_pending_reviews(request):
         user = request.auth
         result = get_pending_reviews_mobile(user=user)
 
-        if result['success']:
-            return result['data']
+        if result["success"]:
+            return result["data"]
         else:
             return Response(
-                {"error": result.get('error', 'Failed to fetch pending reviews')},
-                status=400
+                {"error": result.get("error", "Failed to fetch pending reviews")},
+                status=400,
             )
     except Exception as e:
         print(f"❌ [Mobile] Get pending reviews error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch pending reviews"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch pending reviews"}, status=500)
 
 
 @mobile_router.post("/reviews/pending", auth=jwt_auth)
@@ -5766,9 +5745,11 @@ def mobile_get_pending_reviews_alias_post(request):
     """POST alias for clients hitting pending-jobs with wrong method."""
     return mobile_get_pending_reviews(request)
 
-#endregion
 
-#region PROFILE SWITCHING
+# endregion
+
+# region PROFILE SWITCHING
+
 
 @mobile_router.post("/profile/switch-profile", auth=jwt_auth)
 def switch_profile(request):
@@ -5783,53 +5764,48 @@ def switch_profile(request):
 
     try:
         user = request.auth
-        
+
         # Parse JSON body
         try:
-            body = json.loads(request.body.decode('utf-8'))
-            profile_type = body.get('profile_type')
+            body = json.loads(request.body.decode("utf-8"))
+            profile_type = body.get("profile_type")
         except (json.JSONDecodeError, AttributeError):
-            return Response(
-                {"error": "Invalid JSON body"},
-                status=400
-            )
-        
+            return Response({"error": "Invalid JSON body"}, status=400)
+
         if not profile_type:
             return Response(
-                {"error": "Missing profile_type in request body"},
-                status=400
+                {"error": "Missing profile_type in request body"}, status=400
             )
-        
+
         # Validate profile_type
-        if profile_type not in ['WORKER', 'CLIENT']:
+        if profile_type not in ["WORKER", "CLIENT"]:
             return Response(
                 {"error": "Invalid profile type. Must be 'WORKER' or 'CLIENT'"},
-                status=400
+                status=400,
             )
-        
+
         # Check if profile exists
         profile_exists = Profile.objects.filter(
-            accountFK__accountID=user.accountID,
-            profileType=profile_type
+            accountFK__accountID=user.accountID, profileType=profile_type
         ).exists()
-        
+
         if not profile_exists:
             return Response(
                 {"error": f"{profile_type} profile does not exist for this account"},
-                status=404
+                status=404,
             )
-        
+
         # Generate new tokens with updated profile_type
         result = generateCookie(user, profile_type=profile_type)
-        
+
         # Extract tokens from JsonResponse
-        if hasattr(result, 'content'):
-            response_data = json.loads(result.content.decode('utf-8'))
-            
+        if hasattr(result, "content"):
+            response_data = json.loads(result.content.decode("utf-8"))
+
             # Add success message
-            response_data['message'] = f"Switched to {profile_type} profile"
-            response_data['profile_type'] = profile_type
-            
+            response_data["message"] = f"Switched to {profile_type} profile"
+            response_data["profile_type"] = profile_type
+
             return response_data
         else:
             return result
@@ -5837,15 +5813,15 @@ def switch_profile(request):
     except Exception as e:
         print(f"❌ [Mobile] Switch profile error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to switch profile"},
-            status=500
-        )
+        return Response({"error": "Failed to switch profile"}, status=500)
 
-#endregion
 
-#region DUAL PROFILE MANAGEMENT
+# endregion
+
+# region DUAL PROFILE MANAGEMENT
+
 
 @mobile_router.get("/profile/dual-status", auth=jwt_auth)
 def get_dual_profile_status(request):
@@ -5857,51 +5833,49 @@ def get_dual_profile_status(request):
 
     try:
         user = request.auth
-        
+
         # Get all profiles for this account
         profiles = Profile.objects.filter(accountFK=user)
-        
+
         has_worker = False
         has_client = False
         current_profile_type = None
         worker_profile_id = None
         client_profile_id = None
-        
+
         for profile in profiles:
-            if profile.profileType == 'WORKER':
+            if profile.profileType == "WORKER":
                 has_worker = True
                 worker_profile_id = profile.profileID
                 # Check if worker profile exists
                 if not WorkerProfile.objects.filter(profileID=profile).exists():
                     has_worker = False
-            elif profile.profileType == 'CLIENT':
+            elif profile.profileType == "CLIENT":
                 has_client = True
                 client_profile_id = profile.profileID
                 # Check if client profile exists
                 if not ClientProfile.objects.filter(profileID=profile).exists():
                     has_client = False
-        
+
         # Get current active profile (most recently updated)
-        current_profile = profiles.order_by('-profileID').first()
+        current_profile = profiles.order_by("-profileID").first()
         if current_profile:
             current_profile_type = current_profile.profileType
-        
+
         return {
-            'success': True,
-            'has_worker_profile': has_worker,
-            'has_client_profile': has_client,
-            'current_profile_type': current_profile_type,
-            'worker_profile_id': worker_profile_id,
-            'client_profile_id': client_profile_id,
+            "success": True,
+            "has_worker_profile": has_worker,
+            "has_client_profile": has_client,
+            "current_profile_type": current_profile_type,
+            "worker_profile_id": worker_profile_id,
+            "client_profile_id": client_profile_id,
         }
     except Exception as e:
         print(f"❌ [Mobile] Get dual profile status error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to get profile status"},
-            status=500
-        )
+        return Response({"error": "Failed to get profile status"}, status=500)
 
 
 @mobile_router.post("/profile/create-client", auth=jwt_auth)
@@ -5915,25 +5889,23 @@ def create_client_profile(request):
 
     try:
         user = request.auth
-        
+
         # Check if client profile already exists
         existing_client = Profile.objects.filter(
-            accountFK=user,
-            profileType='CLIENT'
+            accountFK=user, profileType="CLIENT"
         ).first()
-        
+
         if existing_client:
             # Check if ClientProfile sub-table also exists
             # If Profile row exists but ClientProfile doesn't (orphaned state),
             # create the missing ClientProfile instead of erroring
             if ClientProfile.objects.filter(profileID=existing_client).exists():
-                return Response(
-                    {"error": "Client profile already exists"},
-                    status=400
-                )
+                return Response({"error": "Client profile already exists"}, status=400)
             else:
                 # Fix orphaned state: Profile exists but ClientProfile doesn't
-                print(f"⚠️ [Mobile] Fixing orphaned CLIENT profile for user {user.email} - creating missing ClientProfile")
+                print(
+                    f"⚠️ [Mobile] Fixing orphaned CLIENT profile for user {user.email} - creating missing ClientProfile"
+                )
                 ClientProfile.objects.create(
                     profileID=existing_client,
                     description="",
@@ -5941,23 +5913,19 @@ def create_client_profile(request):
                     clientRating=0,
                 )
                 return {
-                    'success': True,
-                    'message': 'Client profile created successfully',
-                    'profile_id': existing_client.profileID,
+                    "success": True,
+                    "message": "Client profile created successfully",
+                    "profile_id": existing_client.profileID,
                 }
-        
+
         # Get worker profile to copy basic info
         worker_profile = Profile.objects.filter(
-            accountFK=user,
-            profileType='WORKER'
+            accountFK=user, profileType="WORKER"
         ).first()
-        
+
         if not worker_profile:
-            return Response(
-                {"error": "Worker profile not found"},
-                status=404
-            )
-        
+            return Response({"error": "Worker profile not found"}, status=404)
+
         # Create new CLIENT profile with same basic info
         client_profile = Profile.objects.create(
             accountFK=user,
@@ -5966,10 +5934,10 @@ def create_client_profile(request):
             lastName=worker_profile.lastName,
             contactNum=worker_profile.contactNum,
             birthDate=worker_profile.birthDate,
-            profileType='CLIENT',
+            profileType="CLIENT",
             profileImg=worker_profile.profileImg,  # Copy avatar
         )
-        
+
         # Create ClientProfile entry
         ClientProfile.objects.create(
             profileID=client_profile,
@@ -5977,22 +5945,20 @@ def create_client_profile(request):
             totalJobsPosted=0,
             clientRating=0,
         )
-        
+
         print(f"✅ [Mobile] Created CLIENT profile for user {user.email}")
-        
+
         return {
-            'success': True,
-            'message': 'Client profile created successfully',
-            'profile_id': client_profile.profileID,
+            "success": True,
+            "message": "Client profile created successfully",
+            "profile_id": client_profile.profileID,
         }
     except Exception as e:
         print(f"❌ [Mobile] Create client profile error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to create client profile"},
-            status=500
-        )
+        return Response({"error": "Failed to create client profile"}, status=500)
 
 
 @mobile_router.post("/profile/create-worker", auth=jwt_auth)
@@ -6006,25 +5972,23 @@ def create_worker_profile(request):
 
     try:
         user = request.auth
-        
+
         # Check if worker profile already exists
         existing_worker = Profile.objects.filter(
-            accountFK=user,
-            profileType='WORKER'
+            accountFK=user, profileType="WORKER"
         ).first()
-        
+
         if existing_worker:
             # Check if WorkerProfile sub-table also exists
             # If Profile row exists but WorkerProfile doesn't (orphaned state),
             # create the missing WorkerProfile instead of erroring
             if WorkerProfile.objects.filter(profileID=existing_worker).exists():
-                return Response(
-                    {"error": "Worker profile already exists"},
-                    status=400
-                )
+                return Response({"error": "Worker profile already exists"}, status=400)
             else:
                 # Fix orphaned state: Profile exists but WorkerProfile doesn't
-                print(f"⚠️ [Mobile] Fixing orphaned WORKER profile for user {user.email} - creating missing WorkerProfile")
+                print(
+                    f"⚠️ [Mobile] Fixing orphaned WORKER profile for user {user.email} - creating missing WorkerProfile"
+                )
                 WorkerProfile.objects.create(
                     profileID=existing_worker,
                     description="",
@@ -6034,23 +5998,19 @@ def create_worker_profile(request):
                     profile_completion_percentage=0,
                 )
                 return {
-                    'success': True,
-                    'message': 'Worker profile created successfully',
-                    'profile_id': existing_worker.profileID,
+                    "success": True,
+                    "message": "Worker profile created successfully",
+                    "profile_id": existing_worker.profileID,
                 }
-        
+
         # Get client profile to copy basic info
         client_profile = Profile.objects.filter(
-            accountFK=user,
-            profileType='CLIENT'
+            accountFK=user, profileType="CLIENT"
         ).first()
-        
+
         if not client_profile:
-            return Response(
-                {"error": "Client profile not found"},
-                status=404
-            )
-        
+            return Response({"error": "Client profile not found"}, status=404)
+
         # Create new WORKER profile with same basic info
         worker_profile = Profile.objects.create(
             accountFK=user,
@@ -6059,10 +6019,10 @@ def create_worker_profile(request):
             lastName=client_profile.lastName,
             contactNum=client_profile.contactNum,
             birthDate=client_profile.birthDate,
-            profileType='WORKER',
+            profileType="WORKER",
             profileImg=client_profile.profileImg,  # Copy avatar
         )
-        
+
         # Create WorkerProfile entry
         WorkerProfile.objects.create(
             profileID=worker_profile,
@@ -6072,25 +6032,24 @@ def create_worker_profile(request):
             bio="",
             profile_completion_percentage=0,
         )
-        
+
         print(f"✅ [Mobile] Created WORKER profile for user {user.email}")
-        
+
         return {
-            'success': True,
-            'message': 'Worker profile created successfully',
-            'profile_id': worker_profile.profileID,
+            "success": True,
+            "message": "Worker profile created successfully",
+            "profile_id": worker_profile.profileID,
         }
     except Exception as e:
         print(f"❌ [Mobile] Create worker profile error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to create worker profile"},
-            status=500
-        )
+        return Response({"error": "Failed to create worker profile"}, status=500)
 
 
-#region Payment Methods Management
+# region Payment Methods Management
+
 
 @mobile_router.get("/payment-methods", auth=jwt_auth)
 def get_payment_methods(request):
@@ -6100,33 +6059,32 @@ def get_payment_methods(request):
 
         # Show all methods so users can see recently added methods immediately,
         # including pending-verification entries (e.g., newly added GCash).
-        methods = UserPaymentMethod.objects.filter(
-            accountFK=request.auth
-        ).order_by('-isPrimary', '-createdAt')
-        
+        methods = UserPaymentMethod.objects.filter(accountFK=request.auth).order_by(
+            "-isPrimary", "-createdAt"
+        )
+
         payment_methods = []
         for method in methods:
-            payment_methods.append({
-                'id': method.id,
-                'type': method.methodType,
-                'account_name': method.accountName,
-                'account_number': method.accountNumber,
-                'bank_name': method.bankName,
-                'bank_code': method.bankCode,
-                'is_primary': method.isPrimary,
-                'is_verified': method.isVerified,
-                'created_at': method.createdAt.isoformat() if method.createdAt else None
-            })
-        
-        return {
-            'payment_methods': payment_methods
-        }
+            payment_methods.append(
+                {
+                    "id": method.id,
+                    "type": method.methodType,
+                    "account_name": method.accountName,
+                    "account_number": method.accountNumber,
+                    "bank_name": method.bankName,
+                    "bank_code": method.bankCode,
+                    "is_primary": method.isPrimary,
+                    "is_verified": method.isVerified,
+                    "created_at": method.createdAt.isoformat()
+                    if method.createdAt
+                    else None,
+                }
+            )
+
+        return {"payment_methods": payment_methods}
     except Exception as e:
         print(f"❌ Get payment methods error: {str(e)}")
-        return Response(
-            {"error": "Failed to fetch payment methods"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch payment methods"}, status=500)
 
 
 @mobile_router.post("/payment-methods", auth=jwt_auth)
@@ -6141,80 +6099,83 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
         from django.db import transaction as db_transaction
         import re
 
-        VALID_TYPES = ['GCASH', 'BANK', 'MAYA', 'PAYPAL', 'GRAB_PAY']
-        method_type = (payload.type or 'GCASH').upper()
+        VALID_TYPES = ["GCASH", "BANK", "MAYA", "PAYPAL", "GRAB_PAY"]
+        method_type = (payload.type or "GCASH").upper()
 
         # Validate method type
         if method_type not in VALID_TYPES:
             return Response(
-                {"error": f"Invalid payment method type. Supported: {', '.join(VALID_TYPES)}"},
-                status=400
-            )
-        
-        # Validate required fields
-        if not payload.account_name:
-            return Response(
-                {"error": "Account name is required"},
-                status=400
+                {
+                    "error": f"Invalid payment method type. Supported: {', '.join(VALID_TYPES)}"
+                },
+                status=400,
             )
 
-        raw_account_number = (payload.account_number or '').strip()
-        clean_number = raw_account_number.replace(' ', '').replace('-', '')
+        # Validate required fields
+        if not payload.account_name:
+            return Response({"error": "Account name is required"}, status=400)
+
+        raw_account_number = (payload.account_number or "").strip()
+        clean_number = raw_account_number.replace(" ", "").replace("-", "")
         bank_name = None
         bank_code = None
 
-        if method_type == 'GCASH':
+        if method_type == "GCASH":
             # Validate and clean GCash number format
-            if not re.match(r'^09\d{9}$', clean_number):
+            if not re.match(r"^09\d{9}$", clean_number):
                 return Response(
-                    {"error": "Invalid GCash number format (must be 11 digits starting with 09)"},
-                    status=400
+                    {
+                        "error": "Invalid GCash number format (must be 11 digits starting with 09)"
+                    },
+                    status=400,
                 )
-        elif method_type == 'MAYA':
+        elif method_type == "MAYA":
             # Maya uses PH mobile number format (same as GCash)
-            if not re.match(r'^09\d{9}$', clean_number):
+            if not re.match(r"^09\d{9}$", clean_number):
                 return Response(
-                    {"error": "Invalid Maya number format (must be 11 digits starting with 09)"},
-                    status=400
+                    {
+                        "error": "Invalid Maya number format (must be 11 digits starting with 09)"
+                    },
+                    status=400,
                 )
-        elif method_type == 'GRAB_PAY':
+        elif method_type == "GRAB_PAY":
             # GrabPay uses PH mobile number format
-            if not re.match(r'^09\d{9}$', clean_number):
+            if not re.match(r"^09\d{9}$", clean_number):
                 return Response(
-                    {"error": "Invalid GrabPay number format (must be 11 digits starting with 09)"},
-                    status=400
+                    {
+                        "error": "Invalid GrabPay number format (must be 11 digits starting with 09)"
+                    },
+                    status=400,
                 )
-        elif method_type == 'PAYPAL':
+        elif method_type == "PAYPAL":
             # PayPal uses email address as account identifier
-            if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', clean_number):
-                return Response(
-                    {"error": "Invalid PayPal email address"},
-                    status=400
-                )
-        elif method_type == 'BANK':
+            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", clean_number):
+                return Response({"error": "Invalid PayPal email address"}, status=400)
+        elif method_type == "BANK":
             # BANK validation
-            clean_number = ''.join(ch for ch in clean_number if ch.isdigit())
+            clean_number = "".join(ch for ch in clean_number if ch.isdigit())
             if len(clean_number) < 8 or len(clean_number) > 20:
                 return Response(
                     {"error": "Invalid bank account number (must be 8-20 digits)"},
-                    status=400
+                    status=400,
                 )
 
-            bank_name = (payload.bank_name or '').strip()
-            bank_code = (payload.bank_code or '').strip()
+            bank_name = (payload.bank_name or "").strip()
+            bank_code = (payload.bank_code or "").strip()
             if not bank_name:
                 return Response(
                     {"error": "Bank name is required for BANK payment method"},
-                    status=400
+                    status=400,
                 )
             if not bank_code:
                 return Response(
                     {"error": "Bank code is required for BANK payment method"},
-                    status=400
+                    status=400,
                 )
 
             # Normalise to BIC/SWIFT code for record-keeping.
             from .paymongo_service import PayMongoService as _PM
+
             _svc = _PM()
             bic = _svc.normalize_bank_code_to_bic(bank_code, bank_name)
             if bic:
@@ -6222,37 +6183,36 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 print(f"🏦 Normalised bank code → {bank_code!r} for {bank_name!r}")
 
         if not clean_number:
-            return Response(
-                {"error": "Account number is required"},
-                status=400
-            )
-        
+            return Response({"error": "Account number is required"}, status=400)
+
         # Check for duplicate account number
         existing = UserPaymentMethod.objects.filter(
-            accountFK=request.auth,
-            methodType=method_type,
-            accountNumber=clean_number
+            accountFK=request.auth, methodType=method_type, accountNumber=clean_number
         ).first()
-        
+
         if existing:
             if existing.isVerified:
                 return Response(
-                    {"error": f"This {method_type.lower()} account is already verified on your account"},
-                    status=400
+                    {
+                        "error": f"This {method_type.lower()} account is already verified on your account"
+                    },
+                    status=400,
                 )
             else:
                 # Delete unverified duplicate and create new
                 existing.delete()
-        
+
         with db_transaction.atomic():
             # Check if this is the first payment method
-            has_existing = UserPaymentMethod.objects.filter(accountFK=request.auth).exists()
+            has_existing = UserPaymentMethod.objects.filter(
+                accountFK=request.auth
+            ).exists()
             is_first = not has_existing
-            
+
             # Create payment method
             # Product decision: all payment methods, including GCash, are auto-verified on add.
             is_verified = True
-            
+
             method = UserPaymentMethod.objects.create(
                 accountFK=request.auth,
                 methodType=method_type,
@@ -6261,28 +6221,28 @@ def add_payment_method(request, payload: AddPaymentMethodSchema):
                 bankName=bank_name,
                 bankCode=bank_code,
                 isPrimary=is_first,
-                isVerified=is_verified
+                isVerified=is_verified,
             )
-            
-            print(f"📱 Payment method created ({'verified' if is_verified else 'pending verification'}): {method.id} ({method_type}) for {request.auth.email}")
-        
+
+            print(
+                f"📱 Payment method created ({'verified' if is_verified else 'pending verification'}): {method.id} ({method_type}) for {request.auth.email}"
+            )
+
         return {
-            'success': True,
-            'message': f'{method_type} account added successfully',
-            'method_id': method.id,
-            'verification_required': False,
-            'is_verified': is_verified,
-            'note': None
+            "success": True,
+            "message": f"{method_type} account added successfully",
+            "method_id": method.id,
+            "verification_required": False,
+            "is_verified": is_verified,
+            "note": None,
         }
-        
+
     except Exception as e:
         print(f"❌ Add payment method error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to add payment method"},
-            status=500
-        )
+        return Response({"error": "Failed to add payment method"}, status=500)
 
 
 @mobile_router.get("/payment-methods/banks", auth=jwt_auth)
@@ -6294,15 +6254,12 @@ def get_supported_banks(request):
         service = PayMongoService()
         banks = service.get_supported_banks_cached()
         return {
-            'banks': banks,
-            'count': len(banks),
+            "banks": banks,
+            "count": len(banks),
         }
     except Exception as e:
         print(f"❌ Get supported banks error: {str(e)}")
-        return Response(
-            {"error": "Failed to fetch supported banks"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch supported banks"}, status=500)
 
 
 @mobile_router.delete("/payment-methods/{method_id}", auth=jwt_auth)
@@ -6311,46 +6268,36 @@ def delete_payment_method(request, method_id: int):
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
-        
+
         method = UserPaymentMethod.objects.filter(
-            id=method_id,
-            accountFK=request.auth
+            id=method_id, accountFK=request.auth
         ).first()
-        
+
         if not method:
-            return Response(
-                {"error": "Payment method not found"},
-                status=404
-            )
-        
+            return Response({"error": "Payment method not found"}, status=404)
+
         was_primary = method.isPrimary
-        
+
         with db_transaction.atomic():
             method.delete()
-            
+
             # If deleted method was primary, set another method as primary
             if was_primary:
                 next_method = UserPaymentMethod.objects.filter(
                     accountFK=request.auth
                 ).first()
-                
+
                 if next_method:
                     next_method.isPrimary = True
                     next_method.save()
                     print(f"✅ Set new primary payment method: {next_method.id}")
-        
+
         print(f"✅ Payment method deleted: {method_id} for {request.auth.email}")
-        
-        return {
-            'success': True,
-            'message': 'Payment method removed successfully'
-        }
+
+        return {"success": True, "message": "Payment method removed successfully"}
     except Exception as e:
         print(f"❌ Delete payment method error: {str(e)}")
-        return Response(
-            {"error": "Failed to remove payment method"},
-            status=500
-        )
+        return Response({"error": "Failed to remove payment method"}, status=500)
 
 
 @mobile_router.post("/payment-methods/{method_id}/set-primary", auth=jwt_auth)
@@ -6359,44 +6306,37 @@ def set_primary_payment_method(request, method_id: int):
     try:
         from .models import UserPaymentMethod
         from django.db import transaction as db_transaction
-        
+
         method = UserPaymentMethod.objects.filter(
-            id=method_id,
-            accountFK=request.auth
+            id=method_id, accountFK=request.auth
         ).first()
-        
+
         if not method:
-            return Response(
-                {"error": "Payment method not found"},
-                status=404
-            )
-        
+            return Response({"error": "Payment method not found"}, status=404)
+
         with db_transaction.atomic():
             # Remove primary from all other methods
-            UserPaymentMethod.objects.filter(
-                accountFK=request.auth
-            ).update(isPrimary=False)
-            
+            UserPaymentMethod.objects.filter(accountFK=request.auth).update(
+                isPrimary=False
+            )
+
             # Set this method as primary
             method.isPrimary = True
             method.save()
-        
+
         print(f"✅ Set primary payment method: {method_id} for {request.auth.email}")
-        
-        return {
-            'success': True,
-            'message': 'Primary payment method updated'
-        }
+
+        return {"success": True, "message": "Primary payment method updated"}
     except Exception as e:
         print(f"❌ Set primary payment method error: {str(e)}")
         return Response(
-            {"error": "Failed to update primary payment method"},
-            status=500
+            {"error": "Failed to update primary payment method"}, status=500
         )
 
-#endregion
 
-#endregion
+# endregion
+
+# endregion
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -6406,12 +6346,13 @@ def set_primary_payment_method(request, method_id: int):
 # Tickets auto-set ticket_type='individual' and platform='mobile'
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mobile_router.post("/support/ticket", auth=jwt_auth)
 def create_mobile_support_ticket(request):
     """
     Create a new support ticket from mobile app.
     Auto-sets ticket_type='individual' and platform='mobile'.
-    
+
     Request JSON:
     - subject: str (required, max 200 chars)
     - category: str (account, payment, technical, feature_request, bug_report, general)
@@ -6422,83 +6363,112 @@ def create_mobile_support_ticket(request):
         from adminpanel.models import SupportTicket, SupportTicketReply
         from django.utils import timezone
         import json
-        
+
         user = request.auth
-        profile_type = getattr(user, 'profile_type', 'WORKER')
-        
+        profile_type = getattr(user, "profile_type", "WORKER")
+
         # Parse request body
         try:
             body = json.loads(request.body)
         except json.JSONDecodeError:
-            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
-        
-        subject = body.get('subject', '').strip()
-        category = body.get('category', 'general').strip()
-        description = body.get('description', '').strip()
-        app_version = body.get('app_version', '').strip() or None
-        
+            return Response({"success": False, "error": "Invalid JSON"}, status=400)
+
+        subject = body.get("subject", "").strip()
+        category = body.get("category", "general").strip()
+        description = body.get("description", "").strip()
+        app_version = body.get("app_version", "").strip() or None
+
         # Get device info from User-Agent header
-        device_info = request.headers.get('User-Agent', '')[:500] if request.headers.get('User-Agent') else None
-        
+        device_info = (
+            request.headers.get("User-Agent", "")[:500]
+            if request.headers.get("User-Agent")
+            else None
+        )
+
         # Validation
         if not subject:
-            return Response({'success': False, 'error': 'Subject is required'}, status=400)
+            return Response(
+                {"success": False, "error": "Subject is required"}, status=400
+            )
         if len(subject) > 200:
-            return Response({'success': False, 'error': 'Subject must be 200 characters or less'}, status=400)
+            return Response(
+                {"success": False, "error": "Subject must be 200 characters or less"},
+                status=400,
+            )
         if not description:
-            return Response({'success': False, 'error': 'Description is required'}, status=400)
+            return Response(
+                {"success": False, "error": "Description is required"}, status=400
+            )
         if len(description) < 20:
-            return Response({'success': False, 'error': 'Description must be at least 20 characters'}, status=400)
-        
+            return Response(
+                {
+                    "success": False,
+                    "error": "Description must be at least 20 characters",
+                },
+                status=400,
+            )
+
         # Valid categories
-        valid_categories = ['account', 'payment', 'technical', 'feature_request', 'bug_report', 'general']
+        valid_categories = [
+            "account",
+            "payment",
+            "technical",
+            "feature_request",
+            "bug_report",
+            "general",
+        ]
         if category not in valid_categories:
-            category = 'general'
-        
+            category = "general"
+
         # Create ticket - always individual for mobile, platform=mobile
         ticket = SupportTicket.objects.create(
             userFK=user,
             agencyFK=None,  # No agency for individual tickets
-            ticketType='individual',
+            ticketType="individual",
             subject=subject,
             category=category,
-            priority='medium',
-            status='open',
-            platform='mobile',
+            priority="medium",
+            status="open",
+            platform="mobile",
             deviceInfo=device_info,
             appVersion=app_version,
         )
-        
+
         # Create initial reply with description
         SupportTicketReply.objects.create(
             ticketFK=ticket,
             senderFK=user,
             content=description,
         )
-        
+
         ticket.lastReplyAt = timezone.now()
         ticket.save()
-        
-        print(f"✅ [MOBILE] Support ticket #{ticket.ticketID} created by user {user.email} ({profile_type})")
-        
+
+        print(
+            f"✅ [MOBILE] Support ticket #{ticket.ticketID} created by user {user.email} ({profile_type})"
+        )
+
         return {
-            'success': True,
-            'ticket_id': ticket.ticketID,
-            'message': 'Support ticket submitted successfully',
+            "success": True,
+            "ticket_id": ticket.ticketID,
+            "message": "Support ticket submitted successfully",
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error creating support ticket: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+        return Response(
+            {"success": False, "error": "Internal server error"}, status=500
+        )
 
 
 @mobile_router.get("/support/tickets", auth=jwt_auth)
 def get_mobile_support_tickets(request, page: int = 1, status: Optional[str] = None):
     """
     Get list of support tickets for the authenticated user.
-    
+
     Query params:
     - page: int (default 1)
     - status: str (open, in_progress, waiting_user, resolved, closed)
@@ -6506,51 +6476,56 @@ def get_mobile_support_tickets(request, page: int = 1, status: Optional[str] = N
     try:
         from adminpanel.models import SupportTicket
         from django.core.paginator import Paginator
-        
+
         user = request.auth
         page_size = 20
-        
+
         # Get user's tickets
-        queryset = SupportTicket.objects.filter(userFK=user).order_by('-createdAt')
-        
+        queryset = SupportTicket.objects.filter(userFK=user).order_by("-createdAt")
+
         # Status filter
-        if status and status != 'all':
+        if status and status != "all":
             queryset = queryset.filter(status=status)
-        
+
         paginator = Paginator(queryset, page_size)
-        
+
         if page < 1:
             page = 1
         if page > paginator.num_pages and paginator.num_pages > 0:
             page = paginator.num_pages
-        
+
         tickets_page = paginator.get_page(page)
-        
+
         return {
-            'success': True,
-            'tickets': [
+            "success": True,
+            "tickets": [
                 {
-                    'id': t.ticketID,
-                    'subject': t.subject,
-                    'category': t.category,
-                    'priority': t.priority,
-                    'status': t.status,
-                    'created_at': t.createdAt.isoformat(),
-                    'last_reply_at': t.lastReplyAt.isoformat() if t.lastReplyAt else t.createdAt.isoformat(),
-                    'reply_count': t.reply_count,
+                    "id": t.ticketID,
+                    "subject": t.subject,
+                    "category": t.category,
+                    "priority": t.priority,
+                    "status": t.status,
+                    "created_at": t.createdAt.isoformat(),
+                    "last_reply_at": t.lastReplyAt.isoformat()
+                    if t.lastReplyAt
+                    else t.createdAt.isoformat(),
+                    "reply_count": t.reply_count,
                 }
                 for t in tickets_page
             ],
-            'total': paginator.count,
-            'page': page,
-            'total_pages': paginator.num_pages,
+            "total": paginator.count,
+            "page": page,
+            "total_pages": paginator.num_pages,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error fetching support tickets: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+        return Response(
+            {"success": False, "error": "Internal server error"}, status=500
+        )
 
 
 @mobile_router.get("/support/tickets/{ticket_id}", auth=jwt_auth)
@@ -6560,56 +6535,71 @@ def get_mobile_support_ticket_detail(request, ticket_id: int):
     """
     try:
         from adminpanel.models import SupportTicket
-        
+
         user = request.auth
-        
+
         # Get ticket and verify ownership
         try:
-            ticket = SupportTicket.objects.select_related('assignedTo').get(ticketID=ticket_id, userFK=user)
+            ticket = SupportTicket.objects.select_related("assignedTo").get(
+                ticketID=ticket_id, userFK=user
+            )
         except SupportTicket.DoesNotExist:
-            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
-        
-        replies = ticket.replies.select_related('senderFK').all().order_by('createdAt')
-        
+            return Response({"success": False, "error": "Ticket not found"}, status=404)
+
+        replies = ticket.replies.select_related("senderFK").all().order_by("createdAt")
+
         return {
-            'success': True,
-            'ticket': {
-                'id': ticket.ticketID,
-                'subject': ticket.subject,
-                'category': ticket.category,
-                'priority': ticket.priority,
-                'status': ticket.status,
-                'assigned_to_name': ticket.assignedTo.email.split('@')[0] if ticket.assignedTo else None,
-                'created_at': ticket.createdAt.isoformat(),
-                'updated_at': ticket.updatedAt.isoformat(),
-                'last_reply_at': ticket.lastReplyAt.isoformat() if ticket.lastReplyAt else None,
-                'resolved_at': ticket.resolvedAt.isoformat() if ticket.resolvedAt else None,
+            "success": True,
+            "ticket": {
+                "id": ticket.ticketID,
+                "subject": ticket.subject,
+                "category": ticket.category,
+                "priority": ticket.priority,
+                "status": ticket.status,
+                "assigned_to_name": ticket.assignedTo.email.split("@")[0]
+                if ticket.assignedTo
+                else None,
+                "created_at": ticket.createdAt.isoformat(),
+                "updated_at": ticket.updatedAt.isoformat(),
+                "last_reply_at": ticket.lastReplyAt.isoformat()
+                if ticket.lastReplyAt
+                else None,
+                "resolved_at": ticket.resolvedAt.isoformat()
+                if ticket.resolvedAt
+                else None,
             },
-            'messages': [
+            "messages": [
                 {
-                    'id': r.replyID,
-                    'sender_name': r.senderFK.email.split('@')[0] if r.senderFK else 'Unknown',
-                    'is_admin': r.senderFK_id != user.accountID if r.senderFK else False,
-                    'content': r.content,
-                    'is_system_message': r.isSystemMessage,
-                    'created_at': r.createdAt.isoformat(),
+                    "id": r.replyID,
+                    "sender_name": r.senderFK.email.split("@")[0]
+                    if r.senderFK
+                    else "Unknown",
+                    "is_admin": r.senderFK_id != user.accountID
+                    if r.senderFK
+                    else False,
+                    "content": r.content,
+                    "is_system_message": r.isSystemMessage,
+                    "created_at": r.createdAt.isoformat(),
                 }
                 for r in replies
             ],
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error fetching ticket detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+        return Response(
+            {"success": False, "error": "Internal server error"}, status=500
+        )
 
 
 @mobile_router.post("/support/tickets/{ticket_id}/reply", auth=jwt_auth)
 def reply_to_mobile_support_ticket(request, ticket_id: int):
     """
     Add a reply to an existing support ticket.
-    
+
     Request JSON:
     - content: str (required, min 5 chars)
     """
@@ -6617,59 +6607,70 @@ def reply_to_mobile_support_ticket(request, ticket_id: int):
         from adminpanel.models import SupportTicket, SupportTicketReply
         from django.utils import timezone
         import json
-        
+
         user = request.auth
-        
+
         # Get ticket and verify ownership
         try:
             ticket = SupportTicket.objects.get(ticketID=ticket_id, userFK=user)
         except SupportTicket.DoesNotExist:
-            return Response({'success': False, 'error': 'Ticket not found'}, status=404)
-        
+            return Response({"success": False, "error": "Ticket not found"}, status=404)
+
         # Check if ticket is closed
-        if ticket.status == 'closed':
-            return Response({'success': False, 'error': 'Cannot reply to a closed ticket'}, status=400)
-        
+        if ticket.status == "closed":
+            return Response(
+                {"success": False, "error": "Cannot reply to a closed ticket"},
+                status=400,
+            )
+
         # Parse request body
         try:
             body = json.loads(request.body)
         except json.JSONDecodeError:
-            return Response({'success': False, 'error': 'Invalid JSON'}, status=400)
-        
-        content = body.get('content', '').strip()
-        
+            return Response({"success": False, "error": "Invalid JSON"}, status=400)
+
+        content = body.get("content", "").strip()
+
         if not content:
-            return Response({'success': False, 'error': 'Reply content is required'}, status=400)
+            return Response(
+                {"success": False, "error": "Reply content is required"}, status=400
+            )
         if len(content) < 5:
-            return Response({'success': False, 'error': 'Reply must be at least 5 characters'}, status=400)
-        
+            return Response(
+                {"success": False, "error": "Reply must be at least 5 characters"},
+                status=400,
+            )
+
         # Create reply
         reply = SupportTicketReply.objects.create(
             ticketFK=ticket,
             senderFK=user,
             content=content,
         )
-        
+
         # Update ticket
         ticket.lastReplyAt = timezone.now()
         # If ticket was waiting_user, set back to open
-        if ticket.status == 'waiting_user':
-            ticket.status = 'open'
+        if ticket.status == "waiting_user":
+            ticket.status = "open"
         ticket.save()
-        
+
         print(f"✅ [MOBILE] Reply added to ticket #{ticket_id} by user {user.email}")
-        
+
         return {
-            'success': True,
-            'reply_id': reply.replyID,
-            'message': 'Reply sent successfully',
+            "success": True,
+            "reply_id": reply.replyID,
+            "message": "Reply sent successfully",
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Error replying to ticket: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({'success': False, 'error': 'Internal server error'}, status=500)
+        return Response(
+            {"success": False, "error": "Internal server error"}, status=500
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -6677,6 +6678,7 @@ def reply_to_mobile_support_ticket(request, ticket_id: int):
 # ══════════════════════════════════════════════════════════════════════════════
 # Escrow, cash proof, payment status, receipts, and earnings endpoints
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @mobile_router.post("/payments/escrow", auth=dual_auth)
 @require_kyc
@@ -6690,97 +6692,113 @@ def mobile_create_escrow_payment(request):
     from decimal import Decimal
     from django.utils import timezone
     from .models import Profile, ClientProfile, Wallet, Transaction, Job
-    
+
     class EscrowPaymentRequest(Schema):
         job_id: int
-    
+
     try:
         # Parse payload
         import json
+
         body = json.loads(request.body)
-        job_id = body.get('job_id')
-        
+        job_id = body.get("job_id")
+
         if not job_id:
             return Response({"error": "job_id is required"}, status=400)
-        
-        print(f"💳 [MOBILE] Creating escrow payment for job {job_id} by {request.auth.email}")
-        
+
+        print(
+            f"💳 [MOBILE] Creating escrow payment for job {job_id} by {request.auth.email}"
+        )
+
         # Get client profile
         profile = Profile.objects.filter(
-            accountFK=request.auth,
-            profileType='CLIENT'
+            accountFK=request.auth, profileType="CLIENT"
         ).first()
-        
+
         if not profile:
             return Response({"error": "Client profile not found"}, status=403)
-        
+
         try:
             client_profile = ClientProfile.objects.get(profileID=profile)
         except ClientProfile.DoesNotExist:
             return Response({"error": "Client profile not found"}, status=403)
-        
+
         # Get the job
         try:
             job = Job.objects.get(jobID=job_id, clientID=client_profile)
         except Job.DoesNotExist:
-            return Response({"error": "Job not found or you don't own this job"}, status=404)
-        
+            return Response(
+                {"error": "Job not found or you don't own this job"}, status=404
+            )
+
         # Check if escrow already paid
         if job.escrowPaid:
-            return Response({"error": "Escrow payment already made for this job"}, status=400)
-        
+            return Response(
+                {"error": "Escrow payment already made for this job"}, status=400
+            )
+
         # Get wallet with row-level lock to prevent race conditions
         from django.db import transaction as db_transaction
+
         with db_transaction.atomic():
             wallet, _ = Wallet.objects.select_for_update().get_or_create(
                 accountFK=request.auth,
-                defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+                defaults={
+                    "balance": Decimal("0.00"),
+                    "reservedBalance": Decimal("0.00"),
+                },
             )
-            
+
             # Calculate escrow amount (50% of budget)
-            escrow_amount = Decimal(str(job.budget)) * Decimal('0.5')
-            
+            escrow_amount = Decimal(str(job.budget)) * Decimal("0.5")
+
             # Check available wallet balance (balance - reserved)
             if wallet.availableBalance < escrow_amount:
-                return Response({
-                    "error": "Insufficient wallet balance",
-                    "required": float(escrow_amount),
-                    "available": float(wallet.availableBalance),
-                    "reserved": float(wallet.reservedBalance),
-                }, status=400)
-            
+                return Response(
+                    {
+                        "error": "Insufficient wallet balance",
+                        "required": float(escrow_amount),
+                        "available": float(wallet.availableBalance),
+                        "reserved": float(wallet.reservedBalance),
+                    },
+                    status=400,
+                )
+
             # Deduct from wallet and add to reserved
             wallet.balance -= escrow_amount
             wallet.reservedBalance += escrow_amount
             try:
                 wallet.save()
             except Exception:
-                return Response({
-                    "error": "Escrow payment failed due to reserved wallet constraints",
-                    "message": "Please retry or add more available wallet funds."
-                }, status=400)
-            
+                return Response(
+                    {
+                        "error": "Escrow payment failed due to reserved wallet constraints",
+                        "message": "Please retry or add more available wallet funds.",
+                    },
+                    status=400,
+                )
+
             # Update job escrow status
             job.escrowAmount = escrow_amount
             job.escrowPaid = True
             job.escrowPaidAt = timezone.now()
             job.remainingPayment = escrow_amount  # Remaining 50%
             job.save()
-            
+
             # Create transaction record
             transaction = Transaction.objects.create(
                 walletID=wallet,
-                transactionType='PAYMENT',
+                transactionType="PAYMENT",
                 amount=escrow_amount,
                 balanceAfter=wallet.balance,
-                status='COMPLETED',
+                status="COMPLETED",
                 description=f"Escrow payment for job: {job.title}",
                 relatedJobPosting=job,
-                paymentMethod='WALLET'
+                paymentMethod="WALLET",
             )
-        
+
         print(f"✅ [MOBILE] Escrow ₱{escrow_amount} created for job {job_id}")
-        
+
         return {
             "success": True,
             "message": "Escrow payment created successfully",
@@ -6788,14 +6806,17 @@ def mobile_create_escrow_payment(request):
             "remaining_payment": float(job.remainingPayment),
             "transaction_id": transaction.transactionID,
             "wallet_balance": float(wallet.balance),
-            "reserved_balance": float(wallet.reservedBalance)
+            "reserved_balance": float(wallet.reservedBalance),
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Escrow payment error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to create escrow payment: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to create escrow payment: {str(e)}"}, status=500
+        )
 
 
 @mobile_router.post("/payments/cash-proof", auth=dual_auth)
@@ -6807,66 +6828,73 @@ def mobile_upload_cash_proof(request):
     """
     from django.utils import timezone
     from .models import Profile, Job
-    
+
     try:
         # Handle multipart form data
-        job_id = request.POST.get('job_id')
-        image_file = request.FILES.get('image')
-        
+        job_id = request.POST.get("job_id")
+        image_file = request.FILES.get("image")
+
         if not job_id:
             return Response({"error": "job_id is required"}, status=400)
-        
+
         if not image_file:
             return Response({"error": "image file is required"}, status=400)
-        
-        print(f"📸 [MOBILE] Uploading cash proof for job {job_id} by {request.auth.email}")
-        
+
+        print(
+            f"📸 [MOBILE] Uploading cash proof for job {job_id} by {request.auth.email}"
+        )
+
         # Verify user is the worker for this job
-        job = Job.objects.select_related(
-            'assignedWorkerID__profileID__accountFK'
-        ).filter(jobID=job_id).first()
-        
+        job = (
+            Job.objects.select_related("assignedWorkerID__profileID__accountFK")
+            .filter(jobID=job_id)
+            .first()
+        )
+
         if not job:
             return Response({"error": "Job not found"}, status=404)
-        
+
         # Check if user is the assigned worker
         is_worker = (
-            job.assignedWorkerID and 
-            job.assignedWorkerID.profileID.accountFK == request.auth
+            job.assignedWorkerID
+            and job.assignedWorkerID.profileID.accountFK == request.auth
         )
-        
+
         if not is_worker:
-            return Response({"error": "Only the assigned worker can upload cash proof"}, status=403)
-        
+            return Response(
+                {"error": "Only the assigned worker can upload cash proof"}, status=403
+            )
+
         # Save the image
         import uuid
         from django.core.files.storage import default_storage
-        
-        file_ext = image_file.name.split('.')[-1] if '.' in image_file.name else 'jpg'
+
+        file_ext = image_file.name.split(".")[-1] if "." in image_file.name else "jpg"
         file_name = f"cash_proofs/job_{job_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
-        
+
         saved_path = default_storage.save(file_name, image_file)
         proof_url = default_storage.url(saved_path)
-        
+
         # Update job with cash proof
         job.cashPaymentProofUrl = proof_url
         job.cashProofUploadedAt = timezone.now()
-        job.finalPaymentMethod = 'CASH'
+        job.finalPaymentMethod = "CASH"
         job.paymentMethodSelectedAt = timezone.now()
         job.save()
-        
+
         print(f"✅ [MOBILE] Cash proof uploaded for job {job_id}: {proof_url}")
-        
+
         return {
             "success": True,
             "message": "Cash proof uploaded successfully",
             "proof_url": proof_url,
-            "job_id": int(job_id)
+            "job_id": int(job_id),
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Cash proof upload error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Failed to upload cash proof: {str(e)}"}, status=500)
 
@@ -6877,22 +6905,22 @@ def mobile_get_payment_status(request, transaction_id: int):
     Get the status of a specific payment/transaction.
     """
     from .models import Transaction, Wallet
-    
+
     try:
         print(f"📊 [MOBILE] Getting payment status for transaction {transaction_id}")
-        
+
         # Get the transaction
         try:
-            transaction = Transaction.objects.select_related('walletID', 'relatedJobPosting').get(
-                transactionID=transaction_id
-            )
+            transaction = Transaction.objects.select_related(
+                "walletID", "relatedJobPosting"
+            ).get(transactionID=transaction_id)
         except Transaction.DoesNotExist:
             return Response({"error": "Transaction not found"}, status=404)
-        
+
         # Verify user owns this transaction
         if transaction.walletID.accountFK != request.auth:
             return Response({"error": "Access denied"}, status=403)
-        
+
         # Build response
         result = {
             "success": True,
@@ -6905,40 +6933,49 @@ def mobile_get_payment_status(request, transaction_id: int):
                 "reference_number": transaction.referenceNumber,
                 "payment_method": transaction.paymentMethod,
                 "balance_after": float(transaction.balanceAfter),
-                "created_at": transaction.createdAt.isoformat() if transaction.createdAt else None,
-                "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None,
-            }
+                "created_at": transaction.createdAt.isoformat()
+                if transaction.createdAt
+                else None,
+                "completed_at": transaction.completedAt.isoformat()
+                if transaction.completedAt
+                else None,
+            },
         }
-        
+
         # Add job info if linked
         if transaction.relatedJobPosting:
             result["transaction"]["job"] = {
                 "id": transaction.relatedJobPosting.jobID,
                 "title": transaction.relatedJobPosting.title,
-                "status": transaction.relatedJobPosting.status
+                "status": transaction.relatedJobPosting.status,
             }
-        
+
         return result
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Payment status error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to get payment status: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to get payment status: {str(e)}"}, status=500
+        )
 
 
 @mobile_router.get("/payments/history", auth=dual_auth)
-def mobile_get_payment_history(request, page: int = 1, limit: int = 20, type: str = None):
+def mobile_get_payment_history(
+    request, page: int = 1, limit: int = 20, type: str = None
+):
     """
     Get payment history for the current user.
     Supports filtering by transaction type and pagination.
     """
     from .models import Transaction, Wallet
     from django.core.paginator import Paginator
-    
+
     try:
         print(f"📜 [MOBILE] Getting payment history for {request.auth.email}")
-        
+
         # Get user's wallet
         try:
             wallet = Wallet.objects.get(accountFK=request.auth)
@@ -6948,27 +6985,29 @@ def mobile_get_payment_history(request, page: int = 1, limit: int = 20, type: st
                 "transactions": [],
                 "total": 0,
                 "page": page,
-                "total_pages": 0
+                "total_pages": 0,
             }
-        
+
         # Build query
-        queryset = Transaction.objects.filter(walletID=wallet).select_related('relatedJobPosting')
-        
+        queryset = Transaction.objects.filter(walletID=wallet).select_related(
+            "relatedJobPosting"
+        )
+
         # Filter by type if specified
-        if type and type != 'all':
+        if type and type != "all":
             queryset = queryset.filter(transactionType=type.upper())
-        
-        queryset = queryset.order_by('-createdAt')
-        
+
+        queryset = queryset.order_by("-createdAt")
+
         # Paginate
         paginator = Paginator(queryset, limit)
         if page < 1:
             page = 1
         if page > paginator.num_pages and paginator.num_pages > 0:
             page = paginator.num_pages
-        
+
         transactions_page = paginator.get_page(page)
-        
+
         transactions_data = []
         for txn in transactions_page:
             txn_data = {
@@ -6981,28 +7020,31 @@ def mobile_get_payment_history(request, page: int = 1, limit: int = 20, type: st
                 "payment_method": txn.paymentMethod,
                 "created_at": txn.createdAt.isoformat() if txn.createdAt else None,
             }
-            
+
             if txn.relatedJobPosting:
                 txn_data["job"] = {
                     "id": txn.relatedJobPosting.jobID,
-                    "title": txn.relatedJobPosting.title
+                    "title": txn.relatedJobPosting.title,
                 }
-            
+
             transactions_data.append(txn_data)
-        
+
         return {
             "success": True,
             "transactions": transactions_data,
             "total": paginator.count,
             "page": page,
-            "total_pages": paginator.num_pages
+            "total_pages": paginator.num_pages,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Payment history error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to get payment history: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to get payment history: {str(e)}"}, status=500
+        )
 
 
 @mobile_router.get("/payments/receipt/{transaction_id}", auth=dual_auth)
@@ -7011,38 +7053,43 @@ def mobile_get_payment_receipt(request, transaction_id: int):
     Get detailed receipt for a specific payment/transaction.
     """
     from .models import Transaction
-    
+
     try:
         print(f"🧾 [MOBILE] Getting receipt for transaction {transaction_id}")
-        
+
         # Get the transaction
         try:
             transaction = Transaction.objects.select_related(
-                'walletID__accountFK',
-                'relatedJobPosting__clientID__profileID',
-                'relatedJobPosting__assignedWorkerID__profileID',
-                'relatedJobPosting__categoryID'
+                "walletID__accountFK",
+                "relatedJobPosting__clientID__profileID",
+                "relatedJobPosting__assignedWorkerID__profileID",
+                "relatedJobPosting__categoryID",
             ).get(transactionID=transaction_id)
         except Transaction.DoesNotExist:
             return Response({"error": "Transaction not found"}, status=404)
-        
+
         # Verify user owns this transaction
         if transaction.walletID.accountFK != request.auth:
             return Response({"error": "Access denied"}, status=403)
-        
+
         # Build receipt data
         receipt = {
             "transaction_id": transaction.transactionID,
-            "reference_number": transaction.referenceNumber or f"TXN-{transaction.transactionID}",
+            "reference_number": transaction.referenceNumber
+            or f"TXN-{transaction.transactionID}",
             "type": transaction.transactionType,
             "amount": float(transaction.amount),
             "status": transaction.status,
             "payment_method": transaction.paymentMethod,
             "description": transaction.description,
-            "created_at": transaction.createdAt.isoformat() if transaction.createdAt else None,
-            "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None,
+            "created_at": transaction.createdAt.isoformat()
+            if transaction.createdAt
+            else None,
+            "completed_at": transaction.completedAt.isoformat()
+            if transaction.completedAt
+            else None,
         }
-        
+
         # Add job details if linked
         if transaction.relatedJobPosting:
             job = transaction.relatedJobPosting
@@ -7051,29 +7098,27 @@ def mobile_get_payment_receipt(request, transaction_id: int):
                 "title": job.title,
                 "category": job.categoryID.name if job.categoryID else None,
                 "budget": float(job.budget),
-                "status": job.status
+                "status": job.status,
             }
-            
+
             # Add client info
             if job.clientID and job.clientID.profileID:
                 receipt["client"] = {
                     "name": f"{job.clientID.profileID.firstName} {job.clientID.profileID.lastName}".strip()
                 }
-            
+
             # Add worker info
             if job.assignedWorkerID and job.assignedWorkerID.profileID:
                 receipt["worker"] = {
                     "name": f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}".strip()
                 }
-        
-        return {
-            "success": True,
-            "receipt": receipt
-        }
-        
+
+        return {"success": True, "receipt": receipt}
+
     except Exception as e:
         print(f"❌ [MOBILE] Receipt error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Failed to get receipt: {str(e)}"}, status=500)
 
@@ -7088,112 +7133,133 @@ def mobile_create_final_payment(request):
     from decimal import Decimal
     from django.utils import timezone
     from .models import Profile, ClientProfile, Wallet, Transaction, Job, Notification
-    
+
     try:
         import json
+
         body = json.loads(request.body)
-        job_id = body.get('job_id')
-        payment_method = body.get('payment_method', 'WALLET')
+        job_id = body.get("job_id")
+        payment_method = body.get("payment_method", "WALLET")
         payment_method_upper = str(payment_method).upper()  # WALLET or CASH
-        
+
         if not job_id:
             return Response({"error": "job_id is required"}, status=400)
-        
-        print(f"💰 [MOBILE] Creating final payment for job {job_id} by {request.auth.email}")
-        
+
+        print(
+            f"💰 [MOBILE] Creating final payment for job {job_id} by {request.auth.email}"
+        )
+
         # Get client profile
         profile = Profile.objects.filter(
-            accountFK=request.auth,
-            profileType='CLIENT'
+            accountFK=request.auth, profileType="CLIENT"
         ).first()
-        
+
         if not profile:
             return Response({"error": "Client profile not found"}, status=403)
-        
+
         try:
             client_profile = ClientProfile.objects.get(profileID=profile)
         except ClientProfile.DoesNotExist:
             return Response({"error": "Client profile not found"}, status=403)
-        
+
         # Get the job
         try:
             job = Job.objects.get(jobID=job_id, clientID=client_profile)
         except Job.DoesNotExist:
-            return Response({"error": "Job not found or you don't own this job"}, status=404)
-        
+            return Response(
+                {"error": "Job not found or you don't own this job"}, status=404
+            )
+
         # Check payment method
-        if payment_method_upper not in ['WALLET', 'CASH']:
-            return Response({"error": "Invalid payment method. Use WALLET or CASH"}, status=400)
+        if payment_method_upper not in ["WALLET", "CASH"]:
+            return Response(
+                {"error": "Invalid payment method. Use WALLET or CASH"}, status=400
+            )
 
         # Ensure escrow was paid first
         if not job.escrowPaid:
-            return Response({"error": "Escrow payment must be completed before final payment"}, status=400)
+            return Response(
+                {"error": "Escrow payment must be completed before final payment"},
+                status=400,
+            )
 
         # Allow early final payment during ongoing work, and keep compatibility for completed jobs
-        if job.status not in ['IN_PROGRESS', 'COMPLETED']:
-            return Response({"error": f"Final payment is only available for IN_PROGRESS or COMPLETED jobs (current: {job.status})"}, status=400)
-        
+        if job.status not in ["IN_PROGRESS", "COMPLETED"]:
+            return Response(
+                {
+                    "error": f"Final payment is only available for IN_PROGRESS or COMPLETED jobs (current: {job.status})"
+                },
+                status=400,
+            )
+
         # Check if final payment already made
         if job.remainingPaymentPaid:
             return Response({"error": "Final payment already made"}, status=400)
-        
-        final_amount = job.remainingPayment or (Decimal(str(job.budget)) * Decimal('0.5'))
-        
+
+        final_amount = job.remainingPayment or (
+            Decimal(str(job.budget)) * Decimal("0.5")
+        )
+
         # For wallet payments, check balance and process
-        if payment_method_upper == 'WALLET':
+        if payment_method_upper == "WALLET":
             from django.db import transaction as db_transaction
+
             with db_transaction.atomic():
                 wallet, _ = Wallet.objects.select_for_update().get_or_create(
-                    accountFK=request.auth,
-                    defaults={'balance': Decimal('0.00')}
+                    accountFK=request.auth, defaults={"balance": Decimal("0.00")}
                 )
-                
+
                 if wallet.availableBalance < final_amount:
-                    return Response({
-                        "error": "Insufficient wallet balance",
-                        "required": float(final_amount),
-                        "available": float(wallet.availableBalance),
-                        "reserved": float(wallet.reservedBalance),
-                    }, status=400)
-                
+                    return Response(
+                        {
+                            "error": "Insufficient wallet balance",
+                            "required": float(final_amount),
+                            "available": float(wallet.availableBalance),
+                            "reserved": float(wallet.reservedBalance),
+                        },
+                        status=400,
+                    )
+
                 # Deduct from wallet
                 wallet.balance -= final_amount
                 try:
                     wallet.save()
                 except Exception:
-                    return Response({
-                        "error": "Final payment failed due to reserved wallet constraints",
-                        "message": "Please retry or choose another payment method."
-                    }, status=400)
-                
+                    return Response(
+                        {
+                            "error": "Final payment failed due to reserved wallet constraints",
+                            "message": "Please retry or choose another payment method.",
+                        },
+                        status=400,
+                    )
+
                 # Create transaction
                 Transaction.objects.create(
                     walletID=wallet,
-                    transactionType='PAYMENT',
+                    transactionType="PAYMENT",
                     amount=final_amount,
                     balanceAfter=wallet.balance,
-                    status='COMPLETED',
+                    status="COMPLETED",
                     description=f"Final payment for job: {job.title}",
                     relatedJobPosting=job,
-                    paymentMethod='WALLET'
+                    paymentMethod="WALLET",
                 )
-        elif payment_method_upper == 'CASH':
+        elif payment_method_upper == "CASH":
             # Cash is handled outside the app — create a pending transaction for auditing
             wallet, _ = Wallet.objects.get_or_create(
-                accountFK=request.auth,
-                defaults={'balance': Decimal('0.00')}
+                accountFK=request.auth, defaults={"balance": Decimal("0.00")}
             )
             Transaction.objects.create(
                 walletID=wallet,
-                transactionType='PAYMENT',
+                transactionType="PAYMENT",
                 amount=final_amount,
                 balanceAfter=wallet.balance,
-                status='PENDING',
+                status="PENDING",
                 description=f"Final cash payment for job: {job.title} (pending admin verification)",
                 relatedJobPosting=job,
-                paymentMethod='CASH'
+                paymentMethod="CASH",
             )
-        
+
         # Update job payment status
         job.remainingPaymentPaid = True
         job.remainingPaymentPaidAt = timezone.now()
@@ -7205,22 +7271,29 @@ def mobile_create_final_payment(request):
         try:
             from jobs.api import broadcast_job_status_update
 
-            broadcast_job_status_update(job.jobID, {
-                "job_id": job.jobID,
-                "status": job.status,
-                "remaining_payment_paid": job.remainingPaymentPaid,
-                "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
-                "payment_method": payment_method_upper,
-                "event": "final_payment_completed",
-            })
+            broadcast_job_status_update(
+                job.jobID,
+                {
+                    "job_id": job.jobID,
+                    "status": job.status,
+                    "remaining_payment_paid": job.remainingPaymentPaid,
+                    "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat()
+                    if job.remainingPaymentPaidAt
+                    else None,
+                    "payment_method": payment_method_upper,
+                    "event": "final_payment_completed",
+                },
+            )
         except Exception as ws_error:
-            print(f"⚠️ [MOBILE] Final payment websocket broadcast failed: {str(ws_error)}")
+            print(
+                f"⚠️ [MOBILE] Final payment websocket broadcast failed: {str(ws_error)}"
+            )
 
         # Notify assigned worker/agency that final payment has already been completed.
         recipient_account = None
-        if getattr(job, 'assignedWorkerID', None) and job.assignedWorkerID.profileID:
+        if getattr(job, "assignedWorkerID", None) and job.assignedWorkerID.profileID:
             recipient_account = job.assignedWorkerID.profileID.accountFK
-        elif getattr(job, 'assignedAgencyFK', None):
+        elif getattr(job, "assignedAgencyFK", None):
             recipient_account = job.assignedAgencyFK.accountFK
 
         if recipient_account:
@@ -7231,22 +7304,25 @@ def mobile_create_final_payment(request):
                 message=f"Client completed final payment for '{job.title}'.",
                 relatedJobID=job.jobID,
             )
-        
+
         print(f"✅ [MOBILE] Final payment ₱{final_amount} completed for job {job_id}")
-        
+
         return {
             "success": True,
             "message": "Final payment processed successfully",
             "amount": float(final_amount),
             "payment_method": payment_method_upper,
-            "job_id": job_id
+            "job_id": job_id,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Final payment error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to process final payment: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to process final payment: {str(e)}"}, status=500
+        )
 
 
 @mobile_router.get("/payments/cash-status/{job_id}", auth=dual_auth)
@@ -7256,46 +7332,53 @@ def mobile_get_cash_payment_status(request, job_id: int):
     Shows whether cash proof was uploaded and if admin approved it.
     """
     from .models import Job
-    
+
     try:
         print(f"💵 [MOBILE] Getting cash status for job {job_id}")
-        
+
         # Get the job
         try:
             job = Job.objects.select_related(
-                'clientID__profileID__accountFK',
-                'assignedWorkerID__profileID__accountFK'
+                "clientID__profileID__accountFK",
+                "assignedWorkerID__profileID__accountFK",
             ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
-        
+
         # Verify user is client or worker for this job
         is_client = job.clientID.profileID.accountFK == request.auth
         is_worker = (
-            job.assignedWorkerID and 
-            job.assignedWorkerID.profileID.accountFK == request.auth
+            job.assignedWorkerID
+            and job.assignedWorkerID.profileID.accountFK == request.auth
         )
-        
+
         if not (is_client or is_worker):
             return Response({"error": "Access denied"}, status=403)
-        
+
         return {
             "success": True,
             "cash_status": {
                 "job_id": job.jobID,
                 "final_payment_method": job.finalPaymentMethod,
                 "cash_proof_url": job.cashPaymentProofUrl,
-                "cash_proof_uploaded_at": job.cashProofUploadedAt.isoformat() if job.cashProofUploadedAt else None,
+                "cash_proof_uploaded_at": job.cashProofUploadedAt.isoformat()
+                if job.cashProofUploadedAt
+                else None,
                 "cash_payment_approved": job.cashPaymentApproved,
-                "cash_payment_approved_at": job.cashPaymentApprovedAt.isoformat() if job.cashPaymentApprovedAt else None,
+                "cash_payment_approved_at": job.cashPaymentApprovedAt.isoformat()
+                if job.cashPaymentApprovedAt
+                else None,
                 "remaining_payment_paid": job.remainingPaymentPaid,
-                "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat() if job.remainingPaymentPaidAt else None,
-            }
+                "remaining_payment_paid_at": job.remainingPaymentPaidAt.isoformat()
+                if job.remainingPaymentPaidAt
+                else None,
+            },
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Cash status error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Failed to get cash status: {str(e)}"}, status=500)
 
@@ -7303,6 +7386,7 @@ def mobile_get_cash_payment_status(request, job_id: int):
 # ══════════════════════════════════════════════════════════════════════════════
 # EARNINGS ENDPOINTS - Worker/Agency Earnings Summary
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @mobile_router.get("/earnings/summary", auth=dual_auth)
 def mobile_get_earnings_summary(request):
@@ -7314,61 +7398,58 @@ def mobile_get_earnings_summary(request):
     from django.db.models import Sum, Count
     from django.utils import timezone
     from .models import Profile, WorkerProfile, Wallet, Job, Transaction
-    
+
     try:
         print(f"💵 [MOBILE] Getting earnings summary for {request.auth.email}")
-        
+
         # Get profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-        
-        if not profile or profile.profileType != 'WORKER':
+
+        if not profile or profile.profileType != "WORKER":
             return Response({"error": "Worker profile not found"}, status=403)
-        
+
         try:
             worker_profile = WorkerProfile.objects.get(profileID=profile)
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=403)
-        
+
         # Get wallet
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'pendingEarnings': Decimal('0.00')}
+            defaults={"balance": Decimal("0.00"), "pendingEarnings": Decimal("0.00")},
         )
-        
+
         # Get completed jobs count
         completed_jobs = Job.objects.filter(
-            assignedWorkerID=worker_profile,
-            status='COMPLETED'
+            assignedWorkerID=worker_profile, status="COMPLETED"
         ).count()
-        
+
         # Get total earnings from transactions
         total_earnings = Transaction.objects.filter(
             walletID=wallet,
-            transactionType__in=['EARNING', 'PENDING_EARNING'],
-            status='COMPLETED'
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
+            transactionType__in=["EARNING", "PENDING_EARNING"],
+            status="COMPLETED",
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
         # Get this month's earnings
         now = timezone.now()
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        
+
         this_month_earnings = Transaction.objects.filter(
             walletID=wallet,
-            transactionType__in=['EARNING', 'PENDING_EARNING'],
-            status='COMPLETED',
-            createdAt__gte=start_of_month
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        
+            transactionType__in=["EARNING", "PENDING_EARNING"],
+            status="COMPLETED",
+            createdAt__gte=start_of_month,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+
         return {
             "success": True,
             "earnings": {
@@ -7376,15 +7457,18 @@ def mobile_get_earnings_summary(request):
                 "pending_earnings": float(wallet.pendingEarnings),
                 "available_balance": float(wallet.balance),
                 "this_month_earnings": float(this_month_earnings),
-                "completed_jobs_count": completed_jobs
-            }
+                "completed_jobs_count": completed_jobs,
+            },
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Earnings summary error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to get earnings summary: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to get earnings summary: {str(e)}"}, status=500
+        )
 
 
 @mobile_router.get("/earnings/history", auth=dual_auth)
@@ -7395,26 +7479,24 @@ def mobile_get_earnings_history(request, page: int = 1, limit: int = 20):
     """
     from django.core.paginator import Paginator
     from .models import Profile, WorkerProfile, Wallet, Transaction
-    
+
     try:
         print(f"📊 [MOBILE] Getting earnings history for {request.auth.email}")
-        
+
         # Get profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType='WORKER'
+                accountFK=request.auth, profileType="WORKER"
             ).first()
-        
-        if not profile or profile.profileType != 'WORKER':
+
+        if not profile or profile.profileType != "WORKER":
             return Response({"error": "Worker profile not found"}, status=403)
-        
+
         # Get wallet
         try:
             wallet = Wallet.objects.get(accountFK=request.auth)
@@ -7424,23 +7506,26 @@ def mobile_get_earnings_history(request, page: int = 1, limit: int = 20):
                 "earnings": [],
                 "total": 0,
                 "page": page,
-                "total_pages": 0
+                "total_pages": 0,
             }
-        
+
         # Get earning transactions
-        queryset = Transaction.objects.filter(
-            walletID=wallet,
-            transactionType__in=['EARNING', 'PENDING_EARNING']
-        ).select_related('relatedJobPosting').order_by('-createdAt')
-        
+        queryset = (
+            Transaction.objects.filter(
+                walletID=wallet, transactionType__in=["EARNING", "PENDING_EARNING"]
+            )
+            .select_related("relatedJobPosting")
+            .order_by("-createdAt")
+        )
+
         paginator = Paginator(queryset, limit)
         if page < 1:
             page = 1
         if page > paginator.num_pages and paginator.num_pages > 0:
             page = paginator.num_pages
-        
+
         earnings_page = paginator.get_page(page)
-        
+
         earnings_data = []
         for txn in earnings_page:
             earning = {
@@ -7451,34 +7536,38 @@ def mobile_get_earnings_history(request, page: int = 1, limit: int = 20):
                 "description": txn.description,
                 "created_at": txn.createdAt.isoformat() if txn.createdAt else None,
             }
-            
+
             if txn.relatedJobPosting:
                 earning["job"] = {
                     "id": txn.relatedJobPosting.jobID,
                     "title": txn.relatedJobPosting.title,
-                    "budget": float(txn.relatedJobPosting.budget)
+                    "budget": float(txn.relatedJobPosting.budget),
                 }
-            
+
             earnings_data.append(earning)
-        
+
         return {
             "success": True,
             "earnings": earnings_data,
             "total": paginator.count,
             "page": page,
-            "total_pages": paginator.num_pages
+            "total_pages": paginator.num_pages,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Earnings history error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to get earnings history: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to get earnings history: {str(e)}"}, status=500
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PROFILE AVATAR DELETE ENDPOINT
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @mobile_router.delete("/profile/avatar", auth=dual_auth)
 def mobile_delete_avatar(request):
@@ -7487,48 +7576,46 @@ def mobile_delete_avatar(request):
     Works for both worker and client profiles.
     """
     from .models import Profile
-    
+
     try:
         print(f"🗑️ [MOBILE] Deleting avatar for {request.auth.email}")
-        
+
         # Get profile
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             # Try to find any profile
             profile = Profile.objects.filter(accountFK=request.auth).first()
-        
+
         if not profile:
             return Response({"error": "Profile not found"}, status=404)
-        
+
         # Delete the avatar file if it exists
         old_image = profile.profileImg
         if old_image:
             try:
                 from django.core.files.storage import default_storage
+
                 if default_storage.exists(old_image):
                     default_storage.delete(old_image)
             except Exception as e:
                 print(f"⚠️ Failed to delete old avatar file: {e}")
-        
+
         # Clear the profile image
         profile.profileImg = None
         profile.save()
-        
+
         print(f"✅ [MOBILE] Avatar deleted for {request.auth.email}")
-        
-        return {
-            "success": True,
-            "message": "Avatar deleted successfully"
-        }
-        
+
+        return {"success": True, "message": "Avatar deleted successfully"}
+
     except Exception as e:
         print(f"❌ [MOBILE] Delete avatar error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Failed to delete avatar: {str(e)}"}, status=500)
 
@@ -7540,121 +7627,120 @@ def mobile_delete_avatar(request):
 # ONLY works in non-production environments for safety
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @mobile_router.delete("/test/cleanup-maestro-data")
 def cleanup_maestro_test_data(request):
     """
     Clean up test data created by Maestro E2E tests.
-    
+
     Deletes:
     - Jobs with title containing '[TEST]' or 'MAESTRO'
     - Payment methods with name containing 'Maestro'
     - Saved jobs from test users (worker.test@iayos.com, client.test@iayos.com)
     - Job applications from test users
-    
+
     SECURITY: Only works when TESTING=true and in non-production environments.
     """
     import os
     from django.conf import settings
     from django.db import transaction as db_transaction
-    
+
     # Gate behind TESTING flag
-    if not getattr(settings, 'TESTING', False):
+    if not getattr(settings, "TESTING", False):
         return Response(
-            {"error": "Test cleanup only available when TESTING=true"},
-            status=403
+            {"error": "Test cleanup only available when TESTING=true"}, status=403
         )
-    
+
     # Safety check - only allow in non-production
-    env = os.environ.get('DJANGO_ENV', 'development')
-    debug = getattr(settings, 'DEBUG', False)
-    api_url = os.environ.get('API_URL', '')
-    
+    env = os.environ.get("DJANGO_ENV", "development")
+    debug = getattr(settings, "DEBUG", False)
+    api_url = os.environ.get("API_URL", "")
+
     # Block cleanup in production
-    if env == 'production' or (not debug and 'api.iayos.online' in api_url):
+    if env == "production" or (not debug and "api.iayos.online" in api_url):
         return Response(
-            {"error": "Cleanup not allowed in production environment"},
-            status=403
+            {"error": "Cleanup not allowed in production environment"}, status=403
         )
-    
+
     try:
         from .models import (
-            Job, JobApplication, SavedJob, UserPaymentMethod, 
-            Accounts, Profile
+            Job,
+            JobApplication,
+            SavedJob,
+            UserPaymentMethod,
+            Accounts,
+            Profile,
         )
-        
+
         cleanup_stats = {
-            'jobs_deleted': 0,
-            'applications_deleted': 0,
-            'saved_jobs_deleted': 0,
-            'payment_methods_deleted': 0,
+            "jobs_deleted": 0,
+            "applications_deleted": 0,
+            "saved_jobs_deleted": 0,
+            "payment_methods_deleted": 0,
         }
-        
+
         # Test user emails
         test_emails = [
-            'worker.test@iayos.com',
-            'client.test@iayos.com',
-            'test@maestro.test',
+            "worker.test@iayos.com",
+            "client.test@iayos.com",
+            "test@maestro.test",
         ]
-        
+
         with db_transaction.atomic():
             # 1. Delete test jobs (by title pattern)
-            test_jobs = Job.objects.filter(
-                title__icontains='[TEST]'
-            ) | Job.objects.filter(
-                title__icontains='MAESTRO'
-            ) | Job.objects.filter(
-                description__icontains='MAESTRO_TEST'
+            test_jobs = (
+                Job.objects.filter(title__icontains="[TEST]")
+                | Job.objects.filter(title__icontains="MAESTRO")
+                | Job.objects.filter(description__icontains="MAESTRO_TEST")
             )
-            cleanup_stats['jobs_deleted'] = test_jobs.count()
+            cleanup_stats["jobs_deleted"] = test_jobs.count()
             test_jobs.delete()
-            
+
             # 2. Get test user accounts
             test_accounts = Accounts.objects.filter(email__in=test_emails)
-            
+
             if test_accounts.exists():
                 # 3. Delete job applications from test users
                 for account in test_accounts:
                     profile = Profile.objects.filter(accountFK=account).first()
-                    if profile and hasattr(profile, 'workerprofile'):
+                    if profile and hasattr(profile, "workerprofile"):
                         apps = JobApplication.objects.filter(
                             workerID=profile.workerprofile
                         )
-                        cleanup_stats['applications_deleted'] += apps.count()
+                        cleanup_stats["applications_deleted"] += apps.count()
                         apps.delete()
-                
+
                 # 4. Delete saved jobs from test users
                 for account in test_accounts:
                     profile = Profile.objects.filter(accountFK=account).first()
                     if profile:
                         saved = SavedJob.objects.filter(worker=profile)
-                        cleanup_stats['saved_jobs_deleted'] += saved.count()
+                        cleanup_stats["saved_jobs_deleted"] += saved.count()
                         saved.delete()
-            
+
             # 5. Delete test payment methods (by name pattern)
             test_payment_methods = UserPaymentMethod.objects.filter(
-                accountName__icontains='Maestro'
+                accountName__icontains="Maestro"
             ) | UserPaymentMethod.objects.filter(
-                accountName__icontains='Test User Maestro'
+                accountName__icontains="Test User Maestro"
             )
-            cleanup_stats['payment_methods_deleted'] = test_payment_methods.count()
+            cleanup_stats["payment_methods_deleted"] = test_payment_methods.count()
             test_payment_methods.delete()
-        
+
         print(f"🧹 Maestro test cleanup completed: {cleanup_stats}")
-        
+
         return {
-            'success': True,
-            'message': 'Test data cleaned up successfully',
-            'stats': cleanup_stats
+            "success": True,
+            "message": "Test data cleaned up successfully",
+            "stats": cleanup_stats,
         }
-        
+
     except Exception as e:
         print(f"❌ Maestro cleanup error: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Cleanup failed: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Cleanup failed: {str(e)}"}, status=500)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -7664,6 +7750,7 @@ def cleanup_maestro_test_data(request):
 # Worker "on the way" has no time gate; client verify-arrival sets the actual time_in.
 # Auto-payment triggers when client confirms worker has gone home.
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date):
     """
@@ -7680,37 +7767,40 @@ def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date
     from .models import Wallet, Transaction, Notification
 
     # Only DAILY jobs use this next-day auto-release path.
-    if str(getattr(job, 'payment_model', 'PROJECT') or 'PROJECT').upper() != 'DAILY':
+    if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() != "DAILY":
         return {
-            'released_amount': Decimal('0.00'),
-            'released_count': 0,
+            "released_amount": Decimal("0.00"),
+            "released_count": 0,
         }
 
     with db_transaction.atomic():
-        wallet = Wallet.objects.select_for_update().filter(accountFK=worker_account).first()
+        wallet = (
+            Wallet.objects.select_for_update().filter(accountFK=worker_account).first()
+        )
         if not wallet:
             return {
-                'released_amount': Decimal('0.00'),
-                'released_count': 0,
+                "released_amount": Decimal("0.00"),
+                "released_count": 0,
             }
 
         pending_txns = list(
             Transaction.objects.filter(
-                Q(paymentMethod=Transaction.PaymentMethod.WALLET) | Q(paymentMethod__isnull=True),
+                Q(paymentMethod=Transaction.PaymentMethod.WALLET)
+                | Q(paymentMethod__isnull=True),
                 walletID=wallet,
                 relatedJobPosting=job,
                 transactionType=Transaction.TransactionType.PENDING_EARNING,
                 createdAt__date__lt=checkin_date,
-            ).order_by('transactionID')
+            ).order_by("transactionID")
         )
 
         if not pending_txns:
             return {
-                'released_amount': Decimal('0.00'),
-                'released_count': 0,
+                "released_amount": Decimal("0.00"),
+                "released_count": 0,
             }
 
-        released_total = Decimal('0.00')
+        released_total = Decimal("0.00")
         released_count = 0
 
         for pending_txn in pending_txns:
@@ -7723,17 +7813,17 @@ def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date
             if already_released:
                 continue
 
-            amount = Decimal(str(pending_txn.amount or Decimal('0.00')))
+            amount = Decimal(str(pending_txn.amount or Decimal("0.00")))
             if amount <= 0:
                 continue
 
             if wallet.pendingEarnings >= amount:
                 wallet.pendingEarnings -= amount
             else:
-                wallet.pendingEarnings = Decimal('0.00')
+                wallet.pendingEarnings = Decimal("0.00")
 
             wallet.balance += amount
-            wallet.save(update_fields=['balance', 'pendingEarnings', 'updatedAt'])
+            wallet.save(update_fields=["balance", "pendingEarnings", "updatedAt"])
 
             Transaction.objects.create(
                 walletID=wallet,
@@ -7755,11 +7845,11 @@ def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date
             try:
                 Notification.objects.create(
                     accountFK=worker_account,
-                    notificationType='PAYMENT_RELEASED',
-                    title='Daily Payout Released',
+                    notificationType="PAYMENT_RELEASED",
+                    title="Daily Payout Released",
                     message=(
                         f"₱{released_total:,.2f} from previous day payout(s) for '{job.title}' "
-                        "has been moved to your available wallet balance after today\'s check-in."
+                        "has been moved to your available wallet balance after today's check-in."
                     ),
                     relatedJobID=job.jobID,
                 )
@@ -7767,9 +7857,10 @@ def _release_previous_daily_pending_on_checkin(job, worker_account, checkin_date
                 print(f"⚠️ [MOBILE] Auto-release notification failed: {notify_err}")
 
         return {
-            'released_amount': released_total,
-            'released_count': released_count,
+            "released_amount": released_total,
+            "released_count": released_count,
         }
+
 
 @mobile_router.post("/daily-attendance/{job_id}/worker-check-in", auth=dual_auth)
 @require_kyc
@@ -7777,34 +7868,52 @@ def worker_check_in(request, job_id: int):
     """
     Worker marks "on the way" for a daily job.
     Creates/updates attendance in DISPATCHED state (no time_in yet).
-    
+
     Constraints:
     - Only for IN_PROGRESS DAILY jobs and attendance-tracked PROJECT jobs (team or multi-day)
     - Only once per day per worker
     """
     from decimal import Decimal
-    from .models import Job, DailyAttendance, WorkerProfile, Profile, Notification, JobWorkerAssignment, JobDispute
-    
+    from .models import (
+        Job,
+        DailyAttendance,
+        WorkerProfile,
+        Profile,
+        Notification,
+        JobWorkerAssignment,
+        JobDispute,
+    )
+
     try:
-        print(f"⏰ [MOBILE] Worker on-the-way request for job {job_id} by {request.auth.email}")
-        
+        print(
+            f"⏰ [MOBILE] Worker on-the-way request for job {job_id} by {request.auth.email}"
+        )
+
         # Get job
         try:
             job = Job.objects.get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
-        
+
         # Allow DAILY jobs and attendance-tracked PROJECT jobs.
         if not _supports_daily_attendance_flow(job):
-            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
-        
+            return Response(
+                {
+                    "error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"
+                },
+                status=400,
+            )
+
         # Backward compatibility: some existing backjob cycles keep base job status
         # as COMPLETED while rework is active. Allow check-in if there is an active,
         # worker-confirmed backjob cycle that is not finalized yet.
-        active_backjob_cycle = JobDispute.objects.filter(
-            jobID=job,
-            status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
-        ).order_by('-openedDate').first()
+        active_backjob_cycle = (
+            JobDispute.objects.filter(
+                jobID=job, status__in=["OPEN", "IN_NEGOTIATION", "UNDER_REVIEW"]
+            )
+            .order_by("-openedDate")
+            .first()
+        )
 
         allow_backjob_checkin = bool(
             active_backjob_cycle
@@ -7812,18 +7921,26 @@ def worker_check_in(request, job_id: int):
             and not active_backjob_cycle.clientConfirmedBackjob
         )
 
-        if job.status != 'IN_PROGRESS' and not allow_backjob_checkin:
-            return Response({
-                "error": f"Job must be in progress. Current status: {job.status}"
-            }, status=400)
+        if job.status != "IN_PROGRESS" and not allow_backjob_checkin:
+            return Response(
+                {"error": f"Job must be in progress. Current status: {job.status}"},
+                status=400,
+            )
 
-        if allow_backjob_checkin and active_backjob_cycle and active_backjob_cycle.scheduled_date:
+        if (
+            allow_backjob_checkin
+            and active_backjob_cycle
+            and active_backjob_cycle.scheduled_date
+        ):
             business_today = timezone.now().astimezone(PH_TIMEZONE).date()
             if business_today < active_backjob_cycle.scheduled_date:
-                return Response({
-                    "error": "Backjob workday has not started yet. Wait for the scheduled date.",
-                    "scheduled_date": active_backjob_cycle.scheduled_date.isoformat(),
-                }, status=400)
+                return Response(
+                    {
+                        "error": "Backjob workday has not started yet. Wait for the scheduled date.",
+                        "scheduled_date": active_backjob_cycle.scheduled_date.isoformat(),
+                    },
+                    status=400,
+                )
 
         # For backjob cycles, avoid blocking today's dispatch with stale attendance
         # rows from a previous backjob cycle on the same date.
@@ -7845,53 +7962,54 @@ def worker_check_in(request, job_id: int):
                     )
                 except Exception:
                     cycle_anchor_at = None
-        
+
         # Get worker's profile
-        profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
+        profile_type = getattr(request.auth, "profile_type", None) or "WORKER"
         profile = Profile.objects.filter(
-            accountFK=request.auth,
-            profileType=profile_type
+            accountFK=request.auth, profileType=profile_type
         ).first()
-        
+
         if not profile:
             profile = Profile.objects.filter(accountFK=request.auth).first()
-        
+
         if not profile:
             return Response({"error": "Profile not found"}, status=404)
-        
+
         # Get worker profile
         try:
             worker = profile.workerprofile
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
-        
+
         # Verify worker is assigned to this job
         team_assignment = None
-        is_assigned = (job.assignedWorkerID == worker)
+        is_assigned = job.assignedWorkerID == worker
         if not is_assigned and job.is_team_job:
             team_assignment = JobWorkerAssignment.objects.filter(
                 jobID=job,
                 workerID=worker,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
+                assignment_status__in=["ACTIVE", "COMPLETED"],
             ).first()
             is_assigned = team_assignment is not None
 
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
-        
+
         now = timezone.now()
         today = _get_effective_work_date(job)
-        
+
         # Check if attendance already exists for today
         attendance_filter = {
-            'jobID': job,
-            'workerID': worker,
-            'date': today,
+            "jobID": job,
+            "workerID": worker,
+            "date": today,
         }
         if team_assignment:
-            attendance_filter['assignmentID'] = team_assignment
+            attendance_filter["assignmentID"] = team_assignment
 
-        existing_attendance = DailyAttendance.objects.filter(**attendance_filter).first()
+        existing_attendance = DailyAttendance.objects.filter(
+            **attendance_filter
+        ).first()
 
         if existing_attendance and cycle_anchor_at:
             cycle_signals = [
@@ -7911,39 +8029,53 @@ def worker_check_in(request, job_id: int):
                     f"(attendance_id={existing_attendance.attendanceID}, anchor={cycle_anchor_at})"
                 )
                 existing_attendance = None
-        
+
         # Already on the way
-        if existing_attendance and existing_attendance.status == 'DISPATCHED' and not existing_attendance.time_in:
-            return Response({
-                "error": "Already marked on the way for today",
-                "attendance_id": existing_attendance.attendanceID,
-                "status": existing_attendance.status,
-            }, status=400)
+        if (
+            existing_attendance
+            and existing_attendance.status == "DISPATCHED"
+            and not existing_attendance.time_in
+        ):
+            return Response(
+                {
+                    "error": "Already marked on the way for today",
+                    "attendance_id": existing_attendance.attendanceID,
+                    "status": existing_attendance.status,
+                },
+                status=400,
+            )
 
         # Arrival already verified by client for this day
         if existing_attendance and existing_attendance.time_in:
-            return Response({
-                "error": "Arrival already verified for today",
-                "attendance_id": existing_attendance.attendanceID,
-                "time_in": existing_attendance.time_in.isoformat() if existing_attendance.time_in else None
-            }, status=400)
-        
+            return Response(
+                {
+                    "error": "Arrival already verified for today",
+                    "attendance_id": existing_attendance.attendanceID,
+                    "time_in": existing_attendance.time_in.isoformat()
+                    if existing_attendance.time_in
+                    else None,
+                },
+                status=400,
+            )
+
         # Create or update attendance record as DISPATCHED (on the way).
         attendance, created = DailyAttendance.objects.update_or_create(
             **attendance_filter,
             defaults={
-                'assignmentID': team_assignment,
-                'employeeID': None,
-                'time_in': None,
-                'time_out': None,
-                'status': 'DISPATCHED',
-                'worker_confirmed': True,
-                'worker_confirmed_at': now,
-                'amount_earned': Decimal('0.00'),
-            }
+                "assignmentID": team_assignment,
+                "employeeID": None,
+                "time_in": None,
+                "time_out": None,
+                "status": "DISPATCHED",
+                "worker_confirmed": True,
+                "worker_confirmed_at": now,
+                "amount_earned": Decimal("0.00"),
+            },
         )
-        
-        print(f"✅ [MOBILE] Worker marked on the way: attendance_id={attendance.attendanceID}, at={now}")
+
+        print(
+            f"✅ [MOBILE] Worker marked on the way: attendance_id={attendance.attendanceID}, at={now}"
+        )
 
         # Notify client and broadcast a live update so both conversation views refresh quickly.
         try:
@@ -7955,21 +8087,28 @@ def worker_check_in(request, job_id: int):
                 relatedJobID=job.jobID,
             )
         except Exception as notif_error:
-            print(f"⚠️ [MOBILE] Worker on-the-way notification failed: {str(notif_error)}")
+            print(
+                f"⚠️ [MOBILE] Worker on-the-way notification failed: {str(notif_error)}"
+            )
 
         try:
             from jobs.api import broadcast_job_status_update
 
-            broadcast_job_status_update(job.jobID, {
-                "job_id": job.jobID,
-                "event": "worker_marked_on_the_way",
-                "worker_marked_on_the_way": True,
-                "timestamp": now.isoformat(),
-                "daily_attendance_id": attendance.attendanceID,
-                "daily_attendance_status": attendance.status,
-            })
+            broadcast_job_status_update(
+                job.jobID,
+                {
+                    "job_id": job.jobID,
+                    "event": "worker_marked_on_the_way",
+                    "worker_marked_on_the_way": True,
+                    "timestamp": now.isoformat(),
+                    "daily_attendance_id": attendance.attendanceID,
+                    "daily_attendance_status": attendance.status,
+                },
+            )
         except Exception as ws_error:
-            print(f"⚠️ [MOBILE] Worker on-the-way websocket broadcast failed: {str(ws_error)}")
+            print(
+                f"⚠️ [MOBILE] Worker on-the-way websocket broadcast failed: {str(ws_error)}"
+            )
 
         auto_release = _release_previous_daily_pending_on_checkin(
             job=job,
@@ -7977,8 +8116,8 @@ def worker_check_in(request, job_id: int):
             checkin_date=today,
         )
 
-        released_amount = auto_release.get('released_amount')
-        released_count = int(auto_release.get('released_count') or 0)
+        released_amount = auto_release.get("released_amount")
+        released_count = int(auto_release.get("released_count") or 0)
         released_amount_float = float(released_amount) if released_amount else 0.0
 
         if job.is_team_job and released_count > 0:
@@ -7987,7 +8126,7 @@ def worker_check_in(request, job_id: int):
 
                 team_conversation = Conversation.objects.filter(
                     relatedJobPosting=job,
-                    conversation_type='TEAM_GROUP',
+                    conversation_type="TEAM_GROUP",
                 ).first()
 
                 if team_conversation:
@@ -7995,7 +8134,7 @@ def worker_check_in(request, job_id: int):
                         conversationID=team_conversation,
                         sender=None,
                         senderAgency=None,
-                        messageType='SYSTEM',
+                        messageType="SYSTEM",
                         messageText=(
                             f"💰 Daily payout update: ₱{released_amount_float:,.2f} from previous day "
                             "pending earnings has been released to wallet balance after today's check-in."
@@ -8010,7 +8149,7 @@ def worker_check_in(request, job_id: int):
                 f"Marked on the way. ₱{released_amount_float:,.2f} from previous day pending payout(s) "
                 "was released to your wallet balance."
             )
-        
+
         return {
             "success": True,
             "attendance_id": attendance.attendanceID,
@@ -8022,12 +8161,13 @@ def worker_check_in(request, job_id: int):
             "message": response_message,
             "released_previous_pending_amount": released_amount_float,
             "released_previous_pending_count": released_count,
-            "awaiting_client_confirmation": True
+            "awaiting_client_confirmation": True,
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Worker on-the-way error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Mark on-the-way failed: {str(e)}"}, status=500)
 
@@ -8040,60 +8180,70 @@ def worker_check_out(request, job_id: int):
     Checkout ownership is client-only via client mark-checkout endpoint.
     """
     from .models import Job, WorkerProfile, Profile
-    
+
     try:
-        print(f"⏰ [MOBILE] Worker check-out request for job {job_id} by {request.auth.email}")
-        
+        print(
+            f"⏰ [MOBILE] Worker check-out request for job {job_id} by {request.auth.email}"
+        )
+
         # Get job
         try:
             job = Job.objects.get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
-        
+
         # Keep worker-side attendance actions aligned with supported flows.
         if not _supports_daily_attendance_flow(job):
-            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
-        
+            return Response(
+                {
+                    "error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"
+                },
+                status=400,
+            )
+
         # Get worker's profile
-        profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
+        profile_type = getattr(request.auth, "profile_type", None) or "WORKER"
         profile = Profile.objects.filter(
-            accountFK=request.auth,
-            profileType=profile_type
+            accountFK=request.auth, profileType=profile_type
         ).first()
-        
+
         if not profile:
             profile = Profile.objects.filter(accountFK=request.auth).first()
-        
+
         if not profile:
             return Response({"error": "Profile not found"}, status=404)
-        
+
         # Get worker profile
         try:
             worker = profile.workerprofile
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Worker profile not found"}, status=404)
-        
+
         # Verify worker is assigned to this job (direct assignment or team assignment)
-        is_assigned = (job.assignedWorkerID == worker)
+        is_assigned = job.assignedWorkerID == worker
         if not is_assigned and job.is_team_job:
             team_assignment = JobWorkerAssignment.objects.filter(
                 jobID=job,
                 workerID=worker,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
+                assignment_status__in=["ACTIVE", "COMPLETED"],
             ).first()
             is_assigned = team_assignment is not None
 
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
 
-        return Response({
-            "error": "Worker check-out is disabled for daily jobs. Ask the client to mark check-out once work is done.",
-            "action_required": "CLIENT_MARK_CHECKOUT"
-        }, status=400)
-        
+        return Response(
+            {
+                "error": "Worker check-out is disabled for daily jobs. Ask the client to mark check-out once work is done.",
+                "action_required": "CLIENT_MARK_CHECKOUT",
+            },
+            status=400,
+        )
+
     except Exception as e:
         print(f"❌ [MOBILE] Worker check-out error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Check-out failed: {str(e)}"}, status=500)
 
@@ -8108,7 +8258,13 @@ def worker_cancel_check_in(request, job_id: int):
     - Undo window: first 10 seconds after check-in
     - Cannot cancel once client verified arrival or checked out
     """
-    from .models import Job, DailyAttendance, WorkerProfile, Profile, JobWorkerAssignment
+    from .models import (
+        Job,
+        DailyAttendance,
+        WorkerProfile,
+        Profile,
+        JobWorkerAssignment,
+    )
 
     try:
         try:
@@ -8117,10 +8273,17 @@ def worker_cancel_check_in(request, job_id: int):
             return Response({"error": "Job not found"}, status=404)
 
         if not _supports_daily_attendance_flow(job):
-            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
+            return Response(
+                {
+                    "error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"
+                },
+                status=400,
+            )
 
-        profile_type = getattr(request.auth, 'profile_type', None) or 'WORKER'
-        profile = Profile.objects.filter(accountFK=request.auth, profileType=profile_type).first()
+        profile_type = getattr(request.auth, "profile_type", None) or "WORKER"
+        profile = Profile.objects.filter(
+            accountFK=request.auth, profileType=profile_type
+        ).first()
         if not profile:
             profile = Profile.objects.filter(accountFK=request.auth).first()
         if not profile:
@@ -8132,13 +8295,13 @@ def worker_cancel_check_in(request, job_id: int):
             return Response({"error": "Worker profile not found"}, status=404)
 
         # Ensure user is assigned (direct worker or team assignment)
-        is_assigned = (job.assignedWorkerID == worker)
+        is_assigned = job.assignedWorkerID == worker
         team_assignment = None
         if not is_assigned and job.is_team_job:
             team_assignment = JobWorkerAssignment.objects.filter(
                 jobID=job,
                 workerID=worker,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
+                assignment_status__in=["ACTIVE", "COMPLETED"],
             ).first()
             is_assigned = team_assignment is not None
 
@@ -8147,37 +8310,51 @@ def worker_cancel_check_in(request, job_id: int):
 
         today = _get_effective_work_date(job)
         try:
-            attendance_filter = {'jobID': job, 'workerID': worker, 'date': today}
+            attendance_filter = {"jobID": job, "workerID": worker, "date": today}
             if team_assignment:
-                attendance_filter['assignmentID'] = team_assignment
+                attendance_filter["assignmentID"] = team_assignment
 
             attendance = DailyAttendance.objects.get(**attendance_filter)
         except DailyAttendance.DoesNotExist:
             return Response({"error": "No active check-in found for today"}, status=400)
 
         if attendance.time_out:
-            return Response({"error": "Cannot cancel check-in after checkout"}, status=400)
+            return Response(
+                {"error": "Cannot cancel check-in after checkout"}, status=400
+            )
 
         if attendance.client_confirmed:
-            return Response({"error": "Cannot cancel check-in after client confirmation"}, status=400)
+            return Response(
+                {"error": "Cannot cancel check-in after client confirmation"},
+                status=400,
+            )
 
         # New flow: DISPATCHED + no time_in = on-the-way (undo allowed)
         # Legacy flow: time_in exists = checked-in (undo still allowed within window)
-        if not attendance.time_in and attendance.status != 'DISPATCHED':
-            return Response({"error": "No active on-the-way/check-in found for today"}, status=400)
+        if not attendance.time_in and attendance.status != "DISPATCHED":
+            return Response(
+                {"error": "No active on-the-way/check-in found for today"}, status=400
+            )
 
-        if attendance.time_in and attendance.status != 'DISPATCHED':
+        if attendance.time_in and attendance.status != "DISPATCHED":
             # Arrival already verified in the new flow; do not allow rollback.
-            return Response({"error": "Cannot cancel after arrival has been verified"}, status=400)
+            return Response(
+                {"error": "Cannot cancel after arrival has been verified"}, status=400
+            )
 
-        reference_time = attendance.worker_confirmed_at or attendance.updatedAt or timezone.now()
+        reference_time = (
+            attendance.worker_confirmed_at or attendance.updatedAt or timezone.now()
+        )
         elapsed_seconds = (timezone.now() - reference_time).total_seconds()
         if elapsed_seconds > CHECK_IN_UNDO_WINDOW_SECONDS:
-            return Response({
-                "error": f"Undo window expired. You can only cancel within {CHECK_IN_UNDO_WINDOW_SECONDS} seconds.",
-                "undo_window_seconds": CHECK_IN_UNDO_WINDOW_SECONDS,
-                "elapsed_seconds": int(elapsed_seconds),
-            }, status=400)
+            return Response(
+                {
+                    "error": f"Undo window expired. You can only cancel within {CHECK_IN_UNDO_WINDOW_SECONDS} seconds.",
+                    "undo_window_seconds": CHECK_IN_UNDO_WINDOW_SECONDS,
+                    "elapsed_seconds": int(elapsed_seconds),
+                },
+                status=400,
+            )
 
         attendance.delete()
 
@@ -8190,6 +8367,7 @@ def worker_cancel_check_in(request, job_id: int):
     except Exception as e:
         print(f"❌ [MOBILE] Worker cancel check-in error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Cancel check-in failed: {str(e)}"}, status=500)
 
@@ -8212,69 +8390,80 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
     from django.core.files.storage import default_storage
     from .models import DailyAttendance
     from jobs.daily_payment_service import DailyPaymentService
-    
+
     try:
-        print(f"✅ [MOBILE] Client confirming attendance {attendance_id} by {request.auth.email}")
-        
+        print(
+            f"✅ [MOBILE] Client confirming attendance {attendance_id} by {request.auth.email}"
+        )
+
         # Get attendance record
         try:
             attendance = DailyAttendance.objects.select_related(
-                'jobID',
-                'workerID__profileID',
-                'assignmentID__workerID__profileID'
+                "jobID", "workerID__profileID", "assignmentID__workerID__profileID"
             ).get(attendanceID=attendance_id)
         except DailyAttendance.DoesNotExist:
             return Response({"error": "Attendance record not found"}, status=404)
-        
+
         job = attendance.jobID
-        
+
         # Verify client ownership
         if job.clientID.profileID.accountFK != request.auth:
-            return Response({"error": "Only the job client can confirm attendance"}, status=403)
-        
+            return Response(
+                {"error": "Only the job client can confirm attendance"}, status=403
+            )
+
         # Support both query/body payloads for backwards compatibility.
         approved_status = (
-            request.POST.get('approved_status')
+            request.POST.get("approved_status")
             or approved_status
-            or request.GET.get('approved_status')
+            or request.GET.get("approved_status")
         )
         payment_method = (
-            request.POST.get('payment_method')
-            or request.GET.get('payment_method')
-            or 'WALLET'
+            request.POST.get("payment_method")
+            or request.GET.get("payment_method")
+            or "WALLET"
         )
         payment_method = str(payment_method).upper()
-        cash_proof_image = request.FILES.get('cash_proof_image')
+        cash_proof_image = request.FILES.get("cash_proof_image")
         cash_proof_url = None
 
-        if payment_method not in ['WALLET', 'CASH']:
-            return Response({"error": "Invalid payment method. Choose WALLET or CASH"}, status=400)
+        if payment_method not in ["WALLET", "CASH"]:
+            return Response(
+                {"error": "Invalid payment method. Choose WALLET or CASH"}, status=400
+            )
 
-        if payment_method == 'CASH' and cash_proof_image:
-            file_ext = cash_proof_image.name.split('.')[-1] if '.' in cash_proof_image.name else 'jpg'
+        if payment_method == "CASH" and cash_proof_image:
+            file_ext = (
+                cash_proof_image.name.split(".")[-1]
+                if "." in cash_proof_image.name
+                else "jpg"
+            )
             file_name = f"daily_cash_proofs/job_{job.jobID}/attendance_{attendance.attendanceID}_{uuid.uuid4().hex[:8]}.{file_ext}"
             saved_path = default_storage.save(file_name, cash_proof_image)
             cash_proof_url = default_storage.url(saved_path)
 
         # Check if already confirmed
         if attendance.client_confirmed:
-            return Response({
-                "error": "Attendance already confirmed by client",
-                "attendance_id": attendance.attendanceID,
-                "payment_processed": attendance.payment_processed
-            }, status=400)
-        
+            return Response(
+                {
+                    "error": "Attendance already confirmed by client",
+                    "attendance_id": attendance.attendanceID,
+                    "payment_processed": attendance.payment_processed,
+                },
+                status=400,
+            )
+
         is_project_multiday = (
-            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
+            job.payment_model == "PROJECT" and _derive_duration_days(job) > 1
         )
 
         if is_project_multiday:
             # For PROJECT multi-day jobs, confirmation only records the day.
             # No per-day payout is processed; final payout happens on job completion.
-            if approved_status and approved_status in ['PRESENT', 'HALF_DAY', 'ABSENT']:
+            if approved_status and approved_status in ["PRESENT", "HALF_DAY", "ABSENT"]:
                 attendance.status = approved_status
 
-            if attendance.status == 'ABSENT':
+            if attendance.status == "ABSENT":
                 DailyPaymentService.apply_absent_penalty(attendance)
 
             attendance.client_confirmed = True
@@ -8282,14 +8471,16 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             attendance.payment_processed = True
             attendance.payment_processed_at = timezone.now()
             attendance.updatedAt = timezone.now()
-            attendance.save(update_fields=[
-                'status',
-                'client_confirmed',
-                'client_confirmed_at',
-                'payment_processed',
-                'payment_processed_at',
-                'updatedAt',
-            ])
+            attendance.save(
+                update_fields=[
+                    "status",
+                    "client_confirmed",
+                    "client_confirmed_at",
+                    "payment_processed",
+                    "payment_processed_at",
+                    "updatedAt",
+                ]
+            )
 
             # Keep PROJECT multi-day progress aligned with confirmed attendance days.
             synced_days_worked = _sync_project_multiday_total_days_worked(job)
@@ -8303,22 +8494,35 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
                 cash_proof_url=cash_proof_url,
             )
 
-            if not result.get('success'):
-                return Response({"error": result.get('error', 'Failed to confirm attendance')}, status=400)
+            if not result.get("success"):
+                return Response(
+                    {"error": result.get("error", "Failed to confirm attendance")},
+                    status=400,
+                )
 
-            synced_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
-        
+            synced_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+
         # Enhance response with worker info
         worker_name = None
-        if attendance.assignmentID and attendance.assignmentID.workerID and attendance.assignmentID.workerID.profileID:
+        if (
+            attendance.assignmentID
+            and attendance.assignmentID.workerID
+            and attendance.assignmentID.workerID.profileID
+        ):
             p = attendance.assignmentID.workerID.profileID
-            worker_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
+            worker_name = (
+                f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
+            )
         elif attendance.workerID and attendance.workerID.profileID:
             p = attendance.workerID.profileID
-            worker_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
-        
-        print(f"✅ [MOBILE] Attendance confirmed: id={attendance_id}, status={attendance.status}, payment_processed={attendance.payment_processed}")
-        
+            worker_name = (
+                f"{p.firstName or ''} {p.lastName or ''}".strip() or p.accountFK.email
+            )
+
+        print(
+            f"✅ [MOBILE] Attendance confirmed: id={attendance_id}, status={attendance.status}, payment_processed={attendance.payment_processed}"
+        )
+
         return {
             "success": True,
             "attendance_id": attendance.attendanceID,
@@ -8337,10 +8541,11 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             ),
             "absent_penalty_amount": float(attendance.absent_penalty_amount or 0),
         }
-        
+
     except Exception as e:
         print(f"❌ [MOBILE] Client confirm attendance error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Confirmation failed: {str(e)}"}, status=500)
 
@@ -8363,41 +8568,63 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             return Response({"error": "Job not found"}, status=404)
 
         is_project_multiday_job = (
-            job.payment_model == 'PROJECT' and _derive_duration_days(job) > 1
+            job.payment_model == "PROJECT" and _derive_duration_days(job) > 1
         )
 
         if not _supports_daily_attendance_flow(job):
-            return Response({"error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"}, status=400)
+            return Response(
+                {
+                    "error": "This endpoint supports DAILY jobs, TEAM PROJECT jobs, and PROJECT multi-day jobs only"
+                },
+                status=400,
+            )
 
         if not job.clientID or job.clientID.profileID.accountFK != request.auth:
-            return Response({"error": "Only the job client can mark no-work days"}, status=403)
+            return Response(
+                {"error": "Only the job client can mark no-work days"}, status=403
+            )
 
         target_worker = None
         target_employee = None
 
         if worker_id:
             # First try regular worker profile id
-            target_worker = WorkerProfile.objects.filter(workerProfileID=worker_id).first()
+            target_worker = WorkerProfile.objects.filter(
+                workerProfileID=worker_id
+            ).first()
             if target_worker:
-                is_primary_assigned_worker = (job.assignedWorkerID == target_worker)
+                is_primary_assigned_worker = job.assignedWorkerID == target_worker
                 is_team_assigned_worker = JobWorkerAssignment.objects.filter(
                     jobID=job,
                     workerID=target_worker,
-                    assignment_status__in=['ACTIVE', 'COMPLETED']
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
                 ).exists()
                 if not is_primary_assigned_worker and not is_team_assigned_worker:
-                    return Response({"error": "Selected worker is not assigned to this job"}, status=400)
+                    return Response(
+                        {"error": "Selected worker is not assigned to this job"},
+                        status=400,
+                    )
             else:
                 # Fallback for agency daily jobs where attendance carries employeeID
-                target_employee = AgencyEmployee.objects.filter(employeeID=worker_id).first()
+                target_employee = AgencyEmployee.objects.filter(
+                    employeeID=worker_id
+                ).first()
                 if not target_employee:
                     return Response({"error": "Worker/employee not found"}, status=404)
 
                 if not job.assignedAgencyFK:
-                    return Response({"error": "Selected employee is not valid for this job"}, status=400)
+                    return Response(
+                        {"error": "Selected employee is not valid for this job"},
+                        status=400,
+                    )
 
                 if target_employee.agency_id != job.assignedAgencyFK.accountFK_id:
-                    return Response({"error": "Selected employee does not belong to the assigned agency"}, status=400)
+                    return Response(
+                        {
+                            "error": "Selected employee does not belong to the assigned agency"
+                        },
+                        status=400,
+                    )
         elif job.assignedWorkerID:
             target_worker = job.assignedWorkerID
         else:
@@ -8410,12 +8637,12 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 employeeID=target_employee,
                 date=today,
                 defaults={
-                    'workerID': None,
-                    'status': 'ABSENT',
-                    'amount_earned': Decimal('0.00'),
-                    'worker_confirmed': True,
-                    'worker_confirmed_at': timezone.now(),
-                    'notes': 'Marked absent by client quick action',
+                    "workerID": None,
+                    "status": "ABSENT",
+                    "amount_earned": Decimal("0.00"),
+                    "worker_confirmed": True,
+                    "worker_confirmed_at": timezone.now(),
+                    "notes": "Marked absent by client quick action",
                 },
             )
         else:
@@ -8424,32 +8651,48 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 workerID=target_worker,
                 date=today,
                 defaults={
-                    'employeeID': None,
-                    'status': 'ABSENT',
-                    'amount_earned': Decimal('0.00'),
-                    'worker_confirmed': True,
-                    'worker_confirmed_at': timezone.now(),
-                    'notes': 'Marked absent by client quick action',
+                    "employeeID": None,
+                    "status": "ABSENT",
+                    "amount_earned": Decimal("0.00"),
+                    "worker_confirmed": True,
+                    "worker_confirmed_at": timezone.now(),
+                    "notes": "Marked absent by client quick action",
                 },
             )
 
         if attendance.time_in:
-            return Response({
-                "error": "Cannot mark absent after worker has checked in",
-                "time_in": attendance.time_in.isoformat(),
-            }, status=400)
+            return Response(
+                {
+                    "error": "Cannot mark absent after worker has checked in",
+                    "time_in": attendance.time_in.isoformat(),
+                },
+                status=400,
+            )
 
         if attendance.client_confirmed:
-            return Response({
-                "error": "Attendance already confirmed",
-                "attendance_id": attendance.attendanceID,
-            }, status=400)
+            return Response(
+                {
+                    "error": "Attendance already confirmed",
+                    "attendance_id": attendance.attendanceID,
+                },
+                status=400,
+            )
 
         attendance.worker_confirmed = True
-        attendance.worker_confirmed_at = attendance.worker_confirmed_at or timezone.now()
-        attendance.status = 'ABSENT'
-        attendance.amount_earned = Decimal('0.00')
-        attendance.save(update_fields=['worker_confirmed', 'worker_confirmed_at', 'status', 'amount_earned', 'updatedAt'])
+        attendance.worker_confirmed_at = (
+            attendance.worker_confirmed_at or timezone.now()
+        )
+        attendance.status = "ABSENT"
+        attendance.amount_earned = Decimal("0.00")
+        attendance.save(
+            update_fields=[
+                "worker_confirmed",
+                "worker_confirmed_at",
+                "status",
+                "amount_earned",
+                "updatedAt",
+            ]
+        )
 
         if is_project_multiday_job:
             # PROJECT multi-day: enforce absent penalty but do not process daily payout.
@@ -8458,35 +8701,43 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             attendance.client_confirmed_at = timezone.now()
             attendance.payment_processed = True
             attendance.payment_processed_at = timezone.now()
-            attendance.save(update_fields=[
-                'client_confirmed',
-                'client_confirmed_at',
-                'payment_processed',
-                'payment_processed_at',
-                'updatedAt',
-            ])
+            attendance.save(
+                update_fields=[
+                    "client_confirmed",
+                    "client_confirmed_at",
+                    "payment_processed",
+                    "payment_processed_at",
+                    "updatedAt",
+                ]
+            )
 
             # Keep PROJECT multi-day progress aligned with confirmed attendance days.
             synced_days_worked = _sync_project_multiday_total_days_worked(job)
 
             result = {
-                'success': True,
-                'message': 'Marked absent. Penalty applied for final payout adjustments.',
+                "success": True,
+                "message": "Marked absent. Penalty applied for final payout adjustments.",
             }
         else:
             result = DailyPaymentService.confirm_attendance_client(
                 attendance,
                 request.auth,
-                approved_status='ABSENT',
+                approved_status="ABSENT",
             )
 
-            if not result.get('success'):
-                return Response({"error": result.get('error', 'Failed to mark no-work day')}, status=400)
+            if not result.get("success"):
+                return Response(
+                    {"error": result.get("error", "Failed to mark no-work day")},
+                    status=400,
+                )
 
-            synced_days_worked = int(getattr(job, 'total_days_worked', 0) or 0)
+            synced_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
 
         if target_worker:
-            worker_name = f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip() or target_worker.profileID.accountFK.email
+            worker_name = (
+                f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip()
+                or target_worker.profileID.accountFK.email
+            )
         else:
             worker_name = target_employee.fullName if target_employee else "Worker"
 
@@ -8500,11 +8751,14 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             "payment_processed": attendance.payment_processed,
             "total_days_worked": synced_days_worked,
             "absent_penalty_amount": float(attendance.absent_penalty_amount or 0),
-            "message": result.get('message', "Marked as absent. No payment recorded for today."),
+            "message": result.get(
+                "message", "Marked as absent. No payment recorded for today."
+            ),
         }
 
     except Exception as e:
         print(f"❌ [MOBILE] Client mark no-work error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": f"Failed to mark no-work day: {str(e)}"}, status=500)
