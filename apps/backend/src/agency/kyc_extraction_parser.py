@@ -118,8 +118,8 @@ class AgencyKYCExtractionParser:
         ]
         
         # DTI/SEC patterns
-        self.dti_pattern = re.compile(r'DTI[:\s-]*([A-Z0-9-]+)', re.IGNORECASE)
-        self.sec_pattern = re.compile(r'SEC[:\s-]*([A-Z0-9-]+)', re.IGNORECASE)
+        self.dti_pattern = re.compile(r'DTI[:\s-]*([A-Z0-9][A-Z0-9\-\s]{2,})', re.IGNORECASE)
+        self.sec_pattern = re.compile(r'SEC[:\s-]*([A-Z0-9][A-Z0-9\-\s]{2,})', re.IGNORECASE)
         
         # TIN patterns (XXX-XXX-XXX-XXX or XXXXXXXXXXXX)
         self.tin_pattern = re.compile(r'\b(\d{3}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3})\b')
@@ -129,7 +129,7 @@ class AgencyKYCExtractionParser:
         self.dti_business_name_pattern = re.compile(r'Business\s+Name\s+No\.?\s*(\d+)', re.IGNORECASE)
         # Matches certificate ID like "BPXW658418425073" (4 letters + 12 digits)
         # Must be on its own line or standalone - case insensitive for OCR errors
-        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Za-z]{4}\d{12,16})\s*(?:$|\n)', re.MULTILINE)
+        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Za-z]{4}\s*\d{12,16})\s*(?:$|\n)', re.MULTILINE)
         # Matches "issued to VANIEL JOHN GARCIA CORNELIO" or "This certificate issued to NAME"
         self.issued_to_pattern = re.compile(r'(?:This\s+certificate\s+)?issued\s+to\s+([A-Z\s]+?)(?:\n|is\s+valid|subject\s+to)', re.IGNORECASE)
         # Matches "valid from January 06, 2026 to January 06, 2031"
@@ -225,6 +225,9 @@ class AgencyKYCExtractionParser:
         """Parse business permit document"""
         lines = text.split('\n')
         text_upper = text.upper()
+
+        def normalize_registration_token(value: str) -> str:
+            return re.sub(r'\s+', '', (value or '').strip().upper())
         
         # First, extract owner name so we can EXCLUDE it from business name
         owner_name = None
@@ -301,7 +304,7 @@ class AgencyKYCExtractionParser:
                 "ZONE",
                 "PUROK",
             ]
-            for line in lines[:12]:
+            for line in lines[:20]:
                 line = line.strip()
                 # Skip owner name
                 if owner_name and line.upper() == owner_name:
@@ -341,7 +344,7 @@ class AgencyKYCExtractionParser:
         cert_id_match = self.dti_certificate_id_pattern.search(text)
         if cert_id_match:
             result.permit_number = ExtractionResult(
-                value=cert_id_match.group(1).strip().upper(),
+                value=normalize_registration_token(cert_id_match.group(1)),
                 confidence=0.9,  # High confidence for DTI certificate ID
                 source_text=cert_id_match.group(0)
             )
@@ -350,15 +353,18 @@ class AgencyKYCExtractionParser:
         # PRIORITY 2: If no DTI cert ID, try standard permit patterns
         if not result.permit_number.value:
             permit_patterns = [
-                re.compile(r'PERMIT\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
-                re.compile(r'BUSINESS\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
-                re.compile(r'(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]{5,})', re.IGNORECASE),
+                re.compile(r'PERMIT\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9\-\s]+)', re.IGNORECASE),
+                re.compile(r'BUSINESS\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9\-\s]+)', re.IGNORECASE),
+                re.compile(r'(?:NO\.?|NUMBER)[:\s]*([A-Z0-9\-\s]{5,})', re.IGNORECASE),
             ]
             for pattern in permit_patterns:
                 match = pattern.search(text)
                 if match:
+                    permit_value = normalize_registration_token(match.group(1))
+                    if not permit_value:
+                        continue
                     result.permit_number = ExtractionResult(
-                        value=match.group(1).strip(),
+                        value=permit_value,
                         confidence=0.85,
                         source_text=match.group(0)
                     )
@@ -403,7 +409,7 @@ class AgencyKYCExtractionParser:
                 # Skip if the match spans multiple lines or contains common words
                 if '\n' not in dti_match.group(0) and dti_value.upper() not in ['BAGONG', 'PILIPINAS', 'DEPARTMENT']:
                     result.dti_number = ExtractionResult(
-                        value=dti_value,
+                        value=normalize_registration_token(dti_value),
                         confidence=0.85,
                         source_text=dti_match.group(0)
                     )
@@ -465,7 +471,7 @@ class AgencyKYCExtractionParser:
         sec_match = self.sec_pattern.search(text)
         if sec_match:
             result.sec_number = ExtractionResult(
-                value=sec_match.group(1).strip(),
+                value=normalize_registration_token(sec_match.group(1)),
                 confidence=0.85,
                 source_text=sec_match.group(0)
             )
