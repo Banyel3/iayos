@@ -49,6 +49,69 @@ function badgeLabel(n: number) {
   return n > 99 ? "99+" : n;
 }
 
+type SidebarUser = {
+  email?: string;
+  role?: string;
+  accountType?: string;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+  };
+  user_data?: {
+    first_name?: string;
+    last_name?: string;
+  };
+  first_name?: string;
+  last_name?: string;
+};
+
+function toTitleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getAgencyDisplayInfo(user: SidebarUser | null) {
+  const firstName =
+    user?.profile_data?.firstName ||
+    user?.user_data?.first_name ||
+    user?.first_name ||
+    "";
+  const lastName =
+    user?.profile_data?.lastName || user?.user_data?.last_name || user?.last_name || "";
+
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const emailLocalPart = user?.email?.split("@")[0]?.replace(/[._-]+/g, " ") || "";
+  const displayName = fullName || toTitleCase(emailLocalPart) || user?.email || "Account";
+
+  const initialsSource = fullName || toTitleCase(emailLocalPart);
+  const initials = initialsSource
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const accountType = (user?.accountType || "").toString().toLowerCase();
+  const role = (user?.role || "").toString().toUpperCase();
+  const accountLabel =
+    accountType === "agency"
+      ? "Agency Account"
+      : role
+        ? `${toTitleCase(role.replace(/_/g, " "))} Account`
+        : "Account";
+
+  return {
+    displayName,
+    initials: initials || "A",
+    accountLabel,
+  };
+}
+
 export default function AgencySidebar({
   className,
   onMobileClose,
@@ -142,6 +205,7 @@ export default function AgencySidebar({
 
   const showExpanded = !collapsed || isMobileDrawer;
   const totalBadge = backjobsCount + pendingJobsCount + unreadMessagesCount + derivedUnreadCount;
+  const { displayName, initials, accountLabel } = getAgencyDisplayInfo(user as SidebarUser | null);
 
   return (
     <>
@@ -166,7 +230,7 @@ export default function AgencySidebar({
               </span>
             )}
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-semibold">
-              {user?.profile_data?.firstName ? user.profile_data.firstName[0].toUpperCase() : "A"}
+              {initials}
             </div>
           </div>
         </div>
@@ -371,15 +435,15 @@ export default function AgencySidebar({
           >
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-                {user?.profile_data?.firstName ? user.profile_data.firstName[0].toUpperCase() : "A"}
+                {initials}
               </div>
               {showExpanded && (
                 <div className="text-left">
                   <div className="text-sm font-medium text-gray-700 truncate max-w-[124px]">
-                    {user?.profile_data?.firstName ? `${user.profile_data.firstName} ${user.profile_data.lastName || ""}` : "Agency Admin"}
+                    {displayName}
                   </div>
                   <div className="text-xs text-gray-500">
-                    Agency Account
+                    {accountLabel}
                   </div>
                 </div>
               )}
