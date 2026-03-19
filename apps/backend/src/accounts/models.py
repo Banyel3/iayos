@@ -3143,6 +3143,26 @@ class JobWorkerAssignment(models.Model):
         help_text="Total amount earned by this worker on this job",
     )
 
+    # Per-worker early completion (Panelist #2)
+    # When a client marks a worker as done early on a DAILY team job,
+    # the worker receives the full contracted amount as a lump sum for remaining days.
+    early_completed = models.BooleanField(
+        default=False,
+        help_text="Whether this worker was completed early with full pay",
+    )
+    early_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the worker was early-completed",
+    )
+    early_completion_payout = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Lump-sum payout for remaining days on early completion",
+    )
+
     # Timestamps
     assignedAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)

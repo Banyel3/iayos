@@ -10156,6 +10156,31 @@ def worker_mark_team_complete(
     return result
 
 
+@router.post("/{job_id}/team/early-complete/{assignment_id}", auth=dual_auth)
+@require_kyc
+def early_complete_team_worker_endpoint(request, job_id: int, assignment_id: int):
+    """
+    Client marks a specific worker as done early on a DAILY team job.
+    The worker receives the full contracted amount (daily_rate * duration_days).
+    Any remaining balance is paid out as a lump-sum.
+    """
+    from jobs.team_job_services import early_complete_team_worker
+
+    result = early_complete_team_worker(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        client_user=request.auth,
+    )
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Failed to early-complete worker")},
+            status=400,
+        )
+
+    return result
+
+
 # --- Agency Employee Lifecycle on Team Jobs ---
 
 

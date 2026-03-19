@@ -31,6 +31,7 @@ import {
   useTeamJobDetail,
   useWorkerCompleteAssignment,
   useClientApproveTeamJob,
+  useEarlyCompleteWorker,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -102,7 +103,14 @@ const getSkillLevelBadge = (level: string) => {
   }
 };
 
-const getAssignmentStatusBadge = (status: string, markedComplete: boolean) => {
+const getAssignmentStatusBadge = (
+  status: string,
+  markedComplete: boolean,
+  earlyCompleted?: boolean,
+) => {
+  if (earlyCompleted) {
+    return { label: "Early Done", color: "#D97706", bg: "#FEF3C7" };
+  }
   if (markedComplete) {
     return { label: "Done", color: "#10B981", bg: "#D1FAE5" };
   }
@@ -230,6 +238,7 @@ export default function ActiveJobDetailScreen() {
   const workerCompleteMutation = useWorkerCompleteAssignment();
   const clientApproveMutation = useClientApproveTeamJob();
   const dailyFinishMutation = useDailyFinishJob();
+  const earlyCompleteMutation = useEarlyCompleteWorker();
 
   const isTeamDaily = job?.is_team_job && job?.payment_model === "DAILY";
 
@@ -556,6 +565,33 @@ export default function ActiveJobDetailScreen() {
   const handleTeamWorkerComplete = (assignment: WorkerAssignment) => {
     setSelectedAssignment(assignment);
     setShowCompletionModal(true);
+  };
+
+  const handleEarlyCompleteWorker = (assignment: WorkerAssignment) => {
+    Alert.alert(
+      "Complete Early (Full Pay)",
+      `Mark ${assignment.worker_name} as done early? They will receive their full contracted amount (any remaining balance will be paid out now).`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete Early",
+          style: "destructive",
+          onPress: () => {
+            earlyCompleteMutation.mutate(
+              {
+                jobId: Number(id),
+                assignmentId: assignment.assignment_id,
+              },
+              {
+                onSuccess: () => {
+                  refetch();
+                },
+              },
+            );
+          },
+        },
+      ],
+    );
   };
 
   const handleTeamMarkComplete = () => {
@@ -1103,7 +1139,11 @@ export default function ActiveJobDetailScreen() {
                           {assignment.slot_specialization}
                         </Text>
                       </View>
-                      {getAssignmentStatusBadge(assignment.assignment_status)}
+                      {getAssignmentStatusBadge(
+                        assignment.assignment_status,
+                        assignment.worker_marked_complete,
+                        assignment.early_completed,
+                      )}
                     </View>
 
                     {/* Worker Completion Status */}
@@ -1111,27 +1151,34 @@ export default function ActiveJobDetailScreen() {
                       <View style={styles.assignmentStatusItem}>
                         <Ionicons
                           name={
-                            assignment.worker_marked_complete
-                              ? "checkmark-circle"
-                              : "ellipse-outline"
+                            assignment.early_completed
+                              ? "flash"
+                              : assignment.worker_marked_complete
+                                ? "checkmark-circle"
+                                : "ellipse-outline"
                           }
                           size={18}
                           color={
-                            assignment.worker_marked_complete
-                              ? Colors.success
-                              : Colors.textHint
+                            assignment.early_completed
+                              ? "#D97706"
+                              : assignment.worker_marked_complete
+                                ? Colors.success
+                                : Colors.textHint
                           }
                         />
                         <Text
                           style={[
                             styles.assignmentStatusText,
-                            assignment.worker_marked_complete &&
+                            (assignment.worker_marked_complete ||
+                              assignment.early_completed) &&
                               styles.assignmentStatusComplete,
                           ]}
                         >
-                          {assignment.worker_marked_complete
-                            ? "Work Completed"
-                            : "In Progress"}
+                          {assignment.early_completed
+                            ? "Completed Early"
+                            : assignment.worker_marked_complete
+                              ? "Work Completed"
+                              : "In Progress"}
                         </Text>
                       </View>
                       {assignment.completion_notes && (
@@ -1164,6 +1211,78 @@ export default function ActiveJobDetailScreen() {
                           </Text>
                         </TouchableOpacity>
                       )}
+
+                    {/* Client: Early Complete individual worker (DAILY team jobs only) */}
+                    {!isWorker &&
+                      job.payment_model === "DAILY" &&
+                      assignment.assignment_status === "ACTIVE" &&
+                      !assignment.early_completed && (
+                        <TouchableOpacity
+                          style={[
+                            styles.assignmentActionButton,
+                            { backgroundColor: Colors.warning },
+                          ]}
+                          onPress={() => handleEarlyCompleteWorker(assignment)}
+                          disabled={earlyCompleteMutation.isPending}
+                          activeOpacity={0.7}
+                        >
+                          {earlyCompleteMutation.isPending ? (
+                            <ActivityIndicator
+                              color={Colors.white}
+                              size="small"
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="flash"
+                                size={18}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.assignmentActionText}>
+                                Complete Early (Full Pay)
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                    {/* Early completion badge */}
+                    {assignment.early_completed && (
+                      <View
+                        style={[
+                          styles.assignmentStatus,
+                          { backgroundColor: "#FEF3C7", borderRadius: 8, padding: 8, marginTop: 4 },
+                        ]}
+                      >
+                        <View style={styles.assignmentStatusItem}>
+                          <Ionicons
+                            name="flash"
+                            size={16}
+                            color="#D97706"
+                          />
+                          <Text
+                            style={[
+                              styles.assignmentStatusText,
+                              { color: "#D97706", fontWeight: "600" },
+                            ]}
+                          >
+                            Completed Early (Full Pay)
+                          </Text>
+                        </View>
+                        {assignment.early_completion_payout != null && (
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#92400E",
+                              marginLeft: 26,
+                            }}
+                          >
+                            Lump-sum payout: {"\u20B1"}
+                            {Number(assignment.early_completion_payout).toLocaleString()}
+                          </Text>
+                        )}
+                      </View>
+                    )}
                   </View>
                 ))}
 

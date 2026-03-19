@@ -395,6 +395,8 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`,
   TEAM_WORKER_COMPLETE: (jobId: number, assignmentId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/worker-complete/${assignmentId}`,
+  TEAM_EARLY_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/early-complete/${assignmentId}`,
   TEAM_ASSIGN_WORKER: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/assign`,
   TEAM_REMOVE_WORKER: (jobId: number, workerId: number) =>

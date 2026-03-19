@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Per-Worker Early Completion with Full Pay on DAILY Team Jobs (Panelist #2)**
+  - Clients can mark individual workers as "done early" on active DAILY team jobs.
+  - The worker receives their full contracted amount (daily_rate × duration_days); any remaining balance (total contracted − already earned) is paid out as a lump-sum to the worker's pending earnings.
+  - New "Complete Early (Full Pay)" button per worker row on active team DAILY jobs (client view only, for ACTIVE assignments).
+  - Early-completed workers show an "Early Done" badge and payout details on the assignment row.
+  - Backend: New `early_completed`, `early_completed_at`, `early_completion_payout` fields on `JobWorkerAssignment` model.
+  - Backend: New `POST /{job_id}/team/early-complete/{assignment_id}` API endpoint.
+  - Mobile: New `useEarlyCompleteWorker` hook and `TEAM_EARLY_COMPLETE` API endpoint constant.
+
 - **Daily Rate Negotiation for Workers (Panelist #1)**
   - Workers can now propose a custom daily rate and number of days when applying to DAILY payment model jobs (both regular and team jobs).
   - Apply modals show daily rate + days inputs (with computed total) when job is DAILY and worker selects "Negotiate", instead of the flat budget input.

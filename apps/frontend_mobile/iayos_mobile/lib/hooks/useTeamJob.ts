@@ -58,6 +58,10 @@ export interface WorkerAssignment {
   worker_marked_complete: boolean;
   individual_rating: number | null;
   type?: "freelance";
+  // Early completion fields (DAILY team jobs)
+  early_completed?: boolean;
+  early_completed_at?: string | null;
+  early_completion_payout?: number | null;
 }
 
 export interface AgencyEmployeeAssignment {
@@ -383,6 +387,68 @@ export function useWorkerCompleteAssignment() {
         queryKey: ["jobs", variables.jobId.toString()],
       });
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
+ * Client marks a worker as done early on a DAILY team job (full pay).
+ * The worker receives the full contracted amount; any remaining balance
+ * (daily_rate × duration_days − total_earned) is paid out as a lump-sum.
+ */
+export function useEarlyCompleteWorker() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_EARLY_COMPLETE(jobId, assignmentId),
+        { method: "POST" },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        remaining_payout?: number;
+        total_contracted?: number;
+        total_already_earned?: number;
+      };
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to early-complete worker"),
+        );
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      const payoutMsg = data.remaining_payout
+        ? `\nLump-sum payout: ₱${Number(data.remaining_payout).toLocaleString()}`
+        : "";
+      Alert.alert(
+        "Worker Completed Early",
+        (data.message || "Worker has been marked as done early with full pay.") +
+          payoutMsg,
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["team-job", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", variables.jobId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", "active", variables.jobId.toString()],
+      });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
