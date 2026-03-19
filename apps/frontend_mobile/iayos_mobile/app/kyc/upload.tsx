@@ -245,7 +245,7 @@ export default function KYCUploadScreen() {
       unsubscribeClearance();
       unsubscribeSelfie();
     };
-  }, []);
+  }, [selectedIDType, selectedClearanceType]);
 
   // Handle photo received from camera screen
   const handleCameraPhotoReceived = (
@@ -332,6 +332,14 @@ export default function KYCUploadScreen() {
     type: "front" | "back" | "clearance" | "selfie",
     asset: ImagePicker.ImagePickerAsset,
   ) => {
+    if (type === "front" && !selectedIDType) {
+      Alert.alert(
+        "Select ID Type",
+        "Please choose your ID type before uploading the front ID photo.",
+      );
+      return;
+    }
+
     if (type === "clearance" && !selectedClearanceType) {
       Alert.alert(
         "Select Clearance Type",

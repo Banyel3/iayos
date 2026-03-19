@@ -842,8 +842,19 @@ def validate_kyc_document(request):
     try:
         file = request.FILES.get("file")
         document_type = request.POST.get("document_type", "").upper()
-        id_type = request.POST.get("id_type", "").upper()
+        id_type = (request.POST.get("id_type") or request.POST.get("IDType") or "").upper()
         clearance_type = request.POST.get("clearance_type", "").upper()
+
+        # Normalize common client aliases so validation stays backward compatible.
+        id_type_aliases = {
+            "NATIONAL_ID": "NATIONALID",
+            "NATIONAL-ID": "NATIONALID",
+            "DRIVERS_LICENSE": "DRIVERSLICENSE",
+            "DRIVER_LICENSE": "DRIVERSLICENSE",
+            "DRIVER'S_LICENSE": "DRIVERSLICENSE",
+            "PHILHEALTH_ID": "PHILHEALTH",
+        }
+        id_type = id_type_aliases.get(id_type, id_type)
         
         if not file:
             return {"valid": False, "error": "No file provided", "details": {}}
