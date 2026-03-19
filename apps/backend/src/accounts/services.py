@@ -1034,6 +1034,13 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
             if payload.clearanceType.upper() not in allowed_clearance_types:
                 raise ValueError(f"Invalid clearance type. Allowed: {', '.join(allowed_clearance_types)}")
 
+        clearance_submitted_request = (
+            images.get('CLEARANCE') is not None
+            or (pre_uploaded_urls and 'CLEARANCE' in pre_uploaded_urls)
+        )
+        if clearance_submitted_request and not payload.clearanceType:
+            raise ValueError("clearanceType is required when submitting a clearance document")
+
         # Generate unique filenames per document
         unique_names = {}
         for key, file in images.items():
@@ -1077,6 +1084,8 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
 
         uploaded_files = []
         verification_results = []
+        keyword_validation_results = {}
+        keyword_checked_keys = set()
         any_failed = False
         failure_messages = []
         
@@ -1084,8 +1093,15 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
         file_data_cache = {}
 
         # Import verification service (deferred to avoid circular imports)
-        from accounts.document_verification_service import verify_kyc_document, should_auto_reject, VerificationStatus, verify_face_match
+        from accounts.document_verification_service import (
+            verify_kyc_document,
+            should_auto_reject,
+            VerificationStatus,
+            verify_face_match,
+            DocumentVerificationService,
+        )
         from django.utils import timezone
+        text_verifier = DocumentVerificationService(skip_face_service=True)
 
         # Upload each file
         for key, file in images.items():
@@ -1155,6 +1171,26 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
             # Run AI verification on the document (only if not skipped)
             verification_result = None
             should_reject = False
+
+            # Always enforce OCR keyword checks for FRONTID and CLEARANCE.
+            if key in ['FRONTID', 'CLEARANCE']:
+                keyword_result = text_verifier.validate_text_only_document(
+                    file_data,
+                    document_type_for_verification,
+                    skip_keyword_check=False,
+                )
+                keyword_validation_results[key] = keyword_result
+                keyword_checked_keys.add(key)
+                if not keyword_result.get('valid'):
+                    msg = (
+                        f"{key}: "
+                        f"{keyword_result.get('error') or 'Required document text not found.'}"
+                    )
+                    print(f"❌ OCR keyword validation FAILED for {key}: {msg}")
+                    any_failed = True
+                    failure_messages.append(msg)
+                else:
+                    print(f"✅ OCR keyword validation passed for {key}")
             
             if skip_ai_verification:
                 # Skip AI - per-step validation already validated via /validate-document
@@ -1260,6 +1296,42 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                         print(f"⚠️ Could not download {_face_key} for face matching: empty response")
                 except Exception as _face_dl_err:
                     print(f"⚠️ Could not download {_face_key} for face matching: {_face_dl_err}")
+
+        # Enforce OCR keyword checks for pre-staged uploads not validated in-file loop.
+        staged_keyword_targets = ['FRONTID']
+        if clearance_submitted_request:
+            staged_keyword_targets.append('CLEARANCE')
+
+        for _ocr_key in staged_keyword_targets:
+            if _ocr_key in keyword_checked_keys:
+                continue
+
+            if _ocr_key not in file_data_cache:
+                msg = f"{_ocr_key}: bytes unavailable for OCR keyword validation."
+                print(f"❌ {msg}")
+                any_failed = True
+                failure_messages.append(msg)
+                continue
+
+            _document_type = payload.IDType.upper() if _ocr_key == 'FRONTID' else payload.clearanceType.upper()
+            _keyword_result = text_verifier.validate_text_only_document(
+                file_data_cache[_ocr_key],
+                _document_type,
+                skip_keyword_check=False,
+            )
+            keyword_validation_results[_ocr_key] = _keyword_result
+            keyword_checked_keys.add(_ocr_key)
+
+            if not _keyword_result.get('valid'):
+                msg = (
+                    f"{_ocr_key}: "
+                    f"{_keyword_result.get('error') or 'Required document text not found.'}"
+                )
+                print(f"❌ OCR keyword validation FAILED for staged {_ocr_key}: {msg}")
+                any_failed = True
+                failure_messages.append(msg)
+            else:
+                print(f"✅ OCR keyword validation passed for staged {_ocr_key}")
 
         face_match_result = {
             "status": "skipped",
@@ -1391,7 +1463,8 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
                 "auto_rejected": True,
                 "rejection_reasons": failure_messages,
                 "files": uploaded_files,
-                "face_match": face_match_result
+                "face_match": face_match_result,
+                "keyword_checks": keyword_validation_results,
             }
 
         # Blocking face matching passed and no AI failures -> auto-approve now.
@@ -1592,7 +1665,8 @@ def upload_kyc_document(payload, frontID=None, backID=None, clearance=None, self
             "kyc_id": kyc_record.kycID,
             "status": kyc_record.kyc_status,
             "files": uploaded_files,
-            "face_match": face_match_result  # Include face matching result
+            "face_match": face_match_result,
+            "keyword_checks": keyword_validation_results,
         }
 
     except Accounts.DoesNotExist:
