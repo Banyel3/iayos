@@ -128,11 +128,38 @@ const AgencyKYCPage = () => {
     const incoming = extractedData || {};
     const nextFields: Record<string, string> = {};
 
+    const splitFullName = (fullName: string) => {
+      const cleaned = (fullName || "").split(/\s+/).filter(Boolean).join(" ");
+      if (!cleaned) return { first: "", middle: "", last: "" };
+
+      const parts = cleaned.split(" ");
+      if (parts.length === 1) return { first: parts[0], middle: "", last: "" };
+      if (parts.length === 2) return { first: parts[0], middle: "", last: parts[1] };
+
+      return {
+        first: parts[0],
+        middle: parts.slice(1, -1).join(" "),
+        last: parts[parts.length - 1],
+      };
+    };
+
     AGENCY_KYC_FIELD_CONFIG.forEach((config) => {
       const raw = incoming[config.key];
       nextFields[config.key] =
         raw === null || raw === undefined ? "" : String(raw);
     });
+
+    if (
+      !nextFields.rep_first_name &&
+      !nextFields.rep_middle_name &&
+      !nextFields.rep_last_name
+    ) {
+      const fallbackFullName = String(incoming.rep_full_name || "");
+      const split = splitFullName(fallbackFullName);
+      nextFields.rep_first_name = split.first;
+      nextFields.rep_middle_name = split.middle;
+      nextFields.rep_last_name = split.last;
+    }
 
     if (!nextFields.rep_id_type) {
       nextFields.rep_id_type = repIdType;
@@ -657,6 +684,20 @@ const AgencyKYCPage = () => {
   };
 
   const handleSubmit = async () => {
+    const requiredRepresentativeFields = AGENCY_KYC_FIELD_CONFIG.filter(
+      (field) => field.section === "representative" && field.required,
+    );
+    const missingRepresentativeField = requiredRepresentativeFields.find(
+      (field) => !String(ocrFields[field.key] || "").trim(),
+    );
+
+    if (missingRepresentativeField) {
+      toast.error("Representative information incomplete", {
+        description: `${missingRepresentativeField.label} is required before submission.`,
+      });
+      return;
+    }
+
     // Note: registrationNumber is no longer required here - it's extracted via OCR from the business permit
     if (!businessPermit || !repIDFront || !repIDBack || !repSelfie) {
       toast.warning("Incomplete", {

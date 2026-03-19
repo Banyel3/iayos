@@ -138,10 +138,24 @@ export const AGENCY_KYC_FIELD_CONFIG: AgencyKYCField[] = [
   },
   // Representative Information
   {
-    key: "rep_full_name",
-    label: "Representative Full Name",
+    key: "rep_first_name",
+    label: "First Name",
     required: true,
-    placeholder: "Juan Dela Cruz",
+    placeholder: "Juan",
+    section: "representative",
+  },
+  {
+    key: "rep_middle_name",
+    label: "Middle Name",
+    required: false,
+    placeholder: "Dela",
+    section: "representative",
+  },
+  {
+    key: "rep_last_name",
+    label: "Last Name",
+    required: true,
+    placeholder: "Cruz",
     section: "representative",
   },
   {
@@ -205,6 +219,9 @@ export interface AgencyKYCConfirmPayload {
   sec_number?: string;
   tin?: string;
   rep_full_name?: string;
+  rep_first_name?: string;
+  rep_middle_name?: string;
+  rep_last_name?: string;
   rep_id_type?: string;
   rep_id_number?: string;
   rep_birth_date?: string;
