@@ -104,7 +104,7 @@ export default function KYCUploadScreen() {
       try {
         const response = await fetch(ENDPOINTS.MOBILE_CONFIG);
         if (response.ok) {
-          const config = await response.json() as { testing?: boolean };
+          const config = (await response.json()) as { testing?: boolean };
           setIsTestingMode(config.testing === true);
         }
       } catch (error) {
@@ -332,6 +332,14 @@ export default function KYCUploadScreen() {
     type: "front" | "back" | "clearance" | "selfie",
     asset: ImagePicker.ImagePickerAsset,
   ) => {
+    if (type === "clearance" && !selectedClearanceType) {
+      Alert.alert(
+        "Select Clearance Type",
+        "Please choose NBI or Police clearance before uploading the document.",
+      );
+      return;
+    }
+
     // Compress image for upload while preserving face detail and OCR readability
     // Target: ~1-2MB, 1600px max dimension, 0.85 quality (higher to preserve small face details on IDs)
     let finalUri = asset.uri;
@@ -344,7 +352,10 @@ export default function KYCUploadScreen() {
         format: "jpeg",
       });
       finalUri = compressed.uri;
-      if (__DEV__) console.log(`[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
+      if (__DEV__)
+        console.log(
+          `[KYC] Compressed ${type}: ${(compressed.size / 1024 / 1024).toFixed(2)}MB`,
+        );
     } catch (compressError) {
       console.warn(
         `[KYC] Compression failed for ${type}, using original:`,
@@ -403,6 +414,7 @@ export default function KYCUploadScreen() {
         imageFile,
         config.docType,
         config.docType === "FRONTID" ? selectedIDType : undefined,
+        config.docType === "CLEARANCE" ? selectedClearanceType : undefined,
       );
 
       if (!result.valid) {
@@ -450,6 +462,7 @@ export default function KYCUploadScreen() {
     file: ImageFile,
     documentType: string,
     idType?: IDType,
+    clearanceType?: ClearanceType,
   ): Promise<{ valid: boolean; error?: string }> => {
     try {
       const formData = new FormData();
@@ -462,10 +475,16 @@ export default function KYCUploadScreen() {
       if (documentType === "FRONTID" && idType) {
         formData.append("id_type", idType);
       }
+      if (documentType === "CLEARANCE" && clearanceType) {
+        formData.append("clearance_type", clearanceType);
+      }
 
       // Log the endpoint URL for debugging
       const endpointUrl = ENDPOINTS.KYC_VALIDATE_DOCUMENT;
-      if (__DEV__) console.log(`[KYC Validate] Validating ${documentType} at: ${endpointUrl}`);
+      if (__DEV__)
+        console.log(
+          `[KYC Validate] Validating ${documentType} at: ${endpointUrl}`,
+        );
 
       // Use apiRequest instead of raw fetch for better error handling and auto-auth
       // Use VALIDATION_TIMEOUT (60s) for quality checks (no OCR)
@@ -475,7 +494,8 @@ export default function KYCUploadScreen() {
         timeout: VALIDATION_TIMEOUT, // 60s for quality checks (no OCR)
       });
 
-      if (__DEV__) console.log(`[KYC Validate] Response status: ${response.status}`);
+      if (__DEV__)
+        console.log(`[KYC Validate] Response status: ${response.status}`);
 
       // Check content-type FIRST to handle HTML error pages (502, 503, etc.)
       const contentType = response.headers.get("content-type") || "";
@@ -543,7 +563,19 @@ export default function KYCUploadScreen() {
         const data = (await response.json()) as {
           valid: boolean;
           error?: string;
+          details?: {
+            needs_manual_review?: boolean;
+            warnings?: string[];
+          };
         };
+
+        if (data.valid && data.details?.needs_manual_review) {
+          const warningMsg =
+            data.details.warnings?.find((w) => w && w.length > 0) ||
+            "Your document may require additional manual review.";
+          Alert.alert("Manual Review Notice", warningMsg);
+        }
+
         return { valid: data.valid, error: data.error };
       } catch (parseError) {
         console.error(
@@ -701,7 +733,10 @@ export default function KYCUploadScreen() {
           return false;
         }
         if (!name.includes(" ")) {
-          Alert.alert("Required", "Please enter your full name (first and last name)");
+          Alert.alert(
+            "Required",
+            "Please enter your full name (first and last name)",
+          );
           return false;
         }
 
@@ -718,11 +753,17 @@ export default function KYCUploadScreen() {
           idValid = /^[A-Za-z][0-9\-]{7,}$/.test(idNum);
         } else if (selectedIDType === "PASSPORT") {
           idValid = /^[A-Za-z]{1,2}\d{5,7}$/.test(idNum);
-        } else if (selectedIDType === "UMID" || selectedIDType === "PHILHEALTH") {
+        } else if (
+          selectedIDType === "UMID" ||
+          selectedIDType === "PHILHEALTH"
+        ) {
           idValid = /^\d{12}$/.test(idNumDigitsOnly);
         }
         if (!idValid) {
-          Alert.alert("Invalid ID Number", "ID number format doesn't match the selected ID type");
+          Alert.alert(
+            "Invalid ID Number",
+            "ID number format doesn't match the selected ID type",
+          );
           return false;
         }
 
@@ -847,11 +888,17 @@ export default function KYCUploadScreen() {
       const validateClearanceForm = (): boolean => {
         const holderName = clearanceFormValues.holder_name?.trim() ?? "";
         if (!holderName) {
-          Alert.alert("Required", "Please enter the certificate holder's full name");
+          Alert.alert(
+            "Required",
+            "Please enter the certificate holder's full name",
+          );
           return false;
         }
         if (!holderName.includes(" ")) {
-          Alert.alert("Required", "Please enter the holder's full name (first and last name)");
+          Alert.alert(
+            "Required",
+            "Please enter the holder's full name (first and last name)",
+          );
           return false;
         }
 
@@ -861,7 +908,10 @@ export default function KYCUploadScreen() {
           return false;
         }
         if (!/^[\d\-]{6,}$/.test(clearanceNum)) {
-          Alert.alert("Invalid Clearance Number", "Please enter a valid clearance number (digits only, at least 6 characters)");
+          Alert.alert(
+            "Invalid Clearance Number",
+            "Please enter a valid clearance number (digits only, at least 6 characters)",
+          );
           return false;
         }
 
@@ -888,7 +938,10 @@ export default function KYCUploadScreen() {
           if (issueDate) {
             const iDate = new Date(issueDate);
             if (!isNaN(iDate.getTime()) && vDate <= iDate) {
-              Alert.alert("Invalid Date", "Validity date must be after the issue date");
+              Alert.alert(
+                "Invalid Date",
+                "Validity date must be after the issue date",
+              );
               return false;
             }
           }
@@ -1159,8 +1212,13 @@ export default function KYCUploadScreen() {
             <View
               style={[
                 styles.stepCircle,
-                currentStep >= step && !isSkippedStep && styles.stepCircleActive,
-                isSkippedStep && { backgroundColor: Colors.textSecondary, opacity: 0.4 },
+                currentStep >= step &&
+                  !isSkippedStep &&
+                  styles.stepCircleActive,
+                isSkippedStep && {
+                  backgroundColor: Colors.textSecondary,
+                  opacity: 0.4,
+                },
               ]}
             >
               {isSkippedStep ? (
@@ -1390,15 +1448,16 @@ export default function KYCUploadScreen() {
     <View style={styles.stepContent}>
       <Text style={styles.title}>Clearance Certificate</Text>
       <Text style={styles.description}>
-        Upload Police or NBI clearance for full verification, or skip to continue with basic ID verification.
+        Upload Police or NBI clearance for full verification, or skip to
+        continue with basic ID verification.
       </Text>
 
       {/* Skip for now option */}
       <TouchableOpacity
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
           paddingVertical: 12,
           paddingHorizontal: 20,
           borderRadius: 12,
@@ -1409,8 +1468,19 @@ export default function KYCUploadScreen() {
         }}
         onPress={handleSkipClearance}
       >
-        <Ionicons name="arrow-forward-outline" size={20} color={Colors.warning} />
-        <Text style={{ marginLeft: 8, color: Colors.warning, fontWeight: '600', fontSize: 15 }}>
+        <Ionicons
+          name="arrow-forward-outline"
+          size={20}
+          color={Colors.warning}
+        />
+        <Text
+          style={{
+            marginLeft: 8,
+            color: Colors.warning,
+            fontWeight: "600",
+            fontSize: 15,
+          }}
+        >
           Skip for now — verify with ID only
         </Text>
       </TouchableOpacity>
@@ -1671,8 +1741,14 @@ export default function KYCUploadScreen() {
             )}
           </View>
           {skippedClearance ? (
-            <Text style={[styles.reviewItemText, { color: Colors.textSecondary, fontStyle: 'italic' }]}>
-              Skipped — You'll be verified as Level 1 (ID Verified). You can upgrade later.
+            <Text
+              style={[
+                styles.reviewItemText,
+                { color: Colors.textSecondary, fontStyle: "italic" },
+              ]}
+            >
+              Skipped — You'll be verified as Level 1 (ID Verified). You can
+              upgrade later.
             </Text>
           ) : (
             <>
@@ -1776,7 +1852,12 @@ export default function KYCUploadScreen() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={handleBack}
-            disabled={isValidating || isSubmitting || isExtracting || nameMismatchModalVisible}
+            disabled={
+              isValidating ||
+              isSubmitting ||
+              isExtracting ||
+              nameMismatchModalVisible
+            }
           >
             <Ionicons
               name="arrow-back"
@@ -1803,12 +1884,20 @@ export default function KYCUploadScreen() {
           style={[
             styles.nextButton,
             currentStep === 1 && styles.nextButtonFull,
-            (isValidating || isSubmitting || isExtracting || nameMismatchModalVisible) && {
+            (isValidating ||
+              isSubmitting ||
+              isExtracting ||
+              nameMismatchModalVisible) && {
               opacity: 0.7,
             },
           ]}
           onPress={handleNext}
-          disabled={isSubmitting || isValidating || isExtracting || nameMismatchModalVisible}
+          disabled={
+            isSubmitting ||
+            isValidating ||
+            isExtracting ||
+            nameMismatchModalVisible
+          }
         >
           {isSubmitting || isValidating || isExtracting ? (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -1855,7 +1944,8 @@ export default function KYCUploadScreen() {
             </View>
             <Text style={styles.nameMismatchTitle}>Name Mismatch Detected</Text>
             <Text style={styles.nameMismatchText}>
-              The name extracted from your Government ID does not match your account profile name.
+              The name extracted from your Government ID does not match your
+              account profile name.
             </Text>
 
             <View style={styles.nameMismatchCompareBox}>
@@ -1864,8 +1954,12 @@ export default function KYCUploadScreen() {
                 {nameMismatchInfo?.profileName || "-"}
               </Text>
 
-              <Text style={[styles.nameMismatchLabel, { marginTop: 10 }]}>ID Name (OCR)</Text>
-              <Text style={styles.nameMismatchValue}>{nameMismatchInfo?.ocrName || "-"}</Text>
+              <Text style={[styles.nameMismatchLabel, { marginTop: 10 }]}>
+                ID Name (OCR)
+              </Text>
+              <Text style={styles.nameMismatchValue}>
+                {nameMismatchInfo?.ocrName || "-"}
+              </Text>
 
               {typeof nameMismatchInfo?.score === "number" && (
                 <Text style={styles.nameMismatchScore}>
@@ -1875,7 +1969,8 @@ export default function KYCUploadScreen() {
             </View>
 
             <Text style={styles.nameMismatchHint}>
-              Please edit your account name first, then re-upload your ID to continue KYC.
+              Please edit your account name first, then re-upload your ID to
+              continue KYC.
             </Text>
 
             <View style={styles.nameMismatchButtons}>

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **KYC FrontID Anti-Drawing Review Signal + Clearance OCR Type Enforcement**
+  - Mobile KYC per-step validation now sends `clearance_type` for `CLEARANCE` checks and requires users to pick NBI/Police type before clearance upload validation.
+  - Mobile now shows a non-blocking manual-review notice when backend flags suspicious FrontID characteristics.
+  - Backend KYC now enforces OCR keyword checks for `CLEARANCE` by selected type (`NBI`/`POLICE`) in per-step validation and in clearance-upgrade endpoint.
+  - Backend final KYC upload pipeline now enforces OCR keyword checks for FrontID and clearance even when full AI verification is skipped.
+  - **Impact**: Stronger document-type integrity for clearances and improved protection against non-photographic FrontID submissions while preserving manual-review-first user flow.
+
 - **Backjob Detail Dispute-First Resolution Fallback Hardening**
   - Improved route-param parsing for `jobId` and `disputeId` in mobile backjob detail.
   - Prioritized dispute-id detail lookup, with fallback to job-status and then `my-backjobs` matching.

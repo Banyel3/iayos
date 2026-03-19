@@ -686,11 +686,34 @@ def upload_clearance_upgrade(request):
         import uuid, os
         from iayos_project.utils import upload_kyc_doc
         from accounts.models import kyc, kycFiles, Notification
+        from accounts.document_verification_service import DocumentVerificationService
         
         # Get or create KYC record
         kyc_record = kyc.objects.filter(accountFK=user).first()
         if not kyc_record:
             return JsonResponse({"error": "No KYC record found. Please complete basic KYC first."}, status=400)
+
+        # Run OCR keyword validation for selected clearance type.
+        clearance_file.seek(0)
+        clearance_bytes = clearance_file.read()
+        clearance_file.seek(0)
+
+        verifier = DocumentVerificationService(skip_face_service=True)
+        clearance_validation = verifier.validate_text_only_document(
+            clearance_bytes,
+            clearance_type.upper(),
+            skip_keyword_check=False,
+        )
+
+        if not clearance_validation.get("valid"):
+            return JsonResponse(
+                {
+                    "error": clearance_validation.get("error")
+                    or "Required clearance text not found. Please upload a clearer document.",
+                    "details": clearance_validation.get("details", {}),
+                },
+                status=400,
+            )
         
         # Upload clearance file to Supabase
         ext = os.path.splitext(clearance_file.name)[1]
@@ -793,7 +816,7 @@ def validate_kyc_document(request):
     """
     Quick validation for a single KYC document (per-step validation).
     Checks resolution, blur, and face detection (for ID/selfie).
-    Does NOT run OCR - that happens on final submission.
+    OCR keyword validation is enforced for FRONTID and CLEARANCE.
     
     OPTIMIZATIONS (matching Agency KYC performance):
     - Redis caching: Same file hash returns cached result (10 min TTL)
@@ -807,6 +830,7 @@ def validate_kyc_document(request):
     - file: The document image file
     - document_type: Type of document (FRONTID, BACKID, CLEARANCE, SELFIE)
     - id_type: ID type for FRONTID validation (NATIONALID, DRIVERSLICENSE, PASSPORT, UMID, PHILHEALTH)
+    - clearance_type: Type for CLEARANCE validation (NBI, POLICE)
     
     Returns:
     - valid: boolean - whether document passes validation
@@ -819,6 +843,7 @@ def validate_kyc_document(request):
         file = request.FILES.get("file")
         document_type = request.POST.get("document_type", "").upper()
         id_type = request.POST.get("id_type", "").upper()
+        clearance_type = request.POST.get("clearance_type", "").upper()
         
         if not file:
             return {"valid": False, "error": "No file provided", "details": {}}
@@ -833,6 +858,7 @@ def validate_kyc_document(request):
             return {"valid": False, "error": f"Invalid document_type for individual KYC. Must be one of: {', '.join(valid_types)}", "details": {}}
 
         valid_id_types = ['NATIONALID', 'DRIVERSLICENSE', 'PASSPORT', 'UMID', 'PHILHEALTH']
+        valid_clearance_types = ['NBI', 'POLICE']
         if document_type == 'FRONTID':
             if not id_type:
                 return {"valid": False, "error": "ID type is required for FRONTID validation", "details": {}}
@@ -842,8 +868,24 @@ def validate_kyc_document(request):
                     "error": f"Invalid id_type for FRONTID. Must be one of: {', '.join(valid_id_types)}",
                     "details": {}
                 }
+        if document_type == 'CLEARANCE':
+            if not clearance_type:
+                return {
+                    "valid": False,
+                    "error": "clearance_type is required for CLEARANCE validation",
+                    "details": {}
+                }
+            if clearance_type not in valid_clearance_types:
+                return {
+                    "valid": False,
+                    "error": f"Invalid clearance_type. Must be one of: {', '.join(valid_clearance_types)}",
+                    "details": {}
+                }
         
-        print(f"🔍 [MOBILE VALIDATE] Document type: {document_type}, id_type: {id_type or 'N/A'}, File: {file.name} ({file.size} bytes)")
+        print(
+            f"🔍 [MOBILE VALIDATE] Document type: {document_type}, id_type: {id_type or 'N/A'}, "
+            f"clearance_type: {clearance_type or 'N/A'}, File: {file.name} ({file.size} bytes)"
+        )
         
         # Read file data
         file_data = file.read()
@@ -855,8 +897,13 @@ def validate_kyc_document(request):
         from agency.validation_cache import generate_file_hash, cache_validation_result, get_cached_validation
         
         file_hash = generate_file_hash(file_data)
-        # Use id_type-specific cache keys for FRONTID to avoid cross-ID-type cache reuse.
-        cache_key = f"mobile_{document_type}_{id_type}" if document_type == 'FRONTID' else f"mobile_{document_type}"
+        # Use type-specific cache keys to avoid cross-type cache reuse.
+        if document_type == 'FRONTID':
+            cache_key = f"mobile_{document_type}_{id_type}"
+        elif document_type == 'CLEARANCE':
+            cache_key = f"mobile_{document_type}_{clearance_type}"
+        else:
+            cache_key = f"mobile_{document_type}"
         
         cached_result = get_cached_validation(file_hash, cache_key)
         if cached_result:
@@ -900,6 +947,21 @@ def validate_kyc_document(request):
                     result = {
                         "valid": False,
                         "error": keyword_result.get("error") or "Required document text not found.",
+                        "details": keyword_result.get("details", {}),
+                    }
+                else:
+                    result.setdefault("details", {})["keyword_check"] = keyword_result.get("details", {}).get("keyword_check")
+
+            if result.get("valid") and document_type == "CLEARANCE":
+                keyword_result = verifier.validate_text_only_document(
+                    file_data,
+                    clearance_type,
+                    skip_keyword_check=False,
+                )
+                if not keyword_result.get("valid"):
+                    result = {
+                        "valid": False,
+                        "error": keyword_result.get("error") or "Required clearance text not found.",
                         "details": keyword_result.get("details", {}),
                     }
                 else:

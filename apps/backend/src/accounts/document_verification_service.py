@@ -333,6 +333,22 @@ class DocumentVerificationService:
             glasses_detection = None
             glasses_manual_review = False
             glasses_warning = None
+            frontid_authenticity = None
+            frontid_manual_review = False
+            frontid_warning = None
+
+            if document_type.upper() == "FRONTID":
+                frontid_authenticity = self._assess_frontid_authenticity(image)
+                if frontid_authenticity.get("is_suspected_non_photo"):
+                    frontid_manual_review = True
+                    frontid_warning = (
+                        "Possible non-photographic ID face detected. "
+                        "Your Front ID may require manual review."
+                    )
+                    logger.warning(
+                        "   ⚠️ FrontID authenticity flagged: %s",
+                        frontid_authenticity.get("reason", "unknown"),
+                    )
             
             if require_face:
                 face_result = self._detect_face(file_data)
@@ -413,8 +429,22 @@ class DocumentVerificationService:
                 warnings.append(face_detection_warning)
             if glasses_warning:
                 warnings.append(glasses_warning)
+            if frontid_warning:
+                warnings.append(frontid_warning)
 
-            needs_manual_review = face_detection_skipped or glasses_manual_review
+            needs_manual_review = (
+                face_detection_skipped
+                or glasses_manual_review
+                or frontid_manual_review
+            )
+
+            manual_review_reasons = []
+            if face_detection_skipped:
+                manual_review_reasons.append("face_detection_unavailable")
+            if glasses_manual_review:
+                manual_review_reasons.append("possible_eyewear")
+            if frontid_manual_review:
+                manual_review_reasons.append("possible_non_photographic_frontid")
             
             return {
                 "valid": True,
@@ -425,7 +455,9 @@ class DocumentVerificationService:
                     "warnings": warnings,
                     "face_detection_skipped": face_detection_skipped,
                     "glasses_detection": glasses_detection,
-                    "needs_manual_review": needs_manual_review
+                    "frontid_authenticity": frontid_authenticity,
+                    "needs_manual_review": needs_manual_review,
+                    "manual_review_reasons": manual_review_reasons,
                 }
             }
             
@@ -764,6 +796,105 @@ class DocumentVerificationService:
             logger.warning("scipy not available, using numpy fallback for blur detection")
             # Simple numpy-only variance (less accurate but works)
             return float(np.var(gray_image.astype(np.float32)))
+
+    def _assess_frontid_authenticity(self, image: Image.Image) -> Dict[str, Any]:
+        """
+        Heuristic authenticity check for FRONTID images.
+
+        This is intentionally lightweight and conservative: it never hard-fails.
+        It only raises a manual-review signal when an image strongly resembles a
+        flat illustration or drawing rather than a real photographed ID.
+        """
+        try:
+            rgb = image.convert("RGB")
+            arr = np.array(rgb, dtype=np.float32)
+            gray = np.array(rgb.convert("L"), dtype=np.float32)
+
+            # Gradient-based edge density and flatness.
+            gy, gx = np.gradient(gray)
+            grad_mag = np.sqrt(gx * gx + gy * gy)
+            edge_density = float(np.mean(grad_mag > 35.0))
+            flat_region_ratio = float(np.mean(grad_mag < 7.5))
+
+            # Texture via local pixel differences.
+            diff_x = np.abs(np.diff(gray, axis=1))
+            diff_y = np.abs(np.diff(gray, axis=0))
+            texture_variance = float(
+                (np.mean(diff_x) if diff_x.size else 0.0)
+                + (np.mean(diff_y) if diff_y.size else 0.0)
+            ) / 2.0
+
+            # Color entropy: drawings tend to have flatter palettes.
+            def _entropy(channel: np.ndarray) -> float:
+                hist, _ = np.histogram(channel, bins=32, range=(0, 255), density=True)
+                hist = hist[hist > 0]
+                if hist.size == 0:
+                    return 0.0
+                return float(-np.sum(hist * np.log2(hist)))
+
+            color_entropy = float(
+                (_entropy(arr[:, :, 0]) + _entropy(arr[:, :, 1]) + _entropy(arr[:, :, 2]))
+                / 3.0
+            )
+
+            # Rough skin-tone ratio in YCbCr space (only a weak signal).
+            ycbcr = np.array(rgb.convert("YCbCr"), dtype=np.float32)
+            cb = ycbcr[:, :, 1]
+            cr = ycbcr[:, :, 2]
+            skin_mask = (cb >= 77) & (cb <= 127) & (cr >= 133) & (cr <= 173)
+            skin_tone_ratio = float(np.mean(skin_mask))
+
+            drawing_score = 0.0
+            triggers = []
+
+            if edge_density < 0.065:
+                drawing_score += 0.35
+                triggers.append("low_edge_density")
+            if flat_region_ratio > 0.78:
+                drawing_score += 0.25
+                triggers.append("high_flat_regions")
+            if color_entropy < 3.5:
+                drawing_score += 0.25
+                triggers.append("low_color_entropy")
+            if texture_variance < 7.5:
+                drawing_score += 0.20
+                triggers.append("low_texture_variance")
+            if skin_tone_ratio < 0.06:
+                drawing_score += 0.10
+                triggers.append("low_skin_tone_ratio")
+
+            confidence = min(1.0, max(0.0, drawing_score))
+            suspected = confidence >= 0.65
+
+            reason = (
+                "Possible illustrated/drawn face traits detected"
+                if suspected
+                else "No strong non-photographic signals detected"
+            )
+
+            return {
+                "is_suspected_non_photo": suspected,
+                "confidence": round(confidence, 3),
+                "reason": reason,
+                "signals": {
+                    "edge_density": round(edge_density, 4),
+                    "flat_region_ratio": round(flat_region_ratio, 4),
+                    "texture_variance": round(texture_variance, 3),
+                    "color_entropy": round(color_entropy, 3),
+                    "skin_tone_ratio": round(skin_tone_ratio, 4),
+                },
+                "triggered_rules": triggers,
+            }
+        except Exception as err:
+            logger.warning("FrontID authenticity assessment failed: %s", err)
+            return {
+                "is_suspected_non_photo": False,
+                "confidence": 0.0,
+                "reason": "Authenticity assessment unavailable",
+                "signals": {},
+                "triggered_rules": [],
+                "error": str(err),
+            }
 
     def _detect_face(self, image_data: bytes) -> Dict[str, Any]:
         """
