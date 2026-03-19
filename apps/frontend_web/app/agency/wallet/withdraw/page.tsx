@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/generic_button";
+import { KycActionGate } from "@/app/agency/components/KycActionGate";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -447,6 +448,7 @@ export default function AgencyWithdrawPage() {
                   </div>
                 </div>
 
+                <KycActionGate>
                 <Button
                   onClick={handleWithdraw}
                   disabled={
@@ -467,6 +469,7 @@ export default function AgencyWithdrawPage() {
                     </div>
                   )}
                 </Button>
+                </KycActionGate>
 
                 <p className="text-[10px] text-center text-gray-400 font-medium leading-relaxed">
                   By confirming, you agree to our financial policy. Your funds will be sent to the selected account after verification.

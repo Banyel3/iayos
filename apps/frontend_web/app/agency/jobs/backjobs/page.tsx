@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { KycActionGate } from "@/app/agency/components/KycActionGate";
 import {
   Banknote,
   AlertCircle,
@@ -388,6 +389,7 @@ export default function AgencyBackjobsPage() {
                   <div className="flex items-center gap-2">
                     {backjob.status === "IN_NEGOTIATION" &&
                       backjob.scheduled_date && (
+                        <KycActionGate>
                         <Button
                           size="sm"
                           className="h-7 px-3 bg-[#00BAF1] hover:bg-[#00BAF1]/90"
@@ -406,6 +408,7 @@ export default function AgencyBackjobsPage() {
                           )}
                           Confirm Schedule
                         </Button>
+                        </KycActionGate>
                       )}
                     <ChevronRight className="w-5 h-5 text-gray-400" />
                   </div>

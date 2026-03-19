@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/generic_button";
+import { KycActionGate } from "@/app/agency/components/KycActionGate";
 import { toast } from "sonner";
 import {
   Wallet,
@@ -194,6 +195,7 @@ export default function AgencyWalletPage() {
               </div>
             </div>
             <div className="flex flex-col gap-3 w-full md:w-auto">
+              <KycActionGate>
               <Button 
                 onClick={() => router.push("/agency/wallet/withdraw")}
                 className="bg-white text-[#00BAF1] hover:bg-white/90 font-bold h-12 px-8 rounded-xl shadow-lg border-0"
@@ -201,6 +203,7 @@ export default function AgencyWalletPage() {
               >
                 Withdraw Now
               </Button>
+              </KycActionGate>
               <Button 
                 variant="outline"
                 onClick={() => router.push("/agency/profile?tab=payment-methods")}
