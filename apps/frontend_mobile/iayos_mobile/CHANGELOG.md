@@ -7,52 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Escrow Top-Up Prompts for Active Jobs (General)**
+  - Clients now see a warning banner on active job details when the current escrow balance is insufficient to cover remaining work obligations.
+  - Shows the exact deficit amount and a "Deposit Funds" button linking to the wallet deposit screen.
+  - Works for both DAILY jobs (tracks per-worker remaining days vs escrow balance) and PROJECT jobs (checks wallet balance vs remaining 50% payment).
+  - Accounts for early-completed workers (Panelist #2) when computing remaining escrow obligations on team jobs.
+  - Backend: New `_compute_escrow_status(job)` helper in `mobile_services.py` — computes escrow health for DAILY and PROJECT payment models.
+  - Backend: New `GET /{job_id}/escrow-status` endpoint in `jobs/api.py` — lightweight polling endpoint for escrow status.
+  - Backend: Escrow status automatically included in job detail response for clients on active jobs.
+  - Mobile: New `JOB_ESCROW_STATUS` API config constant, `EscrowStatus` interface, and deficit banner on active job detail screen.
+
+- **Per-Worker Early Completion with Full Pay on DAILY Team Jobs (Panelist #2)**
+  - Clients can mark individual workers as "done early" on active DAILY team jobs.
+  - The worker receives their full contracted amount (daily_rate × duration_days); any remaining balance (total contracted − already earned) is paid out as a lump-sum to the worker's pending earnings.
+  - New "Complete Early (Full Pay)" button per worker row on active team DAILY jobs (client view only, for ACTIVE assignments).
+  - Early-completed workers show an "Early Done" badge and payout details on the assignment row.
+  - Backend: New `early_completed`, `early_completed_at`, `early_completion_payout` fields on `JobWorkerAssignment` model.
+  - Backend: New `POST /{job_id}/team/early-complete/{assignment_id}` API endpoint.
+  - Mobile: New `useEarlyCompleteWorker` hook and `TEAM_EARLY_COMPLETE` API endpoint constant.
+
+- **Daily Rate Negotiation for Workers (Panelist #1)**
+  - Workers can now propose a custom daily rate and number of days when applying to DAILY payment model jobs (both regular and team jobs).
+  - Apply modals show daily rate + days inputs (with computed total) when job is DAILY and worker selects "Negotiate", instead of the flat budget input.
+  - Accept label shows daily rate breakdown (rate/day x days) for DAILY jobs.
+  - Daily rate and days fields pre-populate from job's agreed rate and duration when opening apply modal.
+  - Client team application view shows proposed daily rate breakdown for DAILY job applicants who negotiated.
+  - My Applications cards show daily rate info for DAILY jobs where worker negotiated.
+  - Backend: New `proposed_daily_rate` and `proposed_days` fields on JobApplication model.
+  - Backend: Accept endpoint supports `daily_rate_override` for clients to counter-propose a rate.
+  - Backend: Rate priority chain on accept: client override > worker proposal > job-level agreed rate.
+
 ### Fixed
-
-- **KYC Step 3 Split Name Fields (FN/MN/LN)**
-  - Updated KYC `Verify ID Information` form to collect and display separate `First Name`, `Middle Name`, and `Last Name` fields instead of a single `Full Name` input.
-  - Added fallback mapping to split legacy OCR `full_name` values into FN/MN/LN during form initialization.
-  - Kept `full_name` synchronized from split fields for backward-compatible submission payloads and backend consumers.
-  - **Impact**: Step 3 now matches required name structure while preserving compatibility with existing OCR/backend flows.
-
-- **KYC ID Guide Orientation Alignment (Horizontal Frame)**
-  - Reverted KYC camera front/back ID guide to a horizontal card rectangle while the phone remains in portrait orientation.
-  - Aligned backend quality behavior so landscape-oriented document crops are warning-only, not hard-rejected for FRONTID/BACKID/CLEARANCE checks.
-  - **Impact**: Camera guide now matches accepted capture behavior for driver's license and similar ID cards, reducing misleading validation failures.
-
-- **KYC FrontID Validation ID-Type Stale State Fix**
-  - Fixed camera return-event listeners in mobile KYC upload to use current `selectedIDType`/`selectedClearanceType` state instead of stale initial values.
-  - Added a guard that blocks front ID upload validation when no ID type is currently selected, showing a clear prompt before API validation.
-  - Added backend compatibility for `id_type` aliases (`DRIVERS_LICENSE`, `NATIONAL_ID`, etc.) and fallback `IDType` field name in `/api/accounts/kyc/validate-document`.
-  - **Impact**: Prevents false `ID type is required for FRONTID validation` errors after users already selected an ID type.
-
-- **KYC Split Name Extraction + Portrait Camera Guide Enforcement**
-  - `/api/accounts/kyc/extract-id` now returns split name fields (`first_name`, `middle_name`, `last_name`) alongside `full_name` for edit/confirmation flows.
-  - Mobile KYC extraction types now accept split-name OCR fields without breaking existing `full_name` handling.
-  - KYC camera now locks to portrait orientation and blocks capture when orientation is not portrait.
-  - Fixed KYC ID guide rectangle mismatch: front/back ID frame is now portrait-oriented instead of landscape-shaped on portrait devices.
-  - Added orientation normalization during image compression (`rotate: 0`) to keep uploaded KYC images upright and consistent with preview.
-  - Backend quality checks now enforce portrait orientation for KYC capture documents (`FRONTID`, `BACKID`, `CLEARANCE`, `NBI`, `POLICE`) and return user-facing portrait retake guidance.
-  - **Impact**: More accurate name field extraction support and consistent portrait capture/validation behavior end-to-end for KYC uploads.
-
-- **KYC FrontID Anti-Drawing Review Signal + Clearance OCR Type Enforcement**
-  - Mobile KYC per-step validation now sends `clearance_type` for `CLEARANCE` checks and requires users to pick NBI/Police type before clearance upload validation.
-  - Mobile now shows a non-blocking manual-review notice when backend flags suspicious FrontID characteristics.
-  - Backend KYC now enforces OCR keyword checks for `CLEARANCE` by selected type (`NBI`/`POLICE`) in per-step validation and in clearance-upgrade endpoint.
-  - Backend final KYC upload pipeline now enforces OCR keyword checks for FrontID and clearance even when full AI verification is skipped.
-  - **Impact**: Stronger document-type integrity for clearances and improved protection against non-photographic FrontID submissions while preserving manual-review-first user flow.
-
-- **Backjob Detail Dispute-First Resolution Fallback Hardening**
-  - Improved route-param parsing for `jobId` and `disputeId` in mobile backjob detail.
-  - Prioritized dispute-id detail lookup, with fallback to job-status and then `my-backjobs` matching.
-  - Normalized evidence image URLs across all fallback paths for consistent rendering.
-  - **Impact**: Backjob detail screen is more resilient for legacy/degraded payload paths and less likely to show false not-found states.
-
-- **KYC FRONTID ID-Type OCR Validation Enforcement**
-  - Mobile KYC validation now sends selected `id_type` when validating `FRONTID`.
-  - Backend `/api/accounts/kyc/validate-document` now requires `id_type` for `FRONTID` and validates OCR keyword groups against that exact ID type (e.g., `DRIVERSLICENSE`).
-  - Front-ID validation cache keys now include `id_type` to prevent cross-type cache reuse.
-  - **Impact**: A front ID image must now contain expected text for the selected ID type, preventing mismatched document-type submissions from passing validation.
 
 - **Team DAILY Backjob Start Flow Parity (Single-Job Pattern)**
   - Updated team DAILY backjob client-start gate so `Confirm Started` unlocks after workers finish schedule confirmations (same progression pattern as single-job backjobs).

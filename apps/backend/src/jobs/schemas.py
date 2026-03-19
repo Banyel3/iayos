@@ -18,6 +18,7 @@ class CreateJobPostingSchema(Schema):
 
 class MobileSkillSlotSchema(Schema):
     """Schema for skill slots sent from mobile app"""
+
     specialization_id: int
     workers_needed: int = 1
     skill_level_required: Optional[str] = "ENTRY"  # ENTRY, INTERMEDIATE, EXPERT
@@ -26,6 +27,7 @@ class MobileSkillSlotSchema(Schema):
 
 class CreateJobPostingMobileSchema(Schema):
     """Mobile-specific job posting schema with optional worker_id for direct hiring"""
+
     title: str
     description: str
     category_id: int
@@ -41,18 +43,24 @@ class CreateJobPostingMobileSchema(Schema):
     downpayment_method: Optional[str] = None  # Frontend alias for payment_method
     worker_id: Optional[int] = None  # If provided, job is for specific worker
     agency_id: Optional[int] = None  # If provided, job is for specific agency
-    skill_slots: Optional[list[MobileSkillSlotSchema]] = None  # For team hiring with multiple workers
-    
+    skill_slots: Optional[list[MobileSkillSlotSchema]] = (
+        None  # For team hiring with multiple workers
+    )
+
     # Daily payment model fields
     payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
     daily_rate: Optional[float] = None  # Required for DAILY model
     duration_days: Optional[int] = None  # Required for DAILY model
-    
+
     # ML enhancement fields (from Mobile Phase 1)
     skill_level_required: Optional[str] = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
-    job_scope: Optional[str] = "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    job_scope: Optional[str] = (
+        "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    )
     work_environment: Optional[str] = "INDOOR"  # INDOOR, OUTDOOR, BOTH
-    selected_materials: Optional[list] = None  # [{worker_material_id, name, source, price, quantity, unit}]
+    selected_materials: Optional[list] = (
+        None  # [{worker_material_id, name, source, price, quantity, unit}]
+    )
 
 
 class JobPostingResponseSchema(Schema):
@@ -72,7 +80,12 @@ class JobApplicationSchema(Schema):
     proposed_budget: float
     estimated_duration: Optional[str] = None
     budget_option: str  # ACCEPT or NEGOTIATE
-    selected_materials: Optional[list] = None  # [{name, source, price, quantity, worker_material_id}]
+    selected_materials: Optional[list] = (
+        None  # [{name, source, price, quantity, worker_material_id}]
+    )
+    # Daily rate negotiation fields (for DAILY payment_model jobs)
+    proposed_daily_rate: Optional[float] = None
+    proposed_days: Optional[int] = None
 
 
 class SubmitReviewSchema(Schema):
@@ -83,8 +96,12 @@ class SubmitReviewSchema(Schema):
     rating_professionalism: int  # Professionalism
     message: Optional[str] = None  # Optional review message
     review_target: Optional[str] = None  # For agency jobs: "EMPLOYEE" or "AGENCY"
-    employee_id: Optional[int] = None  # For multi-employee jobs: specific employee to review
-    worker_id: Optional[int] = None  # For team jobs: specific worker to review (client reviews workers)
+    employee_id: Optional[int] = (
+        None  # For multi-employee jobs: specific employee to review
+    )
+    worker_id: Optional[int] = (
+        None  # For team jobs: specific worker to review (client reviews workers)
+    )
 
 
 class ApproveJobCompletionSchema(Schema):
@@ -100,17 +117,25 @@ class CancelJobSchema(Schema):
 # TEAM MODE SCHEMAS - Multi-Skill Multi-Worker Support
 # ===========================================================================
 
+
 class SkillSlotSchema(Schema):
     """Schema for defining a skill requirement in a team job"""
+
     specialization_id: int  # FK to Specializations
     workers_needed: int  # Number of workers (1-10)
-    budget_allocated: Optional[float] = None  # Budget for this slot (auto-calculated if not provided)
+    budget_allocated: Optional[float] = (
+        None  # Budget for this slot (auto-calculated if not provided)
+    )
     skill_level_required: Optional[str] = "ENTRY"  # ENTRY, INTERMEDIATE, EXPERT
     notes: Optional[str] = None  # Additional requirements
+    agency_id: Optional[int] = (
+        None  # Agency to invite for this slot (null = open for freelance workers)
+    )
 
 
 class CreateTeamJobSchema(Schema):
     """Schema for creating a team job with multiple skill requirements"""
+
     title: str
     description: str
     location: str
@@ -119,8 +144,12 @@ class CreateTeamJobSchema(Schema):
     preferred_start_date: Optional[str] = None
     scheduled_end_date: Optional[str] = None
     materials_needed: Optional[list[str]] = []
-    budget_allocation_type: Optional[str] = "EQUAL_PER_WORKER"  # EQUAL_PER_SKILL, EQUAL_PER_WORKER, MANUAL_ALLOCATION, SKILL_WEIGHTED
-    team_start_threshold: Optional[float] = 100.0  # Percentage of team needed to start (0-100)
+    budget_allocation_type: Optional[str] = (
+        "EQUAL_PER_WORKER"  # EQUAL_PER_SKILL, EQUAL_PER_WORKER, MANUAL_ALLOCATION, SKILL_WEIGHTED
+    )
+    team_start_threshold: Optional[float] = (
+        100.0  # Percentage of team needed to start (0-100)
+    )
     skill_slots: list[SkillSlotSchema]  # At least one skill slot required
     payment_method: Optional[str] = "WALLET"  # WALLET only
     payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
@@ -128,13 +157,16 @@ class CreateTeamJobSchema(Schema):
     duration_days: Optional[int] = None  # Required for DAILY model
 
     # ML enhancement fields
-    job_scope: Optional[str] = "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    job_scope: Optional[str] = (
+        "MODERATE_PROJECT"  # MINOR_REPAIR, MODERATE_PROJECT, MAJOR_RENOVATION
+    )
     skill_level_required: Optional[str] = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
     work_environment: Optional[str] = "INDOOR"  # INDOOR, OUTDOOR, BOTH
 
 
 class TeamJobResponseSchema(Schema):
     """Response schema for team job creation"""
+
     success: bool
     job_id: int
     skill_slots_created: int
@@ -146,6 +178,7 @@ class TeamJobResponseSchema(Schema):
 
 class SkillSlotDetailSchema(Schema):
     """Detailed skill slot info with workers and status"""
+
     skill_slot_id: int
     specialization_id: int
     specialization_name: str
@@ -157,10 +190,15 @@ class SkillSlotDetailSchema(Schema):
     skill_level_required: str
     status: str  # OPEN, PARTIALLY_FILLED, FILLED, CLOSED
     notes: Optional[str] = None
+    # Agency invite fields
+    invited_agency_id: Optional[int] = None
+    invited_agency_name: Optional[str] = None
+    agency_invite_status: Optional[str] = None  # PENDING, ACCEPTED, REJECTED
 
 
 class WorkerAssignmentSchema(Schema):
     """Schema for a worker's assignment to a skill slot"""
+
     assignment_id: int
     worker_id: int
     worker_name: str
@@ -177,6 +215,7 @@ class WorkerAssignmentSchema(Schema):
 
 class TeamJobDetailSchema(Schema):
     """Full team job detail with all skill slots and assignments"""
+
     job_id: int
     title: str
     description: str
@@ -199,22 +238,36 @@ class TeamJobDetailSchema(Schema):
 
 class TeamJobApplicationSchema(Schema):
     """Schema for applying to a specific skill slot in a team job"""
+
     proposal_message: str
     proposed_budget: float
     estimated_duration: Optional[str] = None
     budget_option: str  # ACCEPT or NEGOTIATE
     skill_slot_id: int  # Which skill slot to apply for
+    # Daily rate negotiation fields (for DAILY payment_model jobs)
+    proposed_daily_rate: Optional[float] = None
+    proposed_days: Optional[int] = None
 
 
 class AssignWorkerToSlotSchema(Schema):
     """Schema for assigning an accepted worker to a skill slot"""
+
     application_id: int  # The accepted application
     skill_slot_id: int  # The slot to assign to
     slot_position: Optional[int] = None  # Position (auto-assigned if not provided)
 
 
+class AcceptTeamApplicationSchema(Schema):
+    """Schema for client accepting a team application with optional rate override"""
+
+    daily_rate_override: Optional[float] = (
+        None  # Client can counter-propose a daily rate
+    )
+
+
 class UpdateSkillSlotSchema(Schema):
     """Schema for updating a skill slot (before job starts)"""
+
     workers_needed: Optional[int] = None
     budget_allocated: Optional[float] = None
     skill_level_required: Optional[str] = None
@@ -224,11 +277,13 @@ class UpdateSkillSlotSchema(Schema):
 
 class TeamWorkerCompletionSchema(Schema):
     """Schema for a worker marking their work complete in a team job"""
+
     completion_notes: Optional[str] = None
 
 
 class TeamJobStartSchema(Schema):
     """Schema for starting a team job (when threshold reached or manually)"""
+
     force_start: bool = False  # True to start even if threshold not met
 
 
@@ -236,36 +291,45 @@ class TeamJobStartSchema(Schema):
 # DAILY PAYMENT SCHEMAS - Daily Rate Job Support
 # ===========================================================================
 
+
 class LogAttendanceSchema(Schema):
     """Schema for logging daily attendance"""
+
     work_date: str  # YYYY-MM-DD format
     status: str  # PENDING, PRESENT, HALF_DAY, ABSENT
     time_in: Optional[str] = None  # ISO datetime
     time_out: Optional[str] = None  # ISO datetime
     notes: Optional[str] = None
-    assignment_id: Optional[int] = None  # For team jobs
+    assignment_id: Optional[int] = None  # For team jobs (single assignment)
     employee_id: Optional[int] = None  # For agency jobs
+    worker_id: Optional[int] = (
+        None  # For multi-slot team jobs: fan-out to all worker's assignments
+    )
 
 
 class ConfirmAttendanceSchema(Schema):
     """Schema for confirming attendance (worker or client)"""
+
     adjusted_status: Optional[str] = None  # Optional status adjustment
 
 
 class RequestExtensionSchema(Schema):
     """Schema for requesting a job extension"""
+
     additional_days: int
     reason: str
 
 
 class ApproveExtensionSchema(Schema):
     """Schema for approving/rejecting extension"""
+
     approve: bool
     rejection_reason: Optional[str] = None
 
 
 class RequestRateChangeSchema(Schema):
     """Schema for requesting a rate change"""
+
     new_rate: float  # new daily rate
     reason: str
     effective_date: str  # YYYY-MM-DD format
@@ -273,26 +337,49 @@ class RequestRateChangeSchema(Schema):
 
 class ApproveRateChangeSchema(Schema):
     """Schema for approving/rejecting rate change"""
+
     approve: bool
     rejection_reason: Optional[str] = None
 
 
 class CancelDailyJobSchema(Schema):
     """Schema for canceling a daily job"""
+
     reason: str
 
 
 class RequestSkipDaySchema(Schema):
     """Schema for requesting a daily skip day"""
+
     request_date: str  # YYYY-MM-DD format
 
 
 class ReviewSkipDaySchema(Schema):
     """Schema for client review of a skip-day request"""
+
     action: str  # approve | reject
     reason: Optional[str] = None
 
 
 class QASkipNextDaySchema(Schema):
     """Schema for TESTING-only QA skip-to-next-day action"""
+
     reason: Optional[str] = None
+
+
+# ===========================================================================
+# AGENCY TEAM JOB SCHEMAS - Per-Slot Agency Invite Support
+# ===========================================================================
+
+
+class AgencySlotEmployeeAssignmentSchema(Schema):
+    """Schema for assigning an agency employee to a team job skill slot"""
+
+    employee_id: int
+
+
+class AgencySlotAssignEmployeesSchema(Schema):
+    """Schema for assigning multiple agency employees to a team job skill slot"""
+
+    employee_ids: list[int]  # List of employee IDs to assign to the slot
+    primary_contact_employee_id: Optional[int] = None  # Team lead (optional)

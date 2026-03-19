@@ -395,12 +395,20 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`,
   TEAM_WORKER_COMPLETE: (jobId: number, assignmentId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/worker-complete/${assignmentId}`,
+  TEAM_EARLY_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/early-complete/${assignmentId}`,
   TEAM_ASSIGN_WORKER: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/assign`,
   TEAM_REMOVE_WORKER: (jobId: number, workerId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/workers/${workerId}`,
   TEAM_START_AVAILABLE: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/start-available`,
+
+  // Team Job — Agency Employee Operations (per-slot mixed teams)
+  TEAM_CONFIRM_EMPLOYEE_ARRIVAL: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/confirm-arrival`,
+  TEAM_MARK_EMPLOYEE_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/mark-complete`,
 
   // Agency PROJECT Job Workflow (mirrors DAILY job workflow)
   // Flow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays
@@ -689,6 +697,9 @@ export const ENDPOINTS = {
   DAILY_SUMMARY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/summary`,
   DAILY_ESCROW_ESTIMATE: `${API_URL}/api/jobs/daily/escrow-estimate`,
+  // Escrow status (top-up prompt)
+  JOB_ESCROW_STATUS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/escrow-status`,
   // Extensions
   DAILY_EXTENSIONS: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/extensions`,

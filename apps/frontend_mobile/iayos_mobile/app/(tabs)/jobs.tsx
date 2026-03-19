@@ -92,10 +92,16 @@ interface MyApplication {
   proposed_budget?: number;
   estimated_duration?: string;
   budget_option: "ACCEPT" | "NEGOTIATE";
+  proposed_daily_rate?: number | null;
+  proposed_days?: number | null;
+  payment_model?: "PROJECT" | "DAILY" | string;
   created_at: string;
   assigned_agency_id?: number | null;
   client_name: string;
   client_img?: string;
+  is_team_job?: boolean;
+  applied_skill_slot_id?: number | null;
+  applied_skill_slot_name?: string | null;
 }
 type TabType =
   | "open"
@@ -1251,13 +1257,29 @@ export default function JobsScreen() {
                         {app.application_status}
                       </Text>
                     </View>
+                    {app.is_team_job && (
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: Colors.infoLight },
+                        ]}
+                      >
+                        <Text style={[styles.statusText, { color: Colors.info }]}>
+                          TEAM JOB
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   {/* Job Title and Details */}
                   <Text style={styles.jobTitle} numberOfLines={2}>
                     {app.job_title}
                   </Text>
-                  <Text style={styles.jobCategory}>Applied Job</Text>
+                  <Text style={styles.jobCategory}>
+                    {app.is_team_job && app.applied_skill_slot_name
+                      ? `Applied as: ${app.applied_skill_slot_name}`
+                      : "Applied Job"}
+                  </Text>
                   <Text style={styles.jobDescription} numberOfLines={2}>
                     {app.job_description}
                   </Text>
@@ -1299,11 +1321,12 @@ export default function JobsScreen() {
                       </Text>
                     </View>
                     <Text style={styles.budgetText}>
-                      ₱
-                      {(app.budget_option === "NEGOTIATE" && app.proposed_budget
-                        ? app.proposed_budget
-                        : app.job_budget
-                      ).toLocaleString()}
+                      {app.payment_model === "DAILY" && app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
+                        ? `₱${app.proposed_daily_rate.toLocaleString()}/day × ${app.proposed_days || "?"} days`
+                        : `₱${(app.budget_option === "NEGOTIATE" && app.proposed_budget
+                            ? app.proposed_budget
+                            : app.job_budget
+                          ).toLocaleString()}`}
                     </Text>
                   </View>
                 </TouchableOpacity>

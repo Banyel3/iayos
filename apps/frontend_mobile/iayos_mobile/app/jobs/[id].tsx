@@ -47,8 +47,11 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
+  useConfirmTeamEmployeeArrival,
+  useMarkTeamEmployeeComplete,
   type SkillSlot,
   type WorkerAssignment,
+  type AgencyEmployeeAssignment,
 } from "@/lib/hooks/useTeamJob";
 import { useMySkills } from "@/lib/hooks/useSkills";
 import { useSubmitReport } from "@/lib/hooks/useReports";
@@ -126,6 +129,12 @@ interface JobDetail {
   is_team_job?: boolean;
   skill_slots?: SkillSlot[];
   worker_assignments?: WorkerAssignment[];
+  agency_employee_assignments?: AgencyEmployeeAssignment[];
+  is_mixed_team?: boolean;
+  has_agency_invites?: boolean;
+  total_freelancers?: number;
+  total_agency_employees?: number;
+  multi_slot_workers?: number[];
   budget_allocation_type?:
     | "EQUAL_PER_SKILL"
     | "EQUAL_PER_WORKER"
@@ -137,9 +146,7 @@ interface JobDetail {
   // Missing fields
   preferred_start_date?: string;
   scheduled_end_date?: string;
-  payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
-  duration_days?: number;
   workerMarkedOnTheWay?: boolean;
   workerMarkedOnTheWayAt?: string | null;
   workerMarkedJobStarted?: boolean;
@@ -279,6 +286,9 @@ export default function JobDetailScreen() {
   const [budgetOption, setBudgetOption] = useState<"ACCEPT" | "NEGOTIATE">(
     "ACCEPT",
   );
+  // Daily rate negotiation state (for DAILY payment_model jobs)
+  const [proposedDailyRate, setProposedDailyRate] = useState("");
+  const [proposedDays, setProposedDays] = useState("");
 
   // Team Job state
   const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
@@ -452,6 +462,13 @@ export default function JobDetailScreen() {
         is_team_job: jobData.is_team_job || false,
         skill_slots: jobData.skill_slots || [],
         worker_assignments: jobData.worker_assignments || [],
+        agency_employee_assignments:
+          jobData.agency_employee_assignments || [],
+        is_mixed_team: jobData.is_mixed_team || false,
+        has_agency_invites: jobData.has_agency_invites || false,
+        total_freelancers: jobData.total_freelancers || 0,
+        total_agency_employees: jobData.total_agency_employees || 0,
+        multi_slot_workers: jobData.multi_slot_workers || [],
         budget_allocation_type: jobData.budget_allocation_type,
         team_fill_percentage: jobData.team_fill_percentage,
         total_workers_needed: jobData.total_workers_needed,
@@ -559,6 +576,8 @@ export default function JobDetailScreen() {
       proposed_budget: number;
       estimated_duration: string | null;
       budget_option: "ACCEPT" | "NEGOTIATE";
+      proposed_daily_rate?: number | null;
+      proposed_days?: number | null;
     }) => {
       const response = await apiRequest(ENDPOINTS.APPLY_JOB(parseInt(id)), {
         method: "POST",
@@ -585,6 +604,8 @@ export default function JobDetailScreen() {
       setProposedBudget("");
       setEstimatedDuration("");
       setBudgetOption("ACCEPT");
+      setProposedDailyRate("");
+      setProposedDays("");
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
@@ -1003,6 +1024,14 @@ export default function JobDetailScreen() {
     setBudgetOption("ACCEPT");
     setProposalMessage("");
     setEstimatedDuration("");
+    // Pre-populate daily rate fields for DAILY payment model jobs
+    if (job?.payment_model === "DAILY") {
+      setProposedDailyRate(job?.daily_rate_agreed?.toString() || "");
+      setProposedDays(job?.duration_days?.toString() || "");
+    } else {
+      setProposedDailyRate("");
+      setProposedDays("");
+    }
 
     // Show payment education modal first (only the very first time)
     if (showWorkerPaymentInfo) {
@@ -1026,7 +1055,20 @@ export default function JobDetailScreen() {
       return;
     }
 
-    if (
+    const isDailyJob = job?.payment_model === "DAILY";
+
+    if (isDailyJob && budgetOption === "NEGOTIATE") {
+      const dailyRate = parseFloat(proposedDailyRate);
+      const days = parseInt(proposedDays);
+      if (!dailyRate || dailyRate <= 0) {
+        Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (!days || days <= 0) {
+        Alert.alert("Error", "Please enter a valid number of days");
+        return;
+      }
+    } else if (
       budgetOption === "NEGOTIATE" &&
       (!proposedBudget || parseFloat(proposedBudget) <= 0)
     ) {
@@ -1034,16 +1076,28 @@ export default function JobDetailScreen() {
       return;
     }
 
-    const budgetValue =
-      budgetOption === "ACCEPT"
-        ? parseFloat(job?.budget.replace(/[^0-9.]/g, "") || "0")
-        : parseFloat(proposedBudget);
+    let budgetValue: number;
+    let dailyRateValue: number | null = null;
+    let daysValue: number | null = null;
+
+    if (isDailyJob && budgetOption === "NEGOTIATE") {
+      dailyRateValue = parseFloat(proposedDailyRate);
+      daysValue = parseInt(proposedDays);
+      budgetValue = dailyRateValue * daysValue;
+    } else {
+      budgetValue =
+        budgetOption === "ACCEPT"
+          ? parseFloat(job?.budget.replace(/[^0-9.]/g, "") || "0")
+          : parseFloat(proposedBudget);
+    }
 
     submitApplication.mutate({
       proposal_message: proposalMessage,
       proposed_budget: budgetValue,
       estimated_duration: estimatedDuration || null,
       budget_option: budgetOption,
+      proposed_daily_rate: dailyRateValue,
+      proposed_days: daysValue,
     });
   };
 
@@ -1114,7 +1168,10 @@ export default function JobDetailScreen() {
       : job?.team_fill_percentage || 0;
   const isTeamFilled = computedFillPercentage >= 100;
   const isAgencyInviteTeamJob =
-    isTeamJob && job?.jobType === "INVITE" && !!job?.assignedAgency;
+    isTeamJob &&
+    (job?.has_agency_invites ||
+      (job?.jobType === "INVITE" && !!job?.assignedAgency));
+  const isMixedTeam = isTeamJob && (job?.is_mixed_team || false);
 
   // Team job apply mutation
   const applyToSkillSlot = useApplyToSkillSlot();
@@ -1139,10 +1196,18 @@ export default function JobDetailScreen() {
   const acceptTeamApplication = useAcceptTeamApplication();
   const rejectTeamApplication = useRejectTeamApplication();
 
-  // Check if current worker is assigned to this team job
-  const currentWorkerAssignment = job?.worker_assignments?.find(
+  // Agency employee team job actions
+  const confirmEmployeeArrival = useConfirmTeamEmployeeArrival();
+  const markEmployeeComplete = useMarkTeamEmployeeComplete();
+
+  // Check if current worker is assigned to this team job (may have multiple assignments for multi-slot)
+  const currentWorkerAssignments = (job?.worker_assignments || []).filter(
     (assignment) => assignment.worker_id === user?.profile_data?.id,
   );
+  // Keep a single reference for backward-compat checks (first assignment)
+  const currentWorkerAssignment = currentWorkerAssignments.length > 0 ? currentWorkerAssignments[0] : undefined;
+  // Set of slot IDs the current worker is assigned to
+  const assignedSlotIds = new Set(currentWorkerAssignments.map((a) => a.skill_slot_id));
 
   // Detect worker assignment across possible ID shapes returned by APIs
   const currentUserIdCandidates = new Set(
@@ -1211,6 +1276,14 @@ export default function JobDetailScreen() {
               setBudgetOption("ACCEPT");
               setProposalMessage("");
               setEstimatedDuration("");
+              // Pre-populate daily rate fields for DAILY payment model jobs
+              if (job?.payment_model === "DAILY") {
+                setProposedDailyRate(job?.daily_rate_agreed?.toString() || "");
+                setProposedDays(job?.duration_days?.toString() || "");
+              } else {
+                setProposedDailyRate("");
+                setProposedDays("");
+              }
               setShowTeamApplyModal(true);
             },
           },
@@ -1224,6 +1297,14 @@ export default function JobDetailScreen() {
     setBudgetOption("ACCEPT");
     setProposalMessage("");
     setEstimatedDuration("");
+    // Pre-populate daily rate fields for DAILY payment model jobs
+    if (job?.payment_model === "DAILY") {
+      setProposedDailyRate(job?.daily_rate_agreed?.toString() || "");
+      setProposedDays(job?.duration_days?.toString() || "");
+    } else {
+      setProposedDailyRate("");
+      setProposedDays("");
+    }
     setShowTeamApplyModal(true);
   };
 
@@ -1235,10 +1316,28 @@ export default function JobDetailScreen() {
       return;
     }
 
-    const budgetValue =
-      budgetOption === "ACCEPT"
-        ? selectedSkillSlot.budget_per_worker
-        : parseFloat(proposedBudget);
+    const isDailyJob = job?.payment_model === "DAILY";
+
+    // For DAILY jobs with NEGOTIATE, use daily rate * days as the proposed budget
+    let budgetValue: number;
+    if (isDailyJob && budgetOption === "NEGOTIATE") {
+      const dailyRate = parseFloat(proposedDailyRate);
+      const days = parseInt(proposedDays);
+      if (!dailyRate || dailyRate <= 0) {
+        Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (!days || days <= 0) {
+        Alert.alert("Error", "Please enter a valid number of days");
+        return;
+      }
+      budgetValue = dailyRate * days;
+    } else {
+      budgetValue =
+        budgetOption === "ACCEPT"
+          ? selectedSkillSlot.budget_per_worker
+          : parseFloat(proposedBudget);
+    }
 
     applyToSkillSlot.mutate(
       {
@@ -1248,6 +1347,8 @@ export default function JobDetailScreen() {
         proposedBudget: budgetValue,
         budgetOption: budgetOption,
         estimatedDuration: estimatedDuration || undefined,
+        proposedDailyRate: isDailyJob && budgetOption === "NEGOTIATE" ? parseFloat(proposedDailyRate) : undefined,
+        proposedDays: isDailyJob && budgetOption === "NEGOTIATE" ? parseInt(proposedDays) : undefined,
       },
       {
         onSuccess: () => {
@@ -1256,6 +1357,8 @@ export default function JobDetailScreen() {
           setProposalMessage("");
           setProposedBudget("");
           setEstimatedDuration("");
+          setProposedDailyRate("");
+          setProposedDays("");
         },
       },
     );
@@ -1710,15 +1813,29 @@ export default function JobDetailScreen() {
             <View style={styles.teamJobHeaderBadge}>
               <Ionicons name="people-circle" size={20} color="#00BAF1" />
               <Text style={styles.teamJobHeaderBadgeText}>
-                {isAgencyInviteTeamJob ? "Employees Assigned" : "Team Job"}
+                {isMixedTeam
+                  ? "Mixed Team"
+                  : isAgencyInviteTeamJob
+                    ? "Agency Team"
+                    : "Team Job"}
               </Text>
               <View style={styles.teamJobHeaderDivider} />
               <Text style={styles.teamJobHeaderCount}>
                 {computedWorkersAssigned}/{computedWorkersNeeded}{" "}
-                {isAgencyInviteTeamJob
-                  ? "employees assigned"
-                  : "workers filled"}
+                {isAgencyInviteTeamJob ? "assigned" : "filled"}
               </Text>
+              {isMixedTeam && (
+                <Text
+                  style={{
+                    ...Typography.body.small,
+                    color: "#00BAF1",
+                    fontSize: 10,
+                    marginLeft: 4,
+                  }}
+                >
+                  ({job.total_freelancers || 0}F + {job.total_agency_employees || 0}E)
+                </Text>
+              )}
               {isTeamFilled && (
                 <Ionicons
                   name="checkmark-circle"
@@ -2131,11 +2248,183 @@ export default function JobDetailScreen() {
                     </View>
                   </View>
 
-                  {/* Apply Button for Workers (if slot is open and not already applied to THIS slot) */}
+                  {/* Agency Invite Info (per-slot) */}
+                  {slot.agency_invite && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        backgroundColor:
+                          slot.agency_invite.invite_status === "ACCEPTED"
+                            ? Colors.success + "10"
+                            : slot.agency_invite.invite_status === "REJECTED"
+                              ? Colors.error + "10"
+                              : Colors.warning + "10",
+                        borderRadius: 8,
+                        marginTop: 8,
+                        gap: 8,
+                      }}
+                    >
+                      <Ionicons
+                        name="business"
+                        size={16}
+                        color={
+                          slot.agency_invite.invite_status === "ACCEPTED"
+                            ? Colors.success
+                            : slot.agency_invite.invite_status === "REJECTED"
+                              ? Colors.error
+                              : Colors.warning
+                        }
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            ...Typography.body.small,
+                            fontWeight: "600",
+                            color: Colors.textPrimary,
+                          }}
+                        >
+                          {slot.agency_invite.agency_name}
+                        </Text>
+                        <Text
+                          style={{
+                            ...Typography.body.small,
+                            color: Colors.textSecondary,
+                          }}
+                        >
+                          Invite:{" "}
+                          {slot.agency_invite.invite_status
+                            .charAt(0)
+                            .toUpperCase() +
+                            slot.agency_invite.invite_status
+                              .slice(1)
+                              .toLowerCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Employee Assignments for this slot (client view) */}
+                  {isClient &&
+                    slot.employee_assignments &&
+                    slot.employee_assignments.length > 0 && (
+                      <View style={{ marginTop: 8, gap: 6 }}>
+                        {slot.employee_assignments.map((emp) => (
+                          <View
+                            key={emp.assignment_id}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: 10,
+                              backgroundColor: Colors.backgroundSecondary,
+                              borderRadius: 8,
+                            }}
+                          >
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 8,
+                                flex: 1,
+                              }}
+                            >
+                              <Ionicons
+                                name="person"
+                                size={16}
+                                color={Colors.primary}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={{
+                                    ...Typography.body.small,
+                                    fontWeight: "600",
+                                    color: Colors.textPrimary,
+                                  }}
+                                  numberOfLines={1}
+                                >
+                                  {emp.employee_name}
+                                </Text>
+                                <Text
+                                  style={{
+                                    ...Typography.body.small,
+                                    color: Colors.textSecondary,
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  {emp.client_confirmed_arrival
+                                    ? emp.agency_marked_complete
+                                      ? emp.client_approved
+                                        ? "Approved"
+                                        : "Awaiting Approval"
+                                      : "Arrived"
+                                    : emp.dispatched
+                                      ? "Dispatched"
+                                      : "Assigned"}
+                                </Text>
+                              </View>
+                            </View>
+                            {/* Confirm Arrival button */}
+                            {emp.dispatched &&
+                              !emp.client_confirmed_arrival &&
+                              job.status === "IN_PROGRESS" && (
+                                <TouchableOpacity
+                                  style={{
+                                    backgroundColor: Colors.primary,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    borderRadius: 6,
+                                  }}
+                                  onPress={() =>
+                                    confirmEmployeeArrival.mutate({
+                                      jobId: parseInt(job.id),
+                                      assignmentId: emp.assignment_id,
+                                    })
+                                  }
+                                >
+                                  <Text
+                                    style={{
+                                      ...Typography.body.small,
+                                      color: Colors.white,
+                                      fontWeight: "600",
+                                      fontSize: 11,
+                                    }}
+                                  >
+                                    Confirm Arrival
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                  {/* Assigned Here Badge - shown when worker is assigned to THIS specific slot */}
+                  {isWorker && assignedSlotIds.has(slot.skill_slot_id) && (
+                    <View style={[styles.appliedBadge, { backgroundColor: Colors.success + "15", borderColor: Colors.success + "30" }]}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={Colors.success}
+                      />
+                      <Text
+                        style={[
+                          styles.appliedBadgeText,
+                          { color: Colors.success },
+                        ]}
+                      >
+                        Assigned Here
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Apply Button for Workers (if slot is open, not already assigned to THIS slot, not already applied) */}
                   {isWorker &&
                     slot.openings_remaining > 0 &&
                     job.status === "ACTIVE" &&
-                    !currentWorkerAssignment &&
+                    !assignedSlotIds.has(slot.skill_slot_id) &&
                     !appliedSlotIds.includes(slot.skill_slot_id) && (
                       <TouchableOpacity
                         style={styles.applySlotButton}
@@ -2156,7 +2445,7 @@ export default function JobDetailScreen() {
                   {/* Already Applied Badge - Per Slot */}
                   {isWorker &&
                     appliedSlotIds.includes(slot.skill_slot_id) &&
-                    !currentWorkerAssignment && (
+                    !assignedSlotIds.has(slot.skill_slot_id) && (
                       <View style={styles.appliedBadge}>
                         <Ionicons
                           name="checkmark-circle"
@@ -2177,8 +2466,8 @@ export default function JobDetailScreen() {
               );
             })}
 
-            {/* Worker's Own Assignment Actions */}
-            {isWorker && currentWorkerAssignment && (
+            {/* Worker's Own Assignment Actions (supports multi-slot) */}
+            {isWorker && currentWorkerAssignments.length > 0 && (
               <View style={styles.workerAssignmentCard}>
                 <View style={styles.assignmentCardHeader}>
                   <Ionicons
@@ -2190,22 +2479,58 @@ export default function JobDetailScreen() {
                     You&apos;re Assigned!
                   </Text>
                 </View>
-                <Text style={styles.assignmentCardSubtitle}>
-                  Slot: {currentWorkerAssignment.specialization_name}
-                </Text>
-
-                {currentWorkerAssignment.worker_marked_complete ? (
-                  <View style={styles.completedBadge}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={20}
-                      color={Colors.success}
-                    />
-                    <Text style={styles.completedBadgeText}>
-                      Marked Complete - Awaiting Client Approval
+                {currentWorkerAssignments.length > 1 && (
+                  <Text style={{ color: Colors.textSecondary, fontSize: 13, marginBottom: 4 }}>
+                    You have {currentWorkerAssignments.length} roles on this job
+                  </Text>
+                )}
+                {currentWorkerAssignments.map((assignment) => (
+                  <View key={assignment.assignment_id} style={{ marginBottom: currentWorkerAssignments.length > 1 ? 8 : 0 }}>
+                    <Text style={styles.assignmentCardSubtitle}>
+                      Slot: {assignment.specialization_name}
                     </Text>
+
+                    {assignment.worker_marked_complete ? (
+                      <View style={styles.completedBadge}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={Colors.success}
+                        />
+                        <Text style={styles.completedBadgeText}>
+                          Marked Complete - Awaiting Client Approval
+                        </Text>
+                      </View>
+                    ) : (
+                      currentWorkerAssignments.length === 1 && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            paddingVertical: 8,
+                          }}
+                        >
+                          <Ionicons
+                            name="chatbubble-ellipses-outline"
+                            size={18}
+                            color={Colors.primary}
+                          />
+                          <Text
+                            style={{
+                              color: Colors.primary,
+                              fontSize: 14,
+                              fontWeight: "500",
+                            }}
+                          >
+                            Go to conversation to manage job progress
+                          </Text>
+                        </View>
+                      )
+                    )}
                   </View>
-                ) : (
+                ))}
+                {currentWorkerAssignments.length > 1 && !currentWorkerAssignments.every((a) => a.worker_marked_complete) && (
                   <View
                     style={{
                       flexDirection: "row",
@@ -2322,7 +2647,9 @@ export default function JobDetailScreen() {
                       color={Colors.textSecondary}
                     />
                     <Text style={styles.applicationDetailText}>
-                      ₱{app.proposed_budget?.toLocaleString()}
+                      {app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
+                        ? `₱${app.proposed_daily_rate?.toLocaleString()}/day × ${app.proposed_days || "?"} days (₱${app.proposed_budget?.toLocaleString()} total)`
+                        : `₱${app.proposed_budget?.toLocaleString()}`}
                     </Text>
                   </View>
                 </View>
@@ -3486,7 +3813,11 @@ export default function JobDetailScreen() {
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Apply for Job</Text>
-            <TouchableOpacity onPress={() => setShowApplicationModal(false)}>
+            <TouchableOpacity onPress={() => {
+              setShowApplicationModal(false);
+              setProposedDailyRate("");
+              setProposedDays("");
+            }}>
               <Ionicons name="close" size={28} color={Colors.textPrimary} />
             </TouchableOpacity>
           </View>
@@ -3520,7 +3851,9 @@ export default function JobDetailScreen() {
                   }
                 />
                 <Text style={styles.budgetOptionText}>
-                  Accept {job?.budget}
+                  {job?.payment_model === "DAILY"
+                    ? `Accept ₱${job?.daily_rate_agreed?.toLocaleString() || "0"}/day × ${job?.duration_days || "?"} days`
+                    : `Accept ${job?.budget}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -3549,17 +3882,51 @@ export default function JobDetailScreen() {
             </View>
 
             {budgetOption === "NEGOTIATE" && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Proposed Budget</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your proposed budget"
-                  placeholderTextColor={Colors.textHint}
-                  value={proposedBudget}
-                  onChangeText={setProposedBudget}
-                  keyboardType="numeric"
-                />
-              </View>
+              job?.payment_model === "DAILY" ? (
+                <View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Proposed Daily Rate (₱)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your proposed daily rate"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDailyRate}
+                      onChangeText={setProposedDailyRate}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Number of Days</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter proposed number of days"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDays}
+                      onChangeText={setProposedDays}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  {proposedDailyRate && proposedDays && (
+                    <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                      <Text style={[styles.label, { marginBottom: 0 }]}>
+                        Total Proposed: ₱{(parseFloat(proposedDailyRate) * parseInt(proposedDays || "0")).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Proposed Budget</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your proposed budget"
+                    placeholderTextColor={Colors.textHint}
+                    value={proposedBudget}
+                    onChangeText={setProposedBudget}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )
             )}
 
             {/* Proposal Message */}
@@ -3691,6 +4058,8 @@ export default function JobDetailScreen() {
         onRequestClose={() => {
           setShowTeamApplyModal(false);
           setSelectedSkillSlot(null);
+          setProposedDailyRate("");
+          setProposedDays("");
         }}
       >
         <SafeAreaView style={styles.modalContainer}>
@@ -3703,6 +4072,8 @@ export default function JobDetailScreen() {
                 setProposalMessage("");
                 setProposedBudget("");
                 setEstimatedDuration("");
+                setProposedDailyRate("");
+                setProposedDays("");
               }}
             >
               <Ionicons name="close" size={24} color={Colors.textPrimary} />
@@ -3726,8 +4097,9 @@ export default function JobDetailScreen() {
                       color={Colors.textSecondary}
                     />
                     <Text style={styles.skillSlotInfoText}>
-                      ₱{selectedSkillSlot.budget_per_worker.toLocaleString()}
-                      /worker
+                      {job?.payment_model === "DAILY"
+                        ? `₱${job?.daily_rate_agreed?.toLocaleString() || "0"}/day × ${job?.duration_days || "?"} days`
+                        : `₱${selectedSkillSlot.budget_per_worker.toLocaleString()}/worker`}
                     </Text>
                   </View>
                   <View style={styles.skillSlotInfoItem}>
@@ -3769,8 +4141,9 @@ export default function JobDetailScreen() {
                   }
                 />
                 <Text style={styles.budgetOptionText}>
-                  Accept ₱
-                  {selectedSkillSlot?.budget_per_worker.toLocaleString()}
+                  {job?.payment_model === "DAILY"
+                    ? `Accept ₱${job?.daily_rate_agreed?.toLocaleString() || "0"}/day × ${job?.duration_days || "?"} days`
+                    : `Accept ₱${selectedSkillSlot?.budget_per_worker.toLocaleString()}`}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -3799,17 +4172,51 @@ export default function JobDetailScreen() {
             </View>
 
             {budgetOption === "NEGOTIATE" && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Proposed Budget</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your proposed budget"
-                  placeholderTextColor={Colors.textHint}
-                  value={proposedBudget}
-                  onChangeText={setProposedBudget}
-                  keyboardType="numeric"
-                />
-              </View>
+              job?.payment_model === "DAILY" ? (
+                <View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Proposed Daily Rate (₱)</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your proposed daily rate"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDailyRate}
+                      onChangeText={setProposedDailyRate}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Number of Days</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter proposed number of days"
+                      placeholderTextColor={Colors.textHint}
+                      value={proposedDays}
+                      onChangeText={setProposedDays}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  {proposedDailyRate && proposedDays && (
+                    <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                      <Text style={[styles.label, { marginBottom: 0 }]}>
+                        Total Proposed: ₱{(parseFloat(proposedDailyRate) * parseInt(proposedDays || "0")).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Proposed Budget</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your proposed budget"
+                    placeholderTextColor={Colors.textHint}
+                    value={proposedBudget}
+                    onChangeText={setProposedBudget}
+                    keyboardType="numeric"
+                  />
+                </View>
+              )
             )}
 
             {/* Proposal Message */}
