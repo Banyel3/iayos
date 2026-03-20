@@ -308,9 +308,6 @@ export default function JobDetailScreen() {
   const [selectedSkillSlot, setSelectedSkillSlot] = useState<SkillSlot | null>(
     null,
   );
-  const [pendingReturnToApplyModal, setPendingReturnToApplyModal] = useState<
-    "STANDARD" | "TEAM" | null
-  >(null);
   const [showTeamCompletionModal, setShowTeamCompletionModal] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
 
@@ -322,6 +319,15 @@ export default function JobDetailScreen() {
 
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
+
+  const navigateToSkillsFromApply = useCallback(() => {
+      // Close any active apply modal first so the skills screen is not layered behind it.
+      setShowApplicationModal(false);
+      setShowTeamApplyModal(false);
+      requestAnimationFrame(() => {
+        router.push("/profile/skills" as any);
+      });
+    }, [router]);
 
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
@@ -1262,7 +1268,7 @@ export default function JobDetailScreen() {
   };
 
   const showMissingRequiredSkillAlert = useCallback(
-    (errorMessage: string, source: "STANDARD" | "TEAM" = "STANDARD") => {
+    (errorMessage: string, _source: "STANDARD" | "TEAM" = "STANDARD") => {
       Alert.alert("Required Skill Missing", errorMessage, [
         {
           text: "Cancel",
@@ -1270,20 +1276,11 @@ export default function JobDetailScreen() {
         },
         {
           text: "Add a Skill",
-          onPress: () => {
-            if (source === "STANDARD") {
-              setShowApplicationModal(false);
-            } else {
-              setShowTeamApplyModal(false);
-            }
-            setPendingReturnToApplyModal(source);
-            // Keep current apply draft in local state and reopen the same modal on return.
-            router.push("/profile/skills" as any);
-          },
+          onPress: () => navigateToSkillsFromApply(),
         },
       ]);
     },
-    [router],
+    [navigateToSkillsFromApply],
   );
 
   const handleAcceptInvite = () => {
@@ -1368,14 +1365,7 @@ export default function JobDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
-      if (pendingReturnToApplyModal === "STANDARD") {
-        setShowApplicationModal(true);
-        setPendingReturnToApplyModal(null);
-      } else if (pendingReturnToApplyModal === "TEAM") {
-        setShowTeamApplyModal(true);
-        setPendingReturnToApplyModal(null);
-      }
-    }, [pendingReturnToApplyModal, queryClient]),
+    }, [queryClient]),
   );
 
   // Team job applications (for clients)
@@ -1458,7 +1448,7 @@ export default function JobDetailScreen() {
           },
           {
             text: "Add a Skill",
-            onPress: () => router.push("/profile/skills" as any),
+            onPress: () => navigateToSkillsFromApply(),
           },
           {
             text: "Continue Anyway",
