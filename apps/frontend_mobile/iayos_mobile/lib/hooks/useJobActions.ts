@@ -614,15 +614,38 @@ export function useProjectFinishJob() {
 
 /**
  * Client ends a single DAILY job early, paying the worker remaining escrow in full.
+ * Supports WALLET (default, releases existing escrow) and CASH (client pays worker
+ * directly and uploads proof; escrow is still released to pendingEarnings).
  */
 export function useEarlyCompleteSingleDailyJob() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId }: { jobId: number }) => {
+    mutationFn: async ({
+      jobId,
+      paymentMethod,
+      cashProofImage,
+    }: {
+      jobId: number;
+      paymentMethod?: "WALLET" | "CASH";
+      cashProofImage?: string;
+    }) => {
+      const formData = new FormData();
+      formData.append("payment_method", paymentMethod ?? "WALLET");
+
+      if (paymentMethod === "CASH" && cashProofImage) {
+        const filename = cashProofImage.split("/").pop() ?? "proof.jpg";
+        const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
+        formData.append("cash_proof_image", {
+          uri: cashProofImage,
+          name: filename,
+          type: `image/${ext}`,
+        } as any);
+      }
+
       const response = await apiRequest(
         ENDPOINTS.DAILY_EARLY_COMPLETE(jobId),
-        { method: "POST" },
+        { method: "POST", body: formData as any },
       );
 
       if (!response.ok) {

@@ -1299,11 +1299,23 @@ class DailyPaymentService:
 
     @staticmethod
     def early_complete_single_daily_job(
-        job: Job, client_user: "Accounts"
+        job: Job,
+        client_user: "Accounts",
+        payment_method: str = "WALLET",
+        cash_proof_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Client ends a single (non-team) DAILY job early and pays the worker
         the full remaining escrow balance immediately.
+
+        Args:
+            job: The JobPosting instance.
+            client_user: The authenticated client account.
+            payment_method: "WALLET" (default) or "CASH". For CASH, the client
+                pays the worker directly and uploads proof; the existing escrow
+                is still released to the worker's pendingEarnings as normal.
+            cash_proof_url: Public URL of uploaded cash proof image (required
+                when payment_method == "CASH").
 
         Conditions:
         - Job must be payment_model == "DAILY"
@@ -1340,6 +1352,20 @@ class DailyPaymentService:
                 "error": "No confirmed worker arrival today — cannot complete early yet",
             }
 
+        # Validate payment method
+        payment_method_upper = (payment_method or "WALLET").upper()
+        if payment_method_upper not in ["WALLET", "CASH"]:
+            return {
+                "success": False,
+                "error": "Invalid payment method. Choose WALLET or CASH",
+            }
+
+        if payment_method_upper == "CASH" and not cash_proof_url:
+            return {
+                "success": False,
+                "error": "Cash proof image is required for CASH payment",
+            }
+
         # Calculate remaining payout
         total_already_paid = DailyAttendance.objects.filter(
             jobID=job,
@@ -1371,9 +1397,10 @@ class DailyPaymentService:
                 amount=remaining_payout,
                 balanceAfter=worker_wallet.balance,
                 status="PENDING",
-                description=f"Early completion payout — remaining daily escrow for Job #{job.jobID}",
+                description=f"Early completion payout — remaining daily escrow for Job #{job.jobID}"
+                + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
                 relatedJobPosting=job,
-                paymentMethod="WALLET",
+                paymentMethod=payment_method_upper,
             )
 
         # Mark job as completed
@@ -1386,6 +1413,10 @@ class DailyPaymentService:
         job.clientMarkedComplete = True
         job.workerMarkedCompleteAt = now
         job.clientMarkedCompleteAt = now
+        job.finalPaymentMethod = payment_method_upper
+        if payment_method_upper == "CASH" and cash_proof_url:
+            job.cashPaymentProofUrl = cash_proof_url
+            job.cashProofUploadedAt = now
         job.save()
 
         JobLog.objects.create(
