@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 from .services import generateCookie
 from decimal import Decimal
+import math
 import re
 from adminpanel.audit_service import log_action
 
@@ -355,10 +356,13 @@ def get_mobile_job_list(
                         (team_workers_assigned / team_workers_needed) * 100, 1
                     )
 
+            budget_val = float(job.budget)
             job_data = {
                 "id": job.jobID,
                 "title": job.title,
-                "budget": float(job.budget),
+                "budget": budget_val,
+                "budget_range_min": math.floor(budget_val * 0.6),
+                "budget_range_max": math.ceil(budget_val * 1.4),
                 "location": job.location,
                 "latitude": float(job_lat) if job_lat else None,
                 "longitude": float(job_lon) if job_lon else None,
@@ -927,11 +931,14 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
         worker_compensation_amount = getattr(
             job, "workerCompensationAmount", Decimal("0.00")
         )
+        budget_val = float(job.budget)
         job_data = {
             "id": job.jobID,
             "title": job.title,
             "description": job.description,
-            "budget": float(job.budget),
+            "budget": budget_val,
+            "budget_range_min": math.floor(budget_val * 0.6),
+            "budget_range_max": math.ceil(budget_val * 1.4),
             "location": job.location,
             "distance": job_distance,
             "expected_duration": job.expectedDuration,

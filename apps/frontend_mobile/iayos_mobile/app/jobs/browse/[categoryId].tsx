@@ -30,6 +30,8 @@ interface Job {
   title: string;
   description: string;
   budget: number;
+  budget_range_min?: number;
+  budget_range_max?: number;
   location: string;
   urgency_level: "LOW" | "MEDIUM" | "HIGH";
   created_at: string;
@@ -175,7 +177,9 @@ export default function CategoryJobsScreen() {
             </View>
             <View style={styles.budgetContainer}>
               <Text style={styles.budgetAmount}>
-                ₱{item.budget.toLocaleString()}
+                {item.budget_range_min != null && item.budget_range_max != null
+                  ? `₱${item.budget_range_min.toLocaleString()} - ₱${item.budget_range_max.toLocaleString()}`
+                  : `₱${item.budget.toLocaleString()}`}
               </Text>
             </View>
           </View>

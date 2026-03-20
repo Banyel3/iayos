@@ -37,6 +37,8 @@ interface JobCardProps {
   distance?: number;
   postedAt?: string | Date;
   budget: number | string;
+  budgetRangeMin?: number;
+  budgetRangeMax?: number;
   status?: "active" | "in_progress" | "completed" | "cancelled";
   applicationCount?: number;
   onPress?: () => void;
@@ -55,6 +57,8 @@ export default function JobCard({
   distance,
   postedAt,
   budget,
+  budgetRangeMin,
+  budgetRangeMax,
   status = "active",
   applicationCount,
   onPress,
@@ -151,7 +155,11 @@ export default function JobCard({
 
           <View style={styles.budgetSection}>
             <Text style={styles.budgetLabel}>BUDGET</Text>
-            <Text style={styles.budgetAmount}>{formatBudget(budget)}</Text>
+            <Text style={styles.budgetAmount}>
+              {budgetRangeMin != null && budgetRangeMax != null
+                ? `₱${budgetRangeMin.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} - ₱${budgetRangeMax.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                : formatBudget(budget)}
+            </Text>
           </View>
         </View>
 

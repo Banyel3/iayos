@@ -585,6 +585,8 @@ export default function BrowseJobsScreen() {
       distance={item.distance}
       postedAt={item.postedAt}
       budget={item.budget}
+      budgetRangeMin={item.budget_range_min}
+      budgetRangeMax={item.budget_range_max}
       status={item.status?.toLowerCase() as any}
       applicationCount={item.applicationCount}
       onPress={() => handleJobPress(item.id)}

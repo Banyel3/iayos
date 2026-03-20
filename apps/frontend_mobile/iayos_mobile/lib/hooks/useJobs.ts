@@ -52,6 +52,8 @@ export interface Job {
   category: string;
   categoryId: number;
   budget: number | string;
+  budget_range_min?: number;
+  budget_range_max?: number;
   location: string;
   latitude?: number;
   longitude?: number;
