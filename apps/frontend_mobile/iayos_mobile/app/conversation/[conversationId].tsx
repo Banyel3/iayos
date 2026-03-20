@@ -166,7 +166,7 @@ export default function ChatScreen() {
   const [pendingMessages, setPendingMessages] = useState<any[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentActionMode, setPaymentActionMode] = useState<
-    "APPROVE_COMPLETION" | "PAY_NOW"
+    "APPROVE_COMPLETION" | "PAY_NOW" | "APPROVE_SOLO_DAILY_COMPLETION"
   >("APPROVE_COMPLETION");
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1579,6 +1579,32 @@ export default function ChatScreen() {
     });
   };
 
+  // Handle approve early completion for solo DAILY jobs (CLIENT only)
+  // Mirrors handleApproveTeamJobCompletion — countdown → payment modal (WALLET or CASH).
+  // CASH: client pays worker directly and uploads proof; existing escrow is still released.
+  const handleApproveSoloDailyCompletion = () => {
+    if (!conversation) return;
+
+    const remainingAmount = Number(
+      conversation.job.remainingPayment ?? 0,
+    ).toFixed(2);
+
+    setCountdownConfig({
+      visible: true,
+      title: "Approve Early Completion & Pay",
+      message: `Worker has completed the job early.\n\nRemaining escrow to release:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      confirmLabel: "Continue",
+      countdownSeconds: 7,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        setPaymentActionMode("APPROVE_SOLO_DAILY_COMPLETION");
+        setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
+  };
+
   // Handle early pay-now while job is still in progress (CLIENT only)
   const handlePayNow = () => {
     if (!conversation) return;
@@ -1746,8 +1772,41 @@ export default function ChatScreen() {
       return;
     }
 
+    // Solo DAILY early completion — WALLET releases escrow, CASH uploads proof + releases escrow
+    if (
+      paymentActionMode === "APPROVE_SOLO_DAILY_COMPLETION" &&
+      !conversation.is_team_job &&
+      !conversation.is_agency_job &&
+      conversation.job?.payment_model === "DAILY"
+    ) {
+      if (method === "CASH") {
+        const remainingAmount = Number(
+          conversation.job.remainingPayment ?? 0,
+        ).toFixed(2);
+        Alert.alert(
+          "Cash Payment",
+          `Please pay ₱${remainingAmount} to the worker directly, then upload a photo of your payment receipt.\n\nThis proof will be stored for dispute resolution.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Upload Proof",
+              onPress: () => setShowCashUploadModal(true),
+            },
+          ],
+        );
+        return;
+      }
+      // WALLET — release existing escrow to worker
+      earlyCompleteSingleDailyMutation.mutate({
+        jobId: conversation.job!.id,
+        paymentMethod: "WALLET",
+      });
+      setPaymentActionMode("APPROVE_COMPLETION");
+      return;
+    }
+
     if (method === "CASH") {
-      // Show cash amount confirmation before opening upload modal
+      // Show cash amount confirmation before opening upload modal (non-solo-DAILY paths)
       const baseRemaining = conversation.job.budget
         ? conversation.job.budget * 0.5
         : 0;
@@ -1900,6 +1959,17 @@ export default function ChatScreen() {
     } else if (conversation.is_team_job) {
       // Team job cash proof
       approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "CASH",
+        cashProofImage: selectedImage,
+      });
+    } else if (
+      !conversation.is_team_job &&
+      !conversation.is_agency_job &&
+      conversation.job?.payment_model === "DAILY"
+    ) {
+      // Solo DAILY early completion — cash proof uploaded, escrow released to worker
+      earlyCompleteSingleDailyMutation.mutate({
         jobId: conversation.job.id,
         paymentMethod: "CASH",
         cashProofImage: selectedImage,
@@ -5910,33 +5980,7 @@ export default function ChatScreen() {
                               padding: 12,
                               gap: 8,
                             }}
-                            onPress={() => {
-                              const remainingDays =
-                                (conversation.job?.duration_days ?? 0) -
-                                (conversation.job?.total_days_worked ?? 0);
-                              const remainingAmount = Number(
-                                conversation.job?.remainingPayment ?? 0,
-                              );
-                              const amountLabel =
-                                remainingAmount > 0
-                                  ? `₱${remainingAmount.toLocaleString()}`
-                                  : "the remaining balance";
-                              Alert.alert(
-                                "Approve Early Completion & Pay Remaining",
-                                `The worker has marked this job complete early.\n\nPaying ${amountLabel} covers the remaining ${remainingDays > 0 ? `${remainingDays} day(s)` : "days"} of work.\n\nThis will close the job and release the remaining escrow to the worker.`,
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Approve & Pay",
-                                    style: "destructive",
-                                    onPress: () =>
-                                      earlyCompleteSingleDailyMutation.mutate({
-                                        jobId: conversation.job!.id,
-                                      }),
-                                  },
-                                ],
-                              );
-                            }}
+                            onPress={handleApproveSoloDailyCompletion}
                             disabled={
                               earlyCompleteSingleDailyMutation.isPending
                             }
@@ -6925,6 +6969,54 @@ export default function ChatScreen() {
                     />
                     <Text style={styles.waitingButtonText}>
                       Waiting for client to approve completion...
+                    </Text>
+                  </View>
+                )}
+
+              {/* WORKER: Mark Complete — Solo DAILY (early completion before duration ends) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model === "DAILY" &&
+                conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
+                !conversation.job.workerMarkedComplete && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.markCompleteButton]}
+                    onPress={handleMarkComplete}
+                    disabled={markCompleteMutation.isPending}
+                  >
+                    {markCompleteMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-done"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Mark Job Complete
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {/* WORKER: Waiting for Client — Solo DAILY (after marking complete) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                conversation.job?.payment_model === "DAILY" &&
+                conversation.my_role === "WORKER" &&
+                conversation.job.workerMarkedComplete &&
+                !conversation.job.is_early_completed && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      ✓ Marked complete. Waiting for client to approve...
                     </Text>
                   </View>
                 )}
@@ -9848,7 +9940,9 @@ export default function ChatScreen() {
             <Text style={styles.modalSubtitle}>
               {paymentActionMode === "PAY_NOW"
                 ? "Choose how you want to pay early final payment"
-                : "Choose how you want to pay the remaining 50%"}
+                : paymentActionMode === "APPROVE_SOLO_DAILY_COMPLETION"
+                  ? "Choose how you want to pay the worker"
+                  : "Choose how you want to pay the remaining 50%"}
             </Text>
 
             <TouchableOpacity
@@ -9861,7 +9955,9 @@ export default function ChatScreen() {
                 <Text style={styles.paymentOptionDesc}>
                   {paymentActionMode === "PAY_NOW"
                     ? "Pay now and keep completion approval separate"
-                    : "Pay instantly from your iAyos wallet"}
+                    : paymentActionMode === "APPROVE_SOLO_DAILY_COMPLETION"
+                      ? "Release remaining escrow to the worker"
+                      : "Pay instantly from your iAyos wallet"}
                 </Text>
               </View>
               <Ionicons
@@ -9884,7 +9980,9 @@ export default function ChatScreen() {
                 <Text style={styles.paymentOptionDesc}>
                   {paymentActionMode === "PAY_NOW"
                     ? "Available on completion approval"
-                    : "Upload proof of cash payment"}
+                    : paymentActionMode === "APPROVE_SOLO_DAILY_COMPLETION"
+                      ? "Pay the worker directly and upload proof"
+                      : "Upload proof of cash payment"}
                 </Text>
               </View>
               <Ionicons
