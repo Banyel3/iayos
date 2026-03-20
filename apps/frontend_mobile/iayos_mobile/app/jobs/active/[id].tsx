@@ -31,6 +31,7 @@ import {
   useTeamJobDetail,
   useWorkerCompleteAssignment,
   useClientApproveTeamJob,
+  useEarlyCompleteWorker,
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
@@ -39,6 +40,16 @@ import { useDailyFinishJob } from "@/lib/hooks/useDailyPayment";
 // ============================================================================
 // Interfaces
 // ============================================================================
+
+interface EscrowStatus {
+  payment_model: "DAILY" | "PROJECT";
+  escrow_deposited: number;
+  escrow_consumed: number;
+  escrow_remaining: number;
+  escrow_required_for_completion: number;
+  needs_top_up: boolean;
+  top_up_amount: number;
+}
 
 interface ActiveJobDetail {
   id: string;
@@ -83,6 +94,7 @@ interface ActiveJobDetail {
   total_workers_needed?: number;
   total_workers_assigned?: number;
   team_fill_percentage?: number;
+  escrow_status?: EscrowStatus | null;
 }
 
 // ============================================================================
@@ -102,7 +114,14 @@ const getSkillLevelBadge = (level: string) => {
   }
 };
 
-const getAssignmentStatusBadge = (status: string, markedComplete: boolean) => {
+const getAssignmentStatusBadge = (
+  status: string,
+  markedComplete: boolean,
+  earlyCompleted?: boolean,
+) => {
+  if (earlyCompleted) {
+    return { label: "Early Done", color: "#D97706", bg: "#FEF3C7" };
+  }
   if (markedComplete) {
     return { label: "Done", color: "#10B981", bg: "#D1FAE5" };
   }
@@ -216,6 +235,7 @@ export default function ActiveJobDetailScreen() {
         total_workers_needed: data.total_workers_needed,
         total_workers_assigned: data.total_workers_assigned,
         team_fill_percentage: data.team_fill_percentage,
+        escrow_status: data.escrow_status || null,
       } as ActiveJobDetail;
     },
   });
@@ -230,14 +250,17 @@ export default function ActiveJobDetailScreen() {
   const workerCompleteMutation = useWorkerCompleteAssignment();
   const clientApproveMutation = useClientApproveTeamJob();
   const dailyFinishMutation = useDailyFinishJob();
+  const earlyCompleteMutation = useEarlyCompleteWorker();
 
   const isTeamDaily = job?.is_team_job && job?.payment_model === "DAILY";
 
-  // Determine if this worker is assigned to this team job
-  const myAssignment =
+  // Determine if this worker is assigned to this team job (supports multi-slot)
+  const myAssignments =
     job?.is_team_job && job?.worker_assignments
-      ? job.worker_assignments.find((a) => a.worker_id === currentWorkerId)
-      : null;
+      ? job.worker_assignments.filter((a) => a.worker_id === currentWorkerId)
+      : [];
+  // Keep single reference for backward-compat
+  const myAssignment = myAssignments.length > 0 ? myAssignments[0] : null;
 
   // Keep completion gating aligned with backend, which only checks ACTIVE assignments.
   const activeAssignments = job?.worker_assignments
@@ -556,6 +579,33 @@ export default function ActiveJobDetailScreen() {
     setShowCompletionModal(true);
   };
 
+  const handleEarlyCompleteWorker = (assignment: WorkerAssignment) => {
+    Alert.alert(
+      "Complete Early (Full Pay)",
+      `Mark ${assignment.worker_name} as done early? They will receive their full contracted amount (any remaining balance will be paid out now).`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete Early",
+          style: "destructive",
+          onPress: () => {
+            earlyCompleteMutation.mutate(
+              {
+                jobId: Number(id),
+                assignmentId: assignment.assignment_id,
+              },
+              {
+                onSuccess: () => {
+                  refetch();
+                },
+              },
+            );
+          },
+        },
+      ],
+    );
+  };
+
   const handleTeamMarkComplete = () => {
     if (isTeamDaily) {
       Alert.alert(
@@ -621,46 +671,6 @@ export default function ActiveJobDetailScreen() {
   };
 
   const handleTeamApproveCompletion = () => {
-    if (isTeamDaily) {
-      Alert.alert(
-        "Finish Daily Job",
-        "This team DAILY job follows daily attendance settlement. Mark it as finished now?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Finish",
-            style: "destructive",
-            onPress: () => {
-              dailyFinishMutation.mutate(
-                { jobId: Number(id) },
-                {
-                  onSuccess: () => {
-                    Alert.alert(
-                      "Success",
-                      "Daily job finished. Unused escrow (if any) was refunded.",
-                      [
-                        {
-                          text: "OK",
-                          onPress: () => safeGoBack(router, "/(tabs)/jobs"),
-                        },
-                      ],
-                    );
-                  },
-                  onError: (error: any) => {
-                    Alert.alert(
-                      "Error",
-                      error.message || "Failed to finish daily job",
-                    );
-                  },
-                },
-              );
-            },
-          },
-        ],
-      );
-      return;
-    }
-
     if (!allWorkersComplete) {
       Alert.alert(
         "Workers Not Complete",
@@ -779,6 +789,59 @@ export default function ActiveJobDetailScreen() {
             <Text style={[styles.statusBannerText, { color: "#065F46" }]}>
               Job completed successfully!
             </Text>
+          </View>
+        )}
+
+        {/* Escrow Top-Up Banner (client only) */}
+        {!isWorker && job.escrow_status?.needs_top_up && (
+          <View
+            style={[
+              styles.statusBanner,
+              {
+                backgroundColor: "#FEF2F2",
+                borderLeftWidth: 4,
+                borderLeftColor: "#EF4444",
+              },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+                <Ionicons name="warning" size={20} color="#DC2626" />
+                <Text
+                  style={{
+                    color: "#991B1B",
+                    fontWeight: "700",
+                    fontSize: 14,
+                    marginLeft: 8,
+                  }}
+                >
+                  Escrow Funds Low
+                </Text>
+              </View>
+              <Text style={{ color: "#7F1D1D", fontSize: 13, lineHeight: 18 }}>
+                This job needs an additional{" "}
+                <Text style={{ fontWeight: "700" }}>
+                  {"\u20B1"}
+                  {job.escrow_status.top_up_amount.toLocaleString()}
+                </Text>{" "}
+                to cover remaining work. Please deposit funds to avoid delays.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/wallet" as never)}
+                style={{
+                  backgroundColor: "#DC2626",
+                  paddingVertical: 8,
+                  paddingHorizontal: 16,
+                  borderRadius: 8,
+                  alignSelf: "flex-start",
+                  marginTop: 10,
+                }}
+              >
+                <Text style={{ color: "#FFFFFF", fontWeight: "600", fontSize: 13 }}>
+                  Deposit Funds
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -1101,7 +1164,11 @@ export default function ActiveJobDetailScreen() {
                           {assignment.slot_specialization}
                         </Text>
                       </View>
-                      {getAssignmentStatusBadge(assignment.assignment_status)}
+                      {getAssignmentStatusBadge(
+                        assignment.assignment_status,
+                        assignment.worker_marked_complete,
+                        assignment.early_completed,
+                      )}
                     </View>
 
                     {/* Worker Completion Status */}
@@ -1109,27 +1176,34 @@ export default function ActiveJobDetailScreen() {
                       <View style={styles.assignmentStatusItem}>
                         <Ionicons
                           name={
-                            assignment.worker_marked_complete
-                              ? "checkmark-circle"
-                              : "ellipse-outline"
+                            assignment.early_completed
+                              ? "flash"
+                              : assignment.worker_marked_complete
+                                ? "checkmark-circle"
+                                : "ellipse-outline"
                           }
                           size={18}
                           color={
-                            assignment.worker_marked_complete
-                              ? Colors.success
-                              : Colors.textHint
+                            assignment.early_completed
+                              ? "#D97706"
+                              : assignment.worker_marked_complete
+                                ? Colors.success
+                                : Colors.textHint
                           }
                         />
                         <Text
                           style={[
                             styles.assignmentStatusText,
-                            assignment.worker_marked_complete &&
+                            (assignment.worker_marked_complete ||
+                              assignment.early_completed) &&
                               styles.assignmentStatusComplete,
                           ]}
                         >
-                          {assignment.worker_marked_complete
-                            ? "Work Completed"
-                            : "In Progress"}
+                          {assignment.early_completed
+                            ? "Completed Early"
+                            : assignment.worker_marked_complete
+                              ? "Work Completed"
+                              : "In Progress"}
                         </Text>
                       </View>
                       {assignment.completion_notes && (
@@ -1162,12 +1236,83 @@ export default function ActiveJobDetailScreen() {
                           </Text>
                         </TouchableOpacity>
                       )}
+
+                    {/* Client: Early Complete individual worker (DAILY team jobs only) */}
+                    {!isWorker &&
+                      job.payment_model === "DAILY" &&
+                      assignment.assignment_status === "ACTIVE" &&
+                      !assignment.early_completed && (
+                        <TouchableOpacity
+                          style={[
+                            styles.assignmentActionButton,
+                            { backgroundColor: Colors.warning },
+                          ]}
+                          onPress={() => handleEarlyCompleteWorker(assignment)}
+                          disabled={earlyCompleteMutation.isPending}
+                          activeOpacity={0.7}
+                        >
+                          {earlyCompleteMutation.isPending ? (
+                            <ActivityIndicator
+                              color={Colors.white}
+                              size="small"
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="flash"
+                                size={18}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.assignmentActionText}>
+                                Complete Early (Full Pay)
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                    {/* Early completion badge */}
+                    {assignment.early_completed && (
+                      <View
+                        style={[
+                          styles.assignmentStatus,
+                          { backgroundColor: "#FEF3C7", borderRadius: 8, padding: 8, marginTop: 4 },
+                        ]}
+                      >
+                        <View style={styles.assignmentStatusItem}>
+                          <Ionicons
+                            name="flash"
+                            size={16}
+                            color="#D97706"
+                          />
+                          <Text
+                            style={[
+                              styles.assignmentStatusText,
+                              { color: "#D97706", fontWeight: "600" },
+                            ]}
+                          >
+                            Completed Early (Full Pay)
+                          </Text>
+                        </View>
+                        {assignment.early_completion_payout != null && (
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#92400E",
+                              marginLeft: 26,
+                            }}
+                          >
+                            Lump-sum payout: {"\u20B1"}
+                            {Number(assignment.early_completion_payout).toLocaleString()}
+                          </Text>
+                        )}
+                      </View>
+                    )}
                   </View>
                 ))}
 
                 {/* Client: Approve All Workers Button */}
                 {!isWorker &&
-                  job.payment_model !== "DAILY" &&
                   allWorkersComplete &&
                   !job.client_marked_complete && (
                     <TouchableOpacity
@@ -1209,31 +1354,6 @@ export default function ActiveJobDetailScreen() {
                   </View>
                 )}
 
-                {!isWorker &&
-                  job.payment_model === "DAILY" &&
-                  !job.client_marked_complete && (
-                    <TouchableOpacity
-                      style={styles.approveAllButton}
-                      onPress={handleTeamApproveCompletion}
-                      disabled={dailyFinishMutation.isPending}
-                      activeOpacity={0.8}
-                    >
-                      {dailyFinishMutation.isPending ? (
-                        <ActivityIndicator color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="flag"
-                            size={20}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.approveAllText}>
-                            Finish Daily Job
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
               </>
             )}
           </View>

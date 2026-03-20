@@ -55,6 +55,9 @@ class ParsedAgencyKYCData:
     
     # Representative Information (from ID)
     rep_full_name: ExtractionResult = field(default_factory=ExtractionResult)
+    rep_first_name: ExtractionResult = field(default_factory=ExtractionResult)
+    rep_middle_name: ExtractionResult = field(default_factory=ExtractionResult)
+    rep_last_name: ExtractionResult = field(default_factory=ExtractionResult)
     rep_id_number: ExtractionResult = field(default_factory=ExtractionResult)
     rep_id_type: ExtractionResult = field(default_factory=ExtractionResult)
     rep_birth_date: ExtractionResult = field(default_factory=ExtractionResult)
@@ -78,6 +81,9 @@ class ParsedAgencyKYCData:
             "sec_number": self.sec_number.to_dict(),
             "tin": self.tin.to_dict(),
             "rep_full_name": self.rep_full_name.to_dict(),
+            "rep_first_name": self.rep_first_name.to_dict(),
+            "rep_middle_name": self.rep_middle_name.to_dict(),
+            "rep_last_name": self.rep_last_name.to_dict(),
             "rep_id_number": self.rep_id_number.to_dict(),
             "rep_id_type": self.rep_id_type.to_dict(),
             "rep_birth_date": self.rep_birth_date.to_dict(),
@@ -118,8 +124,8 @@ class AgencyKYCExtractionParser:
         ]
         
         # DTI/SEC patterns
-        self.dti_pattern = re.compile(r'DTI[:\s-]*([A-Z0-9-]+)', re.IGNORECASE)
-        self.sec_pattern = re.compile(r'SEC[:\s-]*([A-Z0-9-]+)', re.IGNORECASE)
+        self.dti_pattern = re.compile(r'DTI[:\s-]*([A-Z0-9][A-Z0-9\-\s]{2,})', re.IGNORECASE)
+        self.sec_pattern = re.compile(r'SEC[:\s-]*([A-Z0-9][A-Z0-9\-\s]{2,})', re.IGNORECASE)
         
         # TIN patterns (XXX-XXX-XXX-XXX or XXXXXXXXXXXX)
         self.tin_pattern = re.compile(r'\b(\d{3}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3})\b')
@@ -129,7 +135,7 @@ class AgencyKYCExtractionParser:
         self.dti_business_name_pattern = re.compile(r'Business\s+Name\s+No\.?\s*(\d+)', re.IGNORECASE)
         # Matches certificate ID like "BPXW658418425073" (4 letters + 12 digits)
         # Must be on its own line or standalone - case insensitive for OCR errors
-        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Za-z]{4}\d{12,16})\s*(?:$|\n)', re.MULTILINE)
+        self.dti_certificate_id_pattern = re.compile(r'(?:^|\n)\s*([A-Za-z]{4}\s*\d{12,16})\s*(?:$|\n)', re.MULTILINE)
         # Matches "issued to VANIEL JOHN GARCIA CORNELIO" or "This certificate issued to NAME"
         self.issued_to_pattern = re.compile(r'(?:This\s+certificate\s+)?issued\s+to\s+([A-Z\s]+?)(?:\n|is\s+valid|subject\s+to)', re.IGNORECASE)
         # Matches "valid from January 06, 2026 to January 06, 2031"
@@ -225,6 +231,9 @@ class AgencyKYCExtractionParser:
         """Parse business permit document"""
         lines = text.split('\n')
         text_upper = text.upper()
+
+        def normalize_registration_token(value: str) -> str:
+            return re.sub(r'\s+', '', (value or '').strip().upper())
         
         # First, extract owner name so we can EXCLUDE it from business name
         owner_name = None
@@ -301,7 +310,7 @@ class AgencyKYCExtractionParser:
                 "ZONE",
                 "PUROK",
             ]
-            for line in lines[:12]:
+            for line in lines[:20]:
                 line = line.strip()
                 # Skip owner name
                 if owner_name and line.upper() == owner_name:
@@ -341,7 +350,7 @@ class AgencyKYCExtractionParser:
         cert_id_match = self.dti_certificate_id_pattern.search(text)
         if cert_id_match:
             result.permit_number = ExtractionResult(
-                value=cert_id_match.group(1).strip().upper(),
+                value=normalize_registration_token(cert_id_match.group(1)),
                 confidence=0.9,  # High confidence for DTI certificate ID
                 source_text=cert_id_match.group(0)
             )
@@ -350,15 +359,18 @@ class AgencyKYCExtractionParser:
         # PRIORITY 2: If no DTI cert ID, try standard permit patterns
         if not result.permit_number.value:
             permit_patterns = [
-                re.compile(r'PERMIT\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
-                re.compile(r'BUSINESS\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]+)', re.IGNORECASE),
-                re.compile(r'(?:NO\.?|NUMBER)[:\s]*([A-Z0-9-]{5,})', re.IGNORECASE),
+                re.compile(r'PERMIT\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9\-\s]+)', re.IGNORECASE),
+                re.compile(r'BUSINESS\s*(?:NO\.?|NUMBER)[:\s]*([A-Z0-9\-\s]+)', re.IGNORECASE),
+                re.compile(r'(?:NO\.?|NUMBER)[:\s]*([A-Z0-9\-\s]{5,})', re.IGNORECASE),
             ]
             for pattern in permit_patterns:
                 match = pattern.search(text)
                 if match:
+                    permit_value = normalize_registration_token(match.group(1))
+                    if not permit_value:
+                        continue
                     result.permit_number = ExtractionResult(
-                        value=match.group(1).strip(),
+                        value=permit_value,
                         confidence=0.85,
                         source_text=match.group(0)
                     )
@@ -403,7 +415,7 @@ class AgencyKYCExtractionParser:
                 # Skip if the match spans multiple lines or contains common words
                 if '\n' not in dti_match.group(0) and dti_value.upper() not in ['BAGONG', 'PILIPINAS', 'DEPARTMENT']:
                     result.dti_number = ExtractionResult(
-                        value=dti_value,
+                        value=normalize_registration_token(dti_value),
                         confidence=0.85,
                         source_text=dti_match.group(0)
                     )
@@ -465,7 +477,7 @@ class AgencyKYCExtractionParser:
         sec_match = self.sec_pattern.search(text)
         if sec_match:
             result.sec_number = ExtractionResult(
-                value=sec_match.group(1).strip(),
+                value=normalize_registration_token(sec_match.group(1)),
                 confidence=0.85,
                 source_text=sec_match.group(0)
             )
@@ -517,16 +529,108 @@ class AgencyKYCExtractionParser:
 
         kyc_parser = get_kyc_parser()
         parsed_personal = kyc_parser.parse_ocr_text(text, normalized_hint)
+
+        def _sanitize_rep_id_number(raw_value: str) -> str:
+            value = (raw_value or "").strip()
+            if not value:
+                return ""
+
+            upper_value = value.upper()
+            blocked_tokens = [
+                "EXPIRATION",
+                "EXPIRY",
+                "EXPIRES",
+                "DATE OF EXPIRY",
+                "VALID UNTIL",
+                "VALID THRU",
+            ]
+            if any(token in upper_value for token in blocked_tokens):
+                return ""
+
+            return value
+
+        def _derive_name_parts_from_full_name(full_name: str) -> Tuple[str, str, str]:
+            cleaned = " ".join((full_name or "").split())
+            if not cleaned:
+                return "", "", ""
+
+            parts = cleaned.split(" ")
+            if len(parts) == 1:
+                return parts[0], "", ""
+            if len(parts) == 2:
+                return parts[0], "", parts[1]
+
+            return parts[0], " ".join(parts[1:-1]), parts[-1]
+
+        def _sanitize_name_text(raw_name: str) -> str:
+            name = " ".join((raw_name or "").replace(".", " ").split())
+            if not name:
+                return ""
+
+            # Remove common OCR-captured labels from ID templates.
+            tokens = [
+                token
+                for token in name.split(" ")
+                if token.upper()
+                not in {
+                    "FIRST",
+                    "MIDDLE",
+                    "LAST",
+                    "NAME",
+                    "NAMES",
+                    "GIVEN",
+                    "SURNAME",
+                }
+            ]
+
+            sanitized = " ".join(tokens).strip()
+            return sanitized
         
         # Map personal KYC fields to representative fields
+        sanitized_full_name = _sanitize_name_text(parsed_personal.full_name.value)
         result.rep_full_name = ExtractionResult(
-            value=parsed_personal.full_name.value,
+            value=sanitized_full_name,
             confidence=parsed_personal.full_name.confidence,
             source_text=parsed_personal.full_name.source_text
         )
+
+        first_name = _sanitize_name_text(parsed_personal.first_name.value)
+        middle_name = _sanitize_name_text(parsed_personal.middle_name.value)
+        last_name = _sanitize_name_text(parsed_personal.last_name.value)
+
+        if not first_name and not middle_name and not last_name:
+            first_name, middle_name, last_name = _derive_name_parts_from_full_name(
+                sanitized_full_name,
+            )
+
+        name_part_confidence = parsed_personal.full_name.confidence * 0.9
+        result.rep_first_name = ExtractionResult(
+            value=first_name,
+            confidence=name_part_confidence,
+            source_text=parsed_personal.first_name.source_text
+            or parsed_personal.full_name.source_text,
+        )
+        result.rep_middle_name = ExtractionResult(
+            value=middle_name,
+            confidence=name_part_confidence,
+            source_text=parsed_personal.middle_name.source_text
+            or parsed_personal.full_name.source_text,
+        )
+        result.rep_last_name = ExtractionResult(
+            value=last_name,
+            confidence=name_part_confidence,
+            source_text=parsed_personal.last_name.source_text
+            or parsed_personal.full_name.source_text,
+        )
+
+        sanitized_id_number = _sanitize_rep_id_number(parsed_personal.id_number.value)
         result.rep_id_number = ExtractionResult(
-            value=parsed_personal.id_number.value,
-            confidence=parsed_personal.id_number.confidence,
+            value=sanitized_id_number,
+            confidence=(
+                parsed_personal.id_number.confidence
+                if sanitized_id_number
+                else max(0.0, parsed_personal.id_number.confidence * 0.2)
+            ),
             source_text=parsed_personal.id_number.source_text
         )
         result.rep_id_type = ExtractionResult(

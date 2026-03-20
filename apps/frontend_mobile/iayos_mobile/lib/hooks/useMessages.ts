@@ -98,7 +98,8 @@ export type ConversationDetail = {
     workerMarkedOnTheWay?: boolean;
     workerMarkedJobStarted?: boolean;
     clientMarkedComplete: boolean;
-    remainingPaymentPaid?: boolean;
+     remainingPaymentPaid?: boolean;
+     remainingPayment?: number;
     workerReviewed: boolean;
     clientReviewed: boolean;
     // Agency job review tracking - null for non-agency jobs
@@ -130,6 +131,10 @@ export type ConversationDetail = {
       | "PURCHASED"
       | "APPROVED";
     materials_cost?: number;
+    // Single DAILY early completion
+    is_early_completed?: boolean;
+    early_completed_at?: string | null;
+    early_completion_payout?: number | null;
   };
   other_participant: {
     name: string;

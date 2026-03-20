@@ -77,9 +77,8 @@ interface CreateJobRequest {
   budget?: number; // Optional for daily payment model
   location: string;
   expected_duration?: string;
-  urgency_level: "LOW" | "MEDIUM" | "HIGH" | null;
   preferred_start_date?: string;
-  scheduled_end_date?: string;
+  number_of_working_days?: number;
   downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
@@ -101,6 +100,7 @@ interface CreateJobRequest {
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
   duration_days?: number;
+  shift_type?: "ANY" | "MORNING" | "NIGHT";
   // Materials needed (array of names)
   materials_needed?: string[];
 }
@@ -111,17 +111,6 @@ interface SkillSlot {
   workers_needed: number;
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT" | null;
 }
-
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
-
-const toCalendarDay = (date: Date): Date =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate());
-
-const getInclusiveCalendarDays = (start: Date, end: Date): number => {
-  const startDay = toCalendarDay(start).getTime();
-  const endDay = toCalendarDay(end).getTime();
-  return Math.floor((endDay - startDay) / DAY_IN_MS) + 1;
-};
 
 const formatLocalDateYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
@@ -306,13 +295,8 @@ export default function CreateJobScreen() {
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
   const [duration, setDuration] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(
-    null,
-  );
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isOneDayJob, setIsOneDayJob] = useState(false);
   const [selectedMaterials, setSelectedMaterials] = useState<number[]>([]);
   // New universal job fields for ML accuracy
@@ -333,6 +317,7 @@ export default function CreateJobScreen() {
   const effectivePaymentModel: "PROJECT" | "DAILY" = isAgencyHire
     ? "PROJECT"
     : paymentModel;
+  const [shiftType, setShiftType] = useState<"ANY" | "MORNING" | "NIGHT">("ANY");
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
@@ -675,7 +660,6 @@ export default function CreateJobScreen() {
           title: predictionTitle,
           description: predictionDescription,
           category_id: effectiveCategoryId,
-          urgency: urgency ?? undefined,
           skill_level: skillLevel ?? undefined,
           job_scope: jobScope ?? undefined,
           work_environment: workEnvironment ?? undefined,
@@ -697,7 +681,6 @@ export default function CreateJobScreen() {
     description,
     effectiveCategoryId,
     selectedCategoryNames,
-    urgency,
     skillLevel,
     jobScope,
     workEnvironment,
@@ -709,18 +692,6 @@ export default function CreateJobScreen() {
   const handleApplySuggestedPrice = useCallback((price: number) => {
     setBudget(price.toFixed(2));
   }, []);
-
-  // Auto-calculate duration days for Daily Rate when dates are provided
-  useEffect(() => {
-    if (paymentModel === "DAILY") {
-      if (startDate && isOneDayJob) {
-        setDurationDays("1");
-      } else if (startDate && scheduledEndDate) {
-        const diffDays = getInclusiveCalendarDays(startDate, scheduledEndDate);
-        setDurationDays(diffDays.toString());
-      }
-    }
-  }, [startDate, scheduledEndDate, isOneDayJob, paymentModel]);
 
   // Multi-employee skill slot management
   const addSkillSlot = useCallback(() => {
@@ -1142,14 +1113,16 @@ export default function CreateJobScreen() {
         Alert.alert("Error", "Please enter a valid daily rate");
         return;
       }
-      if (!durationDays || parseInt(durationDays) <= 0) {
-        Alert.alert("Error", "Please enter a valid duration (number of days)");
-        return;
-      }
-      if (parseInt(durationDays) > 365) {
-        Alert.alert("Error", "Duration cannot exceed 365 days");
-        return;
-      }
+    }
+
+    // Number of working days validation (required for all job types)
+    if (!durationDays || parseInt(durationDays) <= 0) {
+      Alert.alert("Error", "Please enter the number of working days");
+      return;
+    }
+    if (parseInt(durationDays) > 365) {
+      Alert.alert("Error", "Duration cannot exceed 365 days");
+      return;
     }
 
     if (!barangay.trim()) {
@@ -1163,17 +1136,6 @@ export default function CreateJobScreen() {
 
     if (!startDate) {
       Alert.alert("Error", "Please select a start date for the job");
-      return;
-    }
-
-    const finalEndDate = isOneDayJob ? startDate : scheduledEndDate;
-
-    if (!finalEndDate) {
-      Alert.alert("Error", "Please select an end date for the job");
-      return;
-    }
-    if (getInclusiveCalendarDays(startDate, finalEndDate) < 1) {
-      Alert.alert("Error", "End date cannot be before start date");
       return;
     }
 
@@ -1229,13 +1191,10 @@ export default function CreateJobScreen() {
       category_id: effectiveCategoryId!,
       location: `${street.trim()}, ${barangay.trim()}`,
       expected_duration: duration.trim() || undefined,
-      urgency_level: urgency ?? null,
       preferred_start_date: startDate
         ? formatLocalDateYYYYMMDD(startDate)
         : undefined,
-      scheduled_end_date: finalEndDate
-        ? formatLocalDateYYYYMMDD(finalEndDate)
-        : undefined,
+      number_of_working_days: parseInt(durationDays) || undefined,
       downpayment_method: "WALLET", // Jobs only use Wallet payment
       // Universal job fields for ML accuracy - explicitly passed
       skill_level_required: skillLevel ?? null,
@@ -1243,6 +1202,7 @@ export default function CreateJobScreen() {
       work_environment: workEnvironment ?? null,
       // Payment model specific fields
       payment_model: effectivePaymentModel,
+      shift_type: effectivePaymentModel === "DAILY" ? shiftType : undefined,
     };
 
     // Materials needed - map selected IDs to names + add manual materials
@@ -1938,41 +1898,9 @@ export default function CreateJobScreen() {
               <View style={styles.sectionTitle}>
                 <Ionicons name="time" size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitleText}>
-                  Timing & Urgency
+                  Timing
                   <Text style={{ color: Colors.error }}> *</Text>
                 </Text>
-              </View>
-
-              {/* Urgency Level */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Urgency Level</Text>
-                <View style={styles.urgencyRow}>
-                  {(["LOW", "MEDIUM", "HIGH"] as const).map((level) => (
-                    <TouchableOpacity
-                      key={level}
-                      style={[
-                        styles.urgencyButton,
-                        urgency === level && styles.urgencyButtonActive,
-                      ]}
-                      onPress={() =>
-                        setUrgency(urgency === level ? null : level)
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyText,
-                          urgency === level && styles.urgencyTextActive,
-                        ]}
-                      >
-                        {level === "LOW"
-                          ? "Low"
-                          : level === "MEDIUM"
-                            ? "Medium"
-                            : "High"}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
               </View>
 
               {/* Job Dates */}
@@ -2014,114 +1942,37 @@ export default function CreateJobScreen() {
                         setShowDatePicker(Platform.OS === "ios");
                         if (selectedDate) {
                           setStartDate(selectedDate);
-                          if (isOneDayJob) {
-                            setScheduledEndDate(selectedDate);
-                          }
-                          if (
-                            scheduledEndDate &&
-                            getInclusiveCalendarDays(
-                              selectedDate,
-                              scheduledEndDate,
-                            ) < 1
-                          ) {
-                            setScheduledEndDate(null);
-                          }
                         }
                       }}
                     />
                   )}
                 </View>
 
-                {/* End Date */}
+                {/* Number of Working Days */}
                 <View style={[styles.inputGroup, styles.dateHalf]}>
-                  <Text
-                    style={[
-                      styles.label,
-                      isOneDayJob && { color: Colors.textHint },
-                    ]}
-                  >
-                    End Date{" "}
-                    {isOneDayJob ? (
-                      <Text style={{ color: Colors.textHint }}>(N/A)</Text>
-                    ) : (
-                      <Text style={{ color: Colors.textHint }}></Text>
-                    )}
+                  <Text style={styles.label}>
+                    Working Days
+                    <Text style={{ color: Colors.error }}> *</Text>
                   </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.dateButton,
-                      !isOneDayJob &&
-                        !scheduledEndDate && { borderColor: Colors.border },
-                      isOneDayJob && styles.dateButtonDisabled,
-                    ]}
-                    onPress={() => !isOneDayJob && setShowEndDatePicker(true)}
-                    disabled={isOneDayJob}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={18}
-                      color={
-                        isOneDayJob
-                          ? Colors.textHint
-                          : scheduledEndDate
-                            ? Colors.textSecondary
-                            : Colors.textHint
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.dateButtonText,
-                        styles.dateButtonTextSmall,
-                        !isOneDayJob &&
-                          !scheduledEndDate && { color: Colors.textHint },
-                        isOneDayJob && { color: Colors.textHint },
-                      ]}
-                    >
-                      {isOneDayJob
-                        ? "Same as start"
-                        : scheduledEndDate
-                          ? scheduledEndDate.toLocaleDateString()
-                          : "Select date"}
-                    </Text>
-                  </TouchableOpacity>
-                  {showEndDatePicker && !isOneDayJob && (
-                    <DateTimePicker
-                      value={scheduledEndDate || startDate || new Date()}
-                      mode="date"
-                      display="default"
-                      minimumDate={startDate || new Date()}
-                      onChange={(event, selectedDate) => {
-                        setShowEndDatePicker(Platform.OS === "ios");
-                        if (selectedDate) {
-                          setScheduledEndDate(selectedDate);
-                          if (
-                            startDate &&
-                            getInclusiveCalendarDays(startDate, selectedDate) >
-                              1 &&
-                            isOneDayJob
-                          ) {
-                            setIsOneDayJob(false);
-                          }
-                        }
-                      }}
-                    />
-                  )}
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 5"
+                    value={durationDays}
+                    onChangeText={setDurationDays}
+                    keyboardType="number-pad"
+                    placeholderTextColor={Colors.textHint}
+                  />
                 </View>
               </View>
 
-              {/* One day or less checkbox - agency only */}
-              {/* Checkbox for one day job */}
+              {/* One day or less checkbox */}
               <TouchableOpacity
                 style={styles.checkboxRow}
                 onPress={() => {
                   const next = !isOneDayJob;
                   setIsOneDayJob(next);
                   if (next) {
-                    if (startDate) {
-                      setScheduledEndDate(startDate);
-                    } else {
-                      setScheduledEndDate(null);
-                    }
+                    setDurationDays("1");
                     // Force PROJECT payment model for one-day jobs
                     setPaymentModel("PROJECT");
                   }
@@ -2143,7 +1994,7 @@ export default function CreateJobScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Expected Duration - always visible for regular jobs; agency shows only for one-day */}
+              {/* Expected Duration - visible for one-day jobs */}
               {isOneDayJob && (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Expected Duration (Optional)</Text>
@@ -2617,34 +2468,47 @@ export default function CreateJobScreen() {
                     </View>
                   </View>
 
+                  {/* Shift Picker */}
                   <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Duration</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        (!effectiveCategoryId ||
-                          (startDate && (scheduledEndDate || isOneDayJob))) &&
-                          styles.inputDisabled,
-                      ]}
-                      placeholder={
-                        effectiveCategoryId
-                          ? "e.g., 5"
-                          : "Add a worker requirement first"
-                      }
-                      value={durationDays}
-                      onChangeText={setDurationDays}
-                      keyboardType="number-pad"
-                      placeholderTextColor={Colors.textHint}
-                      editable={
-                        !!effectiveCategoryId &&
-                        !(startDate && (scheduledEndDate || isOneDayJob))
-                      }
-                    />
-                    <Text style={styles.hint}>
-                      {startDate && (scheduledEndDate || isOneDayJob)
-                        ? "Auto-calculated based on selected dates"
-                        : "Number of working days"}
-                    </Text>
+                    <Text style={styles.label}>Shift</Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {(["ANY", "MORNING", "NIGHT"] as const).map((s) => (
+                        <TouchableOpacity
+                          key={s}
+                          onPress={() => setShiftType(s)}
+                          style={[
+                            {
+                              flex: 1,
+                              paddingVertical: 10,
+                              paddingHorizontal: 6,
+                              borderRadius: 8,
+                              borderWidth: 1.5,
+                              borderColor: shiftType === s ? Colors.primary : Colors.border,
+                              backgroundColor: shiftType === s ? Colors.primary + "15" : Colors.background,
+                              alignItems: "center",
+                            },
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: shiftType === s ? "700" : "400",
+                              color: shiftType === s ? Colors.primary : Colors.textSecondary,
+                            }}
+                          >
+                            {s === "ANY" ? "Any" : s === "MORNING" ? "Morning" : "Night"}
+                          </Text>
+                          {s !== "ANY" && (
+                            <Text
+                              style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}
+                            >
+                              {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
                 </>
               )}

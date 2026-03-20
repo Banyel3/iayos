@@ -328,10 +328,24 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/applications/${applicationId}`,
   WITHDRAW_APPLICATION: (applicationId: number) =>
     `${API_URL}/api/mobile/applications/${applicationId}/withdraw`,
+  NEGOTIATION_THREAD: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}/negotiations`,
+  NEGOTIATION_PROPOSE: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}/negotiations/propose`,
+  NEGOTIATION_COUNTER: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}/negotiations/counter`,
+  NEGOTIATION_REJECT_PRICE: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}/negotiations/reject-price`,
+  NEGOTIATION_ACCEPT_COUNTER: (applicationId: number) =>
+    `${API_URL}/api/mobile/applications/${applicationId}/negotiations/accept-counter`,
   CANCEL_JOB: (id: number) => `${API_URL}/api/jobs/${id}/cancel`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/approve-completion`,
+  // Simplified arrival flow: client taps "Worker Has Arrived" → single action
+  CONFIRM_WORKER_ARRIVED: (id: number) =>
+    `${API_BASE_URL}/jobs/${id}/confirm-worker-arrived`,
+  // Legacy aliases kept for backwards-compat (backend returns no-op success)
   CONFIRM_WORK_STARTED: (id: number) =>
     `${API_BASE_URL}/jobs/${id}/confirm-work-started`,
   MARK_ON_THE_WAY: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-on-the-way`,
@@ -391,12 +405,20 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`,
   TEAM_WORKER_COMPLETE: (jobId: number, assignmentId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/worker-complete/${assignmentId}`,
+  TEAM_EARLY_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/early-complete/${assignmentId}`,
   TEAM_ASSIGN_WORKER: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/assign`,
   TEAM_REMOVE_WORKER: (jobId: number, workerId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/workers/${workerId}`,
   TEAM_START_AVAILABLE: (jobId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/start-available`,
+
+  // Team Job — Agency Employee Operations (per-slot mixed teams)
+  TEAM_CONFIRM_EMPLOYEE_ARRIVAL: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/confirm-arrival`,
+  TEAM_MARK_EMPLOYEE_COMPLETE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/mark-complete`,
 
   // Agency PROJECT Job Workflow (mirrors DAILY job workflow)
   // Flow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays
@@ -543,10 +565,15 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/verify-arrival`,
   CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-checkout`,
+  // Simplified daily flow: client taps "Mark Day Complete" → sets time_out + triggers payment
+  CLIENT_MARK_DAY_COMPLETE: (jobId: number, attendanceId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-day-complete`,
   DAILY_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/extend-one-day`,
   DAILY_FINISH_JOB: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/finish`,
+  DAILY_EARLY_COMPLETE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/early-complete`,
   PROJECT_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/project/extend-one-day`,
   PROJECT_FINISH_JOB: (jobId: number) =>
@@ -683,6 +710,9 @@ export const ENDPOINTS = {
   DAILY_SUMMARY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/summary`,
   DAILY_ESCROW_ESTIMATE: `${API_URL}/api/jobs/daily/escrow-estimate`,
+  // Escrow status (top-up prompt)
+  JOB_ESCROW_STATUS: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/escrow-status`,
   // Extensions
   DAILY_EXTENSIONS: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/extensions`,

@@ -207,15 +207,27 @@ export default function WorkerCalendarModal({
               <View style={styles.legend}>
                 <View style={styles.legendItem}>
                   <View
-                    style={[styles.legendDot, { backgroundColor: "#3B82F6" }]}
+                    style={[styles.legendDot, { backgroundColor: "#F59E0B" }]}
                   />
-                  <Text style={styles.legendText}>Scheduled</Text>
+                  <Text style={styles.legendText}>Morning</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: "#6366F1" }]}
+                  />
+                  <Text style={styles.legendText}>Night</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View
                     style={[styles.legendDot, { backgroundColor: "#10B981" }]}
                   />
                   <Text style={styles.legendText}>In Progress</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: "#3B82F6" }]}
+                  />
+                  <Text style={styles.legendText}>Other</Text>
                 </View>
               </View>
             </>
@@ -299,6 +311,45 @@ export default function WorkerCalendarModal({
                                 day: "numeric",
                               })}
                             </Text>
+                            {/* Shift + job type badges */}
+                            <View style={{ flexDirection: "row", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                              {job.payment_model === "DAILY" && job.shift_type && job.shift_type !== "ANY" && (
+                                <View style={{
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                  backgroundColor: job.shift_type === "MORNING" ? "#F59E0B22" : "#6366F122",
+                                }}>
+                                  <Text style={{
+                                    fontSize: 10,
+                                    fontWeight: "600",
+                                    color: job.shift_type === "MORNING" ? "#F59E0B" : "#6366F1",
+                                  }}>
+                                    {job.shift_type === "MORNING" ? "Morning" : "Night"}
+                                  </Text>
+                                </View>
+                              )}
+                              {job.payment_model === "DAILY" && (
+                                <View style={{
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                  backgroundColor: Colors.backgroundSecondary,
+                                }}>
+                                  <Text style={{ fontSize: 10, color: Colors.textSecondary }}>Daily</Text>
+                                </View>
+                              )}
+                              {job.job_type === "TEAM" && (
+                                <View style={{
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                  backgroundColor: Colors.backgroundSecondary,
+                                }}>
+                                  <Text style={{ fontSize: 10, color: Colors.textSecondary }}>Team</Text>
+                                </View>
+                              )}
+                            </View>
                           </View>
                           <View style={styles.jobCardRight}>
                             <View

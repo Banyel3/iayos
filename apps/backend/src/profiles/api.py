@@ -9,7 +9,7 @@ from .schemas import (
     MessageResponseSchema,
     ConversationSchema,
     ConversationParticipantSchema,
-    MarkAsReadSchema
+    MarkAsReadSchema,
 )
 from .models import Conversation, Message, MessageAttachment
 from decimal import Decimal
@@ -29,7 +29,9 @@ router = Router()
 __all__ = ["router"]
 
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
-CONTACT_INFO_BLOCKED_MESSAGE = "For safety, sharing phone numbers or email addresses in chat is not allowed."
+CONTACT_INFO_BLOCKED_MESSAGE = (
+    "For safety, sharing phone numbers or email addresses in chat is not allowed."
+)
 
 
 def _get_user_profile(request) -> Profile:
@@ -88,13 +90,21 @@ def _derive_duration_days(job) -> int:
             if span_days > 0:
                 duration_candidates.append(span_days)
 
-        expected_duration = str(getattr(job, "expectedDuration", "") or "").strip().lower()
+        expected_duration = (
+            str(getattr(job, "expectedDuration", "") or "").strip().lower()
+        )
         if expected_duration:
-            unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration)
+            unit_match = re.search(
+                r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration
+            )
             if unit_match:
                 value = int(unit_match.group(1) or 1)
                 unit = unit_match.group(2) or "day"
-                parsed_days = value * 7 if unit.startswith("week") or unit.startswith("wk") else value
+                parsed_days = (
+                    value * 7
+                    if unit.startswith("week") or unit.startswith("wk")
+                    else value
+                )
                 duration_candidates.append(max(1, parsed_days))
             else:
                 plain_number = re.search(r"^\d+$", expected_duration)
@@ -125,7 +135,9 @@ def _derive_duration_days(job) -> int:
 
     expected_duration = str(getattr(job, "expectedDuration", "") or "").strip().lower()
     if expected_duration:
-        unit_match = re.search(r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration)
+        unit_match = re.search(
+            r"(\d+)\s*-?\s*(day|days|week|weeks|wk|wks)\b", expected_duration
+        )
         if unit_match:
             value = int(unit_match.group(1) or 1)
             unit = unit_match.group(2) or "day"
@@ -160,6 +172,28 @@ def _get_effective_work_date(job):
     return base_date + timedelta(days=day_offset)
 
 
+def _get_conversation_remaining_payment(job) -> float:
+    """
+    Return the remaining payment amount for a job as a float suitable for
+    the conversation API response.
+
+    For DAILY team jobs the remaining amount is computed dynamically from each
+    worker assignment's contracted days minus amounts already earned.
+    For all other job types the stored ``remainingPayment`` field is used
+    (set to 50 % of the budget at job creation for PROJECT jobs).
+    """
+    is_daily = (
+        str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY"
+    )
+    if is_daily and getattr(job, "is_team_job", False):
+        from jobs.team_job_services import _calculate_team_daily_remaining_payouts
+
+        payouts = _calculate_team_daily_remaining_payouts(job)
+        total = sum(payouts.values(), Decimal("0.00"))
+        return float(total)
+    return float(job.remainingPayment or 0)
+
+
 def _get_job_cancellation_snapshot(job):
     """Provide backward-compatible cancellation signals for legacy jobs."""
     cancelled_at = getattr(job, "cancelledAt", None)
@@ -181,24 +215,26 @@ def _get_job_cancellation_snapshot(job):
         "cancellation_reason": cancellation_reason,
     }
 
+
 # ============================================================
 # DEPRECATED: WorkerProduct endpoints - Use WorkerMaterial (accounts app) instead
 # These endpoints are kept as stubs for backward compatibility
 # ============================================================
 
 
-#region PROFILE IMAGE UPLOAD
+# region PROFILE IMAGE UPLOAD
+
 
 @router.post("/upload/profile-image", auth=cookie_auth)
 def upload_profile_image_endpoint(request, profile_image: UploadedFile = File(...)):
     """
     Upload user profile image to Supabase storage.
-    
+
     Path structure: users/user_{userID}/profileImage/avatar.png
-    
+
     Args:
         profile_image: Image file (JPEG, PNG, JPG, WEBP, max 5MB)
-    
+
     Returns:
         success: boolean
         message: string
@@ -207,60 +243,55 @@ def upload_profile_image_endpoint(request, profile_image: UploadedFile = File(..
     """
     try:
         from accounts.services import upload_profile_image_service
-        
+
         user = request.auth
         result = upload_profile_image_service(user, profile_image)
-        
+
         return result
-        
+
     except ValueError as e:
         print(f"❌ ValueError in profile image upload: {str(e)}")
-        return Response(
-            {"error": str(e)},
-            status=400
-        )
+        return Response({"error": str(e)}, status=400)
     except Exception as e:
         print(f"❌ Exception in profile image upload: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to upload profile image"},
-            status=500
-        )
-
-#endregion
+        return Response({"error": "Failed to upload profile image"}, status=500)
 
 
-#region WALLET ENDPOINTS
+# endregion
+
+
+# region WALLET ENDPOINTS
+
 
 @router.get("/wallet/balance", auth=cookie_auth)
 def get_wallet_balance(request):
     """Get current user's wallet balance including reserved funds"""
     try:
         from decimal import Decimal
-        
+
         # Get or create wallet for the user
         wallet, created = Wallet.objects.get_or_create(
             accountFK=request.auth,
-            defaults={'balance': Decimal('0.00'), 'reservedBalance': Decimal('0.00')}
+            defaults={"balance": Decimal("0.00"), "reservedBalance": Decimal("0.00")},
         )
-        
+
         return {
             "success": True,
             "balance": float(wallet.balance),
             "reservedBalance": float(wallet.reservedBalance),
             "availableBalance": float(wallet.availableBalance),
-            "created": created
+            "created": created,
         }
-        
+
     except Exception as e:
         print(f"❌ Error fetching wallet balance: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch wallet balance"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch wallet balance"}, status=500)
 
 
 @router.post("/wallet/deposit", auth=cookie_auth)
@@ -269,46 +300,44 @@ def deposit_funds(request, data: DepositFundsSchema):
     """
     Create a payment invoice for wallet deposit.
     Uses configured payment provider (PayMongo by default, Xendit for legacy).
-    
+
     SECURE FLOW:
     1. Create PENDING transaction (no balance change)
     2. Redirect user to PayMongo/Xendit checkout
     3. User pays via GCash/Card
     4. Webhook confirms payment
     5. Webhook handler adds funds to wallet
-    
+
     Returns payment URL for user to complete payment.
     """
     try:
         from accounts.payment_provider import get_payment_provider
-        
+
         amount = data.amount
         payment_method = data.payment_method
-        
-        print(f"📥 Deposit request received: amount={amount}, payment_method={payment_method}")
-        
+
+        print(
+            f"📥 Deposit request received: amount={amount}, payment_method={payment_method}"
+        )
+
         if amount <= 0:
-            return Response(
-                {"error": "Amount must be greater than 0"},
-                status=400
-            )
-        
+            return Response({"error": "Amount must be greater than 0"}, status=400)
+
         # Get or create wallet
         wallet, _ = Wallet.objects.get_or_create(
-            accountFK=request.auth,
-            defaults={'balance': 0.00}
+            accountFK=request.auth, defaults={"balance": 0.00}
         )
-        
+
         # Get user's profile for name
         try:
             profile = _get_user_profile(request)
             user_name = f"{profile.firstName} {profile.lastName}"
         except Profile.DoesNotExist:
-            user_name = request.auth.email.split('@')[0]  # Fallback to email username
-        
+            user_name = request.auth.email.split("@")[0]  # Fallback to email username
+
         print(f"💰 Processing deposit for {user_name}")
         print(f"   Current balance: ₱{wallet.balance}")
-        
+
         # Create PENDING transaction - funds NOT added yet!
         # Balance will be updated by webhook after payment is confirmed
         transaction = Transaction.objects.create(
@@ -320,64 +349,72 @@ def deposit_funds(request, data: DepositFundsSchema):
             description=f"TOP UP via GCASH - ₱{amount}",
             paymentMethod=Transaction.PaymentMethod.GCASH,
         )
-        
+
         print(f"   Transaction {transaction.transactionID} created as PENDING")
         print(f"   ⚠️ Funds will be added after payment confirmation")
-        
+
         # Create payment invoice using configured provider
         payment_provider = get_payment_provider()
         provider_name = payment_provider.provider_name
         print(f"🔄 Creating payment invoice via {provider_name.upper()}...")
-        
+
         payment_result = payment_provider.create_gcash_payment(
             amount=amount,
             user_email=request.auth.email,
             user_name=user_name,
-            transaction_id=transaction.transactionID
+            transaction_id=transaction.transactionID,
         )
-        
+
         if not payment_result.get("success"):
             # If payment provider fails, mark transaction as failed
             transaction.status = Transaction.TransactionStatus.FAILED
             transaction.description = f"TOP UP FAILED - ₱{amount} - {payment_result.get('error', 'Payment provider error')}"
             transaction.save()
             return Response(
-                {"error": "Failed to create payment invoice", "details": payment_result.get("error")},
-                status=500
+                {
+                    "error": "Failed to create payment invoice",
+                    "details": payment_result.get("error"),
+                },
+                status=500,
             )
-        
+
         # Update transaction with payment provider details
-        transaction.xenditInvoiceID = payment_result.get('checkout_id') or payment_result.get('invoice_id')
-        transaction.xenditExternalID = payment_result.get('external_id')
-        transaction.invoiceURL = payment_result.get('checkout_url') or payment_result.get('invoice_url')
+        transaction.xenditInvoiceID = payment_result.get(
+            "checkout_id"
+        ) or payment_result.get("invoice_id")
+        transaction.xenditExternalID = payment_result.get("external_id")
+        transaction.invoiceURL = payment_result.get(
+            "checkout_url"
+        ) or payment_result.get("invoice_url")
         transaction.xenditPaymentChannel = "GCASH"
         transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
-        
-        print(f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}")
+
+        print(
+            f"📄 {provider_name.upper()} invoice created: {transaction.xenditInvoiceID}"
+        )
         print(f"   ⏳ Waiting for user to complete payment...")
-        
+
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "payment_url": payment_result.get('checkout_url') or payment_result.get('invoice_url'),
+            "payment_url": payment_result.get("checkout_url")
+            or payment_result.get("invoice_url"),
             "invoice_id": transaction.xenditInvoiceID,
             "amount": amount,
             "current_balance": float(wallet.balance),  # Show current balance, not new
-            "expiry_date": payment_result.get('expiry_date'),
+            "expiry_date": payment_result.get("expiry_date"),
             "provider": provider_name,
             "status": "pending",
-            "message": "Payment invoice created. Complete payment to add funds to wallet."
+            "message": "Payment invoice created. Complete payment to add funds to wallet.",
         }
-        
+
     except Exception as e:
         print(f"❌ Error depositing funds: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to deposit funds"},
-            status=500
-        )
+        return Response({"error": "Failed to deposit funds"}, status=500)
 
 
 @router.post("/wallet/withdraw", auth=cookie_auth)
@@ -390,73 +427,61 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
     try:
         from accounts.payment_provider import get_payment_provider
         from accounts.models import PaymentMethod
-        
-        print(f"📤 Withdrawal request received: amount={amount}, payment_method_id={payment_method_id}")
-        
+
+        print(
+            f"📤 Withdrawal request received: amount={amount}, payment_method_id={payment_method_id}"
+        )
+
         if amount <= 0:
-            return Response(
-                {"error": "Amount must be greater than 0"},
-                status=400
-            )
-        
+            return Response({"error": "Amount must be greater than 0"}, status=400)
+
         if amount < 100:
-            return Response(
-                {"error": "Minimum withdrawal amount is ₱100"},
-                status=400
-            )
-        
+            return Response({"error": "Minimum withdrawal amount is ₱100"}, status=400)
+
         # Get wallet
         try:
             wallet = Wallet.objects.get(accountFK=request.auth)
         except Wallet.DoesNotExist:
-            return Response(
-                {"error": "Wallet not found"},
-                status=404
-            )
-        
+            return Response({"error": "Wallet not found"}, status=404)
+
         amount_decimal = Decimal(str(amount))
-        
+
         # Get payment method details
         try:
             payment_method = PaymentMethod.objects.get(
-                id=payment_method_id,
-                accountFK=request.auth
+                id=payment_method_id, accountFK=request.auth
             )
         except PaymentMethod.DoesNotExist:
-            return Response(
-                {"error": "Payment method not found"},
-                status=404
-            )
-        
+            return Response({"error": "Payment method not found"}, status=404)
+
         # Get user's profile for name
         try:
             profile = _get_user_profile(request)
             user_name = f"{profile.firstName} {profile.lastName}"
         except Profile.DoesNotExist:
-            user_name = request.auth.email.split('@')[0]
-        
+            user_name = request.auth.email.split("@")[0]
+
         print(f"💸 Processing withdrawal for {user_name}")
         print(f"   Current balance: ₱{wallet.balance}")
-        print(f"   Withdrawing to: ***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'}")
-        
+        print(
+            f"   Withdrawing to: ***{payment_method.accountNumber[-4:] if payment_method.accountNumber else '****'}"
+        )
+
         # Deduct funds with row-level lock to prevent concurrent overdraft
         with db_transaction.atomic():
             wallet = Wallet.objects.select_for_update().get(accountFK=request.auth)
 
             if wallet.balance < amount_decimal:
-                return Response(
-                    {"error": "Insufficient balance"},
-                    status=400
-                )
+                return Response({"error": "Insufficient balance"}, status=400)
 
             wallet.balance -= amount_decimal
-            wallet.save(update_fields=['balance', 'updatedAt'])
-        
+            wallet.save(update_fields=["balance", "updatedAt"])
+
         # Create completed transaction
         description = f"Withdrawal to {payment_method.accountName} ({payment_method.accountNumber})"
         if notes:
             description += f" - {notes}"
-        
+
         transaction = Transaction.objects.create(
             walletID=wallet,
             transactionType=Transaction.TransactionType.WITHDRAWAL,
@@ -465,17 +490,17 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
             status=Transaction.TransactionStatus.COMPLETED,
             description=description,
             paymentMethod=Transaction.PaymentMethod.GCASH,
-            completedAt=timezone.now()
+            completedAt=timezone.now(),
         )
-        
+
         print(f"   New balance: ₱{wallet.balance}")
         print(f"✅ Funds deducted! Transaction {transaction.transactionID}")
-        
+
         # Create disbursement using configured payment provider
         payment_provider = get_payment_provider()
         provider_name = payment_provider.provider_name
         print(f"🔄 Creating {provider_name.upper()} disbursement...")
-        
+
         disbursement_result = payment_provider.create_disbursement(
             amount=amount,
             currency="PHP",
@@ -484,49 +509,56 @@ def withdraw_funds(request, amount: float, payment_method_id: int, notes: str = 
             channel_code="GCASH",
             transaction_id=transaction.transactionID,
             description=f"Withdrawal to {payment_method.accountName}",
-            metadata={"user_email": request.auth.email}
+            metadata={"user_email": request.auth.email},
         )
-        
+
         if not disbursement_result.get("success"):
             # If provider fails, funds are still deducted but return without receipt
-            print(f"⚠️  {provider_name.upper()} disbursement failed, but withdrawal completed")
+            print(
+                f"⚠️  {provider_name.upper()} disbursement failed, but withdrawal completed"
+            )
             return {
                 "success": True,
                 "transaction_id": transaction.transactionID,
                 "new_balance": float(wallet.balance),
                 "message": f"Successfully withdrew ₱{amount}",
-                "provider": provider_name
+                "provider": provider_name,
             }
-        
+
         # Update transaction with provider details
-        transaction.xenditInvoiceID = disbursement_result.get('disbursement_id') or disbursement_result.get('invoice_id')
-        transaction.xenditExternalID = disbursement_result.get('external_id')
-        transaction.invoiceURL = disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url')
+        transaction.xenditInvoiceID = disbursement_result.get(
+            "disbursement_id"
+        ) or disbursement_result.get("invoice_id")
+        transaction.xenditExternalID = disbursement_result.get("external_id")
+        transaction.invoiceURL = disbursement_result.get(
+            "receipt_url"
+        ) or disbursement_result.get("invoice_url")
         transaction.xenditPaymentChannel = "GCASH"
         transaction.xenditPaymentMethod = provider_name.upper()
         transaction.save()
-        
-        print(f"📄 {provider_name.upper()} disbursement created: {transaction.xenditInvoiceID}")
-        
+
+        print(
+            f"📄 {provider_name.upper()} disbursement created: {transaction.xenditInvoiceID}"
+        )
+
         return {
             "success": True,
             "transaction_id": transaction.transactionID,
-            "receipt_url": disbursement_result.get('receipt_url') or disbursement_result.get('invoice_url'),
+            "receipt_url": disbursement_result.get("receipt_url")
+            or disbursement_result.get("invoice_url"),
             "disbursement_id": transaction.xenditInvoiceID,
             "amount": amount,
             "new_balance": float(wallet.balance),
             "provider": provider_name,
-            "message": f"Successfully withdrew ₱{amount}"
+            "message": f"Successfully withdrew ₱{amount}",
         }
-        
+
     except Exception as e:
         print(f"❌ Error withdrawing funds: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to withdraw funds"},
-            status=500
-        )
+        return Response({"error": "Failed to withdraw funds"}, status=500)
 
 
 @router.get("/wallet/transactions", auth=cookie_auth)
@@ -537,16 +569,13 @@ def get_wallet_transactions(request):
         try:
             wallet = Wallet.objects.get(accountFK=request.auth)
         except Wallet.DoesNotExist:
-            return {
-                "success": True,
-                "transactions": []
-            }
-        
+            return {"success": True, "transactions": []}
+
         # Get transactions
-        transactions = Transaction.objects.filter(
-            walletID=wallet
-        ).order_by('-createdAt')[:50]  # Last 50 transactions
-        
+        transactions = Transaction.objects.filter(walletID=wallet).order_by(
+            "-createdAt"
+        )[:50]  # Last 50 transactions
+
         transaction_list = [
             {
                 "id": t.transactionID,
@@ -558,25 +587,23 @@ def get_wallet_transactions(request):
                 "payment_method": t.paymentMethod,
                 "reference_number": t.referenceNumber,
                 "created_at": t.createdAt.isoformat(),
-                "completed_at": t.completedAt.isoformat() if t.completedAt else None
+                "completed_at": t.completedAt.isoformat() if t.completedAt else None,
             }
             for t in transactions
         ]
-        
+
         return {
             "success": True,
             "transactions": transaction_list,
-            "current_balance": float(wallet.balance)
+            "current_balance": float(wallet.balance),
         }
-        
+
     except Exception as e:
         print(f"❌ Error fetching transactions: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to fetch transactions"},
-            status=500
-        )
+        return Response({"error": "Failed to fetch transactions"}, status=500)
 
 
 @router.post("/wallet/webhook", auth=None)  # No auth for webhooks
@@ -588,81 +615,72 @@ def xendit_webhook(request):
     try:
         from accounts.xendit_service import XenditService
         import json
-        
+
         # Get webhook payload
         payload = json.loads(request.body)
-        
+
         print(f"📥 Xendit Webhook received: {payload.get('id')}")
-        
+
         # Verify webhook (optional in TEST mode)
-        webhook_token = request.headers.get('x-callback-token', '')
+        webhook_token = request.headers.get("x-callback-token", "")
         if not XenditService.verify_webhook_signature(webhook_token):
             print(f"❌ Invalid webhook signature")
-            return Response(
-                {"error": "Invalid webhook signature"},
-                status=401
-            )
-        
+            return Response({"error": "Invalid webhook signature"}, status=401)
+
         # Parse webhook data
         webhook_data = XenditService.parse_webhook_payload(payload)
         if not webhook_data:
-            return Response(
-                {"error": "Invalid webhook payload"},
-                status=400
-            )
-        
+            return Response({"error": "Invalid webhook payload"}, status=400)
+
         # Find transaction by Xendit invoice ID
         try:
             transaction = Transaction.objects.get(
-                xenditInvoiceID=webhook_data['invoice_id']
+                xenditInvoiceID=webhook_data["invoice_id"]
             )
         except Transaction.DoesNotExist:
             print(f"❌ Transaction not found for invoice {webhook_data['invoice_id']}")
-            return Response(
-                {"error": "Transaction not found"},
-                status=404
-            )
-        
+            return Response({"error": "Transaction not found"}, status=404)
+
         # Update transaction based on status
-        invoice_status = webhook_data['status']
-        
-        if invoice_status == 'PAID':
+        invoice_status = webhook_data["status"]
+
+        if invoice_status == "PAID":
             # Payment successful
             wallet = transaction.walletID
-            
+
             # Update wallet balance
             wallet.balance += transaction.amount
             wallet.save()
-            
+
             # Update transaction
             transaction.status = Transaction.TransactionStatus.COMPLETED
             transaction.balanceAfter = wallet.balance
-            transaction.xenditPaymentID = webhook_data.get('payment_id')
-            transaction.xenditPaymentChannel = webhook_data.get('payment_channel')
-            transaction.xenditPaymentMethod = webhook_data.get('payment_method')
+            transaction.xenditPaymentID = webhook_data.get("payment_id")
+            transaction.xenditPaymentChannel = webhook_data.get("payment_channel")
+            transaction.xenditPaymentMethod = webhook_data.get("payment_method")
             transaction.completedAt = timezone.now()
             transaction.save()
-            
+
             print(f"✅ Payment completed for transaction {transaction.transactionID}")
-            
-        elif invoice_status in ['EXPIRED', 'FAILED']:
+
+        elif invoice_status in ["EXPIRED", "FAILED"]:
             # Payment failed or expired
             transaction.status = Transaction.TransactionStatus.FAILED
             transaction.description = f"{transaction.description} - {invoice_status}"
             transaction.save()
-            
-            print(f"❌ Payment {invoice_status.lower()} for transaction {transaction.transactionID}")
-        
+
+            print(
+                f"❌ Payment {invoice_status.lower()} for transaction {transaction.transactionID}"
+            )
+
         return {"success": True, "message": "Webhook processed"}
-        
+
     except Exception as e:
         print(f"❌ Error processing webhook: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to process webhook"},
-            status=500
-        )
+        return Response({"error": "Failed to process webhook"}, status=500)
 
 
 @router.post("/wallet/simulate-payment/{transaction_id}", auth=cookie_auth)
@@ -677,40 +695,37 @@ def simulate_payment_completion(request, transaction_id: int):
         try:
             transaction = Transaction.objects.get(
                 transactionID=transaction_id,
-                walletID__accountFK=request.auth  # Ensure user owns this transaction
+                walletID__accountFK=request.auth,  # Ensure user owns this transaction
             )
         except Transaction.DoesNotExist:
-            return Response(
-                {"error": "Transaction not found"},
-                status=404
-            )
-        
+            return Response({"error": "Transaction not found"}, status=404)
+
         # Check if already completed
         if transaction.status == Transaction.TransactionStatus.COMPLETED:
             return {
                 "success": False,
                 "message": "Transaction already completed",
-                "balance": float(transaction.walletID.balance)
+                "balance": float(transaction.walletID.balance),
             }
-        
+
         # Check if pending
         if transaction.status != Transaction.TransactionStatus.PENDING:
             return Response(
                 {"error": f"Transaction is {transaction.status}, cannot complete"},
-                status=400
+                status=400,
             )
-        
+
         # Complete the payment
         wallet = transaction.walletID
-        
+
         print(f"💰 Simulating payment completion for transaction {transaction_id}")
         print(f"   Current balance: ₱{wallet.balance}")
         print(f"   Adding: ₱{transaction.amount}")
-        
+
         # Update wallet balance
         wallet.balance += transaction.amount
         wallet.save()
-        
+
         # Update transaction
         transaction.status = Transaction.TransactionStatus.COMPLETED
         transaction.balanceAfter = wallet.balance
@@ -718,26 +733,24 @@ def simulate_payment_completion(request, transaction_id: int):
         transaction.xenditPaymentChannel = "GCASH"
         transaction.completedAt = timezone.now()
         transaction.save()
-        
+
         print(f"   New balance: ₱{wallet.balance}")
         print(f"✅ Payment simulation completed!")
-        
+
         return {
             "success": True,
             "message": "Payment completed successfully (simulated)",
             "transaction_id": transaction.transactionID,
             "amount": float(transaction.amount),
-            "new_balance": float(wallet.balance)
+            "new_balance": float(wallet.balance),
         }
-        
+
     except Exception as e:
         print(f"❌ Error simulating payment: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to simulate payment"},
-            status=500
-        )
+        return Response({"error": "Failed to simulate payment"}, status=500)
 
 
 @router.get("/wallet/payment-status/{transaction_id}", auth=cookie_auth)
@@ -748,71 +761,77 @@ def check_payment_status(request, transaction_id: int):
     """
     try:
         from accounts.xendit_service import XenditService
-        
+
         # Get transaction
         try:
             transaction = Transaction.objects.get(
                 transactionID=transaction_id,
-                walletID__accountFK=request.auth  # Ensure user owns this transaction
+                walletID__accountFK=request.auth,  # Ensure user owns this transaction
             )
         except Transaction.DoesNotExist:
-            return Response(
-                {"error": "Transaction not found"},
-                status=404
-            )
-        
+            return Response({"error": "Transaction not found"}, status=404)
+
         # If transaction already completed/failed, return current status
-        if transaction.status in [Transaction.TransactionStatus.COMPLETED, Transaction.TransactionStatus.FAILED]:
+        if transaction.status in [
+            Transaction.TransactionStatus.COMPLETED,
+            Transaction.TransactionStatus.FAILED,
+        ]:
             return {
                 "success": True,
                 "status": transaction.status,
                 "amount": float(transaction.amount),
                 "balance_after": float(transaction.balanceAfter),
-                "completed_at": transaction.completedAt.isoformat() if transaction.completedAt else None
+                "completed_at": transaction.completedAt.isoformat()
+                if transaction.completedAt
+                else None,
             }
-        
+
         # If still pending, check with Xendit
         if transaction.xenditInvoiceID:
-            xendit_status = XenditService.get_invoice_status(transaction.xenditInvoiceID)
-            
+            xendit_status = XenditService.get_invoice_status(
+                transaction.xenditInvoiceID
+            )
+
             return {
                 "success": True,
                 "status": transaction.status,
-                "xendit_status": xendit_status.get('status'),
+                "xendit_status": xendit_status.get("status"),
                 "payment_url": transaction.invoiceURL,
-                "amount": float(transaction.amount)
+                "amount": float(transaction.amount),
             }
-        
+
         return {
             "success": True,
             "status": transaction.status,
-            "amount": float(transaction.amount)
+            "amount": float(transaction.amount),
         }
-        
+
     except Exception as e:
         print(f"❌ Error checking payment status: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": "Failed to check payment status"},
-            status=500
-        )
+        return Response({"error": "Failed to check payment status"}, status=500)
 
-#endregion
 
-#region CHAT ENDPOINTS
+# endregion
 
-def get_participant_info(profile: Profile = None, agency = None, job_title: str = None, job = None) -> dict:
+# region CHAT ENDPOINTS
+
+
+def get_participant_info(
+    profile: Profile = None, agency=None, job_title: str = None, job=None
+) -> dict:
     """Helper function to get participant information (supports both Profile and Agency)"""
     if profile:
         return {
             "name": f"{profile.firstName} {profile.lastName}",
             "avatar": profile.profileImg or "/worker1.jpg",
             "profile_type": profile.profileType,
-            "location": profile.location if hasattr(profile, 'location') else None,
+            "location": profile.location if hasattr(profile, "location") else None,
             "job_title": job_title,
             "is_agency": False,
-            "assigned_employee": None
+            "assigned_employee": None,
         }
     elif agency:
         # Get assigned employee info if job is provided
@@ -824,16 +843,16 @@ def get_participant_info(profile: Profile = None, agency = None, job_title: str 
                 "name": emp.name,
                 "avatar": emp.avatar,
                 "rating": float(emp.rating) if emp.rating else None,
-                "is_employee_of_month": emp.employeeOfTheMonth
+                "is_employee_of_month": emp.employeeOfTheMonth,
             }
         return {
             "name": agency.businessName,
             "avatar": None,  # Agencies don't have profile pics yet
             "profile_type": "AGENCY",
-            "location": agency.city if hasattr(agency, 'city') else None,
+            "location": agency.city if hasattr(agency, "city") else None,
             "job_title": job_title,
             "is_agency": True,
-            "assigned_employee": assigned_employee
+            "assigned_employee": assigned_employee,
         }
     else:
         return {
@@ -843,7 +862,7 @@ def get_participant_info(profile: Profile = None, agency = None, job_title: str 
             "location": None,
             "job_title": job_title,
             "is_agency": False,
-            "assigned_employee": None
+            "assigned_employee": None,
         }
 
 
@@ -853,89 +872,99 @@ def get_conversations(request, filter: str = "all"):
     Get all job-based conversations for the current user's profile.
     Returns list of conversations tied to jobs where user is either client or worker.
     Includes both 1:1 conversations and team group conversations.
-    
+
     Query params:
     - filter: 'all', 'unread', or 'archived' (default: 'all')
     """
     try:
         from profiles.models import ConversationParticipant
-        
+
         # Get user's profile based on profile_type from JWT
-        profile_type = getattr(request.auth, 'profile_type', None)
+        profile_type = getattr(request.auth, "profile_type", None)
         if profile_type:
             user_profile = Profile.objects.filter(
-                accountFK=request.auth,
-                profileType=profile_type
+                accountFK=request.auth, profileType=profile_type
             ).first()
         else:
             user_profile = Profile.objects.filter(accountFK=request.auth).first()
-        
+
         if not user_profile:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
-        
+            return Response({"error": "Profile not found"}, status=400)
+
         print(f"\n🔍 === CONVERSATION DEBUG ===")
         print(f"📧 Logged in user: {request.auth.email}")
         print(f"👤 Profile ID: {user_profile.profileID}")
         print(f"📋 Profile Type: {user_profile.profileType}")
         print(f"🎫 JWT Profile Type: {profile_type}")
-        
+
         # Check if user is an agency owner
         from accounts.models import Agency
+
         user_agency = Agency.objects.filter(accountFK=request.auth).first()
-        
+
         # Get 1:1 conversations where user is client, worker, OR agency owner
         one_on_one_filters = Q(client=user_profile) | Q(worker=user_profile)
-        
+
         # CRITICAL: Add agency filter if user owns an agency
         # This ensures agency users only see conversations for their agency, not personal conversations
         if user_agency:
             one_on_one_filters |= Q(agency=user_agency)
-            print(f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyId})")
-        
+            print(
+                f"🏢 User owns agency: {user_agency.businessName} (ID: {user_agency.agencyId})"
+            )
+
         one_on_one_query = Conversation.objects.filter(
-            one_on_one_filters,
-            conversation_type='ONE_ON_ONE'
+            one_on_one_filters, conversation_type="ONE_ON_ONE"
         )
-        
+
         # Get team group conversations where user is a participant
         team_conv_ids = ConversationParticipant.objects.filter(
             profile=user_profile
-        ).values_list('conversation_id', flat=True)
-        
+        ).values_list("conversation_id", flat=True)
+
         team_query = Conversation.objects.filter(
-            conversationID__in=team_conv_ids,
-            conversation_type='TEAM_GROUP'
+            conversationID__in=team_conv_ids, conversation_type="TEAM_GROUP"
         )
-        
+
         # Combine both queries
-        conversations_query = (one_on_one_query | team_query).select_related(
-            'client__accountFK',
-            'worker__accountFK',
-            'relatedJobPosting',
-            'lastMessageSender'
-        ).distinct()
-        
+        conversations_query = (
+            (one_on_one_query | team_query)
+            .select_related(
+                "client__accountFK",
+                "worker__accountFK",
+                "relatedJobPosting",
+                "lastMessageSender",
+            )
+            .distinct()
+        )
+
         print(f"💬 Total conversations found: {conversations_query.count()}")
-        
+
         # Apply filters based on the filter parameter
         if filter == "archived":
             # For 1:1: use archivedByClient/archivedByWorker
             # For team: check ConversationParticipant.is_archived
             archived_team_ids = ConversationParticipant.objects.filter(
-                profile=user_profile,
-                is_archived=True
-            ).values_list('conversation_id', flat=True)
-            
+                profile=user_profile, is_archived=True
+            ).values_list("conversation_id", flat=True)
+
             conversations_query = conversations_query.filter(
-                (Q(conversation_type='ONE_ON_ONE') & (
-                    (Q(client=user_profile) & Q(archivedByClient=True)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=True)) |
-                    ((Q(agency=user_agency) & Q(archivedByWorker=True)) if user_agency else Q(pk__in=[]))
-                )) |
-                (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=archived_team_ids))
+                (
+                    Q(conversation_type="ONE_ON_ONE")
+                    & (
+                        (Q(client=user_profile) & Q(archivedByClient=True))
+                        | (Q(worker=user_profile) & Q(archivedByWorker=True))
+                        | (
+                            (Q(agency=user_agency) & Q(archivedByWorker=True))
+                            if user_agency
+                            else Q(pk__in=[])
+                        )
+                    )
+                )
+                | (
+                    Q(conversation_type="TEAM_GROUP")
+                    & Q(conversationID__in=archived_team_ids)
+                )
             )
         elif filter == "active":
             # Show conversations where work has been agreed upon:
@@ -943,161 +972,215 @@ def get_conversations(request, filter: str = "all"):
             # 2. Jobs ACTIVE with worker/agency assigned (agreed but not started)
             # 3. Jobs with active backjob (UNDER_REVIEW dispute - conversation reopened)
             archived_team_ids = ConversationParticipant.objects.filter(
-                profile=user_profile,
-                is_archived=True
-            ).values_list('conversation_id', flat=True)
-            
+                profile=user_profile, is_archived=True
+            ).values_list("conversation_id", flat=True)
+
             conversations_query = conversations_query.filter(
                 # Exclude archived conversations
-                (Q(conversation_type='ONE_ON_ONE') & (
-                    (Q(client=user_profile) & Q(archivedByClient=False)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
-                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
-                )) |
-                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
+                (
+                    Q(conversation_type="ONE_ON_ONE")
+                    & (
+                        (Q(client=user_profile) & Q(archivedByClient=False))
+                        | (Q(worker=user_profile) & Q(archivedByWorker=False))
+                        | (
+                            (Q(agency=user_agency) & Q(archivedByWorker=False))
+                            if user_agency
+                            else Q(pk__in=[])
+                        )
+                    )
+                )
+                | (
+                    Q(conversation_type="TEAM_GROUP")
+                    & ~Q(conversationID__in=archived_team_ids)
+                )
             ).filter(
                 # Active = agreed to work OR in progress OR backjob
-                Q(relatedJobPosting__status='IN_PROGRESS') |  # Work in progress
-                Q(  # Agreed but not started (regular job with worker assigned)
-                    relatedJobPosting__status='ACTIVE',
-                    relatedJobPosting__assignedWorkerID__isnull=False
-                ) |
-                Q(  # Agreed but not started (agency job with employee assigned)
-                    relatedJobPosting__status='ACTIVE',
-                    relatedJobPosting__assignedEmployeeID__isnull=False
-                ) |
-                Q(  # Team job with at least one worker assigned
-                    relatedJobPosting__status='ACTIVE',
+                Q(relatedJobPosting__status="IN_PROGRESS")  # Work in progress
+                | Q(  # Agreed but not started (regular job with worker assigned)
+                    relatedJobPosting__status="ACTIVE",
+                    relatedJobPosting__assignedWorkerID__isnull=False,
+                )
+                | Q(  # Agreed but not started (agency job with employee assigned)
+                    relatedJobPosting__status="ACTIVE",
+                    relatedJobPosting__assignedEmployeeID__isnull=False,
+                )
+                | Q(  # Team job with at least one worker assigned
+                    relatedJobPosting__status="ACTIVE",
                     relatedJobPosting__is_team_job=True,
-                    relatedJobPosting__skill_slots__workers_assigned__gt=0
-                ) |
-                Q(  # Active backjob phases keep conversation visible
-                    status='ACTIVE',
-                    relatedJobPosting__status='COMPLETED',
-                    relatedJobPosting__disputes__status__in=['OPEN', 'IN_NEGOTIATION', 'UNDER_REVIEW']
-                ) |
-                Q(  # Completed job with reviews still pending - conversation stays open
-                    status='ACTIVE',
-                    relatedJobPosting__status='COMPLETED'
+                    relatedJobPosting__skill_slots__workers_assigned__gt=0,
+                )
+                | Q(  # Active backjob phases keep conversation visible
+                    status="ACTIVE",
+                    relatedJobPosting__status="COMPLETED",
+                    relatedJobPosting__disputes__status__in=[
+                        "OPEN",
+                        "IN_NEGOTIATION",
+                        "UNDER_REVIEW",
+                    ],
+                )
+                | Q(  # Completed job with reviews still pending - conversation stays open
+                    status="ACTIVE", relatedJobPosting__status="COMPLETED"
                 )
             )
         elif filter == "upcoming":
             # Show conversations for jobs scheduled in the future (start date > today)
             from django.utils import timezone
+
             today = timezone.now().date()
             archived_team_ids = ConversationParticipant.objects.filter(
-                profile=user_profile,
-                is_archived=True
-            ).values_list('conversation_id', flat=True)
+                profile=user_profile, is_archived=True
+            ).values_list("conversation_id", flat=True)
 
             conversations_query = conversations_query.filter(
-                (Q(conversation_type='ONE_ON_ONE') & (
-                    (Q(client=user_profile) & Q(archivedByClient=False)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
-                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
-                )) |
-                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
-            ).filter(
-                relatedJobPosting__preferredStartDate__gt=today
-            )
+                (
+                    Q(conversation_type="ONE_ON_ONE")
+                    & (
+                        (Q(client=user_profile) & Q(archivedByClient=False))
+                        | (Q(worker=user_profile) & Q(archivedByWorker=False))
+                        | (
+                            (Q(agency=user_agency) & Q(archivedByWorker=False))
+                            if user_agency
+                            else Q(pk__in=[])
+                        )
+                    )
+                )
+                | (
+                    Q(conversation_type="TEAM_GROUP")
+                    & ~Q(conversationID__in=archived_team_ids)
+                )
+            ).filter(relatedJobPosting__preferredStartDate__gt=today)
         else:
             # For 'all' and 'unread', exclude archived conversations
             archived_team_ids = ConversationParticipant.objects.filter(
-                profile=user_profile,
-                is_archived=True
-            ).values_list('conversation_id', flat=True)
-            
+                profile=user_profile, is_archived=True
+            ).values_list("conversation_id", flat=True)
+
             conversations_query = conversations_query.filter(
-                (Q(conversation_type='ONE_ON_ONE') & (
-                    (Q(client=user_profile) & Q(archivedByClient=False)) |
-                    (Q(worker=user_profile) & Q(archivedByWorker=False)) |
-                    ((Q(agency=user_agency) & Q(archivedByWorker=False)) if user_agency else Q(pk__in=[]))
-                )) |
-                (Q(conversation_type='TEAM_GROUP') & ~Q(conversationID__in=archived_team_ids))
+                (
+                    Q(conversation_type="ONE_ON_ONE")
+                    & (
+                        (Q(client=user_profile) & Q(archivedByClient=False))
+                        | (Q(worker=user_profile) & Q(archivedByWorker=False))
+                        | (
+                            (Q(agency=user_agency) & Q(archivedByWorker=False))
+                            if user_agency
+                            else Q(pk__in=[])
+                        )
+                    )
+                )
+                | (
+                    Q(conversation_type="TEAM_GROUP")
+                    & ~Q(conversationID__in=archived_team_ids)
+                )
             )
-            
+
             # Additional filter for unread only
             if filter == "unread":
                 unread_team_ids = ConversationParticipant.objects.filter(
-                    profile=user_profile,
-                    unread_count__gt=0
-                ).values_list('conversation_id', flat=True)
-                
+                    profile=user_profile, unread_count__gt=0
+                ).values_list("conversation_id", flat=True)
+
                 conversations_query = conversations_query.filter(
-                    (Q(conversation_type='ONE_ON_ONE') & (
-                        (Q(client=user_profile) & Q(unreadCountClient__gt=0)) |
-                        (Q(worker=user_profile) & Q(unreadCountWorker__gt=0)) |
-                        ((Q(agency=user_agency) & Q(unreadCountWorker__gt=0)) if user_agency else Q(pk__in=[]))
-                    )) |
-                    (Q(conversation_type='TEAM_GROUP') & Q(conversationID__in=unread_team_ids))
+                    (
+                        Q(conversation_type="ONE_ON_ONE")
+                        & (
+                            (Q(client=user_profile) & Q(unreadCountClient__gt=0))
+                            | (Q(worker=user_profile) & Q(unreadCountWorker__gt=0))
+                            | (
+                                (Q(agency=user_agency) & Q(unreadCountWorker__gt=0))
+                                if user_agency
+                                else Q(pk__in=[])
+                            )
+                        )
+                    )
+                    | (
+                        Q(conversation_type="TEAM_GROUP")
+                        & Q(conversationID__in=unread_team_ids)
+                    )
                 )
-        
-        conversations = conversations_query.order_by('-updatedAt')
-        
+
+        conversations = conversations_query.order_by("-updatedAt")
+
         print(f"📊 After filters: {conversations.count()} conversations")
-        
+
         result = []
         for conv in conversations:
             # Handle team group conversations differently
-            if conv.conversation_type == 'TEAM_GROUP':
+            if conv.conversation_type == "TEAM_GROUP":
                 job = conv.relatedJobPosting
-                
+
                 # Get participant info for this user
                 participant = ConversationParticipant.objects.filter(
-                    conversation=conv,
-                    profile=user_profile
+                    conversation=conv, profile=user_profile
                 ).first()
-                
+
                 # Get all participants for team info
                 all_participants = ConversationParticipant.objects.filter(
                     conversation=conv
-                ).select_related('profile', 'skill_slot__specializationID')
-                
+                ).select_related("profile", "skill_slot__specializationID")
+
                 team_members = []
                 for p in all_participants:
                     if p.profile != user_profile:  # Exclude self
-                        team_members.append({
-                            'profile_id': p.profile.profileID,
-                            'name': f"{p.profile.firstName} {p.profile.lastName}",
-                            'avatar': p.profile.profileImg or None,  # profileImg is a CharField (URL string), not FileField
-                            'role': p.participant_type,
-                            'skill': p.skill_slot.specializationID.specializationName if p.skill_slot else None
-                        })
-                
+                        team_members.append(
+                            {
+                                "profile_id": p.profile.profileID,
+                                "name": f"{p.profile.firstName} {p.profile.lastName}",
+                                "avatar": p.profile.profileImg
+                                or None,  # profileImg is a CharField (URL string), not FileField
+                                "role": p.participant_type,
+                                "skill": p.skill_slot.specializationID.specializationName
+                                if p.skill_slot
+                                else None,
+                            }
+                        )
+
                 unread_count = participant.unread_count if participant else 0
                 is_archived = participant.is_archived if participant else False
                 cancellation_snapshot = _get_job_cancellation_snapshot(job)
-                
-                result.append({
-                    "id": conv.conversationID,
-                    "conversation_type": "TEAM_GROUP",
-                    "job": {
-                        "id": job.jobID,
-                        "title": job.title,
-                        "status": job.status,
-                        "is_cancelled": cancellation_snapshot["is_cancelled"],
-                        "effective_status": cancellation_snapshot["effective_status"],
-                        "budget": float(job.budget),
-                        "location": job.location,
-                        "is_team_job": job.is_team_job,
-                        "total_workers": job.total_workers_assigned if job.is_team_job else 1
-                    },
-                    "team_members": team_members,
-                    "my_role": participant.participant_type if participant else "WORKER",
-                    "my_skill": participant.skill_slot.specializationID.specializationName if participant and participant.skill_slot else None,
-                    "last_message": conv.lastMessageText,
-                    "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
-                    "unread_count": unread_count,
-                    "is_archived": is_archived,
-                    "status": conv.status,
-                    "created_at": conv.createdAt.isoformat()
-                })
+
+                result.append(
+                    {
+                        "id": conv.conversationID,
+                        "conversation_type": "TEAM_GROUP",
+                        "job": {
+                            "id": job.jobID,
+                            "title": job.title,
+                            "status": job.status,
+                            "is_cancelled": cancellation_snapshot["is_cancelled"],
+                            "effective_status": cancellation_snapshot[
+                                "effective_status"
+                            ],
+                            "budget": float(job.budget),
+                            "location": job.location,
+                            "is_team_job": job.is_team_job,
+                            "total_workers": job.total_workers_assigned
+                            if job.is_team_job
+                            else 1,
+                        },
+                        "team_members": team_members,
+                        "my_role": participant.participant_type
+                        if participant
+                        else "WORKER",
+                        "my_skill": participant.skill_slot.specializationID.specializationName
+                        if participant and participant.skill_slot
+                        else None,
+                        "last_message": conv.lastMessageText,
+                        "last_message_time": conv.lastMessageTime.isoformat()
+                        if conv.lastMessageTime
+                        else None,
+                        "unread_count": unread_count,
+                        "is_archived": is_archived,
+                        "status": conv.status,
+                        "created_at": conv.createdAt.isoformat(),
+                    }
+                )
                 continue
-            
+
             # Handle 1:1 conversations (existing logic)
             # Determine the other participant (if user is client, show worker/agency; if worker, show client)
             is_client = conv.client == user_profile
-            
+
             # Handle agency conversations - other party might be agency instead of worker
             if is_client:
                 other_participant = conv.worker  # Could be None for agency jobs
@@ -1105,22 +1188,31 @@ def get_conversations(request, filter: str = "all"):
             else:
                 other_participant = conv.client
                 other_agency = None
-            
-            worker_info = conv.worker.accountFK.email if conv.worker else (conv.agency.businessName if conv.agency else "N/A")
-            print(f"  📨 Conv {conv.conversationID}: Client={conv.client.accountFK.email}, Worker/Agency={worker_info}, Job={conv.relatedJobPosting.title}")
-            
+
+            worker_info = (
+                conv.worker.accountFK.email
+                if conv.worker
+                else (conv.agency.businessName if conv.agency else "N/A")
+            )
+            print(
+                f"  📨 Conv {conv.conversationID}: Client={conv.client.accountFK.email}, Worker/Agency={worker_info}, Job={conv.relatedJobPosting.title}"
+            )
+
             # Get job info
             job = conv.relatedJobPosting
             cancellation_snapshot = _get_job_cancellation_snapshot(job)
-            
+
             # Count unread messages
-            unread_count = conv.unreadCountClient if is_client else conv.unreadCountWorker
-            
+            unread_count = (
+                conv.unreadCountClient if is_client else conv.unreadCountWorker
+            )
+
             # Check if archived by current user
             is_archived = conv.archivedByClient if is_client else conv.archivedByWorker
-            
+
             # Check review status for this job
             from accounts.models import JobReview
+
             # Worker account can be from assignedWorkerID or assignedAgencyFK
             worker_account = None
             if job.assignedWorkerID:
@@ -1128,68 +1220,76 @@ def get_conversations(request, filter: str = "all"):
             elif job.assignedAgencyFK:
                 worker_account = job.assignedAgencyFK.accountFK
             client_account = job.clientID.profileID.accountFK
-            
+
             worker_reviewed = False
             client_reviewed = False
             all_team_workers_reviewed = None
-            
+
             # Check if this is an agency job
-            is_agency_job = bool(job.assignedEmployeeID is not None or job.assignedAgencyFK is not None)
-            
+            is_agency_job = bool(
+                job.assignedEmployeeID is not None or job.assignedAgencyFK is not None
+            )
+
             if job.is_team_job:
                 # Team job: check reviews across ALL assigned workers
                 from accounts.models import JobWorkerAssignment
+
                 team_assignments = JobWorkerAssignment.objects.filter(
-                    jobID=job,
-                    assignment_status__in=['ACTIVE', 'COMPLETED']
-                ).select_related('workerID__profileID__accountFK')
-                
+                    jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
+                ).select_related("workerID__profileID__accountFK")
+
                 total_workers = team_assignments.count()
                 if total_workers > 0:
-                    worker_account_ids = [a.workerID.profileID.accountFK_id for a in team_assignments]
-                    workers_who_reviewed = JobReview.objects.filter(
-                        jobID=job,
-                        reviewerID__in=worker_account_ids,
-                        reviewerType="WORKER"
-                    ).values('reviewerID').distinct().count()
-                    worker_reviewed = (workers_who_reviewed >= total_workers)
-                    
+                    worker_account_ids = [
+                        a.workerID.profileID.accountFK_id for a in team_assignments
+                    ]
+                    workers_who_reviewed = (
+                        JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID__in=worker_account_ids,
+                            reviewerType="WORKER",
+                        )
+                        .values("reviewerID")
+                        .distinct()
+                        .count()
+                    )
+                    worker_reviewed = workers_who_reviewed >= total_workers
+
                     # Check if client has reviewed ALL assigned workers
                     client_reviews_count = JobReview.objects.filter(
-                        jobID=job,
-                        reviewerID=client_account,
-                        reviewerType="CLIENT"
+                        jobID=job, reviewerID=client_account, reviewerType="CLIENT"
                     ).count()
-                    client_reviewed = (client_reviews_count >= total_workers)
+                    client_reviewed = client_reviews_count >= total_workers
                     all_team_workers_reviewed = client_reviewed
             elif worker_account and client_account:
                 worker_reviewed = JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID=worker_account
+                    jobID=job, reviewerID=worker_account
                 ).exists()
-                
+
                 if is_agency_job:
                     # For agency jobs, client reviews the agency.
                     # Employee reviews are only required if employees are actually assigned.
                     from accounts.models import JobEmployeeAssignment
 
-                    has_employee_targets = JobEmployeeAssignment.objects.filter(
-                        job=job,
-                        status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-                    ).exists() or job.assignedEmployeeID is not None
+                    has_employee_targets = (
+                        JobEmployeeAssignment.objects.filter(
+                            job=job, status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"]
+                        ).exists()
+                        or job.assignedEmployeeID is not None
+                    )
 
                     employee_review_exists = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=client_account,
                         reviewerType="CLIENT",
-                        revieweeEmployeeID__isnull=False
+                        revieweeEmployeeID__isnull=False,
                     ).exists()
 
                     agency_review_exists = JobReview.objects.filter(
                         jobID=job,
                         reviewerID=client_account,
                         reviewerType="CLIENT",
-                        revieweeAgencyID__isnull=False
+                        revieweeAgencyID__isnull=False,
                     ).exists()
 
                     if not has_employee_targets:
@@ -1200,69 +1300,80 @@ def get_conversations(request, filter: str = "all"):
                     agency_account = None
                     if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
                         agency_account = job.assignedAgencyFK.accountFK
-                    elif job.assignedEmployeeID and getattr(job.assignedEmployeeID, 'agency', None):
+                    elif job.assignedEmployeeID and getattr(
+                        job.assignedEmployeeID, "agency", None
+                    ):
                         agency_account = job.assignedEmployeeID.agency
 
                     worker_reviewed = bool(
-                        agency_account and JobReview.objects.filter(
+                        agency_account
+                        and JobReview.objects.filter(
                             jobID=job,
                             reviewerID=agency_account,
-                            reviewerType__in=["AGENCY", "WORKER"]
+                            reviewerType__in=["AGENCY", "WORKER"],
                         ).exists()
                     )
                 else:
                     client_reviewed = JobReview.objects.filter(
-                        jobID=job,
-                        reviewerID=client_account
+                        jobID=job, reviewerID=client_account
                     ).exists()
-            
-            result.append({
-                "id": conv.conversationID,
-                "conversation_type": "ONE_ON_ONE",
-                "job": {
-                    "id": job.jobID,
-                    "title": job.title,
-                    "status": job.status,
-                    "is_cancelled": cancellation_snapshot["is_cancelled"],
-                    "effective_status": cancellation_snapshot["effective_status"],
-                    "budget": float(job.budget),
-                    "location": job.location,
-                    "workerMarkedComplete": job.workerMarkedComplete,
-                    "clientMarkedComplete": job.clientMarkedComplete,
-                    "workerReviewed": worker_reviewed,
-                    "clientReviewed": client_reviewed,
-                    "remainingPaymentPaid": job.remainingPaymentPaid,
-                    "is_team_job": job.is_team_job,
-                    "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
-                    "scheduled_end_date": job.scheduled_end_date.isoformat() if job.scheduled_end_date else None
-                },
-                "all_team_workers_reviewed": all_team_workers_reviewed,
-                "other_participant": get_participant_info(profile=other_participant, agency=other_agency, job_title=job.title, job=job),
-                "my_role": "CLIENT" if is_client else "WORKER",
-                "last_message": conv.lastMessageText,
-                "last_message_time": conv.lastMessageTime.isoformat() if conv.lastMessageTime else None,
-                "unread_count": unread_count,
-                "is_archived": is_archived,
-                "status": conv.status,
-                "created_at": conv.createdAt.isoformat()
-            })
-        
+
+            result.append(
+                {
+                    "id": conv.conversationID,
+                    "conversation_type": "ONE_ON_ONE",
+                    "job": {
+                        "id": job.jobID,
+                        "title": job.title,
+                        "status": job.status,
+                        "is_cancelled": cancellation_snapshot["is_cancelled"],
+                        "effective_status": cancellation_snapshot["effective_status"],
+                        "budget": float(job.budget),
+                        "location": job.location,
+                        "workerMarkedComplete": job.workerMarkedComplete,
+                        "clientMarkedComplete": job.clientMarkedComplete,
+                        "workerReviewed": worker_reviewed,
+                        "clientReviewed": client_reviewed,
+                        "remainingPaymentPaid": job.remainingPaymentPaid,
+                        "is_team_job": job.is_team_job,
+                        "preferred_start_date": job.preferredStartDate.isoformat()
+                        if job.preferredStartDate
+                        else None,
+                        "scheduled_end_date": job.scheduled_end_date.isoformat()
+                        if job.scheduled_end_date
+                        else None,
+                    },
+                    "all_team_workers_reviewed": all_team_workers_reviewed,
+                    "other_participant": get_participant_info(
+                        profile=other_participant,
+                        agency=other_agency,
+                        job_title=job.title,
+                        job=job,
+                    ),
+                    "my_role": "CLIENT" if is_client else "WORKER",
+                    "last_message": conv.lastMessageText,
+                    "last_message_time": conv.lastMessageTime.isoformat()
+                    if conv.lastMessageTime
+                    else None,
+                    "unread_count": unread_count,
+                    "is_archived": is_archived,
+                    "status": conv.status,
+                    "created_at": conv.createdAt.isoformat(),
+                }
+            )
+
         print(f"✅ Returning {len(result)} conversations")
         print(f"🔍 === END DEBUG ===\n")
-        
-        return {
-            "success": True,
-            "conversations": result,
-            "total": len(result)
-        }
-        
+
+        return {"success": True, "conversations": result, "total": len(result)}
+
     except Exception as e:
         print(f"❌ Error fetching conversations: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to fetch conversations: {str(e)}"},
-            status=500
+            {"error": f"Failed to fetch conversations: {str(e)}"}, status=500
         )
 
 
@@ -1271,68 +1382,84 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
     """
     Get the conversation for a specific job.
     Returns the conversation ID if found, or creates one if the user is a participant.
-    
+
     Query params:
     - reopen: If True and conversation exists but is closed/completed, reopen it (for backjobs)
     """
     try:
         from accounts.models import Job, JobWorkerAssignment
-        
+
         # Get user's profile when available.
         # Agency owners may not have an active Profile context for this endpoint.
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             user_profile = None
-        
+
         # Get the job
         try:
             job = Job.objects.select_related(
-                'clientID__profileID',
-                'assignedWorkerID__profileID',
-                'assignedAgencyFK'
+                "clientID__profileID", "assignedWorkerID__profileID", "assignedAgencyFK"
             ).get(jobID=job_id)
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
-        
+
         # Check if user is a participant of this job
-        is_client = bool(user_profile and job.clientID and job.clientID.profileID == user_profile)
-        is_worker = bool(user_profile and job.assignedWorkerID and job.assignedWorkerID.profileID == user_profile)
+        is_client = bool(
+            user_profile and job.clientID and job.clientID.profileID == user_profile
+        )
+        is_worker = bool(
+            user_profile
+            and job.assignedWorkerID
+            and job.assignedWorkerID.profileID == user_profile
+        )
         is_team_assigned_worker = bool(
-            user_profile and JobWorkerAssignment.objects.filter(
+            user_profile
+            and JobWorkerAssignment.objects.filter(
                 jobID=job,
                 workerID__profileID=user_profile,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
+                assignment_status__in=["ACTIVE", "COMPLETED"],
             ).exists()
         )
-        is_agency_owner = job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
-        
+        is_agency_owner = (
+            job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        )
+
         if not (is_client or is_worker or is_team_assigned_worker or is_agency_owner):
-            return Response({"error": "You are not a participant of this job"}, status=403)
-        
+            return Response(
+                {"error": "You are not a participant of this job"}, status=403
+            )
+
         # Try to find existing conversation
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-        
+
         # Check if there's an active backjob/dispute for this job
         from accounts.models import JobDispute
+
         total_backjobs_for_job = JobDispute.objects.filter(jobID=job).count()
-        latest_dispute = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
+        latest_dispute = (
+            JobDispute.objects.filter(jobID=job).order_by("-openedDate").first()
+        )
         active_dispute = JobDispute.objects.filter(
-            jobID=job,
-            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+            jobID=job, status__in=["OPEN", "UNDER_REVIEW", "IN_NEGOTIATION"]
         ).first()
-        
+
         backjob_info = None
         if active_dispute:
-            auto_start_agency_backjob_if_ready(job, active_dispute, reason="profiles-conversation")
+            auto_start_agency_backjob_if_ready(
+                job, active_dispute, reason="profiles-conversation"
+            )
             team_schedule_total_workers = 0
             team_schedule_confirmed_count = 0
             my_schedule_confirmed = None
 
             if job.is_team_job:
-                from accounts.models import JobWorkerAssignment, BackjobScheduleConfirmation
+                from accounts.models import (
+                    JobWorkerAssignment,
+                    BackjobScheduleConfirmation,
+                )
 
-                eligible_assignment_statuses = ['ACTIVE', 'COMPLETED']
+                eligible_assignment_statuses = ["ACTIVE", "COMPLETED"]
                 active_assignments = JobWorkerAssignment.objects.filter(
                     jobID=job,
                     assignment_status__in=eligible_assignment_statuses,
@@ -1340,58 +1467,77 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 team_schedule_total_workers = active_assignments.count()
 
                 if team_schedule_total_workers > 0:
-                    active_assignment_ids = list(active_assignments.values_list('assignmentID', flat=True))
-                    team_schedule_confirmed_count = BackjobScheduleConfirmation.objects.filter(
-                        disputeID=active_dispute,
-                        assignmentID_id__in=active_assignment_ids,
-                        confirmed=True,
-                    ).count()
+                    active_assignment_ids = list(
+                        active_assignments.values_list("assignmentID", flat=True)
+                    )
+                    team_schedule_confirmed_count = (
+                        BackjobScheduleConfirmation.objects.filter(
+                            disputeID=active_dispute,
+                            assignmentID_id__in=active_assignment_ids,
+                            confirmed=True,
+                        ).count()
+                    )
 
                     if user_profile:
-                        my_assignment_id = active_assignments.filter(
-                            workerID__profileID=user_profile
-                        ).values_list('assignmentID', flat=True).first()
+                        my_assignment_id = (
+                            active_assignments.filter(workerID__profileID=user_profile)
+                            .values_list("assignmentID", flat=True)
+                            .first()
+                        )
                         if my_assignment_id:
-                            my_schedule_confirmed = BackjobScheduleConfirmation.objects.filter(
-                                disputeID=active_dispute,
-                                assignmentID_id=my_assignment_id,
-                                confirmed=True,
-                            ).exists()
+                            my_schedule_confirmed = (
+                                BackjobScheduleConfirmation.objects.filter(
+                                    disputeID=active_dispute,
+                                    assignmentID_id=my_assignment_id,
+                                    confirmed=True,
+                                ).exists()
+                            )
 
             # Backward compatibility for legacy backjobs:
             # Some older records remain OPEN even after worker confirmation/execution.
             # Normalize these to UNDER_REVIEW in payload so chat/UIs don't stay admin-locked.
             normalized_active_status = active_dispute.status
-            if (
-                active_dispute.status == 'OPEN'
-                and (
-                    active_dispute.workerScheduleConfirmed
-                    or active_dispute.backjobStarted
-                    or active_dispute.workerMarkedBackjobComplete
-                    or active_dispute.clientConfirmedBackjob
-                )
+            if active_dispute.status == "OPEN" and (
+                active_dispute.workerScheduleConfirmed
+                or active_dispute.backjobStarted
+                or active_dispute.workerMarkedBackjobComplete
+                or active_dispute.clientConfirmedBackjob
             ):
-                normalized_active_status = 'UNDER_REVIEW'
+                normalized_active_status = "UNDER_REVIEW"
 
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
                 "total_backjobs_for_job": total_backjobs_for_job,
-                "latest_dispute_status": latest_dispute.status if latest_dispute else normalized_active_status,
+                "latest_dispute_status": latest_dispute.status
+                if latest_dispute
+                else normalized_active_status,
                 "status": normalized_active_status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 # Backjob workflow tracking fields
                 "backjob_started": active_dispute.backjobStarted,
-                "backjob_started_at": active_dispute.backjobStartedAt.isoformat() if active_dispute.backjobStartedAt else None,
+                "backjob_started_at": active_dispute.backjobStartedAt.isoformat()
+                if active_dispute.backjobStartedAt
+                else None,
                 "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
-                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
+                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat()
+                if active_dispute.workerMarkedBackjobCompleteAt
+                else None,
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
-                "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
-                "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
-                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat()
+                if active_dispute.clientConfirmedBackjobAt
+                else None,
+                "in_negotiation_at": active_dispute.in_negotiation_at.isoformat()
+                if active_dispute.in_negotiation_at
+                else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat()
+                if active_dispute.scheduled_date
+                else None,
                 "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
-                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat()
+                if active_dispute.workerScheduleConfirmedAt
+                else None,
                 "team_schedule_total_workers": team_schedule_total_workers,
                 "team_schedule_confirmed_count": team_schedule_confirmed_count,
                 "my_schedule_confirmed": my_schedule_confirmed,
@@ -1406,36 +1552,38 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "latest_dispute_status": latest_dispute.status,
                 "status": latest_dispute.status,
             }
-        
+
         if conversation:
             reopened = False
             system_message_added = False
-            
+
             # If reopen is requested and conversation is not active, check if we should reopen.
             # Reopen for active backjob phases that require chat coordination.
             # OPEN status means waiting for admin action - don't reopen yet.
             should_reopen = (
-                reopen and 
-                conversation.status != Conversation.ConversationStatus.ACTIVE and
-                active_dispute and 
-                active_dispute.status in ['UNDER_REVIEW', 'IN_NEGOTIATION']
+                reopen
+                and conversation.status != Conversation.ConversationStatus.ACTIVE
+                and active_dispute
+                and active_dispute.status in ["UNDER_REVIEW", "IN_NEGOTIATION"]
             )
-            
+
             if should_reopen:
                 old_status = conversation.status
                 conversation.status = Conversation.ConversationStatus.ACTIVE
                 conversation.save()
                 reopened = True
-                print(f"[get_conversation_by_job] Reopened conversation {conversation.conversationID} (was {old_status}) - backjob approved")
-                
+                print(
+                    f"[get_conversation_by_job] Reopened conversation {conversation.conversationID} (was {old_status}) - backjob approved"
+                )
+
                 # Add system message only on first reopen for APPROVED backjob
                 # Check if there's already a "Backjob" related message
                 existing_reopen_msg = Message.objects.filter(
                     conversationID=conversation,
                     messageType="SYSTEM",
-                    messageText__icontains="backjob"
+                    messageText__icontains="backjob",
                 ).exists()
-                
+
                 if not existing_reopen_msg:
                     # First time reopening for approved backjob - add system message
                     Message.objects.create(
@@ -1443,51 +1591,60 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                         sender=None,
                         senderAgency=None,
                         messageText="💬 Conversation reopened for backjob discussion. Please coordinate the backjob work here.",
-                        messageType="SYSTEM"
+                        messageType="SYSTEM",
                     )
                     system_message_added = True
-                    print(f"[get_conversation_by_job] Added backjob system message to conversation {conversation.conversationID}")
-            
+                    print(
+                        f"[get_conversation_by_job] Added backjob system message to conversation {conversation.conversationID}"
+                    )
+
             return {
                 "success": True,
                 "conversation_id": conversation.conversationID,
                 "exists": True,
                 "reopened": reopened,
                 "system_message_added": system_message_added,
-                "backjob": backjob_info
+                "backjob": backjob_info,
             }
-        
+
         # If no conversation exists and user is a valid participant, create one
         client_profile = job.clientID.profileID if job.clientID else None
-        worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+        worker_profile = (
+            job.assignedWorkerID.profileID if job.assignedWorkerID else None
+        )
         agency = job.assignedAgencyFK
-        
+
         if not client_profile:
             return Response({"error": "Job has no client"}, status=400)
-        
+
         if not worker_profile and not agency:
-            return Response({"error": "Job has no assigned worker or agency"}, status=400)
-        
+            return Response(
+                {"error": "Job has no assigned worker or agency"}, status=400
+            )
+
         conversation = Conversation.objects.create(
             client=client_profile,
             worker=worker_profile,
             agency=agency,
             relatedJobPosting=job,
-            status=ConversationStatus.ACTIVE
+            status=ConversationStatus.ACTIVE,
         )
-        
-        print(f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}")
-        
+
+        print(
+            f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}"
+        )
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
             "exists": False,
-            "created": True
+            "created": True,
         }
-        
+
     except Exception as e:
         print(f"[get_conversation_by_job] Error: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
 
@@ -1508,68 +1665,76 @@ def get_conversation_messages(request, conversation_id: int):
             print(f"   Profile Type: {user_profile.profileType}")
             print(f"   Account: {user_profile.accountFK.email}")
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
-        
+            return Response({"error": "Profile not found"}, status=400)
+
         # Get the conversation
         try:
             conversation = Conversation.objects.select_related(
-                'client__accountFK',
-                'worker__accountFK',
-                'relatedJobPosting',
-                'relatedJobPosting__assignedAgencyFK',
-                'agency'
+                "client__accountFK",
+                "worker__accountFK",
+                "relatedJobPosting",
+                "relatedJobPosting__assignedAgencyFK",
+                "agency",
             ).get(conversationID=conversation_id)
         except Conversation.DoesNotExist:
-            return Response(
-                {"error": "Conversation not found"},
-                status=404
-            )
-        
+            return Response({"error": "Conversation not found"}, status=404)
+
         # Check if this is an agency conversation
         # Primary check: conversation has agency set and no individual worker
-        is_agency_conversation = conversation.agency is not None and conversation.worker is None
-        
+        is_agency_conversation = (
+            conversation.agency is not None and conversation.worker is None
+        )
+
         # Secondary check: if the job itself has an assigned agency, this IS an agency conversation
         # This handles cases where the conversation was created without the agency field
         job_ref = conversation.relatedJobPosting
-        if not is_agency_conversation and job_ref and getattr(job_ref, 'assignedAgencyFK_id', None):
-            print(f"⚠️ [AGENCY FIX] Conversation {conversation.conversationID} missing agency field but job {job_ref.jobID} has assignedAgencyFK. Repairing...")
+        if (
+            not is_agency_conversation
+            and job_ref
+            and getattr(job_ref, "assignedAgencyFK_id", None)
+        ):
+            print(
+                f"⚠️ [AGENCY FIX] Conversation {conversation.conversationID} missing agency field but job {job_ref.jobID} has assignedAgencyFK. Repairing..."
+            )
             try:
                 conversation.agency = job_ref.assignedAgencyFK
-                conversation.worker = None  # Ensure worker is None for agency conversations
-                conversation.save(update_fields=['agency', 'worker'])
+                conversation.worker = (
+                    None  # Ensure worker is None for agency conversations
+                )
+                conversation.save(update_fields=["agency", "worker"])
                 is_agency_conversation = True
-                print(f"✅ [AGENCY FIX] Conversation {conversation.conversationID} agency field repaired")
+                print(
+                    f"✅ [AGENCY FIX] Conversation {conversation.conversationID} agency field repaired"
+                )
             except Exception as repair_err:
                 print(f"❌ [AGENCY FIX] Failed to repair conversation: {repair_err}")
                 # Still set is_agency_conversation based on job, even if DB repair fails
                 is_agency_conversation = True
-        
+
         # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
-        is_worker = conversation.worker == user_profile if conversation.worker else False
+        is_worker = (
+            conversation.worker == user_profile if conversation.worker else False
+        )
 
         # Team conversations use ConversationParticipant entries instead of the single worker field
         from profiles.models import ConversationParticipant
+
         is_team_participant = ConversationParticipant.objects.filter(
-            conversation=conversation,
-            profile=user_profile
+            conversation=conversation, profile=user_profile
         ).exists()
         # Treat team participant as worker-equivalent for permissioning and role calculation
         is_worker = is_worker or is_team_participant
-        
+
         # For agency conversations, check if user is the agency owner
         is_agency_owner = False
         if is_agency_conversation:
             if conversation.agency:
                 is_agency_owner = conversation.agency.accountFK == request.auth
-            elif job_ref and getattr(job_ref, 'assignedAgencyFK', None):
+            elif job_ref and getattr(job_ref, "assignedAgencyFK", None):
                 # Fallback: check via job's agency FK if conversation agency wasn't repaired
                 is_agency_owner = job_ref.assignedAgencyFK.accountFK == request.auth
-        
+
         print(f"   Conversation ID: {conversation.conversationID}")
         print(f"   Client Profile ID: {conversation.client.profileID}")
         print(f"   Is Agency Conversation: {is_agency_conversation}")
@@ -1577,15 +1742,16 @@ def get_conversation_messages(request, conversation_id: int):
             print(f"   Worker Profile ID: {conversation.worker.profileID}")
         if conversation.agency:
             print(f"   Agency: {conversation.agency.businessName}")
-        print(f"   Is Client: {is_client}, Is Worker: {is_worker}, Is Agency Owner: {is_agency_owner}")
+        print(
+            f"   Is Client: {is_client}, Is Worker: {is_worker}, Is Agency Owner: {is_agency_owner}"
+        )
         print(f"   Is Team Participant: {is_team_participant}")
-        
+
         if not (is_client or is_worker or is_agency_owner or is_team_participant):
             return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=403
+                {"error": "You are not a participant in this conversation"}, status=403
             )
-        
+
         # Determine the other participant
         if is_agency_conversation:
             # For agency conversations
@@ -1593,56 +1759,60 @@ def get_conversation_messages(request, conversation_id: int):
             other_agency = conversation.agency if is_client else None
         else:
             # For regular worker conversations
-            other_participant = conversation.worker if is_client else conversation.client
+            other_participant = (
+                conversation.worker if is_client else conversation.client
+            )
             other_agency = None
-        
+
         # Get job info
         job = conversation.relatedJobPosting
         cancellation_snapshot = _get_job_cancellation_snapshot(job)
-        
+
         # Get all messages with attachments
-        messages = Message.objects.filter(
-            conversationID=conversation
-        ).select_related('sender__accountFK', 'sender_admin').prefetch_related('attachments').order_by('createdAt')
-        
+        messages = (
+            Message.objects.filter(conversationID=conversation)
+            .select_related("sender__accountFK", "sender_admin")
+            .prefetch_related("attachments")
+            .order_by("createdAt")
+        )
+
         # Mark unread messages as read and reset unread count
         # For agency conversations, mark all messages not from current user as read
         if other_participant:
             Message.objects.filter(
-                conversationID=conversation,
-                sender=other_participant,
-                isRead=False
+                conversationID=conversation, sender=other_participant, isRead=False
             ).update(isRead=True, readAt=timezone.now())
         else:
             # For agency-side view, mark messages from client as read
-            Message.objects.filter(
-                conversationID=conversation,
-                isRead=False
-            ).exclude(sender=user_profile).update(isRead=True, readAt=timezone.now())
-        
+            Message.objects.filter(conversationID=conversation, isRead=False).exclude(
+                sender=user_profile
+            ).update(isRead=True, readAt=timezone.now())
+
         # Reset unread count for this user
         if is_client:
             conversation.unreadCountClient = 0
         else:
             # Both worker and agency use unreadCountWorker
             conversation.unreadCountWorker = 0
-        conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
-        
+        conversation.save(
+            update_fields=["unreadCountClient" if is_client else "unreadCountWorker"]
+        )
+
         # Build base URL for media files from request
         # This ensures URLs work from any client (web on localhost, mobile on IP)
-        scheme = request.scheme if hasattr(request, 'scheme') else 'http'
-        host = request.get_host() if hasattr(request, 'get_host') else 'localhost:8000'
+        scheme = request.scheme if hasattr(request, "scheme") else "http"
+        host = request.get_host() if hasattr(request, "get_host") else "localhost:8000"
         base_url = f"{scheme}://{host}"
-        
+
         def make_absolute_url(url):
             """Convert relative URL to absolute if needed"""
-            if url and url.startswith('/'):
+            if url and url.startswith("/"):
                 return f"{base_url}{url}"
             return url
-        
+
         # Format messages
         formatted_messages = []
-        current_account_id = getattr(request.auth, 'accountID', None)
+        current_account_id = getattr(request.auth, "accountID", None)
         for msg in messages:
             # Handle system messages (both sender and senderAgency are None)
             if msg.sender is None and msg.senderAgency is None and not msg.sender_admin:
@@ -1668,8 +1838,18 @@ def get_conversation_messages(request, conversation_id: int):
             elif msg.sender is None:
                 # This is an agency message - use senderAgency from the message itself
                 is_mine = is_agency_owner  # Mine if I'm the agency owner
-                sender_name = msg.senderAgency.businessName if msg.senderAgency else (conversation.agency.businessName if conversation.agency else "Agency")
-                sender_avatar = "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
+                sender_name = (
+                    msg.senderAgency.businessName
+                    if msg.senderAgency
+                    else (
+                        conversation.agency.businessName
+                        if conversation.agency
+                        else "Agency"
+                    )
+                )
+                sender_avatar = (
+                    "/agency-default.jpg"  # Agency model doesn't have avatar/logo field
+                )
                 sender_type = "agency"
                 print(f"   Message from Agency ({sender_name}): is_mine={is_mine}")
             else:
@@ -1682,26 +1862,31 @@ def get_conversation_messages(request, conversation_id: int):
                 sender_name = f"{msg.sender.firstName} {msg.sender.lastName}"
                 sender_avatar = msg.sender.profileImg or "/worker1.jpg"
                 sender_type = "profile"
-                print(f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {current_account_id})")
-            
+                print(
+                    f"   Message from Profile {msg.sender.profileID}: is_mine={is_mine} (account-based compare with {current_account_id})"
+                )
+
             # Get attachments for this message
             attachments = []
             for attachment in msg.attachments.all():
                 file_url = attachment.fileURL
                 # If it's a storage path (not a full URL), generate fresh signed URL
-                if file_url and not file_url.startswith('http'):
+                if file_url and not file_url.startswith("http"):
                     from iayos_project.utils import get_signed_url
-                    signed = get_signed_url('iayos_files', file_url, expires_in=3600)
+
+                    signed = get_signed_url("iayos_files", file_url, expires_in=3600)
                     file_url = signed if signed else make_absolute_url(file_url)
-                attachments.append({
-                    "attachment_id": attachment.attachmentID,
-                    "file_url": file_url,
-                    "file_name": attachment.fileName,
-                    "file_size": attachment.fileSize,
-                    "file_type": attachment.fileType,
-                    "uploaded_at": attachment.uploadedAt.isoformat()
-                })
-            
+                attachments.append(
+                    {
+                        "attachment_id": attachment.attachmentID,
+                        "file_url": file_url,
+                        "file_name": attachment.fileName,
+                        "file_size": attachment.fileSize,
+                        "file_type": attachment.fileType,
+                        "uploaded_at": attachment.uploadedAt.isoformat(),
+                    }
+                )
+
             message_data = {
                 "message_id": msg.messageID,
                 "sender_name": sender_name,
@@ -1711,17 +1896,18 @@ def get_conversation_messages(request, conversation_id: int):
                 "message_type": msg.messageType,
                 "is_read": msg.isRead,
                 "created_at": msg.createdAt.isoformat(),
-                "is_mine": is_mine
+                "is_mine": is_mine,
             }
-            
+
             # Add attachments if present
             if attachments:
                 message_data["attachments"] = attachments
-            
+
             formatted_messages.append(message_data)
-        
+
         # Check review status for this job
         from accounts.models import JobReview
+
         # For direct workers, use assignedWorkerID; for agency jobs, use agency's account
         if job.assignedWorkerID:
             worker_account = job.assignedWorkerID.profileID.accountFK
@@ -1730,17 +1916,19 @@ def get_conversation_messages(request, conversation_id: int):
         else:
             worker_account = None
         client_account = job.clientID.profileID.accountFK
-        
+
         worker_reviewed = False
         client_reviewed = False
-        
+
         # Check if this is an agency job (for review logic) - use is_agency_conversation
         is_agency_job_for_reviews = is_agency_conversation
         employee_review_exists = False
         agency_review_exists = False
         employees_pending_review = []  # For multi-employee support
-        is_team_job = job.is_team_job  # Check if this is a team job (for per-worker review tracking)
-        
+        is_team_job = (
+            job.is_team_job
+        )  # Check if this is a team job (for per-worker review tracking)
+
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
             from accounts.models import JobEmployeeAssignment
@@ -1750,24 +1938,25 @@ def get_conversation_messages(request, conversation_id: int):
                 agency_account_id = job.assignedAgencyFK.accountFK_id
             elif job.assignedEmployeeID and job.assignedEmployeeID.agency_id:
                 agency_account_id = job.assignedEmployeeID.agency_id
-            
+
             # Get all assigned employees (multi-employee support)
             assigned_employees = JobEmployeeAssignment.objects.filter(
-                job=job,
-                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-            ).select_related('employee')
+                job=job, status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"]
+            ).select_related("employee")
 
             client_reviews_qs = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account,
                 reviewerType="CLIENT",
-                status='ACTIVE'
+                status="ACTIVE",
             )
-            
+
             # Get all employee IDs that have been reviewed
-            reviewed_employee_ids = set(client_reviews_qs.filter(
-                revieweeEmployeeID__isnull=False
-            ).values_list('revieweeEmployeeID', flat=True))
+            reviewed_employee_ids = set(
+                client_reviews_qs.filter(revieweeEmployeeID__isnull=False).values_list(
+                    "revieweeEmployeeID", flat=True
+                )
+            )
 
             # Legacy compatibility: older records may have CLIENT review entries
             # without revieweeEmployeeID/revieweeAgencyID populated.
@@ -1775,36 +1964,51 @@ def get_conversation_messages(request, conversation_id: int):
                 revieweeEmployeeID__isnull=True,
                 revieweeAgencyID__isnull=True,
             )
-            
+
             # Check if ALL employees have been reviewed
             all_assigned_ids = set(a.employee_id for a in assigned_employees)
-            
+
             # Backward compatibility: if no M2M assignments, check legacy field
             if not all_assigned_ids and job.assignedEmployeeID:
                 all_assigned_ids = {job.assignedEmployeeID.employeeID}
 
             # Backward compatibility for legacy single-employee records where
             # employee reviews were stored without revieweeEmployeeID.
-            if len(all_assigned_ids) == 1 and not all_assigned_ids.issubset(reviewed_employee_ids):
-                legacy_employee_review_exists = legacy_target_reviews.exclude(
-                    revieweeID_id=agency_account_id
-                ).exists() if agency_account_id else legacy_target_reviews.exists()
+            if len(all_assigned_ids) == 1 and not all_assigned_ids.issubset(
+                reviewed_employee_ids
+            ):
+                legacy_employee_review_exists = (
+                    legacy_target_reviews.exclude(
+                        revieweeID_id=agency_account_id
+                    ).exists()
+                    if agency_account_id
+                    else legacy_target_reviews.exists()
+                )
                 if legacy_employee_review_exists:
                     reviewed_employee_ids.add(next(iter(all_assigned_ids)))
-            
+
             # If no employees are assigned, client is only required to review the agency.
-            employee_review_exists = all_assigned_ids.issubset(reviewed_employee_ids) if all_assigned_ids else True
-            
+            employee_review_exists = (
+                all_assigned_ids.issubset(reviewed_employee_ids)
+                if all_assigned_ids
+                else True
+            )
+
             # Build list of employees still pending review
             pending_ids = all_assigned_ids - reviewed_employee_ids
             if pending_ids:
                 from agency.models import AgencyEmployee
+
                 pending_emps = AgencyEmployee.objects.filter(employeeID__in=pending_ids)
                 employees_pending_review = [
-                    {"employee_id": emp.employeeID, "name": emp.name, "avatar": emp.avatar}
+                    {
+                        "employee_id": emp.employeeID,
+                        "name": emp.name,
+                        "avatar": emp.avatar,
+                    }
                     for emp in pending_emps
                 ]
-            
+
             agency_review_exists = client_reviews_qs.filter(
                 revieweeAgencyID__isnull=False
             ).exists()
@@ -1815,9 +2019,9 @@ def get_conversation_messages(request, conversation_id: int):
                 agency_review_exists = legacy_target_reviews.filter(
                     revieweeID_id=agency_account_id
                 ).exists()
-            
+
             client_reviewed = employee_review_exists and agency_review_exists
-            
+
             # For agency jobs, worker_reviewed means the agency reviewed the client.
             agency_account = None
             if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
@@ -1829,7 +2033,7 @@ def get_conversation_messages(request, conversation_id: int):
                 worker_reviewed = JobReview.objects.filter(
                     jobID=job,
                     reviewerID=agency_account,
-                    reviewerType__in=["AGENCY", "WORKER"]
+                    reviewerType__in=["AGENCY", "WORKER"],
                 ).exists()
         elif is_team_job and not is_client and client_account:
             # Team job - check if current worker (viewer) has reviewed the client
@@ -1837,60 +2041,65 @@ def get_conversation_messages(request, conversation_id: int):
             worker_reviewed = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=request.auth,  # Current authenticated user (the worker)
-                reviewerType="WORKER"
+                reviewerType="WORKER",
             ).exists()
-            
+
             # Check if client has reviewed THIS specific worker (viewer)
             # This prevents false-positive reviewed state when the client has only reviewed other team workers.
             client_reviewed = JobReview.objects.filter(
                 jobID=job,
                 reviewerID=client_account,
                 reviewerType="CLIENT",
-                revieweeID=request.auth
+                revieweeID=request.auth,
             ).exists()
         elif is_team_job and is_client and client_account:
             # Team job - CLIENT view: check if ALL assigned workers have reviewed
             from accounts.models import JobWorkerAssignment
+
             team_assignments = JobWorkerAssignment.objects.filter(
-                jobID=job,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
-            ).select_related('workerID__profileID__accountFK')
-            
+                jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
+            ).select_related("workerID__profileID__accountFK")
+
             total_workers = team_assignments.count()
             if total_workers > 0:
-                worker_account_ids = [a.workerID.profileID.accountFK_id for a in team_assignments]
-                workers_who_reviewed = JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID__in=worker_account_ids,
-                    reviewerType="WORKER"
-                ).values('reviewerID').distinct().count()
-                worker_reviewed = (workers_who_reviewed >= total_workers)
-                
+                worker_account_ids = [
+                    a.workerID.profileID.accountFK_id for a in team_assignments
+                ]
+                workers_who_reviewed = (
+                    JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID__in=worker_account_ids,
+                        reviewerType="WORKER",
+                    )
+                    .values("reviewerID")
+                    .distinct()
+                    .count()
+                )
+                worker_reviewed = workers_who_reviewed >= total_workers
+
                 # Check if client has reviewed ALL assigned workers
                 client_reviews_count = JobReview.objects.filter(
-                    jobID=job,
-                    reviewerID=client_account,
-                    reviewerType="CLIENT"
+                    jobID=job, reviewerID=client_account, reviewerType="CLIENT"
                 ).count()
-                client_reviewed = (client_reviews_count >= total_workers)
+                client_reviewed = client_reviews_count >= total_workers
             else:
                 worker_reviewed = False
                 client_reviewed = False
         elif worker_account and client_account:
             # Regular (non-agency) job
             worker_reviewed = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=worker_account
+                jobID=job, reviewerID=worker_account
             ).exists()
-            
+
             client_reviewed = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=client_account
+                jobID=job, reviewerID=client_account
             ).exists()
-        
+
         # Build other_participant_info - handle agency case
         if other_participant:
-            other_participant_info = get_participant_info(profile=other_participant, job_title=job.title)
+            other_participant_info = get_participant_info(
+                profile=other_participant, job_title=job.title
+            )
         elif other_agency:
             # Client viewing agency conversation - show agency info
             other_participant_info = {
@@ -1898,11 +2107,13 @@ def get_conversation_messages(request, conversation_id: int):
                 "name": other_agency.businessName,
                 "avatar": "/agency-default.jpg",  # Agency model doesn't have avatar/logo field
                 "role": "AGENCY",
-                "account_id": other_agency.accountFK.accountID if other_agency.accountFK else None,
+                "account_id": other_agency.accountFK.accountID
+                if other_agency.accountFK
+                else None,
             }
         else:
             other_participant_info = None
-        
+
         # Determine my_role
         if is_client:
             my_role = "CLIENT"
@@ -1915,8 +2126,12 @@ def get_conversation_messages(request, conversation_id: int):
         agency_next_review_action = None
         agency_review_progress = None
         if is_agency_job_for_reviews:
-            total_employees_required = len(all_assigned_ids) if 'all_assigned_ids' in locals() else 0
-            reviewed_employees_count = max(0, total_employees_required - len(employees_pending_review))
+            total_employees_required = (
+                len(all_assigned_ids) if "all_assigned_ids" in locals() else 0
+            )
+            reviewed_employees_count = max(
+                0, total_employees_required - len(employees_pending_review)
+            )
             pending_employees_count = len(employees_pending_review)
 
             # Backward compatibility: never emit next-review action for already-completed records.
@@ -1939,83 +2154,105 @@ def get_conversation_messages(request, conversation_id: int):
             }
 
         # Compatibility self-heal: stale jobs/conversations that already satisfy closure criteria.
-        effective_job_status = cancellation_snapshot.get("effective_status") or job.status
+        effective_job_status = (
+            cancellation_snapshot.get("effective_status") or job.status
+        )
 
         # Legacy cancellation compatibility: normalize stale job status when
         # cancellation evidence exists but status was never persisted as CANCELLED.
-        if cancellation_snapshot.get("is_cancelled") and job.status != 'CANCELLED':
+        if cancellation_snapshot.get("is_cancelled") and job.status != "CANCELLED":
             try:
-                job.status = 'CANCELLED'
+                job.status = "CANCELLED"
                 if not job.completedAt:
-                    cancelled_at_dt = getattr(job, 'cancelledAt', None)
+                    cancelled_at_dt = getattr(job, "cancelledAt", None)
                     job.completedAt = cancelled_at_dt or timezone.now()
-                job.save(update_fields=['status', 'completedAt'])
-                effective_job_status = 'CANCELLED'
-                print(f"   ✅ [CONVO AUTO-HEAL] Job #{job.jobID} normalized to CANCELLED")
+                job.save(update_fields=["status", "completedAt"])
+                effective_job_status = "CANCELLED"
+                print(
+                    f"   ✅ [CONVO AUTO-HEAL] Job #{job.jobID} normalized to CANCELLED"
+                )
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Cancel status heal skipped: {heal_err}")
 
         if (
-            effective_job_status in ['ACTIVE', 'IN_PROGRESS']
+            effective_job_status in ["ACTIVE", "IN_PROGRESS"]
             and job.workerMarkedComplete
             and job.clientMarkedComplete
             and worker_reviewed
             and client_reviewed
         ):
             try:
-                job.status = 'COMPLETED'
+                job.status = "COMPLETED"
                 if not job.completedAt:
                     job.completedAt = timezone.now()
-                job.save(update_fields=['status', 'completedAt'])
+                job.save(update_fields=["status", "completedAt"])
                 print(f"   ✅ [CONVO AUTO-HEAL] Job #{job.jobID} marked COMPLETED")
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Job heal skipped: {heal_err}")
 
         if (
-            effective_job_status == 'COMPLETED'
+            effective_job_status == "COMPLETED"
             and worker_reviewed
             and client_reviewed
             and conversation.status != Conversation.ConversationStatus.COMPLETED
         ):
             try:
                 conversation.status = Conversation.ConversationStatus.COMPLETED
-                conversation.save(update_fields=['status'])
-                print(f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} marked COMPLETED")
+                conversation.save(update_fields=["status"])
+                print(
+                    f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} marked COMPLETED"
+                )
             except Exception as heal_err:
-                print(f"   ⚠️ [CONVO AUTO-HEAL] Conversation status heal skipped: {heal_err}")
+                print(
+                    f"   ⚠️ [CONVO AUTO-HEAL] Conversation status heal skipped: {heal_err}"
+                )
 
         # Legacy cancellation compatibility: cancelled jobs should be treated as
         # terminal conversations even if older records never toggled conversation status.
         if (
-            effective_job_status == 'CANCELLED'
+            effective_job_status == "CANCELLED"
             and conversation.status != Conversation.ConversationStatus.COMPLETED
         ):
             try:
                 conversation.status = Conversation.ConversationStatus.COMPLETED
-                conversation.save(update_fields=['status'])
-                print(f"   ✅ [CONVO AUTO-HEAL] Cancelled conversation #{conversation.conversationID} marked COMPLETED")
+                conversation.save(update_fields=["status"])
+                print(
+                    f"   ✅ [CONVO AUTO-HEAL] Cancelled conversation #{conversation.conversationID} marked COMPLETED"
+                )
             except Exception as heal_err:
-                print(f"   ⚠️ [CONVO AUTO-HEAL] Cancelled conversation heal skipped: {heal_err}")
+                print(
+                    f"   ⚠️ [CONVO AUTO-HEAL] Cancelled conversation heal skipped: {heal_err}"
+                )
 
-        if job.status == 'COMPLETED' and worker_reviewed and client_reviewed:
+        if job.status == "COMPLETED" and worker_reviewed and client_reviewed:
             try:
-                from profiles.conversation_service import should_auto_archive, archive_conversation
+                from profiles.conversation_service import (
+                    should_auto_archive,
+                    archive_conversation,
+                )
+
                 if should_auto_archive(conversation):
                     archive_result = archive_conversation(conversation)
-                    print(f"   📦 [CONVO AUTO-HEAL] {archive_result.get('message', 'Conversation auto-archived')}")
+                    print(
+                        f"   📦 [CONVO AUTO-HEAL] {archive_result.get('message', 'Conversation auto-archived')}"
+                    )
             except Exception as heal_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Archive heal skipped: {heal_err}")
 
         # Compute archive state from the current viewer perspective.
-        if conversation.conversation_type == 'TEAM_GROUP':
+        if conversation.conversation_type == "TEAM_GROUP":
             participant = ConversationParticipant.objects.filter(
                 conversation=conversation,
                 profile=user_profile,
             ).first()
             is_archived = participant.is_archived if participant else False
         else:
-            is_archived = conversation.archivedByClient if is_client else conversation.archivedByWorker
-        
+            is_archived = (
+                conversation.archivedByClient
+                if is_client
+                else conversation.archivedByWorker
+            )
+
         # Get assigned employee info for agency jobs (legacy single employee)
         assigned_employee_info = None
         if is_agency_conversation and job.assignedEmployeeID:
@@ -2026,83 +2263,123 @@ def get_conversation_messages(request, conversation_id: int):
                 "avatar": emp.avatar or "/worker-default.jpg",
                 "rating": float(emp.rating) if emp.rating else None,
             }
-        
+
         # Get ALL assigned employees for multi-employee jobs
         assigned_employees_list = []
         if is_agency_conversation:
             from accounts.models import JobEmployeeAssignment
-            assignments = JobEmployeeAssignment.objects.filter(
-                job=job,
-                status__in=['ASSIGNED', 'IN_PROGRESS', 'COMPLETED']
-            ).select_related('employee').order_by('-isPrimaryContact', 'assignedAt')
-            
-            print(f"   📋 [AGENCY EMPLOYEES] Job #{job.jobID}: Found {assignments.count()} assignments")
-            
+
+            assignments = (
+                JobEmployeeAssignment.objects.filter(
+                    job=job, status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"]
+                )
+                .select_related("employee")
+                .order_by("-isPrimaryContact", "assignedAt")
+            )
+
+            print(
+                f"   📋 [AGENCY EMPLOYEES] Job #{job.jobID}: Found {assignments.count()} assignments"
+            )
+
             for assignment in assignments:
                 emp = assignment.employee
-                print(f"      👤 Employee #{emp.employeeID} ({emp.name}): dispatched={assignment.dispatched}, arrived={assignment.clientConfirmedArrival}, agencyComplete={assignment.agencyMarkedComplete}, clientApproved={getattr(assignment, 'clientApproved', False)}")
-                assigned_employees_list.append({
-                    "id": emp.employeeID,
-                    "name": emp.name,
-                    "avatar": emp.avatar or "/worker-default.jpg",
-                    "rating": float(emp.rating) if emp.rating else None,
-                    "isPrimaryContact": assignment.isPrimaryContact,
-                    "status": assignment.status,
-                    # PROJECT job workflow tracking (mirrors DAILY job DailyAttendance workflow)
-                    "dispatched": getattr(assignment, 'dispatched', False),
-                    "dispatchedAt": assignment.dispatchedAt.isoformat() if getattr(assignment, 'dispatchedAt', None) else None,
-                    "clientConfirmedArrival": getattr(assignment, 'clientConfirmedArrival', False),
-                    "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat() if getattr(assignment, 'clientConfirmedArrivalAt', None) else None,
-                    "agencyMarkedComplete": getattr(assignment, 'agencyMarkedComplete', False),
-                    "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat() if getattr(assignment, 'agencyMarkedCompleteAt', None) else None,
-                    "employeeMarkedComplete": getattr(assignment, 'employeeMarkedComplete', False),
-                    "employeeMarkedCompleteAt": assignment.employeeMarkedCompleteAt.isoformat() if getattr(assignment, 'employeeMarkedCompleteAt', None) else None,
-                    "marked_complete": getattr(assignment, 'agencyMarkedComplete', False) or getattr(assignment, 'employeeMarkedComplete', False),
-                    # Per-employee approval tracking
-                    "paymentAmount": float(assignment.paymentAmount) if getattr(assignment, 'paymentAmount', None) else None,
-                    "clientApproved": getattr(assignment, 'clientApproved', False),
-                    "clientApprovedAt": assignment.clientApprovedAt.isoformat() if getattr(assignment, 'clientApprovedAt', None) else None,
-                })
-            
+                print(
+                    f"      👤 Employee #{emp.employeeID} ({emp.name}): dispatched={assignment.dispatched}, arrived={assignment.clientConfirmedArrival}, agencyComplete={assignment.agencyMarkedComplete}, clientApproved={getattr(assignment, 'clientApproved', False)}"
+                )
+                assigned_employees_list.append(
+                    {
+                        "id": emp.employeeID,
+                        "name": emp.name,
+                        "avatar": emp.avatar or "/worker-default.jpg",
+                        "rating": float(emp.rating) if emp.rating else None,
+                        "isPrimaryContact": assignment.isPrimaryContact,
+                        "status": assignment.status,
+                        # PROJECT job workflow tracking (mirrors DAILY job DailyAttendance workflow)
+                        "dispatched": getattr(assignment, "dispatched", False),
+                        "dispatchedAt": assignment.dispatchedAt.isoformat()
+                        if getattr(assignment, "dispatchedAt", None)
+                        else None,
+                        "clientConfirmedArrival": getattr(
+                            assignment, "clientConfirmedArrival", False
+                        ),
+                        "clientConfirmedArrivalAt": assignment.clientConfirmedArrivalAt.isoformat()
+                        if getattr(assignment, "clientConfirmedArrivalAt", None)
+                        else None,
+                        "agencyMarkedComplete": getattr(
+                            assignment, "agencyMarkedComplete", False
+                        ),
+                        "agencyMarkedCompleteAt": assignment.agencyMarkedCompleteAt.isoformat()
+                        if getattr(assignment, "agencyMarkedCompleteAt", None)
+                        else None,
+                        "employeeMarkedComplete": getattr(
+                            assignment, "employeeMarkedComplete", False
+                        ),
+                        "employeeMarkedCompleteAt": assignment.employeeMarkedCompleteAt.isoformat()
+                        if getattr(assignment, "employeeMarkedCompleteAt", None)
+                        else None,
+                        "marked_complete": getattr(
+                            assignment, "agencyMarkedComplete", False
+                        )
+                        or getattr(assignment, "employeeMarkedComplete", False),
+                        # Per-employee approval tracking
+                        "paymentAmount": float(assignment.paymentAmount)
+                        if getattr(assignment, "paymentAmount", None)
+                        else None,
+                        "clientApproved": getattr(assignment, "clientApproved", False),
+                        "clientApprovedAt": assignment.clientApprovedAt.isoformat()
+                        if getattr(assignment, "clientApprovedAt", None)
+                        else None,
+                    }
+                )
+
             # Fallback to legacy if no M2M assignments
             if not assigned_employees_list and job.assignedEmployeeID:
                 emp = job.assignedEmployeeID
-                assigned_employees_list.append({
-                    "id": emp.employeeID,
-                    "name": emp.name,
-                    "avatar": emp.avatar or "/worker-default.jpg",
-                    "rating": float(emp.rating) if emp.rating else None,
-                    "isPrimaryContact": True,
-                    "status": "ASSIGNED",
-                    # Legacy single-employee - no workflow tracking
-                    "dispatched": False,
-                    "dispatchedAt": None,
-                    "clientConfirmedArrival": False,
-                    "clientConfirmedArrivalAt": None,
-                    "agencyMarkedComplete": False,
-                    "agencyMarkedCompleteAt": None,
-                    "employeeMarkedComplete": False,
-                    "employeeMarkedCompleteAt": None,
-                    "marked_complete": False,
-                    "paymentAmount": None,
-                    "clientApproved": False,
-                    "clientApprovedAt": None,
-                })
-        
+                assigned_employees_list.append(
+                    {
+                        "id": emp.employeeID,
+                        "name": emp.name,
+                        "avatar": emp.avatar or "/worker-default.jpg",
+                        "rating": float(emp.rating) if emp.rating else None,
+                        "isPrimaryContact": True,
+                        "status": "ASSIGNED",
+                        # Legacy single-employee - no workflow tracking
+                        "dispatched": False,
+                        "dispatchedAt": None,
+                        "clientConfirmedArrival": False,
+                        "clientConfirmedArrivalAt": None,
+                        "agencyMarkedComplete": False,
+                        "agencyMarkedCompleteAt": None,
+                        "employeeMarkedComplete": False,
+                        "employeeMarkedCompleteAt": None,
+                        "marked_complete": False,
+                        "paymentAmount": None,
+                        "clientApproved": False,
+                        "clientApprovedAt": None,
+                    }
+                )
+
         # Get ML prediction for estimated completion time
         ml_prediction = None
         try:
             from ml.prediction_service import predict_for_job_instance
+
             prediction = predict_for_job_instance(job)
-            if prediction and prediction.get('predicted_hours') is not None:
+            if prediction and prediction.get("predicted_hours") is not None:
                 ml_prediction = {
-                    'predicted_hours': prediction.get('predicted_hours'),
-                    'confidence_interval_lower': prediction.get('confidence_interval', (None, None))[0],
-                    'confidence_interval_upper': prediction.get('confidence_interval', (None, None))[1],
-                    'confidence_level': prediction.get('confidence_level', 0.0),
-                    'formatted_duration': prediction.get('formatted_duration', 'Unknown'),
-                    'source': prediction.get('source', 'fallback'),
-                    'is_low_confidence': prediction.get('confidence_level', 0.0) < 0.5,
+                    "predicted_hours": prediction.get("predicted_hours"),
+                    "confidence_interval_lower": prediction.get(
+                        "confidence_interval", (None, None)
+                    )[0],
+                    "confidence_interval_upper": prediction.get(
+                        "confidence_interval", (None, None)
+                    )[1],
+                    "confidence_level": prediction.get("confidence_level", 0.0),
+                    "formatted_duration": prediction.get(
+                        "formatted_duration", "Unknown"
+                    ),
+                    "source": prediction.get("source", "fallback"),
+                    "is_low_confidence": prediction.get("confidence_level", 0.0) < 0.5,
                 }
         except Exception as e:
             print(f"   ⚠️ ML prediction error: {str(e)}")
@@ -2112,32 +2389,39 @@ def get_conversation_messages(request, conversation_id: int):
         team_workers_pending_review = []
         all_team_workers_reviewed = False
         team_worker_assignments = []
-        
+
         # Populate team_worker_assignments for BOTH clients AND workers
         # Workers need this to see their own assignment status (Phase 2 banners)
         if is_team_job:
             from accounts.models import JobWorkerAssignment, JobReview
-            
+
             # Get all assigned workers for this team job
             assignments = JobWorkerAssignment.objects.filter(
-                jobID=job,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
-            ).select_related('workerID__profileID__accountFK', 'skillSlotID__specializationID')
-            
+                jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
+            ).select_related(
+                "workerID__profileID__accountFK", "skillSlotID__specializationID"
+            )
+
             # Get list of worker accounts already reviewed by the client (needed for both client and worker views)
-            reviewed_worker_accounts = set(JobReview.objects.filter(
-                jobID=job,
-                reviewerID=client_account,
-                reviewerType="CLIENT",
-                revieweeID__isnull=False,
-            ).values_list('revieweeID', flat=True))
-            
+            reviewed_worker_accounts = set(
+                JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT",
+                    revieweeID__isnull=False,
+                ).values_list("revieweeID", flat=True)
+            )
+
             for assignment in assignments:
                 worker_profile = assignment.workerID.profileID
                 worker_account_id = worker_profile.accountFK.accountID
                 worker_name = f"{worker_profile.firstName} {worker_profile.lastName}"
-                skill_name = assignment.skillSlotID.specializationID.specializationName if assignment.skillSlotID else None
-                
+                skill_name = (
+                    assignment.skillSlotID.specializationID.specializationName
+                    if assignment.skillSlotID
+                    else None
+                )
+
                 worker_info = {
                     # Use FK raw id to avoid attribute errors (WorkerProfile has no workerID attr)
                     "worker_id": assignment.workerID_id,
@@ -2149,13 +2433,17 @@ def get_conversation_messages(request, conversation_id: int):
                     "is_reviewed": worker_account_id in reviewed_worker_accounts,
                     # Arrival tracking (matches regular job workflow)
                     "client_confirmed_arrival": assignment.client_confirmed_arrival,
-                    "client_confirmed_arrival_at": assignment.client_confirmed_arrival_at.isoformat() if assignment.client_confirmed_arrival_at else None,
+                    "client_confirmed_arrival_at": assignment.client_confirmed_arrival_at.isoformat()
+                    if assignment.client_confirmed_arrival_at
+                    else None,
                     # Completion tracking
                     "worker_marked_complete": assignment.worker_marked_complete,
-                    "worker_marked_complete_at": assignment.worker_marked_complete_at.isoformat() if assignment.worker_marked_complete_at else None
+                    "worker_marked_complete_at": assignment.worker_marked_complete_at.isoformat()
+                    if assignment.worker_marked_complete_at
+                    else None,
                 }
                 team_worker_assignments.append(worker_info)
-                
+
                 # Pending list remains client-facing, but aggregate completion must be role-agnostic.
                 if is_client and worker_account_id not in reviewed_worker_accounts:
                     team_workers_pending_review.append(worker_info)
@@ -2165,21 +2453,26 @@ def get_conversation_messages(request, conversation_id: int):
                 1 for worker in team_worker_assignments if worker["is_reviewed"]
             )
             all_team_workers_reviewed = (
-                total_team_workers > 0 and reviewed_by_client_count >= total_team_workers
+                total_team_workers > 0
+                and reviewed_by_client_count >= total_team_workers
             )
-        
+
         # Check for active backjob/dispute
         from accounts.models import JobDispute
+
         total_backjobs_for_job = JobDispute.objects.filter(jobID=job).count()
-        latest_dispute = JobDispute.objects.filter(jobID=job).order_by('-openedDate').first()
+        latest_dispute = (
+            JobDispute.objects.filter(jobID=job).order_by("-openedDate").first()
+        )
         active_dispute = JobDispute.objects.filter(
-            jobID=job,
-            status__in=['OPEN', 'UNDER_REVIEW', 'IN_NEGOTIATION']
+            jobID=job, status__in=["OPEN", "UNDER_REVIEW", "IN_NEGOTIATION"]
         ).first()
-        
+
         backjob_info = None
         if active_dispute:
-            auto_start_agency_backjob_if_ready(job, active_dispute, reason="profiles-conversation-list")
+            auto_start_agency_backjob_if_ready(
+                job, active_dispute, reason="profiles-conversation-list"
+            )
             team_schedule_total_workers = 0
             team_schedule_confirmed_count = 0
             my_schedule_confirmed = None
@@ -2188,70 +2481,90 @@ def get_conversation_messages(request, conversation_id: int):
                 from accounts.models import BackjobScheduleConfirmation
 
                 active_assignments = JobWorkerAssignment.objects.filter(
-                    jobID=job,
-                    assignment_status='ACTIVE'
+                    jobID=job, assignment_status="ACTIVE"
                 )
                 team_schedule_total_workers = active_assignments.count()
 
                 if team_schedule_total_workers > 0:
-                    active_assignment_ids = list(active_assignments.values_list('assignmentID', flat=True))
-                    team_schedule_confirmed_count = BackjobScheduleConfirmation.objects.filter(
-                        disputeID=active_dispute,
-                        assignmentID_id__in=active_assignment_ids,
-                        confirmed=True,
-                    ).count()
+                    active_assignment_ids = list(
+                        active_assignments.values_list("assignmentID", flat=True)
+                    )
+                    team_schedule_confirmed_count = (
+                        BackjobScheduleConfirmation.objects.filter(
+                            disputeID=active_dispute,
+                            assignmentID_id__in=active_assignment_ids,
+                            confirmed=True,
+                        ).count()
+                    )
 
                     if user_profile:
-                        my_assignment_id = active_assignments.filter(
-                            workerID__profileID=user_profile
-                        ).values_list('assignmentID', flat=True).first()
+                        my_assignment_id = (
+                            active_assignments.filter(workerID__profileID=user_profile)
+                            .values_list("assignmentID", flat=True)
+                            .first()
+                        )
                         if my_assignment_id:
-                            my_schedule_confirmed = BackjobScheduleConfirmation.objects.filter(
-                                disputeID=active_dispute,
-                                assignmentID_id=my_assignment_id,
-                                confirmed=True,
-                            ).exists()
+                            my_schedule_confirmed = (
+                                BackjobScheduleConfirmation.objects.filter(
+                                    disputeID=active_dispute,
+                                    assignmentID_id=my_assignment_id,
+                                    confirmed=True,
+                                ).exists()
+                            )
 
             # Backward compatibility for legacy backjobs:
             # Some older records remain OPEN even after worker confirmation/execution.
             # Normalize these to UNDER_REVIEW in payload so chat/UIs don't stay admin-locked.
             normalized_active_status = active_dispute.status
-            if (
-                active_dispute.status == 'OPEN'
-                and (
-                    active_dispute.workerScheduleConfirmed
-                    or active_dispute.backjobStarted
-                    or active_dispute.workerMarkedBackjobComplete
-                    or active_dispute.clientConfirmedBackjob
-                )
+            if active_dispute.status == "OPEN" and (
+                active_dispute.workerScheduleConfirmed
+                or active_dispute.backjobStarted
+                or active_dispute.workerMarkedBackjobComplete
+                or active_dispute.clientConfirmedBackjob
             ):
-                normalized_active_status = 'UNDER_REVIEW'
+                normalized_active_status = "UNDER_REVIEW"
 
             backjob_info = {
                 "has_backjob": True,
                 "dispute_id": active_dispute.disputeID,
                 "total_backjobs_for_job": total_backjobs_for_job,
-                "latest_dispute_status": latest_dispute.status if latest_dispute else normalized_active_status,
+                "latest_dispute_status": latest_dispute.status
+                if latest_dispute
+                else normalized_active_status,
                 "status": normalized_active_status,
                 "reason": active_dispute.reason,
                 "priority": active_dispute.priority,
                 "description": active_dispute.description,
                 # Backjob workflow tracking fields
                 "backjob_started": active_dispute.backjobStarted,
-                "backjob_started_at": active_dispute.backjobStartedAt.isoformat() if active_dispute.backjobStartedAt else None,
+                "backjob_started_at": active_dispute.backjobStartedAt.isoformat()
+                if active_dispute.backjobStartedAt
+                else None,
                 "worker_marked_complete": active_dispute.workerMarkedBackjobComplete,
-                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat() if active_dispute.workerMarkedBackjobCompleteAt else None,
+                "worker_marked_complete_at": active_dispute.workerMarkedBackjobCompleteAt.isoformat()
+                if active_dispute.workerMarkedBackjobCompleteAt
+                else None,
                 "client_confirmed_complete": active_dispute.clientConfirmedBackjob,
-                "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat() if active_dispute.clientConfirmedBackjobAt else None,
-                "in_negotiation_at": active_dispute.in_negotiation_at.isoformat() if active_dispute.in_negotiation_at else None,
-                "scheduled_date": active_dispute.scheduled_date.isoformat() if active_dispute.scheduled_date else None,
+                "client_confirmed_complete_at": active_dispute.clientConfirmedBackjobAt.isoformat()
+                if active_dispute.clientConfirmedBackjobAt
+                else None,
+                "in_negotiation_at": active_dispute.in_negotiation_at.isoformat()
+                if active_dispute.in_negotiation_at
+                else None,
+                "scheduled_date": active_dispute.scheduled_date.isoformat()
+                if active_dispute.scheduled_date
+                else None,
                 "worker_schedule_confirmed": active_dispute.workerScheduleConfirmed,
-                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat() if active_dispute.workerScheduleConfirmedAt else None,
+                "worker_schedule_confirmed_at": active_dispute.workerScheduleConfirmedAt.isoformat()
+                if active_dispute.workerScheduleConfirmedAt
+                else None,
                 "team_schedule_total_workers": team_schedule_total_workers,
                 "team_schedule_confirmed_count": team_schedule_confirmed_count,
                 "my_schedule_confirmed": my_schedule_confirmed,
             }
-            print(f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}")
+            print(
+                f"   🔄 Backjob info: started={active_dispute.backjobStarted}, worker_done={active_dispute.workerMarkedBackjobComplete}, client_confirmed={active_dispute.clientConfirmedBackjob}"
+            )
         elif latest_dispute:
             # Keep historical backjob metadata visible in conversation payload.
             backjob_info = {
@@ -2266,7 +2579,7 @@ def get_conversation_messages(request, conversation_id: int):
         # auto-heal it to ACTIVE so participants can continue negotiating/executing.
         if (
             active_dispute
-            and active_dispute.status in ['IN_NEGOTIATION', 'UNDER_REVIEW']
+            and active_dispute.status in ["IN_NEGOTIATION", "UNDER_REVIEW"]
             and conversation.status != Conversation.ConversationStatus.ACTIVE
         ):
             try:
@@ -2274,29 +2587,47 @@ def get_conversation_messages(request, conversation_id: int):
                 conversation.status = Conversation.ConversationStatus.ACTIVE
                 conversation.archivedByClient = False
                 conversation.archivedByWorker = False
-                conversation.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
-                print(f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} reopened from {old_status} due to active backjob {active_dispute.status}")
+                conversation.save(
+                    update_fields=[
+                        "status",
+                        "archivedByClient",
+                        "archivedByWorker",
+                        "updatedAt",
+                    ]
+                )
+                print(
+                    f"   ✅ [CONVO AUTO-HEAL] Conversation #{conversation.conversationID} reopened from {old_status} due to active backjob {active_dispute.status}"
+                )
             except Exception as reopen_err:
                 print(f"   ⚠️ [CONVO AUTO-HEAL] Backjob reopen skipped: {reopen_err}")
 
         # Get payment buffer info for completed jobs
         payment_buffer_info = None
-        if job.status == 'COMPLETED' and job.clientMarkedComplete:
+        if job.status == "COMPLETED" and job.clientMarkedComplete:
             from jobs.payment_buffer_service import get_payment_buffer_days
+
             buffer_days = get_payment_buffer_days()
-            
+
             # Calculate remaining days if release date is set
             remaining_days = None
             if job.paymentReleaseDate:
                 remaining = (job.paymentReleaseDate - timezone.now()).days
                 remaining_days = max(0, remaining)  # Don't show negative days
-            
+
             payment_buffer_info = {
                 "buffer_days": buffer_days,
-                "payment_release_date": job.paymentReleaseDate.isoformat() if job.paymentReleaseDate else None,
-                "payment_release_date_formatted": job.paymentReleaseDate.strftime("%b %d, %Y") if job.paymentReleaseDate else None,
+                "payment_release_date": job.paymentReleaseDate.isoformat()
+                if job.paymentReleaseDate
+                else None,
+                "payment_release_date_formatted": job.paymentReleaseDate.strftime(
+                    "%b %d, %Y"
+                )
+                if job.paymentReleaseDate
+                else None,
                 "is_payment_released": job.paymentReleasedToWorker,
-                "payment_released_at": job.paymentReleasedAt.isoformat() if job.paymentReleasedAt else None,
+                "payment_released_at": job.paymentReleasedAt.isoformat()
+                if job.paymentReleasedAt
+                else None,
                 "payment_held_reason": job.paymentHeldReason,
                 "remaining_days": remaining_days,
             }
@@ -2306,69 +2637,83 @@ def get_conversation_messages(request, conversation_id: int):
         daily_skip_requests_today = []
         effective_work_date = timezone.now().date()
         qa_day_offset = _get_clamped_qa_day_offset(job)
-        is_daily_job = hasattr(job, 'payment_model') and job.payment_model == "DAILY"
+        is_daily_job = hasattr(job, "payment_model") and job.payment_model == "DAILY"
         is_team_project_attendance = bool(
-            getattr(job, 'payment_model', None) == "PROJECT" and getattr(job, 'is_team_job', False)
+            getattr(job, "payment_model", None) == "PROJECT"
+            and getattr(job, "is_team_job", False)
         )
         is_project_multiday = bool(
-            getattr(job, 'payment_model', None) == "PROJECT" and _derive_duration_days(job) > 1
+            getattr(job, "payment_model", None) == "PROJECT"
+            and _derive_duration_days(job) > 1
         )
-        if (is_daily_job or is_project_multiday or is_team_project_attendance) and job.status == "IN_PROGRESS":
+        if (
+            is_daily_job or is_project_multiday or is_team_project_attendance
+        ) and job.status == "IN_PROGRESS":
             from accounts.models import DailyAttendance, DailySkipDayRequest
+
             today = _get_effective_work_date(job)
             effective_work_date = today
-            
+
             # Query attendance records for today
-            attendance_records = list(DailyAttendance.objects.filter(
-                jobID=job,
-                date=today
-            ).select_related(
-                'workerID__profileID',  # Freelance worker
-                'employeeID',  # Agency employee
-                'assignmentID__workerID__profileID'  # Team worker
-            ))
+            attendance_records = list(
+                DailyAttendance.objects.filter(jobID=job, date=today).select_related(
+                    "workerID__profileID",  # Freelance worker
+                    "employeeID",  # Agency employee
+                    "assignmentID__workerID__profileID",  # Team worker
+                )
+            )
 
             # Backward compatibility auto-heal for legacy agency PROJECT multi-day jobs:
             # if employees were dispatched via old assignment flags without creating
             # DailyAttendance rows, create DISPATCHED/PENDING rows so client can use
             # attendance-based Verify Arrival flow immediately.
-            if is_project_multiday and is_agency_conversation and assigned_employees_list:
+            if (
+                is_project_multiday
+                and is_agency_conversation
+                and assigned_employees_list
+            ):
                 from agency.models import AgencyEmployee
 
                 existing_employee_ids = {
                     record.employeeID.employeeID
                     for record in attendance_records
-                    if getattr(record, 'employeeID', None)
+                    if getattr(record, "employeeID", None)
                 }
 
                 healed_rows = 0
 
                 for employee_payload in assigned_employees_list:
-                    employee_id = employee_payload.get('id')
+                    employee_id = employee_payload.get("id")
                     if not employee_id or employee_id in existing_employee_ids:
                         continue
 
-                    if not employee_payload.get('dispatched'):
+                    if not employee_payload.get("dispatched"):
                         continue
 
-                    employee = AgencyEmployee.objects.filter(employeeID=employee_id).first()
+                    employee = AgencyEmployee.objects.filter(
+                        employeeID=employee_id
+                    ).first()
                     if not employee:
                         continue
 
                     dispatched_at = None
                     arrived_at = None
-                    dispatched_at_raw = employee_payload.get('dispatchedAt')
-                    arrived_at_raw = employee_payload.get('clientConfirmedArrivalAt')
+                    dispatched_at_raw = employee_payload.get("dispatchedAt")
+                    arrived_at_raw = employee_payload.get("clientConfirmedArrivalAt")
 
                     if dispatched_at_raw:
                         try:
-                            dispatched_at = datetime.fromisoformat(str(dispatched_at_raw).replace('Z', '+00:00'))
+                            dispatched_at = datetime.fromisoformat(
+                                str(dispatched_at_raw).replace("Z", "+00:00")
+                            )
                         except Exception:
                             dispatched_at = None
 
                     if arrived_at_raw:
                         try:
-                            arrived_at = datetime.fromisoformat(str(arrived_at_raw).replace('Z', '+00:00'))
+                            arrived_at = datetime.fromisoformat(
+                                str(arrived_at_raw).replace("Z", "+00:00")
+                            )
                         except Exception:
                             arrived_at = None
 
@@ -2376,36 +2721,45 @@ def get_conversation_messages(request, conversation_id: int):
                     # attendance rows for the current effective day when dispatch
                     # (and arrival, if present) happened on this same day.
                     dispatched_on_today = bool(
-                        dispatched_at and timezone.localtime(dispatched_at).date() == today
+                        dispatched_at
+                        and timezone.localtime(dispatched_at).date() == today
                     )
                     if not dispatched_on_today:
                         continue
 
-                    client_confirmed_arrival = bool(employee_payload.get('clientConfirmedArrival'))
+                    client_confirmed_arrival = bool(
+                        employee_payload.get("clientConfirmedArrival")
+                    )
                     if client_confirmed_arrival and arrived_at:
-                        arrived_on_today = timezone.localtime(arrived_at).date() == today
+                        arrived_on_today = (
+                            timezone.localtime(arrived_at).date() == today
+                        )
                         if not arrived_on_today:
                             client_confirmed_arrival = False
 
-                    healed_status = 'PENDING' if client_confirmed_arrival else 'DISPATCHED'
+                    healed_status = (
+                        "PENDING" if client_confirmed_arrival else "DISPATCHED"
+                    )
 
                     healed_record, _ = DailyAttendance.objects.update_or_create(
                         jobID=job,
                         employeeID=employee,
                         date=today,
                         defaults={
-                            'workerID': None,
-                            'assignmentID': None,
-                            'time_in': arrived_at if client_confirmed_arrival else None,
-                            'time_out': None,
-                            'status': healed_status,
-                            'worker_confirmed': True,
-                            'worker_confirmed_at': dispatched_at or timezone.now(),
-                            'client_confirmed': client_confirmed_arrival,
-                            'client_confirmed_at': arrived_at if client_confirmed_arrival else None,
-                            'amount_earned': Decimal('0.00'),
-                            'notes': 'Auto-healed from legacy dispatch markers (PROJECT multi-day)',
-                        }
+                            "workerID": None,
+                            "assignmentID": None,
+                            "time_in": arrived_at if client_confirmed_arrival else None,
+                            "time_out": None,
+                            "status": healed_status,
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": dispatched_at or timezone.now(),
+                            "client_confirmed": client_confirmed_arrival,
+                            "client_confirmed_at": arrived_at
+                            if client_confirmed_arrival
+                            else None,
+                            "amount_earned": Decimal("0.00"),
+                            "notes": "Auto-healed from legacy dispatch markers (PROJECT multi-day)",
+                        },
                     )
 
                     attendance_records.append(healed_record)
@@ -2413,18 +2767,23 @@ def get_conversation_messages(request, conversation_id: int):
                     healed_rows += 1
 
                 if healed_rows > 0:
-                    print(f"   🔧 [ATTENDANCE AUTO-HEAL] Created {healed_rows} missing PROJECT multi-day attendance rows")
-            
+                    print(
+                        f"   🔧 [ATTENDANCE AUTO-HEAL] Created {healed_rows} missing PROJECT multi-day attendance rows"
+                    )
+
             for record in attendance_records:
                 # Determine worker info based on worker type
                 worker_name = "Unknown Worker"
                 worker_avatar = None
                 worker_id = None
                 worker_account_id = None
-                
+
                 if record.workerID:  # Freelance worker
                     profile = record.workerID.profileID
-                    worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
+                    worker_name = (
+                        f"{profile.firstName or ''} {profile.lastName or ''}".strip()
+                        or "Worker"
+                    )
                     worker_avatar = profile.profileImg
                     worker_id = record.workerID_id
                     worker_account_id = profile.accountFK_id
@@ -2432,59 +2791,81 @@ def get_conversation_messages(request, conversation_id: int):
                     worker_name = record.employeeID.name or "Employee"
                     worker_avatar = record.employeeID.avatar
                     worker_id = record.employeeID.employeeID
-                    worker_account_id = getattr(record.employeeID, 'accountFK_id', None)
+                    worker_account_id = getattr(record.employeeID, "accountFK_id", None)
                 elif record.assignmentID:  # Team worker (via JobWorkerAssignment)
                     profile = record.assignmentID.workerID.profileID
-                    worker_name = f"{profile.firstName or ''} {profile.lastName or ''}".strip() or "Worker"
+                    worker_name = (
+                        f"{profile.firstName or ''} {profile.lastName or ''}".strip()
+                        or "Worker"
+                    )
                     worker_avatar = profile.profileImg
                     worker_id = record.assignmentID.workerID_id
                     worker_account_id = profile.accountFK_id
-                
-                attendance_today.append({
-                    "attendance_id": record.attendanceID,
-                    "worker_id": worker_id,
-                    "worker_account_id": worker_account_id,
-                    "worker_name": worker_name,
-                    "worker_avatar": worker_avatar,
-                    "date": record.date.isoformat(),
-                    "time_in": record.time_in.isoformat() if record.time_in else None,
-                    "time_out": record.time_out.isoformat() if record.time_out else None,
-                    "status": record.status,
-                    "is_dispatched": record.status == "DISPATCHED",  # True if employee is on the way (not yet arrived)
-                    "worker_confirmed": record.worker_confirmed,
-                    "worker_confirmed_at": record.worker_confirmed_at.isoformat() if record.worker_confirmed_at else None,
-                    "client_confirmed": record.client_confirmed,
-                    "client_confirmed_at": record.client_confirmed_at.isoformat() if record.client_confirmed_at else None,
-                    "amount_earned": float(record.amount_earned) if record.amount_earned else 0.0,
-                    "payment_processed": record.payment_processed,
-                    "payment_method": record.payment_method,
-                    "cash_payment_proof_url": record.cash_payment_proof_url,
-                    "cash_payment_verified": record.cash_payment_verified,
-                    "notes": record.notes or "",
-                })
-            
-            print(f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})")
+
+                attendance_today.append(
+                    {
+                        "attendance_id": record.attendanceID,
+                        "worker_id": worker_id,
+                        "worker_account_id": worker_account_id,
+                        "worker_name": worker_name,
+                        "worker_avatar": worker_avatar,
+                        "date": record.date.isoformat(),
+                        "time_in": record.time_in.isoformat()
+                        if record.time_in
+                        else None,
+                        "time_out": record.time_out.isoformat()
+                        if record.time_out
+                        else None,
+                        "status": record.status,
+                        "is_dispatched": record.status
+                        == "DISPATCHED",  # True if employee is on the way (not yet arrived)
+                        "worker_confirmed": record.worker_confirmed,
+                        "worker_confirmed_at": record.worker_confirmed_at.isoformat()
+                        if record.worker_confirmed_at
+                        else None,
+                        "client_confirmed": record.client_confirmed,
+                        "client_confirmed_at": record.client_confirmed_at.isoformat()
+                        if record.client_confirmed_at
+                        else None,
+                        "amount_earned": float(record.amount_earned)
+                        if record.amount_earned
+                        else 0.0,
+                        "payment_processed": record.payment_processed,
+                        "payment_method": record.payment_method,
+                        "cash_payment_proof_url": record.cash_payment_proof_url,
+                        "cash_payment_verified": record.cash_payment_verified,
+                        "notes": record.notes or "",
+                    }
+                )
+
+            print(
+                f"   📅 Daily attendance: {len(attendance_today)} records for today ({today})"
+            )
 
             # Skip-day requests are DAILY-specific and do not apply to PROJECT jobs.
             if is_daily_job:
-                skip_request = DailySkipDayRequest.objects.filter(
-                    jobID=job,
-                    request_date=today
-                ).order_by('-createdAt').first()
+                skip_request = (
+                    DailySkipDayRequest.objects.filter(jobID=job, request_date=today)
+                    .order_by("-createdAt")
+                    .first()
+                )
 
                 if skip_request:
                     requested_ids = list(skip_request.requested_account_ids or [])
-                    daily_skip_requests_today.append({
-                        "skip_request_id": skip_request.skipRequestID,
-                        "request_date": skip_request.request_date.isoformat(),
-                        "status": skip_request.status,
-                        "requested_count": skip_request.requested_count,
-                        "total_required": skip_request.total_required,
-                        "requires_all_team_workers": skip_request.requires_all_team_workers,
-                        "all_workers_requested": skip_request.all_workers_requested,
-                        "my_worker_requested": int(request.auth.accountID) in requested_ids,
-                        "client_rejection_reason": skip_request.client_rejection_reason,
-                    })
+                    daily_skip_requests_today.append(
+                        {
+                            "skip_request_id": skip_request.skipRequestID,
+                            "request_date": skip_request.request_date.isoformat(),
+                            "status": skip_request.status,
+                            "requested_count": skip_request.requested_count,
+                            "total_required": skip_request.total_required,
+                            "requires_all_team_workers": skip_request.requires_all_team_workers,
+                            "all_workers_requested": skip_request.all_workers_requested,
+                            "my_worker_requested": int(request.auth.accountID)
+                            in requested_ids,
+                            "client_rejection_reason": skip_request.client_rejection_reason,
+                        }
+                    )
 
         # Fetch actual review data (ratings and comments) for both parties
         client_review_data = None
@@ -2495,7 +2876,9 @@ def get_conversation_messages(request, conversation_id: int):
         reviewer_profile_cache = {}
 
         def resolve_reviewer_identity(review):
-            reviewer_account_id = review.reviewerID.accountID if review.reviewerID else None
+            reviewer_account_id = (
+                review.reviewerID.accountID if review.reviewerID else None
+            )
             reviewer_type = review.reviewerType
             reviewer_name = None
             reviewer_avatar = None
@@ -2506,7 +2889,9 @@ def get_conversation_messages(request, conversation_id: int):
             if reviewer_account_id:
                 cached_profile = reviewer_profile_cache.get(reviewer_account_id)
                 if cached_profile is None:
-                    cached_profile = Profile.objects.filter(accountFK=review.reviewerID).first()
+                    cached_profile = Profile.objects.filter(
+                        accountFK=review.reviewerID
+                    ).first()
                     reviewer_profile_cache[reviewer_account_id] = cached_profile
 
                 if cached_profile:
@@ -2530,87 +2915,134 @@ def get_conversation_messages(request, conversation_id: int):
                 "reviewer_name": reviewer_name,
                 "reviewer_avatar": reviewer_avatar,
             }
-        
+
         if client_reviewed and client_account:
             # Get client's review of worker/employee
             client_review_qs = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=client_account,
-                status='ACTIVE'
+                jobID=job, reviewerID=client_account, status="ACTIVE"
             )
 
             # Team job worker view: return the review addressed to the current worker account.
             if is_team_job and not is_client:
                 client_review_qs = client_review_qs.filter(
-                    reviewerType="CLIENT",
-                    revieweeID=request.auth
+                    reviewerType="CLIENT", revieweeID=request.auth
                 )
 
-            client_review = client_review_qs.order_by('-updatedAt', '-createdAt').first()
-            
+            client_review = client_review_qs.order_by(
+                "-updatedAt", "-createdAt"
+            ).first()
+
             if client_review:
                 client_reviewer_identity = resolve_reviewer_identity(client_review)
                 client_review_data = {
                     "review_id": client_reviewer_identity["review_id"],
-                    "reviewer_account_id": client_reviewer_identity["reviewer_account_id"],
+                    "reviewer_account_id": client_reviewer_identity[
+                        "reviewer_account_id"
+                    ],
                     "reviewer_type": client_reviewer_identity["reviewer_type"],
                     "reviewer_name": client_reviewer_identity["reviewer_name"],
                     "reviewer_avatar": client_reviewer_identity["reviewer_avatar"],
-                    "rating_communication": float(client_review.rating_communication) if client_review.rating_communication else 0,
-                    "rating_punctuality": float(client_review.rating_punctuality) if client_review.rating_punctuality else 0,
-                    "rating_professionalism": float(client_review.rating_professionalism) if client_review.rating_professionalism else 0,
-                    "rating_quality": float(client_review.rating_quality) if client_review.rating_quality else 0,
+                    "rating_communication": float(client_review.rating_communication)
+                    if client_review.rating_communication
+                    else 0,
+                    "rating_punctuality": float(client_review.rating_punctuality)
+                    if client_review.rating_punctuality
+                    else 0,
+                    "rating_professionalism": float(
+                        client_review.rating_professionalism
+                    )
+                    if client_review.rating_professionalism
+                    else 0,
+                    "rating_quality": float(client_review.rating_quality)
+                    if client_review.rating_quality
+                    else 0,
                     "comment": client_review.comment or "",
-                    "created_at": client_review.createdAt.isoformat() if client_review.createdAt else None,
+                    "created_at": client_review.createdAt.isoformat()
+                    if client_review.createdAt
+                    else None,
                 }
-        
+
         if worker_reviewed and worker_account:
             # Get worker's review of client
-            worker_review = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=worker_account,
-                status='ACTIVE'
-            ).order_by('-updatedAt', '-createdAt').first()
-            
+            worker_review = (
+                JobReview.objects.filter(
+                    jobID=job, reviewerID=worker_account, status="ACTIVE"
+                )
+                .order_by("-updatedAt", "-createdAt")
+                .first()
+            )
+
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
                 worker_review_data = {
                     "review_id": worker_reviewer_identity["review_id"],
-                    "reviewer_account_id": worker_reviewer_identity["reviewer_account_id"],
+                    "reviewer_account_id": worker_reviewer_identity[
+                        "reviewer_account_id"
+                    ],
                     "reviewer_type": worker_reviewer_identity["reviewer_type"],
                     "reviewer_name": worker_reviewer_identity["reviewer_name"],
                     "reviewer_avatar": worker_reviewer_identity["reviewer_avatar"],
-                    "rating_communication": float(worker_review.rating_communication) if worker_review.rating_communication else 0,
-                    "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
-                    "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
-                    "rating_quality": float(worker_review.rating_quality) if worker_review.rating_quality else 0,
+                    "rating_communication": float(worker_review.rating_communication)
+                    if worker_review.rating_communication
+                    else 0,
+                    "rating_punctuality": float(worker_review.rating_punctuality)
+                    if worker_review.rating_punctuality
+                    else 0,
+                    "rating_professionalism": float(
+                        worker_review.rating_professionalism
+                    )
+                    if worker_review.rating_professionalism
+                    else 0,
+                    "rating_quality": float(worker_review.rating_quality)
+                    if worker_review.rating_quality
+                    else 0,
                     "comment": worker_review.comment or "",
-                    "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
+                    "created_at": worker_review.createdAt.isoformat()
+                    if worker_review.createdAt
+                    else None,
                 }
         elif worker_reviewed and is_team_job and not is_client:
             # Team job: worker_account is None (no single assignedWorkerID).
             # Fetch this specific team worker's own review of the client.
-            worker_review = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=request.auth,
-                reviewerType="WORKER",
-                status='ACTIVE'
-            ).order_by('-updatedAt', '-createdAt').first()
-            
+            worker_review = (
+                JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="WORKER",
+                    status="ACTIVE",
+                )
+                .order_by("-updatedAt", "-createdAt")
+                .first()
+            )
+
             if worker_review:
                 worker_reviewer_identity = resolve_reviewer_identity(worker_review)
                 worker_review_data = {
                     "review_id": worker_reviewer_identity["review_id"],
-                    "reviewer_account_id": worker_reviewer_identity["reviewer_account_id"],
+                    "reviewer_account_id": worker_reviewer_identity[
+                        "reviewer_account_id"
+                    ],
                     "reviewer_type": worker_reviewer_identity["reviewer_type"],
                     "reviewer_name": worker_reviewer_identity["reviewer_name"],
                     "reviewer_avatar": worker_reviewer_identity["reviewer_avatar"],
-                    "rating_communication": float(worker_review.rating_communication) if worker_review.rating_communication else 0,
-                    "rating_punctuality": float(worker_review.rating_punctuality) if worker_review.rating_punctuality else 0,
-                    "rating_professionalism": float(worker_review.rating_professionalism) if worker_review.rating_professionalism else 0,
-                    "rating_quality": float(worker_review.rating_quality) if worker_review.rating_quality else 0,
+                    "rating_communication": float(worker_review.rating_communication)
+                    if worker_review.rating_communication
+                    else 0,
+                    "rating_punctuality": float(worker_review.rating_punctuality)
+                    if worker_review.rating_punctuality
+                    else 0,
+                    "rating_professionalism": float(
+                        worker_review.rating_professionalism
+                    )
+                    if worker_review.rating_professionalism
+                    else 0,
+                    "rating_quality": float(worker_review.rating_quality)
+                    if worker_review.rating_quality
+                    else 0,
                     "comment": worker_review.comment or "",
-                    "created_at": worker_review.createdAt.isoformat() if worker_review.createdAt else None,
+                    "created_at": worker_review.createdAt.isoformat()
+                    if worker_review.createdAt
+                    else None,
                 }
 
         # For client viewers, expose all counterparty reviews for this job.
@@ -2624,11 +3056,13 @@ def get_conversation_messages(request, conversation_id: int):
                         "avatar": worker.get("avatar"),
                     }
 
-            review_qs = JobReview.objects.filter(
-                jobID=job,
-                reviewerType__in=["WORKER", "AGENCY"],
-                status='ACTIVE'
-            ).select_related("reviewerID").order_by("-updatedAt", "-createdAt")
+            review_qs = (
+                JobReview.objects.filter(
+                    jobID=job, reviewerType__in=["WORKER", "AGENCY"], status="ACTIVE"
+                )
+                .select_related("reviewerID")
+                .order_by("-updatedAt", "-createdAt")
+            )
 
             seen_counterparty_reviewer_keys = set()
 
@@ -2647,30 +3081,48 @@ def get_conversation_messages(request, conversation_id: int):
 
                 worker_meta = account_to_worker_meta.get(reviewer_account_id, {})
 
-                reviewer_name = worker_meta.get("name") or reviewer_identity["reviewer_name"]
-                reviewer_avatar = worker_meta.get("avatar") or reviewer_identity["reviewer_avatar"]
+                reviewer_name = (
+                    worker_meta.get("name") or reviewer_identity["reviewer_name"]
+                )
+                reviewer_avatar = (
+                    worker_meta.get("avatar") or reviewer_identity["reviewer_avatar"]
+                )
 
-                counterparty_reviews_data.append({
-                    "review_id": reviewer_identity["review_id"],
-                    "reviewer_account_id": reviewer_account_id,
-                    "reviewer_type": reviewer_identity["reviewer_type"],
-                    "reviewer_name": reviewer_name,
-                    "reviewer_avatar": reviewer_avatar,
-                    "rating_communication": float(review.rating_communication) if review.rating_communication else 0,
-                    "rating_punctuality": float(review.rating_punctuality) if review.rating_punctuality else 0,
-                    "rating_professionalism": float(review.rating_professionalism) if review.rating_professionalism else 0,
-                    "rating_quality": float(review.rating_quality) if review.rating_quality else 0,
-                    "comment": review.comment or "",
-                    "created_at": review.createdAt.isoformat() if review.createdAt else None,
-                })
+                counterparty_reviews_data.append(
+                    {
+                        "review_id": reviewer_identity["review_id"],
+                        "reviewer_account_id": reviewer_account_id,
+                        "reviewer_type": reviewer_identity["reviewer_type"],
+                        "reviewer_name": reviewer_name,
+                        "reviewer_avatar": reviewer_avatar,
+                        "rating_communication": float(review.rating_communication)
+                        if review.rating_communication
+                        else 0,
+                        "rating_punctuality": float(review.rating_punctuality)
+                        if review.rating_punctuality
+                        else 0,
+                        "rating_professionalism": float(review.rating_professionalism)
+                        if review.rating_professionalism
+                        else 0,
+                        "rating_quality": float(review.rating_quality)
+                        if review.rating_quality
+                        else 0,
+                        "comment": review.comment or "",
+                        "created_at": review.createdAt.isoformat()
+                        if review.createdAt
+                        else None,
+                    }
+                )
 
         # Build editable reviews authored by current user for post-backjob edit flows.
         now = timezone.now()
-        my_reviews_qs = JobReview.objects.filter(
-            jobID=job,
-            reviewerID=request.auth,
-            status='ACTIVE'
-        ).select_related('revieweeID', 'revieweeEmployeeID', 'revieweeAgencyID').order_by('-updatedAt', '-createdAt')
+        my_reviews_qs = (
+            JobReview.objects.filter(
+                jobID=job, reviewerID=request.auth, status="ACTIVE"
+            )
+            .select_related("revieweeID", "revieweeEmployeeID", "revieweeAgencyID")
+            .order_by("-updatedAt", "-createdAt")
+        )
 
         seen_editable_targets = set()
 
@@ -2682,20 +3134,20 @@ def get_conversation_messages(request, conversation_id: int):
             )
             can_edit = within_24h or within_backjob_window
 
-            target_type = 'USER'
+            target_type = "USER"
             target_id = None
-            target_name = 'User'
+            target_name = "User"
 
             if authored_review.revieweeEmployeeID:
-                target_type = 'EMPLOYEE'
+                target_type = "EMPLOYEE"
                 target_id = authored_review.revieweeEmployeeID.employeeID
-                target_name = authored_review.revieweeEmployeeID.name or 'Employee'
+                target_name = authored_review.revieweeEmployeeID.name or "Employee"
             elif authored_review.revieweeAgencyID:
-                target_type = 'AGENCY'
+                target_type = "AGENCY"
                 target_id = authored_review.revieweeAgencyID.agencyId
-                target_name = authored_review.revieweeAgencyID.businessName or 'Agency'
+                target_name = authored_review.revieweeAgencyID.businessName or "Agency"
             elif authored_review.revieweeID:
-                target_type = 'TEAM_WORKER' if is_team_job and is_client else 'USER'
+                target_type = "TEAM_WORKER" if is_team_job and is_client else "USER"
                 target_id = authored_review.revieweeID.accountID
 
                 reviewee_profile = Profile.objects.filter(
@@ -2711,55 +3163,77 @@ def get_conversation_messages(request, conversation_id: int):
                 continue
             seen_editable_targets.add(target_key)
 
-            my_editable_reviews_data.append({
-                'review_id': authored_review.reviewID,
-                'target_type': target_type,
-                'target_id': target_id,
-                'target_name': target_name,
-                'can_edit': can_edit,
-                'rating_quality': float(authored_review.rating_quality) if authored_review.rating_quality else 0,
-                'rating_communication': float(authored_review.rating_communication) if authored_review.rating_communication else 0,
-                'rating_punctuality': float(authored_review.rating_punctuality) if authored_review.rating_punctuality else 0,
-                'rating_professionalism': float(authored_review.rating_professionalism) if authored_review.rating_professionalism else 0,
-                'comment': authored_review.comment or '',
-                'created_at': authored_review.createdAt.isoformat() if authored_review.createdAt else None,
-                'backjob_edit_deadline': authored_review.backjob_edit_deadline.isoformat() if authored_review.backjob_edit_deadline else None,
-            })
+            my_editable_reviews_data.append(
+                {
+                    "review_id": authored_review.reviewID,
+                    "target_type": target_type,
+                    "target_id": target_id,
+                    "target_name": target_name,
+                    "can_edit": can_edit,
+                    "rating_quality": float(authored_review.rating_quality)
+                    if authored_review.rating_quality
+                    else 0,
+                    "rating_communication": float(authored_review.rating_communication)
+                    if authored_review.rating_communication
+                    else 0,
+                    "rating_punctuality": float(authored_review.rating_punctuality)
+                    if authored_review.rating_punctuality
+                    else 0,
+                    "rating_professionalism": float(
+                        authored_review.rating_professionalism
+                    )
+                    if authored_review.rating_professionalism
+                    else 0,
+                    "comment": authored_review.comment or "",
+                    "created_at": authored_review.createdAt.isoformat()
+                    if authored_review.createdAt
+                    else None,
+                    "backjob_edit_deadline": authored_review.backjob_edit_deadline.isoformat()
+                    if authored_review.backjob_edit_deadline
+                    else None,
+                }
+            )
 
         # For agency client reviews, keep employees first then agency for deterministic edit sequencing.
         if is_agency_job_for_reviews and is_client and my_editable_reviews_data:
-            priority = {'EMPLOYEE': 0, 'AGENCY': 1}
-            my_editable_reviews_data.sort(key=lambda review: (
-                priority.get(review['target_type'], 2),
-                review.get('target_name') or ''
-            ))
+            priority = {"EMPLOYEE": 0, "AGENCY": 1}
+            my_editable_reviews_data.sort(
+                key=lambda review: (
+                    priority.get(review["target_type"], 2),
+                    review.get("target_name") or "",
+                )
+            )
 
         # Backward-compatibility for legacy jobs created before timeline markers were reliable.
         # If explicit flags are missing/inconsistent, infer worker on-the-way from subsequent lifecycle
         # milestones or existing JobLog entries.
         from accounts.models import JobLog, JobMaterial
 
-        worker_marked_on_the_way = bool(getattr(job, 'workerMarkedOnTheWay', False))
-        worker_marked_on_the_way_at = getattr(job, 'workerMarkedOnTheWayAt', None)
-        worker_marked_job_started = bool(getattr(job, 'workerMarkedJobStarted', False))
-        worker_marked_job_started_at = getattr(job, 'workerMarkedJobStartedAt', None)
-        client_confirmed_work_started = bool(getattr(job, 'clientConfirmedWorkStarted', False))
+        worker_marked_on_the_way = bool(getattr(job, "workerMarkedOnTheWay", False))
+        worker_marked_on_the_way_at = getattr(job, "workerMarkedOnTheWayAt", None)
+        worker_marked_job_started = bool(getattr(job, "workerMarkedJobStarted", False))
+        worker_marked_job_started_at = getattr(job, "workerMarkedJobStartedAt", None)
+        client_confirmed_work_started = bool(
+            getattr(job, "clientConfirmedWorkStarted", False)
+        )
 
-        if not worker_marked_on_the_way and (worker_marked_job_started or client_confirmed_work_started):
+        if not worker_marked_on_the_way and (
+            worker_marked_job_started or client_confirmed_work_started
+        ):
             worker_marked_on_the_way = True
             worker_marked_on_the_way_at = (
                 worker_marked_on_the_way_at
                 or worker_marked_job_started_at
-                or getattr(job, 'clientConfirmedWorkStartedAt', None)
+                or getattr(job, "clientConfirmedWorkStartedAt", None)
             )
 
         if not worker_marked_on_the_way:
             legacy_on_the_way_log = (
                 JobLog.objects.filter(
                     jobID=job,
-                    notes__icontains='marked on the way',
+                    notes__icontains="marked on the way",
                 )
-                .order_by('-createdAt')
+                .order_by("-createdAt")
                 .first()
             )
             if legacy_on_the_way_log:
@@ -2767,7 +3241,7 @@ def get_conversation_messages(request, conversation_id: int):
                 if not worker_marked_on_the_way_at:
                     worker_marked_on_the_way_at = legacy_on_the_way_log.createdAt
 
-        job_materials_qs = JobMaterial.objects.filter(jobID=job).order_by('createdAt')
+        job_materials_qs = JobMaterial.objects.filter(jobID=job).order_by("createdAt")
         job_materials_list = [
             {
                 "id": m.jobMaterialID,
@@ -2779,7 +3253,9 @@ def get_conversation_messages(request, conversation_id: int):
                 "purchase_price": float(m.purchase_price) if m.purchase_price else None,
                 "receipt_image_url": m.receipt_image_url,
                 "client_approved": m.client_approved,
-                "client_approved_at": m.client_approved_at.isoformat() if m.client_approved_at else None,
+                "client_approved_at": m.client_approved_at.isoformat()
+                if m.client_approved_at
+                else None,
                 "client_rejected": m.client_rejected,
                 "rejection_reason": m.rejection_reason,
                 "added_by": m.added_by,
@@ -2802,31 +3278,54 @@ def get_conversation_messages(request, conversation_id: int):
                 "cancelled_by_role": cancellation_snapshot["cancelled_by_role"],
                 "cancellation_stage": cancellation_snapshot["cancellation_stage"],
                 "cancellation_reason": cancellation_snapshot["cancellation_reason"],
-                "payment_model": getattr(job, 'payment_model', 'PROJECT'),  # PROJECT or DAILY
-                "daily_rate": float(job.daily_rate_agreed) if hasattr(job, 'daily_rate_agreed') and job.daily_rate_agreed else None,
+                "payment_model": getattr(
+                    job, "payment_model", "PROJECT"
+                ),  # PROJECT or DAILY
+                "daily_rate": float(job.daily_rate_agreed)
+                if hasattr(job, "daily_rate_agreed") and job.daily_rate_agreed
+                else None,
                 "duration_days": _derive_duration_days(job),
-                "total_days_worked": job.total_days_worked if hasattr(job, 'total_days_worked') else None,
+                "total_days_worked": job.total_days_worked
+                if hasattr(job, "total_days_worked")
+                else None,
                 "expectedDuration": job.expectedDuration,
-                "preferred_start_date": job.preferredStartDate.isoformat() if job.preferredStartDate else None,
-                "scheduled_end_date": job.scheduled_end_date.isoformat() if job.scheduled_end_date else None,
+                "preferred_start_date": job.preferredStartDate.isoformat()
+                if job.preferredStartDate
+                else None,
+                "scheduled_end_date": job.scheduled_end_date.isoformat()
+                if job.scheduled_end_date
+                else None,
                 "budget": float(job.budget),
                 "location": job.location,
                 "workerMarkedOnTheWay": worker_marked_on_the_way,
-                "workerMarkedOnTheWayAt": worker_marked_on_the_way_at.isoformat() if worker_marked_on_the_way_at else None,
+                "workerMarkedOnTheWayAt": worker_marked_on_the_way_at.isoformat()
+                if worker_marked_on_the_way_at
+                else None,
                 "workerMarkedJobStarted": worker_marked_job_started,
-                "workerMarkedJobStartedAt": worker_marked_job_started_at.isoformat() if worker_marked_job_started_at else None,
+                "workerMarkedJobStartedAt": worker_marked_job_started_at.isoformat()
+                if worker_marked_job_started_at
+                else None,
                 "clientConfirmedWorkStarted": client_confirmed_work_started,
                 "workerMarkedComplete": job.workerMarkedComplete,
                 "clientMarkedComplete": job.clientMarkedComplete,
                 "remainingPaymentPaid": job.remainingPaymentPaid,
+                "remainingPayment": _get_conversation_remaining_payment(job),
                 "workerReviewed": worker_reviewed,
                 "clientReviewed": client_reviewed,
-                "employeeReviewed": employee_review_exists if is_agency_job_for_reviews else None,
-                "agencyReviewed": agency_review_exists if is_agency_job_for_reviews else None,
+                "employeeReviewed": employee_review_exists
+                if is_agency_job_for_reviews
+                else None,
+                "agencyReviewed": agency_review_exists
+                if is_agency_job_for_reviews
+                else None,
                 "next_review_action": agency_next_review_action,
                 "review_progress": agency_review_progress,
-                "employeesPendingReview": employees_pending_review if is_agency_job_for_reviews else [],
-                "assignedWorkerId": worker_account.accountID if worker_account else None,
+                "employeesPendingReview": employees_pending_review
+                if is_agency_job_for_reviews
+                else [],
+                "assignedWorkerId": worker_account.accountID
+                if worker_account
+                else None,
                 "clientId": client_account.accountID if client_account else None,
                 "estimatedCompletion": ml_prediction,
                 "paymentBuffer": payment_buffer_info,
@@ -2837,13 +3336,23 @@ def get_conversation_messages(request, conversation_id: int):
             "assigned_employee": assigned_employee_info,  # Legacy single employee
             "assigned_employees": assigned_employees_list,  # NEW: All assigned employees
             # Multi-employee review tracking (for frontend convenience)
-            "pending_employee_reviews": [e["employee_id"] for e in employees_pending_review] if is_agency_job_for_reviews else [],
-            "all_employees_reviewed": employee_review_exists if is_agency_job_for_reviews else None,
+            "pending_employee_reviews": [
+                e["employee_id"] for e in employees_pending_review
+            ]
+            if is_agency_job_for_reviews
+            else [],
+            "all_employees_reviewed": employee_review_exists
+            if is_agency_job_for_reviews
+            else None,
             "is_agency_job": is_agency_conversation,
             "is_team_job": is_team_job,
             "team_worker_assignments": team_worker_assignments if is_team_job else [],
-            "pending_team_worker_reviews": team_workers_pending_review if is_team_job else [],
-            "all_team_workers_reviewed": all_team_workers_reviewed if is_team_job else None,
+            "pending_team_worker_reviews": team_workers_pending_review
+            if is_team_job
+            else [],
+            "all_team_workers_reviewed": all_team_workers_reviewed
+            if is_team_job
+            else None,
             "my_role": my_role,
             "status": conversation.status,
             "is_archived": is_archived,
@@ -2861,15 +3370,13 @@ def get_conversation_messages(request, conversation_id: int):
             "my_editable_reviews": my_editable_reviews_data,
             "job_materials": job_materials_list,
         }
-        
+
     except Exception as e:
         print(f"❌ Error fetching conversation messages: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to fetch messages: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to fetch messages: {str(e)}"}, status=500)
 
 
 @router.post("/chat/messages", auth=dual_auth)
@@ -2889,53 +3396,48 @@ def send_message(request, data: SendMessageSchema):
         except Profile.DoesNotExist:
             # No profile found - check if this is an agency user
             from accounts.models import Agency
+
             try:
                 sender_agency = Agency.objects.get(accountFK=request.auth)
-                print(f"[MOBILE] Agency sender: {sender_agency.agencyId} ({sender_agency.businessName})")
+                print(
+                    f"[MOBILE] Agency sender: {sender_agency.agencyId} ({sender_agency.businessName})"
+                )
             except Agency.DoesNotExist:
                 return Response(
-                    {"error": "No profile or agency found for this account"},
-                    status=400
+                    {"error": "No profile or agency found for this account"}, status=400
                 )
-        
+
         # Get the conversation
         try:
             conversation = Conversation.objects.select_related(
-                'client',
-                'worker',
-                'agency',
-                'relatedJobPosting'
+                "client", "worker", "agency", "relatedJobPosting"
             ).get(conversationID=data.conversation_id)
         except Conversation.DoesNotExist:
-            return Response(
-                {"error": "Conversation not found"},
-                status=404
-            )
-        
+            return Response({"error": "Conversation not found"}, status=404)
+
         # Verify sender is a participant
         is_client = sender_profile and conversation.client == sender_profile
         is_worker = sender_profile and conversation.worker == sender_profile
-        
+
         # For team conversations, also check ConversationParticipant table
         is_team_participant = False
-        if sender_profile and conversation.conversation_type == 'TEAM_GROUP':
+        if sender_profile and conversation.conversation_type == "TEAM_GROUP":
             from profiles.models import ConversationParticipant
+
             is_team_participant = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                profile=sender_profile
+                conversation=conversation, profile=sender_profile
             ).exists()
-        
+
         # Check agency-based access (conversation.agency field)
         is_agency = (
             sender_agency is not None
             and conversation.agency is not None
             and conversation.agency.agencyId == sender_agency.agencyId
         )
-        
+
         if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=403
+                {"error": "You are not a participant in this conversation"}, status=403
             )
 
         # Prevent new messages once conversation is closed/archived.
@@ -2944,9 +3446,11 @@ def send_message(request, data: SendMessageSchema):
                 {"error": "This conversation is closed"},
                 status=403,
             )
-        
+
         normalized_message_type = (data.message_type or "TEXT").upper()
-        if normalized_message_type == "TEXT" and contains_contact_info(data.message_text):
+        if normalized_message_type == "TEXT" and contains_contact_info(
+            data.message_text
+        ):
             return Response(
                 {
                     "error": CONTACT_INFO_BLOCKED_MESSAGE,
@@ -2963,7 +3467,7 @@ def send_message(request, data: SendMessageSchema):
             messageText=data.message_text,
             messageType=normalized_message_type,
         )
-        
+
         # Determine sender name
         if sender_profile:
             sender_name = f"{sender_profile.firstName} {sender_profile.lastName}"
@@ -2971,7 +3475,7 @@ def send_message(request, data: SendMessageSchema):
             sender_name = sender_agency.businessName or "Agency"
         else:
             sender_name = "Unknown"
-        
+
         return {
             "success": True,
             "message": {
@@ -2981,18 +3485,16 @@ def send_message(request, data: SendMessageSchema):
                 "message_text": message.messageText,
                 "message_type": message.messageType,
                 "created_at": message.createdAt.isoformat(),
-                "is_mine": True
-            }
+                "is_mine": True,
+            },
         }
-        
+
     except Exception as e:
         print(f"❌ Error sending message: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to send message: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to send message: {str(e)}"}, status=500)
 
 
 @router.post("/chat/messages/mark-read", auth=dual_auth)
@@ -3009,23 +3511,22 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
             from accounts.models import Agency
+
             try:
                 user_agency = Agency.objects.get(accountFK=request.auth)
             except Agency.DoesNotExist:
                 return Response(
-                    {"error": "No profile or agency found for this account"},
-                    status=400
+                    {"error": "No profile or agency found for this account"}, status=400
                 )
-        
+
         # Get the conversation
         try:
-            conversation = Conversation.objects.select_related('agency').get(conversationID=data.conversation_id)
-        except Conversation.DoesNotExist:
-            return Response(
-                {"error": "Conversation not found"},
-                status=404
+            conversation = Conversation.objects.select_related("agency").get(
+                conversationID=data.conversation_id
             )
-        
+        except Conversation.DoesNotExist:
+            return Response({"error": "Conversation not found"}, status=404)
+
         # Verify user is a participant
         is_client = user_profile and conversation.client == user_profile
         is_worker = user_profile and conversation.worker == user_profile
@@ -3034,36 +3535,33 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
             and conversation.agency is not None
             and conversation.agency.agencyId == user_agency.agencyId
         )
-        
+
         if not (is_client or is_worker or is_agency):
             return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=403
+                {"error": "You are not a participant in this conversation"}, status=403
             )
-        
+
         # Mark messages as read - for agency users, mark all messages not sent by agency
         if is_agency:
             # Agency user: mark all messages from non-agency senders as read
             query = Message.objects.filter(
-                conversationID=conversation,
-                senderAgency__isnull=True,
-                isRead=False
+                conversationID=conversation, senderAgency__isnull=True, isRead=False
             )
         else:
             # Profile user: mark messages from the other participant
-            other_participant = conversation.worker if is_client else conversation.client
-            query = Message.objects.filter(
-                conversationID=conversation,
-                sender=other_participant,
-                isRead=False
+            other_participant = (
+                conversation.worker if is_client else conversation.client
             )
-        
+            query = Message.objects.filter(
+                conversationID=conversation, sender=other_participant, isRead=False
+            )
+
         if data.message_id:
             # Mark up to specific message
             query = query.filter(messageID__lte=data.message_id)
-        
+
         updated_count = query.update(isRead=True, readAt=timezone.now())
-        
+
         # Reset unread count
         if is_client:
             conversation.unreadCountClient = 0
@@ -3072,20 +3570,19 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         # Agency users - reset client unread (agency acts as the service provider side)
         elif is_agency:
             conversation.unreadCountWorker = 0
-        conversation.save(update_fields=['unreadCountClient' if is_client else 'unreadCountWorker'])
-        
-        return {
-            "success": True,
-            "marked_count": updated_count
-        }
-        
+        conversation.save(
+            update_fields=["unreadCountClient" if is_client else "unreadCountWorker"]
+        )
+
+        return {"success": True, "marked_count": updated_count}
+
     except Exception as e:
         print(f"❌ Error marking messages as read: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to mark messages as read: {str(e)}"},
-            status=500
+            {"error": f"Failed to mark messages as read: {str(e)}"}, status=500
         )
 
 
@@ -3099,16 +3596,13 @@ def get_unread_count(request):
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
-        
+            return Response({"error": "Profile not found"}, status=400)
+
         # Get all conversations where user is either client or worker
         conversations = Conversation.objects.filter(
             Q(client=user_profile) | Q(worker=user_profile)
         )
-        
+
         total_unread = 0
         for conv in conversations:
             # Add unread count based on user's role
@@ -3116,18 +3610,12 @@ def get_unread_count(request):
                 total_unread += conv.unreadCountClient
             else:
                 total_unread += conv.unreadCountWorker
-        
-        return {
-            "success": True,
-            "unread_count": total_unread
-        }
-        
+
+        return {"success": True, "unread_count": total_unread}
+
     except Exception as e:
         print(f"❌ Error getting unread count: {str(e)}")
-        return Response(
-            {"error": f"Failed to get unread count: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to get unread count: {str(e)}"}, status=500)
 
 
 @router.post("/chat/conversations/{conversation_id}/toggle-archive", auth=dual_auth)
@@ -3141,54 +3629,49 @@ def toggle_conversation_archive(request, conversation_id: int):
         try:
             user_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
-        
+            return Response({"error": "Profile not found"}, status=400)
+
         # Get the conversation
         try:
             conversation = Conversation.objects.get(conversationID=conversation_id)
         except Conversation.DoesNotExist:
-            return Response(
-                {"error": "Conversation not found"},
-                status=404
-            )
-        
+            return Response({"error": "Conversation not found"}, status=404)
+
         # Verify user is a participant
         is_client = conversation.client == user_profile
         is_worker = conversation.worker == user_profile
-        
+
         if not (is_client or is_worker):
             return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=403
+                {"error": "You are not a participant in this conversation"}, status=403
             )
-        
+
         # Toggle archive status based on user role
         if is_client:
             conversation.archivedByClient = not conversation.archivedByClient
             is_archived = conversation.archivedByClient
-            conversation.save(update_fields=['archivedByClient'])
+            conversation.save(update_fields=["archivedByClient"])
         else:
             conversation.archivedByWorker = not conversation.archivedByWorker
             is_archived = conversation.archivedByWorker
-            conversation.save(update_fields=['archivedByWorker'])
-        
+            conversation.save(update_fields=["archivedByWorker"])
+
         return {
             "success": True,
             "is_archived": is_archived,
             "conversation_id": conversation_id,
-            "message": "Conversation archived" if is_archived else "Conversation unarchived"
+            "message": "Conversation archived"
+            if is_archived
+            else "Conversation unarchived",
         }
 
     except Exception as e:
         print(f"❌ Error toggling archive status: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to toggle archive status: {str(e)}"},
-            status=500
+            {"error": f"Failed to toggle archive status: {str(e)}"}, status=500
         )
 
 
@@ -3198,7 +3681,7 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
     """
     Upload an image to a chat conversation.
     Creates a new IMAGE type message with the uploaded image URL.
-    
+
     Supports both Supabase (cloud) and local storage (offline/defense mode).
 
     Args:
@@ -3218,77 +3701,67 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         try:
             sender_profile = _get_user_profile(request)
         except Profile.DoesNotExist:
-            return Response(
-                {"error": "Profile not found"},
-                status=400
-            )
+            return Response({"error": "Profile not found"}, status=400)
 
         # Get the conversation
         try:
-            conversation = Conversation.objects.select_related(
-                'client',
-                'worker'
-            ).get(conversationID=conversation_id)
-        except Conversation.DoesNotExist:
-            return Response(
-                {"error": "Conversation not found"},
-                status=404
+            conversation = Conversation.objects.select_related("client", "worker").get(
+                conversationID=conversation_id
             )
+        except Conversation.DoesNotExist:
+            return Response({"error": "Conversation not found"}, status=404)
 
         # Verify sender is a participant
         is_client = conversation.client == sender_profile
         is_worker = conversation.worker == sender_profile
-        
+
         # For team conversations, also check ConversationParticipant table
         is_team_participant = False
-        if sender_profile and conversation.conversation_type == 'TEAM_GROUP':
+        if sender_profile and conversation.conversation_type == "TEAM_GROUP":
             from profiles.models import ConversationParticipant
+
             is_team_participant = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                profile=sender_profile
+                conversation=conversation, profile=sender_profile
             ).exists()
-        
+
         # Check agency-based access
         is_agency = False
-        if hasattr(conversation, 'agency') and conversation.agency:
+        if hasattr(conversation, "agency") and conversation.agency:
             try:
                 from agency.models import Agency
+
                 sender_agency = Agency.objects.filter(accountFK=request.auth).first()
-                if sender_agency and conversation.agency.agencyId == sender_agency.agencyId:
+                if (
+                    sender_agency
+                    and conversation.agency.agencyId == sender_agency.agencyId
+                ):
                     is_agency = True
             except Exception:
                 pass
 
         if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
-                {"error": "You are not a participant in this conversation"},
-                status=403
+                {"error": "You are not a participant in this conversation"}, status=403
             )
 
         # Validate file size (5MB max)
         if image.size > 5 * 1024 * 1024:
-            return Response(
-                {"error": "Image size must be less than 5MB"},
-                status=400
-            )
+            return Response({"error": "Image size must be less than 5MB"}, status=400)
 
         # Validate file type
-        allowed_types = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+        allowed_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
         if image.content_type not in allowed_types:
             return Response(
                 {"error": "Invalid file type. Allowed: JPEG, PNG, JPG, WEBP"},
-                status=400
+                status=400,
             )
 
         # Check if storage is configured
         if not settings.STORAGE:
-            return Response(
-                {"error": "File storage not configured"},
-                status=500
-            )
+            return Response({"error": "File storage not configured"}, status=500)
 
         # Generate unique filename
-        timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
         file_extension = os.path.splitext(image.name)[1]
         filename = f"message_{timestamp}_{sender_profile.profileID}{file_extension}"
 
@@ -3301,14 +3774,14 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
             file_content = image.read()
 
             # Upload using unified STORAGE adapter
-            upload_response = settings.STORAGE.storage().from_('iayos_files').upload(
-                storage_path,
-                file_content,
-                {"upsert": "true"}
+            upload_response = (
+                settings.STORAGE.storage()
+                .from_("iayos_files")
+                .upload(storage_path, file_content, {"upsert": "true"})
             )
-            
+
             # Check for upload error
-            if isinstance(upload_response, dict) and 'error' in upload_response:
+            if isinstance(upload_response, dict) and "error" in upload_response:
                 raise Exception(f"Upload failed: {upload_response['error']}")
 
             # Store the storage path (NOT the signed URL) - we'll generate signed URLs on fetch
@@ -3319,19 +3792,23 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
                 conversationID=conversation,
                 sender=sender_profile,
                 messageText="",  # Empty text for image messages
-                messageType="IMAGE"
+                messageType="IMAGE",
             )
 
             # Create message attachment record - store the storage PATH, not signed URL
             MessageAttachment.objects.create(
                 messageID=message,
                 fileURL=storage_path,  # Store path like "chat/conversation_1/images/message_xxx.jpg"
-                fileType="IMAGE"
+                fileType="IMAGE",
             )
-            
+
             # Generate signed URL for immediate response
             from iayos_project.utils import get_signed_url
-            public_url = get_signed_url('iayos_files', storage_path, expires_in=3600) or storage_path
+
+            public_url = (
+                get_signed_url("iayos_files", storage_path, expires_in=3600)
+                or storage_path
+            )
 
             print(f"✅ Chat image uploaded: {public_url}")
 
@@ -3340,45 +3817,45 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
                 "message_id": message.messageID,
                 "image_url": public_url,
                 "uploaded_at": message.createdAt.isoformat(),
-                "conversation_id": conversation_id
+                "conversation_id": conversation_id,
             }
 
         except Exception as upload_error:
             print(f"❌ Supabase upload error: {str(upload_error)}")
             import traceback
+
             traceback.print_exc()
             return Response(
                 {"error": f"Failed to upload image to storage: {str(upload_error)}"},
-                status=500
+                status=500,
             )
 
     except Exception as e:
         print(f"❌ Error uploading chat image: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response(
-            {"error": f"Failed to upload image: {str(e)}"},
-            status=500
-        )
+        return Response({"error": f"Failed to upload image: {str(e)}"}, status=500)
 
 
-#endregion
+# endregion
 
 
-#region VOICE CALLING ENDPOINTS
+# region VOICE CALLING ENDPOINTS
+
 
 @router.post("/call/token", auth=dual_auth)
 @require_kyc
 def get_call_token(request, conversation_id: int):
     """
     Generate an Agora RTC token for voice calling within a conversation.
-    
+
     The token is valid for 1 hour and allows the user to join the call channel.
     Channel name is derived from conversation_id to ensure unique channels per conversation.
-    
+
     Args:
         conversation_id: The conversation ID to initiate call in
-    
+
     Returns:
         {
             "token": "007...",
@@ -3390,19 +3867,20 @@ def get_call_token(request, conversation_id: int):
     try:
         from .agora_token import generate_call_token
         from .models import Conversation
-        
+
         user = request.auth
         user_id = user.accountID
-        
+
         # Verify user has access to this conversation
         try:
             conversation = Conversation.objects.get(conversationID=conversation_id)
         except Conversation.DoesNotExist:
             return Response({"error": "Conversation not found"}, status=404)
-        
+
         # Check if user is a participant (profile-based or agency-based)
         profile = Profile.objects.filter(accountFK=user).first()
         from accounts.models import Agency
+
         agency = Agency.objects.filter(accountFK=user).first()
 
         is_client = False
@@ -3410,14 +3888,20 @@ def get_call_token(request, conversation_id: int):
         is_participant = False
 
         if profile:
-            is_client = conversation.client and conversation.client.profileID == profile.profileID
-            is_worker = conversation.worker and conversation.worker.profileID == profile.profileID
+            is_client = (
+                conversation.client
+                and conversation.client.profileID == profile.profileID
+            )
+            is_worker = (
+                conversation.worker
+                and conversation.worker.profileID == profile.profileID
+            )
 
             # Also check ConversationParticipant for team jobs
             from .models import ConversationParticipant
+
             is_participant = ConversationParticipant.objects.filter(
-                conversation=conversation,
-                profile=profile
+                conversation=conversation, profile=profile
             ).exists()
 
         is_agency = bool(
@@ -3427,23 +3911,30 @@ def get_call_token(request, conversation_id: int):
         )
 
         if not (is_client or is_worker or is_participant or is_agency):
-            return Response({"error": "You are not a participant in this conversation"}, status=403)
-        
+            return Response(
+                {"error": "You are not a participant in this conversation"}, status=403
+            )
+
         # Generate token
         token_data = generate_call_token(conversation_id, user_id)
-        
-        print(f"[Call Token] Generated for user {user_id} in conversation {conversation_id}")
-        
+
+        print(
+            f"[Call Token] Generated for user {user_id} in conversation {conversation_id}"
+        )
+
         return token_data
-        
+
     except ValueError as e:
         print(f"❌ Agora configuration error: {str(e)}")
         return Response({"error": "Voice calling is not configured"}, status=500)
     except Exception as e:
         print(f"❌ Error generating call token: {str(e)}")
         import traceback
+
         traceback.print_exc()
-        return Response({"error": f"Failed to generate call token: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Failed to generate call token: {str(e)}"}, status=500
+        )
 
 
-#endregion
+# endregion

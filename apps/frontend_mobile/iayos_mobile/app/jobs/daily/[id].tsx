@@ -43,11 +43,13 @@ import {
   useRequestRateChange,
   useApproveRateChange,
   useCancelDailyJob,
+  useClientVerifyArrival,
   type DailyAttendance,
   type DailyExtension,
   type DailyRateChange,
   type AttendanceStatus,
 } from "@/lib/hooks/useDailyPayment";
+import { useMarkDayComplete } from "@/lib/hooks/useJobActions";
 import {
   DailyJobSummaryCard,
   AttendanceCard,
@@ -160,6 +162,8 @@ export default function DailyJobDetailScreen() {
   const requestRateChangeMutation = useRequestRateChange();
   const approveRateChangeMutation = useApproveRateChange();
   const cancelJobMutation = useCancelDailyJob();
+  const verifyArrivalMutation = useClientVerifyArrival();
+  const markDayCompleteMutation = useMarkDayComplete();
 
   // Refresh handler
   const [refreshing, setRefreshing] = useState(false);
@@ -378,6 +382,34 @@ export default function DailyJobDetailScreen() {
     setShowConfirmAttendance(true);
   };
 
+  // Simplified flow: client taps "Mark Worker Arrived" → verify-arrival endpoint
+  const handleVerifyArrival = async (attendance: DailyAttendance) => {
+    try {
+      await verifyArrivalMutation.mutateAsync({
+        jobId,
+        attendanceId: attendance.attendance_id,
+      });
+      await refetchAttendance();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to verify arrival";
+      Alert.alert("Error", message);
+    }
+  };
+
+  // Simplified flow: client taps "Mark Day Complete" → mark-day-complete endpoint
+  const handleMarkDayComplete = async (attendance: DailyAttendance) => {
+    try {
+      await markDayCompleteMutation.mutateAsync({
+        jobId,
+        attendanceId: attendance.attendance_id,
+      });
+      await Promise.all([refetchAttendance(), refetchSummary()]);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to mark day complete";
+      Alert.alert("Error", message);
+    }
+  };
+
   // Loading state
   if (isLoadingJob || isLoadingSummary) {
     return (
@@ -541,7 +573,11 @@ export default function DailyJobDetailScreen() {
                   key={attendance.attendance_id}
                   attendance={attendance}
                   isWorker={isWorker}
-                  onConfirm={() => handleAttendanceAction(attendance)}
+                  onConfirm={() => handleVerifyArrival(attendance)}
+                  onDayComplete={() => handleMarkDayComplete(attendance)}
+                  isConfirming={
+                    verifyArrivalMutation.isPending || markDayCompleteMutation.isPending
+                  }
                 />
               ))
             )}

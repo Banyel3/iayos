@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AgencySidebar from "./sidebar";
+import AgencyOnboardingTour from "./AgencyOnboardingTour";
 import { cn } from "@/lib/utils";
 import { useAgencyPendingReviews } from "@/lib/hooks/useAgencyConversations";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -108,6 +109,8 @@ export default function AgencyShell({ children, kycVerified }: AgencyShellProps)
           {children}
         </main>
       </div>
+
+      <AgencyOnboardingTour />
 
       {showPendingReviewGate && (
         <div className="fixed inset-0 z-90 bg-black/70 backdrop-blur-[1px] flex items-center justify-center p-4">

@@ -55,6 +55,7 @@ import {
   useConfirmProjectArrival,
   useAgencyMarkProjectComplete,
   useApproveAgencyProjectJob,
+  useEarlyCompleteSingleDailyJob,
 } from "../../lib/hooks/useJobActions";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -822,6 +823,7 @@ export default function ChatScreen() {
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
   const dailyExtendOneDayMutation = useDailyExtendOneDay();
   const dailyFinishJobMutation = useDailyFinishJob();
+  const earlyCompleteSingleDailyMutation = useEarlyCompleteSingleDailyJob();
 
   // Voice calling
   const { initiateCall, callStatus, error: callError } = useAgoraCall();
@@ -1179,15 +1181,15 @@ export default function ChatScreen() {
           : conversation?.is_agency_job &&
               dispatchedAgencyEmployees.length < agencyAssignedEmployees.length
             ? `Waiting for agency to dispatch workers (${dispatchedAgencyEmployees.length} of ${agencyAssignedEmployees.length}).`
+            : isTeamBackjobFlow &&
+                isTeamDailyBackjobFlow &&
+                !effectiveWorkerScheduleConfirmed
+              ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
               : isTeamBackjobFlow &&
-                  isTeamDailyBackjobFlow &&
-                  !effectiveWorkerScheduleConfirmed
-                ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
-                : isTeamBackjobFlow &&
-                    !isTeamDailyBackjobFlow &&
-                    pendingTeamArrivalWorkers.length > 0
-              ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
-              : null;
+                  !isTeamDailyBackjobFlow &&
+                  pendingTeamArrivalWorkers.length > 0
+                ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
+                : null;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -1541,16 +1543,6 @@ export default function ChatScreen() {
         {
           text: "Submit",
           onPress: () => {
-            if (isTeamDailyBackjobFlow) {
-              // Team DAILY backjob completion must use the backjob flow endpoint,
-              // not the regular team assignment-complete endpoint.
-              markBackjobCompleteMutation.mutate({
-                jobId: conversation.job.id,
-                notes: undefined,
-              });
-              return;
-            }
-
             markTeamAssignmentCompleteMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
@@ -1566,15 +1558,15 @@ export default function ChatScreen() {
   const handleApproveTeamJobCompletion = () => {
     if (!conversation) return;
 
-    // Calculate remaining amount (50% of total budget)
-    const remainingAmount = conversation.job.budget
-      ? (conversation.job.budget * 0.5).toFixed(2)
-      : "0.00";
+    // Calculate remaining amount from the backend-computed field
+    const remainingAmount = Number(
+      conversation.job.remainingPayment ?? 0,
+    ).toFixed(2);
 
     setCountdownConfig({
       visible: true,
       title: "Approve Team Job & Pay",
-      message: `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      message: `All workers have completed their assignments.\n\nYou will need to pay the remaining balance:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
       confirmLabel: "Continue",
       countdownSeconds: 7,
       onConfirm: () => {
@@ -3553,6 +3545,7 @@ export default function ChatScreen() {
   const showDailyEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
+    !conversation.is_team_job &&
     conversation.job?.status === "IN_PROGRESS" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const attendanceRows = Array.isArray(conversation.attendance_today)
@@ -3590,7 +3583,9 @@ export default function ChatScreen() {
     !hasAnyCheckedInToday &&
     !hasAnyClientConfirmedToday;
   const canShowWorkerOnTheWayQuickAction =
-    isWorkerSideRole && conversation.job?.payment_model === "DAILY";
+    isWorkerSideRole &&
+    conversation.job?.payment_model === "DAILY" &&
+    !conversation.is_team_job;
   const isWorkerAlreadyCheckedIn = Boolean(
     myWorkerAttendanceToday?.time_in ||
       myWorkerAttendanceToday?.worker_confirmed_at,
@@ -4112,7 +4107,8 @@ export default function ChatScreen() {
                 })()}
 
               {/* Attendance Tracking Section (DAILY + TEAM PROJECT) */}
-              {(conversation.job?.payment_model === "DAILY" ||
+              {((conversation.job?.payment_model === "DAILY" &&
+                !conversation.is_team_job) ||
                 isTeamProjectAttendance ||
                 isProjectMultiDayJob) && (
                 <View style={styles.dailyAttendanceSection}>
@@ -5866,16 +5862,109 @@ export default function ChatScreen() {
                         </Text>
                       </View>
                     )}
+
+                  {/* Single DAILY job: Client — Complete Early (Full Pay) */}
+                  {conversation.my_role === "CLIENT" &&
+                    !conversation.is_team_job &&
+                    !conversation.is_agency_job &&
+                    conversation.job?.payment_model === "DAILY" &&
+                    (hasAnyClientConfirmedToday ||
+                      conversation.job?.is_early_completed) &&
+                    !conversation.job?.clientMarkedComplete && (
+                      <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
+                        {conversation.job?.is_early_completed ? (
+                          <View
+                            style={{
+                              backgroundColor: "#FEF3C7",
+                              borderRadius: 8,
+                              padding: 10,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Ionicons name="flash" size={16} color="#D97706" />
+                            <Text
+                              style={{
+                                color: "#D97706",
+                                fontWeight: "600",
+                                fontSize: 13,
+                              }}
+                            >
+                              Job completed early with full pay
+                              {conversation.job?.early_completion_payout
+                                ? ` · ₱${Number(conversation.job.early_completion_payout).toLocaleString()} payout`
+                                : ""}
+                            </Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: Colors.warning,
+                              borderRadius: 8,
+                              padding: 12,
+                              gap: 8,
+                            }}
+                            onPress={() =>
+                              Alert.alert(
+                                "Complete Early (Full Pay)",
+                                `Pay the worker their full contracted amount now and finish the job early? They will receive payment for all ${conversation.job?.duration_days || "planned"} days.`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Complete Early",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      earlyCompleteSingleDailyMutation.mutate({
+                                        jobId: conversation.job!.id,
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={
+                              earlyCompleteSingleDailyMutation.isPending
+                            }
+                          >
+                            {earlyCompleteSingleDailyMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="flash"
+                                  size={18}
+                                  color={Colors.white}
+                                />
+                                <Text
+                                  style={{
+                                    color: Colors.white,
+                                    fontWeight: "600",
+                                    fontSize: 14,
+                                  }}
+                                >
+                                  Complete Early (Full Pay)
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
                 </View>
               )}
 
-              {/* TEAM PROJECT PHASE 1: Client sees full team arrival status */}
-              {/* Gap fix: DAILY flow already shows per-worker attendance cards; this mirrors that visibility for PROJECT team jobs. */}
+              {/* TEAM JOB PHASE 1: Client sees full team arrival status */}
+              {/* Covers both DAILY and PROJECT team jobs (simplified arrival flow). */}
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 !isTeamProjectAttendance &&
-                conversation.job?.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
                 conversation.team_worker_assignments &&
@@ -6044,9 +6133,8 @@ export default function ChatScreen() {
                 })()}
 
               {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
-              {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
+              {/* Applies to both DAILY and PROJECT team jobs (simplified flow). */}
               {conversation.is_team_job &&
-                conversation.job?.payment_model !== "DAILY" &&
                 !isTeamProjectAttendance &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
@@ -6140,13 +6228,11 @@ export default function ChatScreen() {
                 })()}
 
               {/* TEAM JOB PHASE 3: Client Approves All Workers */}
-              {/* NOTE: DAILY jobs use Daily Attendance section above for per-day payment */}
-              {/* This section is for PROJECT jobs only (one-time lump-sum payment) */}
+              {/* Applies to both DAILY and PROJECT team jobs (simplified flow). */}
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 !isTeamProjectAttendance &&
-                conversation.job.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
                 conversation.team_worker_assignments &&
                 conversation.team_worker_assignments.length > 0 &&
@@ -6320,13 +6406,11 @@ export default function ChatScreen() {
                                 size={20}
                                 color={Colors.white}
                               />
-                              <Text style={styles.actionButtonText}>
-                                {conversation.job.remainingPaymentPaid
-                                  ? "Approve Team Completion"
-                                  : `Approve & Pay Team (₱${(
-                                      conversation.job.budget * 0.5
-                                    ).toLocaleString()})`}
-                              </Text>
+                               <Text style={styles.actionButtonText}>
+                                 {conversation.job.remainingPaymentPaid
+                                   ? "Approve Team Completion"
+                                   : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                               </Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -9162,92 +9246,98 @@ export default function ChatScreen() {
                           </Text>
 
                           <View style={styles.teamProjectArrivalList}>
-                            {pendingTeamArrivalWorkers.map((assignment: any) => {
-                              const workerName =
-                                assignment?.name ||
-                                assignment?.worker_name ||
-                                "Team Worker";
+                            {pendingTeamArrivalWorkers.map(
+                              (assignment: any) => {
+                                const workerName =
+                                  assignment?.name ||
+                                  assignment?.worker_name ||
+                                  "Team Worker";
 
-                              return (
-                                <View
-                                  key={`backjob-arrival-${assignment.assignment_id}`}
-                                  style={styles.teamProjectArrivalRow}
-                                >
+                                return (
                                   <View
-                                    style={styles.teamProjectArrivalWorkerInfo}
+                                    key={`backjob-arrival-${assignment.assignment_id}`}
+                                    style={styles.teamProjectArrivalRow}
                                   >
-                                    {assignment?.avatar ? (
-                                      <Image
-                                        source={{ uri: assignment.avatar }}
-                                        style={styles.teamWorkerAvatarCompact}
-                                      />
-                                    ) : (
-                                      <View
-                                        style={[
-                                          styles.teamWorkerAvatarCompact,
-                                          styles.teamWorkerAvatarPlaceholder,
-                                        ]}
-                                      >
-                                        <Ionicons
-                                          name="person"
-                                          size={16}
-                                          color={Colors.textSecondary}
-                                        />
-                                      </View>
-                                    )}
-
                                     <View
                                       style={
-                                        styles.teamProjectArrivalWorkerTextBlock
+                                        styles.teamProjectArrivalWorkerInfo
                                       }
                                     >
-                                      <Text
-                                        style={
-                                          styles.teamProjectArrivalWorkerName
-                                        }
-                                      >
-                                        {workerName}
-                                      </Text>
-                                      <Text
-                                        style={
-                                          styles.teamProjectArrivalWorkerSkill
-                                        }
-                                      >
-                                        {assignment?.skill || "Team Worker"}
-                                      </Text>
-                                    </View>
-                                  </View>
+                                      {assignment?.avatar ? (
+                                        <Image
+                                          source={{ uri: assignment.avatar }}
+                                          style={styles.teamWorkerAvatarCompact}
+                                        />
+                                      ) : (
+                                        <View
+                                          style={[
+                                            styles.teamWorkerAvatarCompact,
+                                            styles.teamWorkerAvatarPlaceholder,
+                                          ]}
+                                        >
+                                          <Ionicons
+                                            name="person"
+                                            size={16}
+                                            color={Colors.textSecondary}
+                                          />
+                                        </View>
+                                      )}
 
-                                  <TouchableOpacity
-                                    style={styles.teamProjectConfirmArrivalButton}
-                                    onPress={() =>
-                                      handleConfirmTeamWorkerArrival(
-                                        assignment.assignment_id,
-                                        workerName,
-                                      )
-                                    }
-                                    disabled={
-                                      confirmTeamWorkerArrivalMutation.isPending
-                                    }
-                                  >
-                                    {confirmTeamWorkerArrivalMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Text
+                                      <View
                                         style={
-                                          styles.teamProjectConfirmArrivalText
+                                          styles.teamProjectArrivalWorkerTextBlock
                                         }
                                       >
-                                        Confirm Arrival
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                </View>
-                              );
-                            })}
+                                        <Text
+                                          style={
+                                            styles.teamProjectArrivalWorkerName
+                                          }
+                                        >
+                                          {workerName}
+                                        </Text>
+                                        <Text
+                                          style={
+                                            styles.teamProjectArrivalWorkerSkill
+                                          }
+                                        >
+                                          {assignment?.skill || "Team Worker"}
+                                        </Text>
+                                      </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                      style={
+                                        styles.teamProjectConfirmArrivalButton
+                                      }
+                                      onPress={() =>
+                                        handleConfirmTeamWorkerArrival(
+                                          assignment.assignment_id,
+                                          workerName,
+                                        )
+                                      }
+                                      disabled={
+                                        confirmTeamWorkerArrivalMutation.isPending
+                                      }
+                                    >
+                                      {confirmTeamWorkerArrivalMutation.isPending ? (
+                                        <ActivityIndicator
+                                          size="small"
+                                          color={Colors.white}
+                                        />
+                                      ) : (
+                                        <Text
+                                          style={
+                                            styles.teamProjectConfirmArrivalText
+                                          }
+                                        >
+                                          Confirm Arrival
+                                        </Text>
+                                      )}
+                                    </TouchableOpacity>
+                                  </View>
+                                );
+                              },
+                            )}
                           </View>
                         </View>
                       )}

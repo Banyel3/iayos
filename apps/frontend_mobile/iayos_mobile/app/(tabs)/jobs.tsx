@@ -92,10 +92,16 @@ interface MyApplication {
   proposed_budget?: number;
   estimated_duration?: string;
   budget_option: "ACCEPT" | "NEGOTIATE";
+  proposed_daily_rate?: number | null;
+  proposed_days?: number | null;
+  payment_model?: "PROJECT" | "DAILY" | string;
   created_at: string;
   assigned_agency_id?: number | null;
   client_name: string;
   client_img?: string;
+  is_team_job?: boolean;
+  applied_skill_slot_id?: number | null;
+  applied_skill_slot_name?: string | null;
 }
 type TabType =
   | "open"
@@ -293,10 +299,16 @@ export default function JobsScreen() {
     ].includes(normalized);
   };
 
-  // Applied tab should only contain truly pending applications.
+  // Applied tab contains:
+  // 1. Pending applications (awaiting client decision)
+  // 2. Accepted applications on team jobs still ACTIVE (team not yet fully filled —
+  //    these are invisible in every other tab until the job transitions to IN_PROGRESS)
   const filteredApplications = applications.filter(
     (app) =>
-      app.application_status === "PENDING" &&
+      (app.application_status === "PENDING" ||
+        (app.application_status === "ACCEPTED" &&
+          app.job_status === "ACTIVE" &&
+          app.is_team_job === true)) &&
       !inProgressJobIds.has(app.job_id) &&
       !pastJobIds.has(app.job_id) &&
       !isApplicationPastOrMovedForward(app),
@@ -705,38 +717,18 @@ export default function JobsScreen() {
           {job.description}
         </Text>
 
-        {(job.worker_marked_on_the_way ||
-          job.worker_marked_job_started ||
-          job.client_confirmed_work_started) &&
+        {job.client_confirmed_work_started &&
           job.status !== "COMPLETED" &&
           job.status !== "CANCELLED" && (
             <View style={styles.lifecycleRow}>
-              {job.worker_marked_on_the_way && (
-                <View style={styles.lifecycleBadge}>
-                  <Ionicons name="navigate" size={12} color={Colors.primary} />
-                  <Text style={styles.lifecycleText}>On the way</Text>
-                </View>
-              )}
-              {job.worker_marked_job_started && (
-                <View style={styles.lifecycleBadge}>
-                  <Ionicons
-                    name="play-circle"
-                    size={12}
-                    color={Colors.warning}
-                  />
-                  <Text style={styles.lifecycleText}>Job started</Text>
-                </View>
-              )}
-              {job.client_confirmed_work_started && (
-                <View style={styles.lifecycleBadge}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={12}
-                    color={Colors.success}
-                  />
-                  <Text style={styles.lifecycleText}>Arrival confirmed</Text>
-                </View>
-              )}
+              <View style={styles.lifecycleBadge}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={12}
+                  color={Colors.success}
+                />
+                <Text style={styles.lifecycleText}>Arrival confirmed</Text>
+              </View>
             </View>
           )}
 
@@ -1271,13 +1263,29 @@ export default function JobsScreen() {
                         {app.application_status}
                       </Text>
                     </View>
+                    {app.is_team_job && (
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: Colors.infoLight },
+                        ]}
+                      >
+                        <Text style={[styles.statusText, { color: Colors.info }]}>
+                          TEAM JOB
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   {/* Job Title and Details */}
                   <Text style={styles.jobTitle} numberOfLines={2}>
                     {app.job_title}
                   </Text>
-                  <Text style={styles.jobCategory}>Applied Job</Text>
+                  <Text style={styles.jobCategory}>
+                    {app.is_team_job && app.applied_skill_slot_name
+                      ? `Applied as: ${app.applied_skill_slot_name}`
+                      : "Applied Job"}
+                  </Text>
                   <Text style={styles.jobDescription} numberOfLines={2}>
                     {app.job_description}
                   </Text>
@@ -1319,11 +1327,12 @@ export default function JobsScreen() {
                       </Text>
                     </View>
                     <Text style={styles.budgetText}>
-                      ₱
-                      {(app.budget_option === "NEGOTIATE" && app.proposed_budget
-                        ? app.proposed_budget
-                        : app.job_budget
-                      ).toLocaleString()}
+                      {app.payment_model === "DAILY" && app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
+                        ? `₱${app.proposed_daily_rate.toLocaleString()}/day × ${app.proposed_days || "?"} days`
+                        : `₱${(app.budget_option === "NEGOTIATE" && app.proposed_budget
+                            ? app.proposed_budget
+                            : app.job_budget
+                          ).toLocaleString()}`}
                     </Text>
                   </View>
                 </TouchableOpacity>

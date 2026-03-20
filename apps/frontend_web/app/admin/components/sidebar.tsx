@@ -50,6 +50,66 @@ interface SidebarProps {
   className?: string;
 }
 
+interface SidebarUser {
+  email?: string;
+  role?: string;
+  accountType?: string;
+  first_name?: string;
+  last_name?: string;
+  firstName?: string;
+  lastName?: string;
+  profile_data?: {
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getAdminDisplayInfo(user: SidebarUser | null) {
+  const firstName =
+    user?.profile_data?.firstName || user?.firstName || user?.first_name || "";
+  const lastName = user?.profile_data?.lastName || user?.lastName || user?.last_name || "";
+
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const emailLocalPart = user?.email?.split("@")[0]?.replace(/[._-]+/g, " ") || "";
+  const displayName = fullName || toTitleCase(emailLocalPart) || user?.email || "Account";
+
+  const initialsSource = fullName || toTitleCase(emailLocalPart);
+  const initials = initialsSource
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const role = (user?.role || "").toString().toUpperCase();
+  const accountType = (user?.accountType || "").toString().toLowerCase();
+
+  const roleLabel =
+    role === "ADMIN"
+      ? "Administrator"
+      : role
+        ? toTitleCase(role.replace(/_/g, " "))
+        : accountType === "agency"
+          ? "Agency"
+          : "User";
+
+  return {
+    displayName,
+    initials: initials || "AD",
+    roleLabel,
+  };
+}
+
 interface NavChild {
   name: string;
   href: string;
@@ -245,14 +305,9 @@ export default function Sidebar({ className }: SidebarProps) {
     useState<number>(0);
   const [openDisputesCount, setOpenDisputesCount] = useState<number>(0);
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [adminUser, setAdminUser] = useState<{
-    name: string;
-    email: string;
-    role: string;
-  } | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   // Auto-expand parent menu when a child route is active
   useEffect(() => {
@@ -386,34 +441,7 @@ export default function Sidebar({ className }: SidebarProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch admin user info on mount
-  useEffect(() => {
-    const fetchAdminUser = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/accounts/me`, {
-          credentials: "include",
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.user) {
-            setAdminUser({
-              name:
-                data.user.first_name && data.user.last_name
-                  ? `${data.user.first_name} ${data.user.last_name}`
-                  : data.user.email?.split("@")[0] || "Admin",
-              email: data.user.email || "",
-              role: data.user.is_superuser ? "Super Admin" : "Administrator",
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching admin user:", error);
-      }
-    };
-
-    fetchAdminUser();
-  }, []);
+  const { displayName, initials, roleLabel } = getAdminDisplayInfo(user as SidebarUser | null);
 
   // Update navigation with dynamic badge counts
   const navigationWithCount: NavItem[] = navigation.map((item) => {
@@ -514,14 +542,7 @@ export default function Sidebar({ className }: SidebarProps) {
             onClick={() => setMobileOpen(true)}
             className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-semibold"
           >
-            {adminUser?.name
-              ? adminUser.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")
-                .slice(0, 2)
-                .toUpperCase()
-              : "AD"}
+            {initials}
           </button>
         </div>
       </div>
@@ -792,22 +813,15 @@ export default function Sidebar({ className }: SidebarProps) {
           >
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-                {adminUser?.name
-                  ? adminUser.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()
-                  : "AD"}
+                {initials}
               </div>
               {showExpanded && (
                 <div className="text-left">
                   <div className="text-sm font-medium text-gray-700">
-                    {adminUser?.name || "Admin User"}
+                    {displayName}
                   </div>
                   <div className="text-xs text-gray-500">
-                    {adminUser?.role || "Administrator"}
+                    {roleLabel}
                   </div>
                 </div>
               )}

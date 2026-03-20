@@ -1,20 +1,29 @@
 from django.db import models
 from datetime import datetime
 from decimal import Decimal
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import (
+    AbstractBaseUser,
+    BaseUserManager,
+    PermissionsMixin,
+)
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 
 
 class AccountsManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
-
         # Remove fields that don't belong in Accounts.
         # allauth / social signup may pass first_name, last_name, username, etc.
         # which exist on Profile, not Accounts.  Strip them to avoid TypeError.
         _discard = [
-            'createdAt', 'created_at', 'updatedAt', 'updated_at',
-            'first_name', 'last_name', 'username', 'name',
+            "createdAt",
+            "created_at",
+            "updatedAt",
+            "updated_at",
+            "first_name",
+            "last_name",
+            "username",
+            "name",
         ]
         for field in _discard:
             extra_fields.pop(field, None)
@@ -46,7 +55,7 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     password = models.CharField(max_length=128)
     isVerified = models.BooleanField(default=False)
     KYCVerified = models.BooleanField(default=False)
-    
+
     # KYC Verification Levels:
     #   0 = Unverified (no KYC submitted or rejected)
     #   1 = ID Verified (ID + selfie face match passed, no clearance)
@@ -57,7 +66,7 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     # Required for Django admin + PermissionsMixin
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
-    
+
     # Account suspension and ban fields
     is_suspended = models.BooleanField(default=False)
     suspended_until = models.DateTimeField(null=True, blank=True)
@@ -65,21 +74,35 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     is_banned = models.BooleanField(default=False)
     banned_at = models.DateTimeField(null=True, blank=True)
     banned_reason = models.TextField(null=True, blank=True)
-    banned_by = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='banned_accounts')
+    banned_by = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="banned_accounts",
+    )
 
-    verifyToken = models.CharField(max_length=255, null=True, blank=True)  # Changed to CharField for hash
+    verifyToken = models.CharField(
+        max_length=255, null=True, blank=True
+    )  # Changed to CharField for hash
     verifyTokenExpiry = models.DateTimeField(null=True, blank=True)
-    
+
     # OTP-based email verification (replaces link-based verification)
-    email_otp = models.CharField(max_length=6, null=True, blank=True)  # 6-digit OTP code
+    email_otp = models.CharField(
+        max_length=6, null=True, blank=True
+    )  # 6-digit OTP code
     email_otp_expiry = models.DateTimeField(null=True, blank=True)  # 5 minutes expiry
     email_otp_attempts = models.IntegerField(default=0)  # Max 5 failed attempts
-    
-    street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
-    barangay = models.CharField(max_length=100, default="", blank=True)         # "Tetuan"
-    city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
-    province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
-    postal_code = models.CharField(max_length=20, default="", blank=True)       # "7000"
+
+    street_address = models.CharField(
+        max_length=255, default="", blank=True
+    )  # "123 Main St"
+    barangay = models.CharField(max_length=100, default="", blank=True)  # "Tetuan"
+    city = models.CharField(max_length=100, default="", blank=True)  # "Zamboanga City"
+    province = models.CharField(
+        max_length=100, default="", blank=True
+    )  # "Zamboanga del Sur"
+    postal_code = models.CharField(max_length=20, default="", blank=True)  # "7000"
     country = models.CharField(max_length=100, default="Philippines", blank=True)
 
     createdAt = models.DateTimeField(auto_now_add=True)
@@ -93,7 +116,9 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
 
 class Profile(models.Model):
     profileID = models.BigAutoField(primary_key=True)
-    profileImg = models.CharField(max_length=500, null=True, blank=True)  # Allow NULL for no image
+    profileImg = models.CharField(
+        max_length=500, null=True, blank=True
+    )  # Allow NULL for no image
     firstName = models.CharField(max_length=24)
     middleName = models.CharField(max_length=24, null=True, blank=True)
     lastName = models.CharField(max_length=24)
@@ -110,101 +135,103 @@ class Profile(models.Model):
 
     # GPS Location tracking fields
     latitude = models.DecimalField(
-        max_digits=10, 
-        decimal_places=8, 
-        null=True, 
+        max_digits=10,
+        decimal_places=8,
+        null=True,
         blank=True,
-        help_text="Current latitude coordinate"
+        help_text="Current latitude coordinate",
     )
     longitude = models.DecimalField(
-        max_digits=11, 
-        decimal_places=8, 
-        null=True, 
+        max_digits=11,
+        decimal_places=8,
+        null=True,
         blank=True,
-        help_text="Current longitude coordinate"
+        help_text="Current longitude coordinate",
     )
     location_updated_at = models.DateTimeField(
-        null=True, 
-        blank=True,
-        help_text="Timestamp of last location update"
+        null=True, blank=True, help_text="Timestamp of last location update"
     )
     location_sharing_enabled = models.BooleanField(
-        default=False,
-        help_text="Whether user has enabled location sharing"
+        default=False, help_text="Whether user has enabled location sharing"
     )
 
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
 
 
-class Agency(models.Model): 
+class Agency(models.Model):
     agencyId = models.BigAutoField(primary_key=True)
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
     businessName = models.CharField(max_length=50)
-    street_address = models.CharField(max_length=255, default="", blank=True)   # "123 Main St"
-    barangay = models.CharField(max_length=100, default="", blank=True)         # "Tetuan"
-    city = models.CharField(max_length=100, default="", blank=True)             # "Zamboanga City"
-    province = models.CharField(max_length=100, default="", blank=True)         # "Zamboanga del Sur"
+    street_address = models.CharField(
+        max_length=255, default="", blank=True
+    )  # "123 Main St"
+    barangay = models.CharField(max_length=100, default="", blank=True)  # "Tetuan"
+    city = models.CharField(max_length=100, default="", blank=True)  # "Zamboanga City"
+    province = models.CharField(
+        max_length=100, default="", blank=True
+    )  # "Zamboanga del Sur"
     postal_code = models.CharField(max_length=20, default="", blank=True)
     country = models.CharField(max_length=100, default="Philippines", blank=True)
-    
+
     businessDesc = models.CharField(max_length=255, default="", blank=True)
     contactNumber = models.CharField(max_length=11, default="", blank=True)
 
     createdAt = models.DateTimeField(auto_now_add=True)
 
 
-
-
 class WorkerProfile(models.Model):
     profileID = models.OneToOneField(Profile, on_delete=models.CASCADE)
     description = models.CharField(max_length=350, blank=True, default="")
     workerRating = models.IntegerField(default=0)
-    totalEarningGross = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    
+    totalEarningGross = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+
     # Worker Phase 1: Profile Enhancement Fields
     bio = models.CharField(
         max_length=200,
         blank=True,
         default="",
-        help_text="Short bio/tagline (max 200 chars)"
+        help_text="Short bio/tagline (max 200 chars)",
     )
     hourly_rate = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Worker's hourly rate in PHP"
+        help_text="Worker's hourly rate in PHP",
     )
     daily_rate = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Worker's daily rate in PHP"
+        help_text="Worker's daily rate in PHP",
     )
     is_available_daily_jobs = models.BooleanField(
-        default=True,
-        help_text="Whether worker accepts daily rate jobs"
+        default=True, help_text="Whether worker accepts daily rate jobs"
     )
     profile_completion_percentage = models.IntegerField(
-        default=0,
-        help_text="Profile completion percentage (0-100)"
+        default=0, help_text="Profile completion percentage (0-100)"
     )
     soft_skills = models.TextField(
         blank=True,
         default="",
-        help_text="Comma-separated soft skills (e.g., 'Punctual, Team Player, Bilingual')"
+        help_text="Comma-separated soft skills (e.g., 'Punctual, Team Player, Bilingual')",
     )
-    
+
     class AvailabilityStatus(models.TextChoices):
-        AVAILABLE = "AVAILABLE", 'available'
-        BUSY = "BUSY", 'busy'
+        AVAILABLE = "AVAILABLE", "available"
+        BUSY = "BUSY", "busy"
         OFFLINE = "OFFLINE", "offline"
 
     availability_status = models.CharField(
-        max_length=10, choices=AvailabilityStatus.choices, default="AVAILABLE", blank=True
+        max_length=10,
+        choices=AvailabilityStatus.choices,
+        default="AVAILABLE",
+        blank=True,
     )
-    
+
     def calculate_profile_completion(self):
         """
         Calculate profile completion percentage based on filled fields.
@@ -212,7 +239,7 @@ class WorkerProfile(models.Model):
         """
         total_fields = 7
         completed_fields = 0
-        
+
         # Check each field
         if self.bio and len(self.bio.strip()) > 0:
             completed_fields += 1
@@ -220,25 +247,26 @@ class WorkerProfile(models.Model):
             completed_fields += 1
         if self.hourly_rate and self.hourly_rate > 0:
             completed_fields += 1
-        
+
         # Check related fields
         if self.profileID.profileImg:
             completed_fields += 1
         if workerSpecialization.objects.filter(workerID=self).exists():
             completed_fields += 1
-        if hasattr(self, 'certifications') and self.certifications.exists():  # type: ignore[attr-defined]
+        if hasattr(self, "certifications") and self.certifications.exists():  # type: ignore[attr-defined]
             completed_fields += 1
-        if hasattr(self, 'portfolio') and self.portfolio.exists():  # type: ignore[attr-defined]
+        if hasattr(self, "portfolio") and self.portfolio.exists():  # type: ignore[attr-defined]
             completed_fields += 1
-        
+
         percentage = int((completed_fields / total_fields) * 100)
         return percentage
-    
+
     def update_profile_completion(self):
         """Update and save the profile completion percentage"""
         self.profile_completion_percentage = self.calculate_profile_completion()
-        self.save(update_fields=['profile_completion_percentage'])
+        self.save(update_fields=["profile_completion_percentage"])
         return self.profile_completion_percentage
+
 
 class ClientProfile(models.Model):
     profileID = models.OneToOneField(Profile, on_delete=models.CASCADE)
@@ -247,18 +275,28 @@ class ClientProfile(models.Model):
     clientRating = models.IntegerField(default=0)
     activeJobsCount = models.IntegerField(default=0)
 
+
 class Specializations(models.Model):
     specializationID = models.BigAutoField(primary_key=True)
     specializationName = models.CharField(max_length=250)
     description = models.TextField(blank=True, null=True)
-    minimumRate = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    rateType = models.CharField(max_length=20, default='hourly')  # hourly, daily, fixed
-    skillLevel = models.CharField(max_length=20, default='intermediate')  # entry, intermediate, expert
-    averageProjectCostMin = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    averageProjectCostMax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    
+    minimumRate = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+    rateType = models.CharField(max_length=20, default="hourly")  # hourly, daily, fixed
+    skillLevel = models.CharField(
+        max_length=20, default="intermediate"
+    )  # entry, intermediate, expert
+    averageProjectCostMin = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+    averageProjectCostMax = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+
     class Meta:
-        db_table = 'specializations'
+        db_table = "specializations"
+
 
 class InterestedJobs(models.Model):
     clientID = models.ForeignKey(ClientProfile, on_delete=models.CASCADE)
@@ -270,7 +308,7 @@ class workerSpecialization(models.Model):
         PRIMARY = "PRIMARY", "Primary"
         SECONDARY = "SECONDARY", "Secondary"
 
-    workerID = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE )
+    workerID = models.ForeignKey(WorkerProfile, on_delete=models.CASCADE)
     specializationID = models.ForeignKey(Specializations, on_delete=models.CASCADE)
     experienceYears = models.IntegerField()
     certification = models.CharField(max_length=120)
@@ -293,192 +331,185 @@ class workerSpecialization(models.Model):
 
 # Worker Phase 1: Profile Enhancement Models
 
+
 class WorkerCertification(models.Model):
     """
     Professional certifications and licenses for workers.
     Examples: TESDA certificates, professional licenses, training completion
     """
+
     certificationID = models.BigAutoField(primary_key=True)
     workerID = models.ForeignKey(
-        WorkerProfile,
-        on_delete=models.CASCADE,
-        related_name='certifications'
+        WorkerProfile, on_delete=models.CASCADE, related_name="certifications"
     )
-    
+
     # Link to specific skill (REQUIRED - all certifications must be bound to a skill)
     specializationID = models.ForeignKey(
-        'workerSpecialization',
+        "workerSpecialization",
         on_delete=models.CASCADE,
-        related_name='certifications',
-        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical). All certifications must be linked to a skill."
+        related_name="certifications",
+        help_text="The specific skill this certification is for (e.g., Plumbing, Electrical). All certifications must be linked to a skill.",
     )
-    
+
     name = models.CharField(
-        max_length=255,
-        help_text="Certificate name (e.g., 'TESDA Plumbing NC II')"
+        max_length=255, help_text="Certificate name (e.g., 'TESDA Plumbing NC II')"
     )
     issuing_organization = models.CharField(
         max_length=255,
         blank=True,
         default="",
-        help_text="Organization that issued the certificate (e.g., 'TESDA')"
+        help_text="Organization that issued the certificate (e.g., 'TESDA')",
     )
     issue_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Date when certification was issued"
+        null=True, blank=True, help_text="Date when certification was issued"
     )
     expiry_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Expiration date (null if does not expire)"
+        null=True, blank=True, help_text="Expiration date (null if does not expire)"
     )
     certificate_url = models.CharField(
         max_length=1000,
         blank=True,
         default="",
-        help_text="Supabase URL to certificate image/PDF"
+        help_text="Supabase URL to certificate image/PDF",
     )
-    
+
     # Verification status (for future admin verification)
     is_verified = models.BooleanField(
-        default=False,
-        help_text="Whether admin has verified this certification"
+        default=False, help_text="Whether admin has verified this certification"
     )
     verified_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When certification was verified by admin"
+        null=True, blank=True, help_text="When certification was verified by admin"
     )
     verified_by = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='verified_certifications',
-        help_text="Admin who verified the certification"
+        related_name="verified_certifications",
+        help_text="Admin who verified the certification",
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'worker_certifications'
-        ordering = ['-issue_date', '-createdAt']
+        db_table = "worker_certifications"
+        ordering = ["-issue_date", "-createdAt"]
         indexes = [
-            models.Index(fields=['workerID', '-issue_date']),
-            models.Index(fields=['expiry_date']),  # For expiry alerts
+            models.Index(fields=["workerID", "-issue_date"]),
+            models.Index(fields=["expiry_date"]),  # For expiry alerts
         ]
-    
+
     def __str__(self):
         return f"{self.name} - {self.workerID.profileID.firstName}"
-    
+
     def is_expired(self):
         """Check if certification has expired"""
         if self.expiry_date:
             from django.utils import timezone
+
             return self.expiry_date < timezone.now().date()
         return False
-    
+
     def clean(self):
         """Validate dates"""
         if self.issue_date and self.expiry_date:
             if self.expiry_date < self.issue_date:
-                raise ValidationError({
-                    'expiry_date': 'Expiry date cannot be before issue date'
-                })
+                raise ValidationError(
+                    {"expiry_date": "Expiry date cannot be before issue date"}
+                )
 
 
 class WorkerMaterial(models.Model):
     """
     Materials/products offered by workers.
     Examples: Construction materials, spare parts, products they sell
-    
+
     Materials can be linked to a specific specialization/category so clients
     only see relevant materials when hiring for a specific job type.
     """
+
     materialID = models.BigAutoField(primary_key=True)
     workerID = models.ForeignKey(
         WorkerProfile,
         on_delete=models.CASCADE,
-        related_name='materials',
+        related_name="materials",
         null=True,
-        blank=True
+        blank=True,
     )
     agencyID = models.ForeignKey(
         Agency,
         on_delete=models.CASCADE,
-        related_name='materials',
+        related_name="materials",
         null=True,
         blank=True,
-        help_text="Agency that owns this material (alternative to workerID)"
+        help_text="Agency that owns this material (alternative to workerID)",
     )
-    
+
     # Optional link to specialization - allows filtering materials by job category
     categoryID = models.ForeignKey(
         Specializations,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='materials',
-        help_text="The category/specialization this material is for (e.g., Plumbing, Electrical). Optional."
+        related_name="materials",
+        help_text="The category/specialization this material is for (e.g., Plumbing, Electrical). Optional.",
     )
-    
+
     name = models.CharField(
         max_length=255,
-        help_text="Material/product name (e.g., 'Cement 40kg bag', 'PVC Pipe 1 inch')"
+        help_text="Material/product name (e.g., 'Cement 40kg bag', 'PVC Pipe 1 inch')",
     )
     description = models.TextField(
-        blank=True,
-        default="",
-        help_text="Detailed description of the material/product"
+        blank=True, default="", help_text="Detailed description of the material/product"
     )
     price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        help_text="Price in PHP"
+        max_digits=10, decimal_places=2, help_text="Price in PHP"
     )
     quantity = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('1.00'),
-        help_text="Quantity or stock count associated with the price"
+        default=Decimal("1.00"),
+        help_text="Quantity or stock count associated with the price",
     )
     unit = models.CharField(
         max_length=50,
         default="piece",
-        help_text="Unit of measurement (e.g., 'piece', 'kg', 'meter', 'bag', 'box')"
+        help_text="Unit of measurement (e.g., 'piece', 'kg', 'meter', 'bag', 'box')",
     )
     image_url = models.CharField(
         max_length=1000,
         blank=True,
         default="",
-        help_text="Supabase URL to product image"
+        help_text="Supabase URL to product image",
     )
     is_available = models.BooleanField(
-        default=True,
-        help_text="Whether material is currently available for sale"
+        default=True, help_text="Whether material is currently available for sale"
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'worker_materials'
-        ordering = ['-createdAt']
+        db_table = "worker_materials"
+        ordering = ["-createdAt"]
         indexes = [
-            models.Index(fields=['workerID', 'is_available']),
-            models.Index(fields=['workerID', 'categoryID']),  # For filtering by category
-            models.Index(fields=['agencyID', 'is_available']),
-            models.Index(fields=['agencyID', 'categoryID']),
-            models.Index(fields=['name']),
+            models.Index(fields=["workerID", "is_available"]),
+            models.Index(
+                fields=["workerID", "categoryID"]
+            ),  # For filtering by category
+            models.Index(fields=["agencyID", "is_available"]),
+            models.Index(fields=["agencyID", "categoryID"]),
+            models.Index(fields=["name"]),
         ]
-    
+
     def clean(self):
         """At least one of workerID or agencyID must be set."""
         if not self.workerID and not self.agencyID:
-            raise ValidationError("A material must belong to either a worker or an agency.")
-    
+            raise ValidationError(
+                "A material must belong to either a worker or an agency."
+            )
+
     def __str__(self):
         category = f" [{self.categoryID.specializationName}]" if self.categoryID else ""
         return f"{self.name}{category} - ₱{self.price} for {self.quantity} {self.unit}"
@@ -489,61 +520,54 @@ class WorkerPortfolio(models.Model):
     Portfolio images/work samples for workers to showcase their work.
     Helps clients see the quality and style of worker's previous projects.
     """
+
     portfolioID = models.BigAutoField(primary_key=True)
     workerID = models.ForeignKey(
-        WorkerProfile,
-        on_delete=models.CASCADE,
-        related_name='portfolio'
+        WorkerProfile, on_delete=models.CASCADE, related_name="portfolio"
     )
-    
+
     image_url = models.CharField(
-        max_length=1000,
-        help_text="Supabase URL to portfolio image"
+        max_length=1000, help_text="Supabase URL to portfolio image"
     )
     caption = models.TextField(
         blank=True,
         default="",
         max_length=500,
-        help_text="Description of the work shown (max 500 chars)"
+        help_text="Description of the work shown (max 500 chars)",
     )
     display_order = models.IntegerField(
-        default=0,
-        help_text="Order in which to display (0 = first)"
+        default=0, help_text="Order in which to display (0 = first)"
     )
-    
+
     # Image metadata
-    file_name = models.CharField(
-        max_length=255,
-        blank=True,
-        default=""
-    )
+    file_name = models.CharField(max_length=255, blank=True, default="")
     file_size = models.IntegerField(
-        null=True,
-        blank=True,
-        help_text="File size in bytes"
+        null=True, blank=True, help_text="File size in bytes"
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'worker_portfolio'
-        ordering = ['display_order', '-createdAt']
+        db_table = "worker_portfolio"
+        ordering = ["display_order", "-createdAt"]
         indexes = [
-            models.Index(fields=['workerID', 'display_order']),
+            models.Index(fields=["workerID", "display_order"]),
         ]
-    
+
     def __str__(self):
         return f"Portfolio {self.portfolioID} - {self.workerID.profileID.firstName}"
+
 
 class kyc(models.Model):
     kycID = models.BigAutoField(primary_key=True)
     accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE)
+
     class KycStatus(models.TextChoices):
-        PENDING = "PENDING", 'pending'
-        APPROVED = "APPROVED", 'approved'
+        PENDING = "PENDING", "pending"
+        APPROVED = "APPROVED", "approved"
         REJECTED = "Rejected", "rejected"
-    
+
     class RejectionCategory(models.TextChoices):
         INVALID_DOCUMENT = "INVALID_DOCUMENT", "Invalid Document"
         EXPIRED_DOCUMENT = "EXPIRED_DOCUMENT", "Expired Document"
@@ -551,67 +575,68 @@ class kyc(models.Model):
         MISMATCH_INFO = "MISMATCH_INFO", "Information Mismatch"
         INCOMPLETE = "INCOMPLETE", "Incomplete Submission"
         OTHER = "OTHER", "Other"
-    
+
     kyc_status = models.CharField(
         max_length=10, choices=KycStatus.choices, default="PENDING", blank=True
     )
     reviewedAt = models.DateTimeField(auto_now=True)
     reviewedBy = models.ForeignKey(
-        Accounts, 
-        on_delete=models.CASCADE, 
+        Accounts,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name="reviewed_kyc"
+        related_name="reviewed_kyc",
     )
-    notes = models.TextField(blank=True, default="")  # Changed from CharField(211) to store AI rejection messages
-    
+    notes = models.TextField(
+        blank=True, default=""
+    )  # Changed from CharField(211) to store AI rejection messages
+
     # KYC Enhancement fields (Module 6)
     rejectionCategory = models.CharField(
-        max_length=30, 
-        choices=RejectionCategory.choices, 
-        null=True, 
+        max_length=30,
+        choices=RejectionCategory.choices,
+        null=True,
         blank=True,
-        help_text="Category of rejection reason"
+        help_text="Category of rejection reason",
     )
     rejectionReason = models.TextField(
-        blank=True, 
-        default="",
-        help_text="Detailed rejection reason for the user"
+        blank=True, default="", help_text="Detailed rejection reason for the user"
     )
     resubmissionCount = models.IntegerField(
-        default=0,
-        help_text="Number of times the user has resubmitted KYC documents"
+        default=0, help_text="Number of times the user has resubmitted KYC documents"
     )
     maxResubmissions = models.IntegerField(
-        default=3,
-        help_text="Maximum allowed resubmission attempts"
+        default=3, help_text="Maximum allowed resubmission attempts"
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     def can_resubmit(self):
         """Check if user can still resubmit KYC documents."""
-        return (self.kyc_status or '').upper() == 'REJECTED' and self.resubmissionCount < self.maxResubmissions
-    
+        return (
+            self.kyc_status or ""
+        ).upper() == "REJECTED" and self.resubmissionCount < self.maxResubmissions
+
     def get_remaining_attempts(self):
         """Get number of remaining resubmission attempts."""
         return max(0, self.maxResubmissions - self.resubmissionCount)
 
+
 class kycFiles(models.Model):
     kycFileID = models.BigAutoField(primary_key=True)
     kycID = models.ForeignKey(kyc, on_delete=models.CASCADE)
-    
+
     class IDType(models.TextChoices):
         # ID Types
-        PASSPORT = "PASSPORT", 'passport'
-        NATIONALID = "NATIONALID", 'nationalid'
-        UMID = "UMID", 'umid'
-        PHILHEALTH = "PHILHEALTH", 'philhealth'
-        DRIVERSLICENSE = "DRIVERSLICENSE", 'driverslicense'
+        PASSPORT = "PASSPORT", "passport"
+        NATIONALID = "NATIONALID", "nationalid"
+        UMID = "UMID", "umid"
+        PHILHEALTH = "PHILHEALTH", "philhealth"
+        DRIVERSLICENSE = "DRIVERSLICENSE", "driverslicense"
         # Clearance Types
-        POLICE = "POLICE", 'police'
-        NBI = "NBI", 'nbi'
+        POLICE = "POLICE", "police"
+        NBI = "NBI", "nbi"
 
     class AIVerificationStatus(models.TextChoices):
         PENDING = "PENDING", "Pending Verification"
@@ -619,7 +644,7 @@ class kycFiles(models.Model):
         FAILED = "FAILED", "AI Verification Failed"
         WARNING = "WARNING", "Needs Manual Review"
         SKIPPED = "SKIPPED", "Verification Skipped"
-    
+
     class AIRejectionReason(models.TextChoices):
         NO_FACE_DETECTED = "NO_FACE_DETECTED", "No Face Detected"
         MULTIPLE_FACES = "MULTIPLE_FACES", "Multiple Faces"
@@ -631,77 +656,99 @@ class kycFiles(models.Model):
         UNREADABLE_DOCUMENT = "UNREADABLE_DOCUMENT", "Unreadable Document"
 
     idType = models.CharField(
-        max_length=20, 
-        choices=IDType.choices, 
-        null=True,
-        blank=True
+        max_length=20, choices=IDType.choices, null=True, blank=True
     )
     fileURL = models.CharField(max_length=255)
     fileName = models.CharField(max_length=255, null=True, blank=True)
     fileSize = models.IntegerField(null=True, blank=True)  # Size in bytes
     uploadedAt = models.DateTimeField(auto_now_add=True)
-    
+
     # AI Verification Fields (CompreFace + Tesseract OCR)
     ai_verification_status = models.CharField(
         max_length=20,
         choices=AIVerificationStatus.choices,
         default=AIVerificationStatus.PENDING,
-        help_text='Result of automated AI verification'
+        help_text="Result of automated AI verification",
     )
-    face_detected = models.BooleanField(null=True, blank=True, help_text='Face detected in document')
-    face_count = models.IntegerField(null=True, blank=True, help_text='Number of faces detected')
-    face_confidence = models.FloatField(null=True, blank=True, help_text='Face detection confidence (0-1)')
-    ocr_text = models.TextField(null=True, blank=True, help_text='Extracted text via OCR')
-    ocr_confidence = models.FloatField(null=True, blank=True, help_text='OCR confidence (0-1)')
-    quality_score = models.FloatField(null=True, blank=True, help_text='Image quality score (0-1)')
-    ai_confidence_score = models.FloatField(null=True, blank=True, help_text='Overall AI confidence (0-1)')
+    face_detected = models.BooleanField(
+        null=True, blank=True, help_text="Face detected in document"
+    )
+    face_count = models.IntegerField(
+        null=True, blank=True, help_text="Number of faces detected"
+    )
+    face_confidence = models.FloatField(
+        null=True, blank=True, help_text="Face detection confidence (0-1)"
+    )
+    ocr_text = models.TextField(
+        null=True, blank=True, help_text="Extracted text via OCR"
+    )
+    ocr_confidence = models.FloatField(
+        null=True, blank=True, help_text="OCR confidence (0-1)"
+    )
+    quality_score = models.FloatField(
+        null=True, blank=True, help_text="Image quality score (0-1)"
+    )
+    ai_confidence_score = models.FloatField(
+        null=True, blank=True, help_text="Overall AI confidence (0-1)"
+    )
     ai_rejection_reason = models.CharField(
         max_length=50,
         choices=AIRejectionReason.choices,
         null=True,
         blank=True,
-        help_text='Reason for AI rejection'
+        help_text="Reason for AI rejection",
     )
-    ai_rejection_message = models.CharField(max_length=500, null=True, blank=True, help_text='User-facing rejection message')
-    ai_warnings = models.JSONField(null=True, blank=True, default=list, help_text='Warnings from AI')
-    ai_details = models.JSONField(null=True, blank=True, default=dict, help_text='Full AI verification details')
-    verified_at = models.DateTimeField(null=True, blank=True, help_text='When AI verification completed')
-    
+    ai_rejection_message = models.CharField(
+        max_length=500, null=True, blank=True, help_text="User-facing rejection message"
+    )
+    ai_warnings = models.JSONField(
+        null=True, blank=True, default=list, help_text="Warnings from AI"
+    )
+    ai_details = models.JSONField(
+        null=True, blank=True, default=dict, help_text="Full AI verification details"
+    )
+    verified_at = models.DateTimeField(
+        null=True, blank=True, help_text="When AI verification completed"
+    )
+
     def clean(self):
         """Validate that idType is provided for ID files"""
         # Simplified validation based on fileName patterns
-        if self.fileName and ('frontid' in self.fileName.lower() or 'backid' in self.fileName.lower()):
+        if self.fileName and (
+            "frontid" in self.fileName.lower() or "backid" in self.fileName.lower()
+        ):
             if not self.idType:
-                raise ValidationError({
-                    'idType': 'ID type is required for front/back ID files'
-                })
-    
+                raise ValidationError(
+                    {"idType": "ID type is required for front/back ID files"}
+                )
+
     def save(self, *args, **kwargs):
-        self.full_clean() 
+        self.full_clean()
         super().save(*args, **kwargs)
-    
+
     class Meta:
         indexes = [
-            models.Index(fields=['ai_verification_status'], name='kyc_ai_status_idx'),
+            models.Index(fields=["ai_verification_status"], name="kyc_ai_status_idx"),
         ]
 
 
 class KYCExtractedData(models.Model):
     """
     Structured storage for KYC data extracted via AI/OCR.
-    
+
     This model stores parsed, structured fields from OCR text extraction,
     allowing for auto-fill of KYC forms and admin comparison of
     extracted vs user-confirmed values.
     """
+
     extractedDataID = models.BigAutoField(primary_key=True)
     kycID = models.OneToOneField(
         kyc,
         on_delete=models.CASCADE,
-        related_name='extracted_data',
-        help_text="Parent KYC record"
+        related_name="extracted_data",
+        help_text="Parent KYC record",
     )
-    
+
     # ============================================================
     # EXTRACTED FIELDS (from OCR/AI)
     # ============================================================
@@ -709,72 +756,60 @@ class KYCExtractedData(models.Model):
         max_length=255,
         blank=True,
         default="",
-        help_text="Full name extracted from ID document"
+        help_text="Full name extracted from ID document",
     )
     extracted_first_name = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="First name parsed from full name"
+        help_text="First name parsed from full name",
     )
     extracted_middle_name = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="Middle name parsed from full name"
+        help_text="Middle name parsed from full name",
     )
     extracted_last_name = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="Last name parsed from full name"
+        help_text="Last name parsed from full name",
     )
     extracted_birth_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Birth date extracted from ID"
+        null=True, blank=True, help_text="Birth date extracted from ID"
     )
     extracted_address = models.TextField(
-        blank=True,
-        default="",
-        help_text="Address extracted from ID"
+        blank=True, default="", help_text="Address extracted from ID"
     )
     extracted_id_number = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-        help_text="ID/Document number extracted"
+        max_length=100, blank=True, default="", help_text="ID/Document number extracted"
     )
     extracted_id_type = models.CharField(
         max_length=50,
         blank=True,
         default="",
-        help_text="Type of ID detected (PASSPORT, NATIONALID, etc.)"
+        help_text="Type of ID detected (PASSPORT, NATIONALID, etc.)",
     )
     extracted_expiry_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Document expiry date if present"
+        null=True, blank=True, help_text="Document expiry date if present"
     )
     extracted_nationality = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="Nationality/citizenship extracted"
+        help_text="Nationality/citizenship extracted",
     )
     extracted_sex = models.CharField(
-        max_length=20,
-        blank=True,
-        default="",
-        help_text="Sex/gender extracted from ID"
+        max_length=20, blank=True, default="", help_text="Sex/gender extracted from ID"
     )
     extracted_place_of_birth = models.CharField(
         max_length=255,
         blank=True,
         default="",
-        help_text="Place of birth extracted from ID"
+        help_text="Place of birth extracted from ID",
     )
-    
+
     # ============================================================
     # CLEARANCE-SPECIFIC EXTRACTED FIELDS (NBI/Police)
     # ============================================================
@@ -782,83 +817,77 @@ class KYCExtractedData(models.Model):
         max_length=100,
         blank=True,
         default="",
-        help_text="Clearance number extracted from NBI/Police clearance"
+        help_text="Clearance number extracted from NBI/Police clearance",
     )
-    
+
     class ClearanceType(models.TextChoices):
         NBI = "NBI", "NBI Clearance"
         POLICE = "POLICE", "Police Clearance"
         NONE = "NONE", "Not a Clearance Document"
-    
+
     extracted_clearance_type = models.CharField(
         max_length=20,
         choices=ClearanceType.choices,
         default=ClearanceType.NONE,
-        help_text="Type of clearance document (NBI or Police)"
+        help_text="Type of clearance document (NBI or Police)",
     )
     extracted_clearance_issue_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Issue date extracted from clearance document"
+        null=True, blank=True, help_text="Issue date extracted from clearance document"
     )
     extracted_clearance_validity_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Validity/expiry date extracted from clearance document"
+        help_text="Validity/expiry date extracted from clearance document",
     )
-    
+
     # ============================================================
     # CONFIDENCE SCORES (per field)
     # ============================================================
     confidence_full_name = models.FloatField(
         null=True,
         blank=True,
-        help_text="Confidence score for full name extraction (0-1)"
+        help_text="Confidence score for full name extraction (0-1)",
     )
     confidence_birth_date = models.FloatField(
         null=True,
         blank=True,
-        help_text="Confidence score for birth date extraction (0-1)"
+        help_text="Confidence score for birth date extraction (0-1)",
     )
     confidence_address = models.FloatField(
-        null=True,
-        blank=True,
-        help_text="Confidence score for address extraction (0-1)"
+        null=True, blank=True, help_text="Confidence score for address extraction (0-1)"
     )
     confidence_id_number = models.FloatField(
         null=True,
         blank=True,
-        help_text="Confidence score for ID number extraction (0-1)"
+        help_text="Confidence score for ID number extraction (0-1)",
     )
     confidence_place_of_birth = models.FloatField(
         null=True,
         blank=True,
-        help_text="Confidence score for place of birth extraction (0-1)"
+        help_text="Confidence score for place of birth extraction (0-1)",
     )
     confidence_clearance_number = models.FloatField(
         null=True,
         blank=True,
-        help_text="Confidence score for clearance number extraction (0-1)"
+        help_text="Confidence score for clearance number extraction (0-1)",
     )
     overall_confidence = models.FloatField(
-        null=True,
-        blank=True,
-        help_text="Overall extraction confidence (0-1)"
+        null=True, blank=True, help_text="Overall extraction confidence (0-1)"
     )
-    
+
     # ============================================================
     # FACE MATCH SCORE (from Azure Face API)
     # ============================================================
     face_match_score = models.FloatField(
         null=True,
         blank=True,
-        help_text="Face similarity score between ID and selfie (0-1) from Azure Face API"
+        help_text="Face similarity score between ID and selfie (0-1) from Azure Face API",
     )
     face_match_completed = models.BooleanField(
         default=False,
-        help_text="Whether face matching was completed (True = Azure returned result)"
+        help_text="Whether face matching was completed (True = Azure returned result)",
     )
-    
+
     # ============================================================
     # USER-CONFIRMED FIELDS
     # ============================================================
@@ -866,61 +895,45 @@ class KYCExtractedData(models.Model):
         max_length=255,
         blank=True,
         default="",
-        help_text="Full name confirmed/edited by user"
+        help_text="Full name confirmed/edited by user",
     )
     confirmed_first_name = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-        help_text="First name confirmed by user"
+        max_length=100, blank=True, default="", help_text="First name confirmed by user"
     )
     confirmed_middle_name = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="Middle name confirmed by user"
+        help_text="Middle name confirmed by user",
     )
     confirmed_last_name = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-        help_text="Last name confirmed by user"
+        max_length=100, blank=True, default="", help_text="Last name confirmed by user"
     )
     confirmed_birth_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Birth date confirmed by user"
+        null=True, blank=True, help_text="Birth date confirmed by user"
     )
     confirmed_address = models.TextField(
-        blank=True,
-        default="",
-        help_text="Address confirmed by user"
+        blank=True, default="", help_text="Address confirmed by user"
     )
     confirmed_id_number = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-        help_text="ID number confirmed by user"
+        max_length=100, blank=True, default="", help_text="ID number confirmed by user"
     )
     confirmed_nationality = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="Nationality confirmed by user"
+        help_text="Nationality confirmed by user",
     )
     confirmed_sex = models.CharField(
-        max_length=20,
-        blank=True,
-        default="",
-        help_text="Sex/gender confirmed by user"
+        max_length=20, blank=True, default="", help_text="Sex/gender confirmed by user"
     )
     confirmed_place_of_birth = models.CharField(
         max_length=255,
         blank=True,
         default="",
-        help_text="Place of birth confirmed by user"
+        help_text="Place of birth confirmed by user",
     )
-    
+
     # ============================================================
     # CLEARANCE-SPECIFIC CONFIRMED FIELDS
     # ============================================================
@@ -928,25 +941,21 @@ class KYCExtractedData(models.Model):
         max_length=100,
         blank=True,
         default="",
-        help_text="Clearance number confirmed by user"
+        help_text="Clearance number confirmed by user",
     )
     confirmed_clearance_type = models.CharField(
         max_length=20,
         choices=ClearanceType.choices,
         default=ClearanceType.NONE,
-        help_text="Type of clearance confirmed by user"
+        help_text="Type of clearance confirmed by user",
     )
     confirmed_clearance_issue_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Clearance issue date confirmed by user"
+        null=True, blank=True, help_text="Clearance issue date confirmed by user"
     )
     confirmed_clearance_validity_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Clearance validity date confirmed by user"
+        null=True, blank=True, help_text="Clearance validity date confirmed by user"
     )
-    
+
     # ============================================================
     # STATUS & METADATA
     # ============================================================
@@ -955,173 +964,172 @@ class KYCExtractedData(models.Model):
         EXTRACTED = "EXTRACTED", "Data Extracted (Awaiting Confirmation)"
         CONFIRMED = "CONFIRMED", "User Confirmed"
         FAILED = "FAILED", "Extraction Failed"
-    
+
     extraction_status = models.CharField(
         max_length=20,
         choices=ExtractionStatus.choices,
         default=ExtractionStatus.PENDING,
-        help_text="Current status of data extraction/confirmation"
+        help_text="Current status of data extraction/confirmation",
     )
-    
+
     extraction_source = models.CharField(
         max_length=100,
         blank=True,
         default="",
-        help_text="Source of extraction (e.g., 'Tesseract OCR v4.1')"
+        help_text="Source of extraction (e.g., 'Tesseract OCR v4.1')",
     )
-    
+
     user_edited_fields = models.JSONField(
         default=list,
         blank=True,
-        help_text="List of field names that user edited from extracted values"
+        help_text="List of field names that user edited from extracted values",
     )
-    
+
     confirmed_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When user confirmed the extracted data"
+        null=True, blank=True, help_text="When user confirmed the extracted data"
     )
-    
+
     extracted_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When AI extraction was completed"
+        null=True, blank=True, help_text="When AI extraction was completed"
     )
-    
+
     raw_extraction_data = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Full raw extraction output for debugging"
+        default=dict, blank=True, help_text="Full raw extraction output for debugging"
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'kyc_extracted_data'
-        verbose_name = 'KYC Extracted Data'
-        verbose_name_plural = 'KYC Extracted Data'
+        db_table = "kyc_extracted_data"
+        verbose_name = "KYC Extracted Data"
+        verbose_name_plural = "KYC Extracted Data"
         indexes = [
-            models.Index(fields=['extraction_status']),
-            models.Index(fields=['kycID', 'extraction_status']),
+            models.Index(fields=["extraction_status"]),
+            models.Index(fields=["kycID", "extraction_status"]),
         ]
-    
+
     def __str__(self):
         return f"KYC Extracted Data for KYC #{self.kycID.kycID}"
-    
+
     def get_autofill_data(self) -> dict:
         """
         Return data suitable for auto-filling KYC forms.
-        
+
         Returns extracted values with confidence scores in the format expected by mobile app.
         Each field is an object with: value, confidence, and source.
         """
+
         def _make_field(confirmed_val, extracted_val, confidence, default=""):
             """Helper to create field object with value, confidence, and source"""
-            is_confirmed = confirmed_val is not None and str(confirmed_val).strip() != ""
-            value = confirmed_val if is_confirmed else (extracted_val if extracted_val else default)
+            is_confirmed = (
+                confirmed_val is not None and str(confirmed_val).strip() != ""
+            )
+            value = (
+                confirmed_val
+                if is_confirmed
+                else (extracted_val if extracted_val else default)
+            )
             # Convert to string for consistency, except for None/empty
             if value is not None:
                 value = str(value) if value else default
             return {
                 "value": value,
                 "confidence": confidence or 0.0,
-                "source": "confirmed" if is_confirmed else "ocr"
+                "source": "confirmed" if is_confirmed else "ocr",
             }
-        
+
         return {
             "full_name": _make_field(
-                self.confirmed_full_name, 
-                self.extracted_full_name, 
-                self.confidence_full_name
+                self.confirmed_full_name,
+                self.extracted_full_name,
+                self.confidence_full_name,
             ),
             "first_name": _make_field(
-                self.confirmed_first_name, 
-                self.extracted_first_name, 
-                self.confidence_full_name
+                self.confirmed_first_name,
+                self.extracted_first_name,
+                self.confidence_full_name,
             ),
             "middle_name": _make_field(
-                self.confirmed_middle_name, 
-                self.extracted_middle_name, 
-                self.confidence_full_name
+                self.confirmed_middle_name,
+                self.extracted_middle_name,
+                self.confidence_full_name,
             ),
             "last_name": _make_field(
-                self.confirmed_last_name, 
-                self.extracted_last_name, 
-                self.confidence_full_name
+                self.confirmed_last_name,
+                self.extracted_last_name,
+                self.confidence_full_name,
             ),
             "date_of_birth": _make_field(
-                self.confirmed_birth_date, 
-                self.extracted_birth_date, 
-                self.confidence_birth_date
+                self.confirmed_birth_date,
+                self.extracted_birth_date,
+                self.confidence_birth_date,
             ),
             "address": _make_field(
-                self.confirmed_address, 
-                self.extracted_address, 
-                self.confidence_address
+                self.confirmed_address, self.extracted_address, self.confidence_address
             ),
             "id_number": _make_field(
-                self.confirmed_id_number, 
-                self.extracted_id_number, 
-                self.confidence_id_number
+                self.confirmed_id_number,
+                self.extracted_id_number,
+                self.confidence_id_number,
             ),
             "nationality": _make_field(
-                self.confirmed_nationality, 
-                self.extracted_nationality, 
-                0.8  # Default confidence for nationality
+                self.confirmed_nationality,
+                self.extracted_nationality,
+                0.8,  # Default confidence for nationality
             ),
             "sex": _make_field(
-                self.confirmed_sex, 
-                self.extracted_sex, 
-                0.8  # Default confidence for sex
+                self.confirmed_sex,
+                self.extracted_sex,
+                0.8,  # Default confidence for sex
             ),
             "place_of_birth": _make_field(
-                self.confirmed_place_of_birth, 
-                self.extracted_place_of_birth, 
-                self.confidence_place_of_birth
+                self.confirmed_place_of_birth,
+                self.extracted_place_of_birth,
+                self.confidence_place_of_birth,
             ),
             "document_type": _make_field(
                 None,  # No confirmed version
-                self.extracted_id_type, 
-                0.9  # High confidence for detected ID type
+                self.extracted_id_type,
+                0.9,  # High confidence for detected ID type
             ),
             "expiry_date": _make_field(
                 None,  # No confirmed version
-                self.extracted_expiry_date, 
-                0.7  # Medium confidence for expiry date
+                self.extracted_expiry_date,
+                0.7,  # Medium confidence for expiry date
             ),
             "issue_date": _make_field(
                 None,  # No confirmed version
                 None,  # Not extracted yet
-                0.0
+                0.0,
             ),
             # Clearance-specific fields
             "clearance_number": _make_field(
-                self.confirmed_clearance_number, 
-                self.extracted_clearance_number, 
-                self.confidence_clearance_number
+                self.confirmed_clearance_number,
+                self.extracted_clearance_number,
+                self.confidence_clearance_number,
             ),
             "clearance_type": _make_field(
-                self.confirmed_clearance_type, 
-                self.extracted_clearance_type, 
-                0.9  # High confidence for clearance type
+                self.confirmed_clearance_type,
+                self.extracted_clearance_type,
+                0.9,  # High confidence for clearance type
             ),
             "clearance_issue_date": _make_field(
-                self.confirmed_clearance_issue_date, 
-                self.extracted_clearance_issue_date, 
-                0.7
+                self.confirmed_clearance_issue_date,
+                self.extracted_clearance_issue_date,
+                0.7,
             ),
             "clearance_validity_date": _make_field(
-                self.confirmed_clearance_validity_date, 
-                self.extracted_clearance_validity_date, 
-                0.7
+                self.confirmed_clearance_validity_date,
+                self.extracted_clearance_validity_date,
+                0.7,
             ),
         }
-    
+
     def get_comparison_data(self) -> dict:
         """
         Return data for admin side-by-side comparison.
-        
+
         Shows extracted vs confirmed values with edit indicators.
         """
         return {
@@ -1142,7 +1150,9 @@ class KYCExtractedData(models.Model):
                 "clearance_number": self.extracted_clearance_number,
                 "clearance_type": self.extracted_clearance_type,
                 "clearance_issue_date": str(self.extracted_clearance_issue_date or ""),
-                "clearance_validity_date": str(self.extracted_clearance_validity_date or ""),
+                "clearance_validity_date": str(
+                    self.extracted_clearance_validity_date or ""
+                ),
             },
             "confirmed": {
                 "full_name": self.confirmed_full_name,
@@ -1159,7 +1169,9 @@ class KYCExtractedData(models.Model):
                 "clearance_number": self.confirmed_clearance_number,
                 "clearance_type": self.confirmed_clearance_type,
                 "clearance_issue_date": str(self.confirmed_clearance_issue_date or ""),
-                "clearance_validity_date": str(self.confirmed_clearance_validity_date or ""),
+                "clearance_validity_date": str(
+                    self.confirmed_clearance_validity_date or ""
+                ),
             },
             "confidence_scores": {
                 "full_name": self.confidence_full_name,
@@ -1172,8 +1184,12 @@ class KYCExtractedData(models.Model):
             },
             "user_edited_fields": self.user_edited_fields,
             "extraction_status": self.extraction_status,
-            "extracted_at": self.extracted_at.isoformat() if self.extracted_at else None,
-            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
+            "extracted_at": self.extracted_at.isoformat()
+            if self.extracted_at
+            else None,
+            "confirmed_at": self.confirmed_at.isoformat()
+            if self.confirmed_at
+            else None,
         }
 
 
@@ -1181,13 +1197,12 @@ class Notification(models.Model):
     """
     User notifications for important events (KYC updates, messages, etc.)
     """
+
     notificationID = models.BigAutoField(primary_key=True)
     accountFK = models.ForeignKey(
-        Accounts, 
-        on_delete=models.CASCADE, 
-        related_name='notifications'
+        Accounts, on_delete=models.CASCADE, related_name="notifications"
     )
-    
+
     class NotificationType(models.TextChoices):
         # KYC Notifications
         KYC_APPROVED = "KYC_APPROVED", "KYC Approved"
@@ -1218,7 +1233,7 @@ class Notification(models.Model):
 
         # Review Notifications
         REVIEW_RECEIVED = "REVIEW_RECEIVED", "Review Received"
-        
+
         # Backjob/Dispute Notifications
         BACKJOB_REQUESTED = "BACKJOB_REQUESTED", "Backjob Requested"
         BACKJOB_APPROVED = "BACKJOB_APPROVED", "Backjob Approved"
@@ -1239,13 +1254,11 @@ class Notification(models.Model):
 
         # System Notifications
         SYSTEM = "SYSTEM", "System"
-    
+
     notificationType = models.CharField(
-        max_length=50,
-        choices=NotificationType.choices,
-        default="SYSTEM"
+        max_length=50, choices=NotificationType.choices, default="SYSTEM"
     )
-    
+
     title = models.CharField(max_length=200)
     message = models.TextField()
     isRead = models.BooleanField(default=False)
@@ -1254,27 +1267,27 @@ class Notification(models.Model):
     relatedKYCLogID = models.BigIntegerField(null=True, blank=True)
     relatedJobID = models.BigIntegerField(null=True, blank=True)
     relatedApplicationID = models.BigIntegerField(null=True, blank=True)
-    
+
     # Profile type for dual-profile filtering (WORKER or CLIENT)
     # If null, notification is shown to all profiles
     profile_type = models.CharField(
         max_length=20,
-        choices=[('WORKER', 'Worker'), ('CLIENT', 'Client')],
+        choices=[("WORKER", "Worker"), ("CLIENT", "Client")],
         null=True,
-        blank=True
+        blank=True,
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     readAt = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ["-createdAt"]
         indexes = [
-            models.Index(fields=['accountFK', '-createdAt']),
-            models.Index(fields=['accountFK', 'isRead']),
-            models.Index(fields=['accountFK', 'profile_type', '-createdAt']),
+            models.Index(fields=["accountFK", "-createdAt"]),
+            models.Index(fields=["accountFK", "isRead"]),
+            models.Index(fields=["accountFK", "profile_type", "-createdAt"]),
         ]
-    
+
     def __str__(self):
         return f"{self.notificationType} - {self.accountFK.email} - {self.title}"
 
@@ -1283,24 +1296,27 @@ class PushToken(models.Model):
     """
     Stores Expo push tokens for mobile devices to send push notifications
     """
+
     tokenID = models.BigAutoField(primary_key=True)
     accountFK = models.ForeignKey(
-        Accounts,
-        on_delete=models.CASCADE,
-        related_name='push_tokens'
+        Accounts, on_delete=models.CASCADE, related_name="push_tokens"
     )
     pushToken = models.CharField(max_length=500, unique=True)
-    deviceType = models.CharField(max_length=20, choices=[('ios', 'iOS'), ('android', 'Android')], default='android')
+    deviceType = models.CharField(
+        max_length=20,
+        choices=[("ios", "iOS"), ("android", "Android")],
+        default="android",
+    )
     isActive = models.BooleanField(default=True)
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     lastUsed = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-lastUsed']
+        ordering = ["-lastUsed"]
         indexes = [
-            models.Index(fields=['accountFK', 'isActive']),
-            models.Index(fields=['pushToken']),
+            models.Index(fields=["accountFK", "isActive"]),
+            models.Index(fields=["pushToken"]),
         ]
 
     def __str__(self):
@@ -1311,11 +1327,10 @@ class NotificationSettings(models.Model):
     """
     User preferences for notification delivery
     """
+
     settingsID = models.BigAutoField(primary_key=True)
     accountFK = models.OneToOneField(
-        Accounts,
-        on_delete=models.CASCADE,
-        related_name='notification_settings'
+        Accounts, on_delete=models.CASCADE, related_name="notification_settings"
     )
 
     # Global settings
@@ -1344,149 +1359,154 @@ class Job(models.Model):
     """
     Jobs created by clients to hire workers
     """
+
     jobID = models.BigAutoField(primary_key=True)
     clientID = models.ForeignKey(
-        ClientProfile,
-        on_delete=models.CASCADE,
-        related_name='jobs'
+        ClientProfile, on_delete=models.CASCADE, related_name="jobs"
     )
-    
+
     # Job Details
     title = models.CharField(max_length=200)
     description = models.TextField()
     categoryID = models.ForeignKey(
-        Specializations,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='jobs'
+        Specializations, on_delete=models.SET_NULL, null=True, related_name="jobs"
     )
-    
+
     # Budget (always project-based)
     budget = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     # ============================================================
     # PAYMENT MODEL - Project vs Daily Rate
     # ============================================================
     class PaymentModel(models.TextChoices):
         PROJECT = "PROJECT", "Project-based (fixed budget)"
         DAILY = "DAILY", "Daily rate (per day worked)"
-    
+
     payment_model = models.CharField(
         max_length=10,
         choices=PaymentModel.choices,
         default="PROJECT",
-        help_text="Payment model: PROJECT = fixed budget, DAILY = per day worked"
+        help_text="Payment model: PROJECT = fixed budget, DAILY = per day worked",
     )
-    
+
+    # ============================================================
+    # SHIFT TYPE - Morning vs Night vs Any (for DAILY jobs)
+    # ============================================================
+    class ShiftType(models.TextChoices):
+        ANY = "ANY", "Any shift (worker chooses)"
+        MORNING = "MORNING", "Morning shift (~6 AM – 2 PM)"
+        NIGHT = "NIGHT", "Night shift (~6 PM – 2 AM)"
+
+    shift_type = models.CharField(
+        max_length=10,
+        choices=ShiftType.choices,
+        default="ANY",
+        help_text="Shift type for DAILY jobs. ANY = worker picks; MORNING/NIGHT = fixed shift.",
+    )
+
     # Daily rate specific fields
     duration_days = models.PositiveIntegerField(
         null=True,
         blank=True,
-        help_text="Expected number of work days (for DAILY payment model)"
+        help_text="Expected number of work days (for DAILY payment model)",
     )
     daily_rate_agreed = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Agreed daily rate per worker (for DAILY payment model)"
+        help_text="Agreed daily rate per worker (for DAILY payment model)",
     )
     actual_start_date = models.DateField(
         null=True,
         blank=True,
-        help_text="Actual date when work started (for daily payment tracking)"
+        help_text="Actual date when work started (for daily payment tracking)",
     )
     total_days_worked = models.PositiveIntegerField(
-        default=0,
-        help_text="Total days worked across all workers"
+        default=0, help_text="Total days worked across all workers"
     )
     qa_day_offset = models.IntegerField(
-        default=0,
-        help_text="TESTING-only day offset for QA fast-forward on DAILY jobs"
+        default=0, help_text="TESTING-only day offset for QA fast-forward on DAILY jobs"
     )
     daily_escrow_total = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text="Total amount escrowed for daily job (daily_rate × workers × days)"
+        default=Decimal("0.00"),
+        help_text="Total amount escrowed for daily job (daily_rate × workers × days)",
     )
     # ============================================================
-    
+
     # Escrow Payment Fields
     escrowAmount = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        default=Decimal('0.00'),
-        help_text="Amount held in escrow (50% downpayment)"
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Amount held in escrow (50% downpayment)",
     )
     escrowPaid = models.BooleanField(
-        default=False,
-        help_text="Whether the escrow downpayment has been paid"
+        default=False, help_text="Whether the escrow downpayment has been paid"
     )
     escrowPaidAt = models.DateTimeField(null=True, blank=True)
     remainingPayment = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text="Remaining 50% to be paid upon completion"
+        default=Decimal("0.00"),
+        help_text="Remaining 50% to be paid upon completion",
     )
     remainingPaymentPaid = models.BooleanField(
-        default=False,
-        help_text="Whether the remaining 50% payment has been paid"
+        default=False, help_text="Whether the remaining 50% payment has been paid"
     )
     remainingPaymentPaidAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Payment Method Tracking (for final 50% payment)
     class PaymentMethod(models.TextChoices):
         GCASH = "GCASH", "GCash"
         CASH = "CASH", "Cash"
-    
+
     finalPaymentMethod = models.CharField(
         max_length=20,
         choices=PaymentMethod.choices,
         null=True,
         blank=True,
-        help_text="Payment method chosen for final 50% payment"
+        help_text="Payment method chosen for final 50% payment",
     )
     paymentMethodSelectedAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Cash Payment Proof (for cash payments)
     cashPaymentProofUrl = models.CharField(
         max_length=500,
         null=True,
         blank=True,
-        help_text="URL to proof of payment image (for cash payments)"
+        help_text="URL to proof of payment image (for cash payments)",
     )
     cashProofUploadedAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Admin verification for cash payments
     cashPaymentApproved = models.BooleanField(default=False)
     cashPaymentApprovedAt = models.DateTimeField(null=True, blank=True)
     cashPaymentApprovedBy = models.ForeignKey(
-        'Accounts',
+        "Accounts",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='approved_cash_payments'
+        related_name="approved_cash_payments",
     )
-    
+
     # Location
     location = models.CharField(max_length=255)
-    
+
     # Duration and Urgency
     expectedDuration = models.CharField(max_length=100, null=True, blank=True)
-    
+
     class UrgencyLevel(models.TextChoices):
         LOW = "LOW", "Low - Flexible timing"
         MEDIUM = "MEDIUM", "Medium - Within a week"
         HIGH = "HIGH", "High - ASAP"
-    
+
     urgency = models.CharField(
-        max_length=10,
-        choices=UrgencyLevel.choices,
-        default="MEDIUM"
+        max_length=10, choices=UrgencyLevel.choices, default="MEDIUM"
     )
-    
+
     # ============================================================
     # UNIVERSAL JOB FIELDS - For ML Price Prediction Accuracy
     # ============================================================
@@ -1494,39 +1514,39 @@ class Job(models.Model):
         MINOR_REPAIR = "MINOR_REPAIR", "Minor Repair (quick fix)"
         MODERATE_PROJECT = "MODERATE_PROJECT", "Moderate Project (few hours to a day)"
         MAJOR_RENOVATION = "MAJOR_RENOVATION", "Major Renovation (multi-day project)"
-    
+
     job_scope = models.CharField(
         max_length=20,
         choices=JobScope.choices,
         default="MINOR_REPAIR",
-        help_text="Scope/complexity of the job"
+        help_text="Scope/complexity of the job",
     )
-    
+
     class SkillLevelRequired(models.TextChoices):
         ENTRY = "ENTRY", "Entry Level (basic skills)"
         INTERMEDIATE = "INTERMEDIATE", "Intermediate (experienced)"
         EXPERT = "EXPERT", "Expert (specialized/licensed)"
-    
+
     skill_level_required = models.CharField(
         max_length=15,
         choices=SkillLevelRequired.choices,
         default="INTERMEDIATE",
-        help_text="Skill level required for this job"
+        help_text="Skill level required for this job",
     )
-    
+
     class WorkEnvironment(models.TextChoices):
         INDOOR = "INDOOR", "Indoor"
         OUTDOOR = "OUTDOOR", "Outdoor"
         BOTH = "BOTH", "Both Indoor & Outdoor"
-    
+
     work_environment = models.CharField(
         max_length=10,
         choices=WorkEnvironment.choices,
         default="INDOOR",
-        help_text="Where the work will be performed"
+        help_text="Where the work will be performed",
     )
     # ============================================================
-    
+
     # Preferred Start Date
     preferredStartDate = models.DateField(null=True, blank=True)
 
@@ -1535,94 +1555,101 @@ class Job(models.Model):
 
     # Materials Needed (stored as JSON array)
     materialsNeeded = models.JSONField(default=list, blank=True)
-    
+
     # Materials Cost (additive to budget - reimbursement for purchased materials)
     materialsCost = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text="Total cost of materials purchased by worker, approved by client"
+        default=Decimal("0.00"),
+        help_text="Total cost of materials purchased by worker, approved by client",
     )
-    
+
     class MaterialsStatus(models.TextChoices):
         NONE = "NONE", "No materials needed"
         PENDING_PURCHASE = "PENDING_PURCHASE", "Worker hasn't started buying"
         BUYING = "BUYING", "Worker is buying materials"
         PURCHASED = "PURCHASED", "Worker purchased, awaiting client approval"
         APPROVED = "APPROVED", "Client approved all material purchases"
-    
+
     materials_status = models.CharField(
         max_length=20,
         choices=MaterialsStatus.choices,
         default="NONE",
-        help_text="Status of materials purchasing workflow"
+        help_text="Status of materials purchasing workflow",
     )
-    
+
     # Job Type
     class JobType(models.TextChoices):
         LISTING = "LISTING", "Job Listing (Open for applications)"
         INVITE = "INVITE", "Direct Invite/Hire (Worker or Agency)"
-    
+
     jobType = models.CharField(
         max_length=10,
         choices=JobType.choices,
         default="LISTING",
-        help_text="LISTING = open job post, INVITE = direct hire"
+        help_text="LISTING = open job post, INVITE = direct hire",
     )
-    
+
     # ============================================================
     # TEAM MODE FIELDS - Multi-Skill/Multi-Worker Support
     # ============================================================
     is_team_job = models.BooleanField(
         default=False,
-        help_text="True if this job requires multiple workers/skills (team mode)"
+        help_text="True if this job requires multiple workers/skills (team mode)",
     )
-    
+
     class BudgetAllocationType(models.TextChoices):
         EQUAL_PER_SKILL = "EQUAL_PER_SKILL", "Equal budget per skill slot"
         EQUAL_PER_WORKER = "EQUAL_PER_WORKER", "Equal budget per worker (default)"
         MANUAL_ALLOCATION = "MANUAL_ALLOCATION", "Client manually allocates"
         SKILL_WEIGHTED = "SKILL_WEIGHTED", "Weighted by skill complexity"
-    
+
     budget_allocation_type = models.CharField(
         max_length=20,
         choices=BudgetAllocationType.choices,
         default="EQUAL_PER_WORKER",
-        help_text="How the total budget is distributed among skill slots/workers"
+        help_text="How the total budget is distributed among skill slots/workers",
     )
-    
+
     team_job_start_threshold = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=100.00,
-        help_text="Percentage of team positions that must be filled before job can start (0-100)"
+        help_text="Percentage of team positions that must be filled before job can start (0-100)",
     )
-    
+
     @property
     def has_skill_slots(self):
         """Check if this job has skill slots (unified hiring model).
         This replaces is_team_job flag as the source of truth."""
         return self.skill_slots.exists()
-    
+
     @property
     def total_workers_needed(self):
         """Calculate total workers needed across all skill slots.
         For agency jobs with skill slots, sum workers_needed. Otherwise 1."""
         if not self.has_skill_slots:
             return 1
-        return self.skill_slots.aggregate(
-            total=models.Sum('workers_needed')
-        )['total'] or 0
-    
+        return (
+            self.skill_slots.aggregate(total=models.Sum("workers_needed"))["total"] or 0
+        )
+
     @property
     def total_workers_assigned(self):
-        """Count of workers currently assigned to this job."""
+        """Count of workers + agency employees currently assigned to this job."""
         if not self.has_skill_slots:
             return 1 if self.assignedWorkerID else 0
-        return self.worker_assignments.filter(
-            assignment_status__in=['ACTIVE', 'COMPLETED']
+        worker_count = self.worker_assignments.filter(
+            assignment_status__in=["ACTIVE", "COMPLETED"]
         ).count()
-    
+        # Also count agency employees assigned to skill slots on this job
+        employee_count = JobEmployeeAssignment.objects.filter(
+            job=self,
+            skill_slot__isnull=False,
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        ).count()
+        return worker_count + employee_count
+
     @property
     def team_fill_percentage(self):
         """Percentage of positions filled."""
@@ -1630,107 +1657,102 @@ class Job(models.Model):
         if needed == 0:
             return 0
         return round((self.total_workers_assigned / needed) * 100, 2)
-    
+
     @property
     def can_start_team_job(self):
         """Check if job has enough workers to start."""
         if not self.has_skill_slots:
             return self.assignedWorkerID is not None
         return self.team_fill_percentage >= float(self.team_job_start_threshold)
+
     # ============================================================
-    
+
     # Job Status
     class JobStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
         COMPLETED = "COMPLETED", "Completed"
         CANCELLED = "CANCELLED", "Cancelled"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=JobStatus.choices,
-        default="ACTIVE"
+        max_length=15, choices=JobStatus.choices, default="ACTIVE"
     )
-    
+
     # Invite Status (for INVITE-type jobs)
     class InviteStatus(models.TextChoices):
         PENDING = "PENDING", "Pending Agency Response"
         ACCEPTED = "ACCEPTED", "Agency Accepted"
         REJECTED = "REJECTED", "Agency Rejected"
-    
+
     inviteStatus = models.CharField(
         max_length=10,
         choices=InviteStatus.choices,
         null=True,
         blank=True,
-        help_text="Status of agency/worker invite (only for INVITE-type jobs)"
+        help_text="Status of agency/worker invite (only for INVITE-type jobs)",
     )
     inviteRejectionReason = models.TextField(
         null=True,
         blank=True,
-        help_text="Reason provided by agency/worker for rejecting the invite"
+        help_text="Reason provided by agency/worker for rejecting the invite",
     )
     inviteRespondedAt = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Timestamp when agency/worker responded to invite"
+        help_text="Timestamp when agency/worker responded to invite",
     )
-    
+
     # Assigned Worker or Agency
     assignedWorkerID = models.ForeignKey(
-        'WorkerProfile',
+        "WorkerProfile",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='assigned_jobs',
-        help_text="Worker assigned to this job (for individual workers)"
+        related_name="assigned_jobs",
+        help_text="Worker assigned to this job (for individual workers)",
     )
-    
+
     assignedAgencyFK = models.ForeignKey(
-        'Agency',
+        "Agency",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='assigned_jobs',
-        help_text="Agency assigned to this job (for agency hires)"
+        related_name="assigned_jobs",
+        help_text="Agency assigned to this job (for agency hires)",
     )
 
     # LEGACY: Single employee assignment (kept for backward compatibility)
     # New jobs should use assignedEmployees (ManyToMany) instead
     assignedEmployeeID = models.ForeignKey(
-        'agency.AgencyEmployee',
+        "agency.AgencyEmployee",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='legacy_assigned_jobs',
-        help_text="LEGACY: Single employee assignment. Use assignedEmployees for new jobs."
+        related_name="legacy_assigned_jobs",
+        help_text="LEGACY: Single employee assignment. Use assignedEmployees for new jobs.",
     )
 
     # NEW: Multiple employees can be assigned via through table
     assignedEmployees = models.ManyToManyField(
-        'agency.AgencyEmployee',
-        through='JobEmployeeAssignment',
+        "agency.AgencyEmployee",
+        through="JobEmployeeAssignment",
         blank=True,
-        related_name='assigned_jobs_multi',
-        help_text="Multiple agency employees assigned to this job"
+        related_name="assigned_jobs_multi",
+        help_text="Multiple agency employees assigned to this job",
     )
 
     employeeAssignedAt = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="When first employee was assigned by agency"
+        null=True, blank=True, help_text="When first employee was assigned by agency"
     )
 
     assignmentNotes = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Notes from agency about this assignment"
+        null=True, blank=True, help_text="Notes from agency about this assignment"
     )
-    
+
     # Completion Details
     completedAt = models.DateTimeField(null=True, blank=True)
     cancellationReason = models.TextField(null=True, blank=True)
-    
+
     # Work started tracking (client confirms worker has arrived)
     clientConfirmedWorkStarted = models.BooleanField(default=False)
     clientConfirmedWorkStartedAt = models.DateTimeField(null=True, blank=True)
@@ -1740,13 +1762,20 @@ class Job(models.Model):
     workerMarkedOnTheWayAt = models.DateTimeField(null=True, blank=True)
     workerMarkedJobStarted = models.BooleanField(default=False)
     workerMarkedJobStartedAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Two-phase completion tracking
     workerMarkedComplete = models.BooleanField(default=False)
     clientMarkedComplete = models.BooleanField(default=False)
     workerMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     clientMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
-    
+
+    # Single DAILY job early completion (client ends job early with full pay)
+    is_early_completed = models.BooleanField(default=False)
+    early_completed_at = models.DateTimeField(null=True, blank=True)
+    early_completion_payout = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+
     # ============================================================
     # PAYMENT BUFFER SYSTEM - 7-Day Holding Period
     # Worker receives "Due Balance" which releases after buffer period
@@ -1757,20 +1786,18 @@ class Job(models.Model):
         BACKJOB_PENDING = "BACKJOB_PENDING", "Backjob request pending"
         ADMIN_HOLD = "ADMIN_HOLD", "Admin manually holding payment"
         RELEASED = "RELEASED", "Payment released to worker"
-    
+
     paymentReleaseDate = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Date when payment will be released to worker (completedAt + buffer days)"
+        help_text="Date when payment will be released to worker (completedAt + buffer days)",
     )
     paymentReleasedToWorker = models.BooleanField(
         default=False,
-        help_text="Whether the payment has been released to worker's wallet"
+        help_text="Whether the payment has been released to worker's wallet",
     )
     paymentReleasedAt = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Timestamp when payment was released to worker"
+        null=True, blank=True, help_text="Timestamp when payment was released to worker"
     )
     paymentHeldReason = models.CharField(
         max_length=20,
@@ -1778,29 +1805,32 @@ class Job(models.Model):
         default="BUFFER_PERIOD",
         null=True,
         blank=True,
-        help_text="Reason why payment is being held"
+        help_text="Reason why payment is being held",
     )
     # ============================================================
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        ordering = ['-createdAt']
-        db_table = 'jobs'
+        ordering = ["-createdAt"]
+        db_table = "jobs"
         indexes = [
-            models.Index(fields=['clientID', '-createdAt']),
-            models.Index(fields=['status', '-createdAt']),
-            models.Index(fields=['categoryID', 'status']),
-            models.Index(fields=['urgency', '-createdAt']),
-            models.Index(fields=['assignedWorkerID', 'status']),
-            models.Index(fields=['assignedEmployeeID', 'status'], name='job_assign_emp_status_idx'),
+            models.Index(fields=["clientID", "-createdAt"]),
+            models.Index(fields=["status", "-createdAt"]),
+            models.Index(fields=["categoryID", "status"]),
+            models.Index(fields=["urgency", "-createdAt"]),
+            models.Index(fields=["assignedWorkerID", "status"]),
+            models.Index(
+                fields=["assignedEmployeeID", "status"],
+                name="job_assign_emp_status_idx",
+            ),
         ]
-    
+
     def __str__(self):
         return f"{self.title} - {self.clientID.profileID.accountFK.email}"
-    
+
     def save(self, *args, **kwargs):
         """Override save to create job log entry on status change"""
         # Check if this is an update (not a new instance)
@@ -1811,22 +1841,22 @@ class Job(models.Model):
                 if old_instance.status != self.status:
                     # Import here to avoid circular dependency
                     from django.utils import timezone
-                    
+
                     # Save the job first
                     super().save(*args, **kwargs)
-                    
+
                     # Create log entry
                     JobLog.objects.create(
                         jobID=self,
                         oldStatus=old_instance.status,
                         newStatus=self.status,
                         changedBy=None,  # You can pass this through kwargs if needed
-                        notes=f"Status changed from {old_instance.status} to {self.status}"
+                        notes=f"Status changed from {old_instance.status} to {self.status}",
                     )
                     return
             except Job.DoesNotExist:
                 pass
-        
+
         # Normal save
         super().save(*args, **kwargs)
 
@@ -1836,54 +1866,51 @@ class JobEmployeeAssignment(models.Model):
     Through table for many-to-many relationship between Jobs and AgencyEmployees.
     Allows multiple employees to be assigned to a single job.
     """
+
     assignmentID = models.BigAutoField(primary_key=True)
     job = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='employee_assignments'
+        Job, on_delete=models.CASCADE, related_name="employee_assignments"
     )
     employee = models.ForeignKey(
-        'agency.AgencyEmployee',
+        "agency.AgencyEmployee",
         on_delete=models.CASCADE,
-        related_name='job_assignments'
+        related_name="job_assignments",
     )
-    
+
     # Assignment metadata
     assignedAt = models.DateTimeField(auto_now_add=True)
     assignedBy = models.ForeignKey(
-        'Accounts',
+        "Accounts",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='employee_assignments_made',
-        help_text="The agency owner who made this assignment"
+        related_name="employee_assignments_made",
+        help_text="The agency owner who made this assignment",
     )
     notes = models.TextField(blank=True, default="")
-    
+
     # Role in the job
     isPrimaryContact = models.BooleanField(
         default=False,
-        help_text="If true, this employee is the team lead/primary contact for this job"
+        help_text="If true, this employee is the team lead/primary contact for this job",
     )
-    
+
     # Status tracking
     class AssignmentStatus(models.TextChoices):
         ASSIGNED = "ASSIGNED", "Assigned"
         IN_PROGRESS = "IN_PROGRESS", "In Progress"
         COMPLETED = "COMPLETED", "Completed"
         REMOVED = "REMOVED", "Removed from job"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=AssignmentStatus.choices,
-        default="ASSIGNED"
+        max_length=15, choices=AssignmentStatus.choices, default="ASSIGNED"
     )
-    
+
     # Completion tracking per employee
     employeeMarkedComplete = models.BooleanField(default=False)
     employeeMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     completionNotes = models.TextField(blank=True, default="")
-    
+
     # ========== PROJECT JOB WORKFLOW TRACKING ==========
     # Mirrors the workflow pattern from DailyAttendance (for DAILY jobs)
     # and JobWorkerAssignment (for team jobs)
@@ -1893,57 +1920,58 @@ class JobEmployeeAssignment(models.Model):
     # 2. Client confirms arrival (clientConfirmedArrival=True)
     # 3. Worker tells agency rep job is done -> Agency marks complete (agencyMarkedComplete=True)
     # 4. Client approves and pays
-    
+
     dispatched = models.BooleanField(
         default=False,
-        help_text="Agency has dispatched this employee (on the way to client)"
+        help_text="Agency has dispatched this employee (on the way to client)",
     )
     dispatchedAt = models.DateTimeField(null=True, blank=True)
-    
+
     clientConfirmedArrival = models.BooleanField(
-        default=False,
-        help_text="Client has confirmed this employee arrived on site"
+        default=False, help_text="Client has confirmed this employee arrived on site"
     )
     clientConfirmedArrivalAt = models.DateTimeField(null=True, blank=True)
-    
+
     agencyMarkedComplete = models.BooleanField(
-        default=False,
-        help_text="Agency has marked this employee's work as complete"
+        default=False, help_text="Agency has marked this employee's work as complete"
     )
     agencyMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Per-employee payment tracking
     paymentAmount = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True,
-        help_text="Per-employee share of the remaining project payment"
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Per-employee share of the remaining project payment",
     )
-    
+
     # Client per-employee approval
     clientApproved = models.BooleanField(
         default=False,
-        help_text="Client has approved this employee's work and paid their share"
+        help_text="Client has approved this employee's work and paid their share",
     )
     clientApprovedAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Skill slot assignment (for multi-employee INVITE jobs)
     skill_slot = models.ForeignKey(
-        'JobSkillSlot',
+        "JobSkillSlot",
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='employee_slot_assignments',
-        help_text="The skill slot this employee is assigned to (for multi-employee INVITE jobs)"
+        related_name="employee_slot_assignments",
+        help_text="The skill slot this employee is assigned to (for multi-employee INVITE jobs)",
     )
-    
+
     class Meta:
-        db_table = 'job_employee_assignments'
-        unique_together = ['job', 'employee']  # Prevent duplicate assignments
-        ordering = ['-isPrimaryContact', 'assignedAt']  # Primary contact first
+        db_table = "job_employee_assignments"
+        unique_together = ["job", "employee"]  # Prevent duplicate assignments
+        ordering = ["-isPrimaryContact", "assignedAt"]  # Primary contact first
         indexes = [
-            models.Index(fields=['job', 'status']),
-            models.Index(fields=['employee', 'status']),
+            models.Index(fields=["job", "status"]),
+            models.Index(fields=["employee", "status"]),
         ]
-    
+
     def __str__(self):
         return f"{self.employee.name} assigned to {self.job.title}"
 
@@ -1952,21 +1980,18 @@ class JobPhoto(models.Model):
     """
     Photos attached to jobs
     """
+
     photoID = models.BigAutoField(primary_key=True)
-    jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='photos'
-    )
-    
+    jobID = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="photos")
+
     photoURL = models.CharField(max_length=255)
     fileName = models.CharField(max_length=255, null=True, blank=True)
     uploadedAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        db_table = 'job_photos'
-        ordering = ['-uploadedAt']
-    
+        db_table = "job_photos"
+        ordering = ["-uploadedAt"]
+
     def __str__(self):
         return f"Photo for {self.jobID.title}"
 
@@ -1975,13 +2000,10 @@ class JobLog(models.Model):
     """
     Tracks all status changes and important events for jobs
     """
+
     logID = models.BigAutoField(primary_key=True)
-    jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='logs'
-    )
-    
+    jobID = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="logs")
+
     # Action type for distinguishing different log types
     class ActionType(models.TextChoices):
         STATUS_CHANGE = "STATUS_CHANGE", "Status Change"
@@ -1991,49 +2013,49 @@ class JobLog(models.Model):
         APPLICATION_RECEIVED = "APPLICATION_RECEIVED", "Application Received"
         JOB_CREATED = "JOB_CREATED", "Job Created"
         JOB_DELETED = "JOB_DELETED", "Job Deleted"
-    
+
     actionType = models.CharField(
         max_length=30,
         choices=ActionType.choices,
         default=ActionType.STATUS_CHANGE,
-        help_text="Type of action that triggered this log entry"
+        help_text="Type of action that triggered this log entry",
     )
-    
+
     # Status tracking (for STATUS_CHANGE actions)
     oldStatus = models.CharField(max_length=30, null=True, blank=True)
     newStatus = models.CharField(max_length=30, null=True, blank=True)
-    
+
     # Who made the change
     changedBy = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='job_status_changes'
+        related_name="job_status_changes",
     )
-    
+
     # Additional details
     notes = models.TextField(null=True, blank=True)
-    
+
     # Metadata for storing detailed change information (JSON)
     metadata = models.JSONField(
         null=True,
         blank=True,
-        help_text="Stores additional data like field changes, old/new values, edit reasons"
+        help_text="Stores additional data like field changes, old/new values, edit reasons",
     )
-    
+
     # Timestamp
     createdAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        db_table = 'job_logs'
-        ordering = ['-createdAt']
+        db_table = "job_logs"
+        ordering = ["-createdAt"]
         indexes = [
-            models.Index(fields=['jobID', '-createdAt']),
-            models.Index(fields=['newStatus', '-createdAt']),
-            models.Index(fields=['actionType', '-createdAt']),
+            models.Index(fields=["jobID", "-createdAt"]),
+            models.Index(fields=["newStatus", "-createdAt"]),
+            models.Index(fields=["actionType", "-createdAt"]),
         ]
-    
+
     def __str__(self):
         return f"Job #{self.jobID.jobID} - {self.oldStatus} → {self.newStatus}"
 
@@ -2042,160 +2064,255 @@ class JobApplication(models.Model):
     """
     Applications submitted by workers for jobs
     """
+
     applicationID = models.BigAutoField(primary_key=True)
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='applications'
+        Job, on_delete=models.CASCADE, related_name="applications"
     )
     workerID = models.ForeignKey(
-        'WorkerProfile',
-        on_delete=models.CASCADE,
-        related_name='job_applications'
+        "WorkerProfile", on_delete=models.CASCADE, related_name="job_applications"
     )
-    
+
     # Team Mode: Skill Slot Reference (for team jobs)
     applied_skill_slot = models.ForeignKey(
-        'JobSkillSlot',
+        "JobSkillSlot",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='applications',
-        help_text="Which skill slot this worker is applying for (team jobs only)"
+        related_name="applications",
+        help_text="Which skill slot this worker is applying for (team jobs only)",
     )
-    
+
     # Proposal Details
     proposalMessage = models.TextField()
     proposedBudget = models.DecimalField(max_digits=10, decimal_places=2)
     estimatedDuration = models.CharField(max_length=100, blank=True, null=True)
-    
+
+    # Daily Rate Negotiation (for DAILY payment_model jobs)
+    proposed_daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Worker's proposed daily rate (only for DAILY payment_model jobs)",
+    )
+    proposed_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Worker's proposed number of work days (only for DAILY payment_model jobs)",
+    )
+
     # Budget Option
     class BudgetOption(models.TextChoices):
         ACCEPT = "ACCEPT", "Accept Client's Budget"
         NEGOTIATE = "NEGOTIATE", "Negotiate Different Budget"
-    
+
     budgetOption = models.CharField(
-        max_length=20,
-        choices=BudgetOption.choices,
-        default="NEGOTIATE"
+        max_length=20, choices=BudgetOption.choices, default="NEGOTIATE"
     )
-    
+
     # Materials selection during application
     selected_materials = models.JSONField(
         default=list,
         blank=True,
-        help_text="Materials the worker selected from their profile or marked to purchase. Format: [{name, source, price, quantity, worker_material_id}]"
+        help_text="Materials the worker selected from their profile or marked to purchase. Format: [{name, source, price, quantity, worker_material_id}]",
     )
-    
+
     # Application Status
     class ApplicationStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
         ACCEPTED = "ACCEPTED", "Accepted"
         REJECTED = "REJECTED", "Rejected"
         WITHDRAWN = "WITHDRAWN", "Withdrawn"
-    
+
     status = models.CharField(
-        max_length=20,
-        choices=ApplicationStatus.choices,
-        default="PENDING"
+        max_length=20, choices=ApplicationStatus.choices, default="PENDING"
     )
-    
+
+    # Price Negotiation tracking
+    negotiation_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of price proposals the worker has submitted (max 3)",
+    )
+
+    # Shift selection (for DAILY jobs where job shift_type = ANY)
+    applied_shift = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="Shift the worker chose when applying: MORNING or NIGHT. Null for legacy/PROJECT jobs.",
+    )
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'job_applications'
-        ordering = ['-createdAt']
+        db_table = "job_applications"
+        ordering = ["-createdAt"]
         indexes = [
-            models.Index(fields=['jobID', '-createdAt']),
-            models.Index(fields=['workerID', '-createdAt']),
-            models.Index(fields=['status', '-createdAt']),
-            models.Index(fields=['applied_skill_slot', 'status']),  # Team job applications
+            models.Index(fields=["jobID", "-createdAt"]),
+            models.Index(fields=["workerID", "-createdAt"]),
+            models.Index(fields=["status", "-createdAt"]),
+            models.Index(
+                fields=["applied_skill_slot", "status"]
+            ),  # Team job applications
         ]
         # Prevent duplicate applications
         # For team jobs: worker can apply to different skill slots of same job
         # For non-team jobs: applied_skill_slot is NULL, so traditional constraint applies
         constraints = [
             models.UniqueConstraint(
-                fields=['jobID', 'workerID', 'applied_skill_slot'],
-                name='unique_job_skill_slot_application'
+                fields=["jobID", "workerID", "applied_skill_slot"],
+                name="unique_job_skill_slot_application",
             ),
             # Also prevent duplicate NULL skill slot applications (non-team jobs)
             models.UniqueConstraint(
-                fields=['jobID', 'workerID'],
+                fields=["jobID", "workerID"],
                 condition=models.Q(applied_skill_slot__isnull=True),
-                name='unique_non_team_job_application'
-            )
+                name="unique_non_team_job_application",
+            ),
         ]
-    
+
     def __str__(self):
-        return f"Application by {self.workerID.profileID.firstName} for {self.jobID.title}"
+        return (
+            f"Application by {self.workerID.profileID.firstName} for {self.jobID.title}"
+        )
 
 
 class SavedJob(models.Model):
     """
     Jobs saved by workers for later viewing
     """
+
     savedJobID = models.BigAutoField(primary_key=True)
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='saved_by_workers'
+        Job, on_delete=models.CASCADE, related_name="saved_by_workers"
     )
     workerID = models.ForeignKey(
-        'WorkerProfile',
-        on_delete=models.CASCADE,
-        related_name='saved_jobs'
+        "WorkerProfile", on_delete=models.CASCADE, related_name="saved_jobs"
     )
-    
+
     # Timestamps
     savedAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        db_table = 'saved_jobs'
-        ordering = ['-savedAt']
+        db_table = "saved_jobs"
+        ordering = ["-savedAt"]
         indexes = [
-            models.Index(fields=['workerID', '-savedAt']),
-            models.Index(fields=['jobID']),
+            models.Index(fields=["workerID", "-savedAt"]),
+            models.Index(fields=["jobID"]),
         ]
         # Prevent duplicate saves
         constraints = [
             models.UniqueConstraint(
-                fields=['jobID', 'workerID'],
-                name='unique_saved_job'
+                fields=["jobID", "workerID"], name="unique_saved_job"
             )
         ]
-    
+
     def __str__(self):
         return f"Saved: {self.jobID.title} by {self.workerID.profileID.firstName}"
+
+
+class PriceNegotiation(models.Model):
+    """
+    Tracks each round of price negotiation between a worker and client
+    on a JobApplication. Supports up to 3 worker proposals with optional
+    client counter-offers between each round.
+    """
+
+    negotiationID = models.BigAutoField(primary_key=True)
+    application = models.ForeignKey(
+        JobApplication,
+        on_delete=models.CASCADE,
+        related_name="price_negotiations",
+    )
+
+    # Who made this entry
+    class Actor(models.TextChoices):
+        WORKER = "WORKER", "Worker"
+        CLIENT = "CLIENT", "Client"
+
+    actor = models.CharField(max_length=10, choices=Actor.choices)
+
+    # round_number counts only WORKER proposals (1, 2, or 3)
+    # CLIENT counter-offer entries always use round_number=0 (not counted)
+    round_number = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Worker proposal round (1-3). 0 for client counter-offers.",
+    )
+
+    # Price fields (mirrors JobApplication proposal fields)
+    proposed_budget = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Total proposed budget (PROJECT) or daily_rate × days (DAILY)",
+    )
+    proposed_daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Proposed daily rate (DAILY jobs only)",
+    )
+    proposed_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Proposed number of working days (DAILY jobs only)",
+    )
+
+    message = models.TextField(
+        blank=True, default="", help_text="Message accompanying the proposal/counter"
+    )
+
+    class NegotiationStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending response"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        REJECTED = "REJECTED", "Rejected (price only — worker can re-propose)"
+        COUNTERED = "COUNTERED", "Client issued a counter-offer"
+        SUPERSEDED = "SUPERSEDED", "Superseded by a newer proposal"
+
+    status = models.CharField(
+        max_length=15,
+        choices=NegotiationStatus.choices,
+        default="PENDING",
+    )
+
+    createdAt = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "price_negotiations"
+        ordering = ["createdAt"]
+        indexes = [
+            models.Index(fields=["application", "createdAt"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"[Round {self.round_number}] {self.actor} proposal "
+            f"₱{self.proposed_budget} on app {self.application_id}"
+        )
 
 
 class JobDispute(models.Model):
     """
     Disputes related to jobs between clients and workers
     """
+
     disputeID = models.BigAutoField(primary_key=True)
-    jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='disputes'
-    )
-    
+    jobID = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="disputes")
+
     # Disputing Parties
     class DisputedBy(models.TextChoices):
         CLIENT = "CLIENT", "Client"
         WORKER = "WORKER", "Worker"
-    
-    disputedBy = models.CharField(
-        max_length=20,
-        choices=DisputedBy.choices
-    )
-    
+
+    disputedBy = models.CharField(max_length=20, choices=DisputedBy.choices)
+
     # Dispute Details
     reason = models.CharField(max_length=200)
     description = models.TextField()
-    
+
     # Status
     class DisputeStatus(models.TextChoices):
         OPEN = "OPEN", "Open"
@@ -2203,35 +2320,33 @@ class JobDispute(models.Model):
         UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
         RESOLVED = "RESOLVED", "Resolved"
         CLOSED = "CLOSED", "Closed"
-    
+
     status = models.CharField(
-        max_length=20,
-        choices=DisputeStatus.choices,
-        default="OPEN"
+        max_length=20, choices=DisputeStatus.choices, default="OPEN"
     )
-    
+
     # Priority
     class DisputePriority(models.TextChoices):
         LOW = "LOW", "Low"
         MEDIUM = "MEDIUM", "Medium"
         HIGH = "HIGH", "High"
         CRITICAL = "CRITICAL", "Critical"
-    
+
     priority = models.CharField(
-        max_length=20,
-        choices=DisputePriority.choices,
-        default="MEDIUM"
+        max_length=20, choices=DisputePriority.choices, default="MEDIUM"
     )
-    
+
     # Amounts
     jobAmount = models.DecimalField(max_digits=10, decimal_places=2)
-    disputedAmount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    
+    disputedAmount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
+    )
+
     # Resolution
     resolution = models.TextField(blank=True, null=True)
     resolvedDate = models.DateTimeField(blank=True, null=True)
     assignedTo = models.CharField(max_length=200, blank=True, null=True)
-    
+
     # Backjob Workflow Tracking (similar to Job workflow)
     # Phase 1: Client confirms worker has started the backjob work
     backjobStarted = models.BooleanField(default=False)
@@ -2242,62 +2357,60 @@ class JobDispute(models.Model):
     # Phase 3: Client confirms backjob is complete
     clientConfirmedBackjob = models.BooleanField(default=False)
     clientConfirmedBackjobAt = models.DateTimeField(blank=True, null=True)
-    
+
     # Terms Acceptance Tracking (for legal compliance)
     termsAccepted = models.BooleanField(default=False)
     termsVersion = models.CharField(max_length=20, blank=True, null=True)
     termsAcceptedAt = models.DateTimeField(blank=True, null=True)
-    
+
     # Admin rejection tracking (for backjob cooldown)
     adminRejectedAt = models.DateTimeField(
-        blank=True, 
+        blank=True,
         null=True,
-        help_text="When admin rejected this backjob request (used for cooldown)"
+        help_text="When admin rejected this backjob request (used for cooldown)",
     )
     adminRejectionReason = models.TextField(
-        blank=True, 
-        null=True,
-        help_text="Reason for admin rejection"
+        blank=True, null=True, help_text="Reason for admin rejection"
     )
-    
+
     # Negotiation tracking
     in_negotiation_at = models.DateTimeField(
         blank=True,
         null=True,
-        help_text="When admin accepted this dispute into negotiation"
+        help_text="When admin accepted this dispute into negotiation",
     )
 
     # Client-proposed date for backjob completion (confirmed by worker/agency)
     scheduled_date = models.DateField(
         blank=True,
         null=True,
-        help_text="Client-set date for when the backjob will be completed, pending worker/agency confirmation"
+        help_text="Client-set date for when the backjob will be completed, pending worker/agency confirmation",
     )
 
     # Worker/agency must explicitly confirm the proposed schedule before activation
     workerScheduleConfirmed = models.BooleanField(
         default=False,
-        help_text="True when the assigned worker/agency confirms the proposed backjob schedule"
+        help_text="True when the assigned worker/agency confirms the proposed backjob schedule",
     )
     workerScheduleConfirmedAt = models.DateTimeField(
         blank=True,
         null=True,
-        help_text="Timestamp when worker/agency confirmed the proposed backjob schedule"
+        help_text="Timestamp when worker/agency confirmed the proposed backjob schedule",
     )
 
     # Timestamps
     openedDate = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'job_disputes'
-        ordering = ['-openedDate']
+        db_table = "job_disputes"
+        ordering = ["-openedDate"]
         indexes = [
-            models.Index(fields=['jobID', '-openedDate']),
-            models.Index(fields=['status', '-openedDate']),
-            models.Index(fields=['priority', '-openedDate']),
+            models.Index(fields=["jobID", "-openedDate"]),
+            models.Index(fields=["status", "-openedDate"]),
+            models.Index(fields=["priority", "-openedDate"]),
         ]
-    
+
     def __str__(self):
         return f"Dispute #{self.disputeID} - {self.jobID.title}"
 
@@ -2308,71 +2421,71 @@ class BackjobScheduleConfirmation(models.Model):
     A dispute is considered fully schedule-confirmed only when all active
     team assignments have confirmed.
     """
+
     confirmationID = models.BigAutoField(primary_key=True)
     disputeID = models.ForeignKey(
-        JobDispute,
-        on_delete=models.CASCADE,
-        related_name='team_schedule_confirmations'
+        JobDispute, on_delete=models.CASCADE, related_name="team_schedule_confirmations"
     )
     assignmentID = models.ForeignKey(
-        'JobWorkerAssignment',
+        "JobWorkerAssignment",
         on_delete=models.CASCADE,
-        related_name='backjob_schedule_confirmations'
+        related_name="backjob_schedule_confirmations",
     )
     confirmed = models.BooleanField(default=True)
     confirmedAt = models.DateTimeField(auto_now_add=True)
     confirmedBy = models.ForeignKey(
-        'Accounts',
+        "Accounts",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='backjob_schedule_confirmations'
+        related_name="backjob_schedule_confirmations",
     )
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'backjob_schedule_confirmations'
-        ordering = ['-confirmedAt']
+        db_table = "backjob_schedule_confirmations"
+        ordering = ["-confirmedAt"]
         indexes = [
-            models.Index(fields=['disputeID', '-confirmedAt']),
-            models.Index(fields=['assignmentID']),
+            models.Index(fields=["disputeID", "-confirmedAt"]),
+            models.Index(fields=["assignmentID"]),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['disputeID', 'assignmentID'],
-                name='unique_backjob_confirmation_per_assignment'
+                fields=["disputeID", "assignmentID"],
+                name="unique_backjob_confirmation_per_assignment",
             )
         ]
 
     def __str__(self):
-        return f"Backjob confirm #{self.confirmationID} for dispute #{self.disputeID_id}"
+        return (
+            f"Backjob confirm #{self.confirmationID} for dispute #{self.disputeID_id}"
+        )
 
 
 class DisputeEvidence(models.Model):
     """
     Evidence images attached to job disputes/backjob requests
     """
+
     evidenceID = models.BigAutoField(primary_key=True)
     disputeID = models.ForeignKey(
-        JobDispute,
-        on_delete=models.CASCADE,
-        related_name='evidence'
+        JobDispute, on_delete=models.CASCADE, related_name="evidence"
     )
     imageURL = models.CharField(max_length=500)
     description = models.TextField(blank=True, null=True)
     uploadedBy = models.ForeignKey(
-        'Accounts',
+        "Accounts",
         on_delete=models.SET_NULL,
         null=True,
-        related_name='dispute_evidence'
+        related_name="dispute_evidence",
     )
     createdAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        db_table = 'dispute_evidence'
-        ordering = ['-createdAt']
-    
+        db_table = "dispute_evidence"
+        ordering = ["-createdAt"]
+
     def __str__(self):
         return f"Evidence #{self.evidenceID} for Dispute #{self.disputeID_id}"
 
@@ -2383,114 +2496,117 @@ class JobReview(models.Model):
     Both clients and workers can review each other after job completion
     For agency jobs, clients can review both the employee AND the agency
     """
+
     reviewID = models.BigAutoField(primary_key=True)
-    jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='reviews'
-    )
-    
+    jobID = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="reviews")
+
     # Who gave the review
     reviewerID = models.ForeignKey(
-        Accounts,
-        on_delete=models.CASCADE,
-        related_name='reviews_given'
+        Accounts, on_delete=models.CASCADE, related_name="reviews_given"
     )
-    
+
     # Who received the review (for regular worker/client reviews)
     revieweeID = models.ForeignKey(
         Accounts,
         on_delete=models.CASCADE,
-        related_name='reviews_received',
+        related_name="reviews_received",
         null=True,
-        blank=True
+        blank=True,
     )
-    
+
     # Profile-specific reviewee (to separate WORKER vs CLIENT reviews for same account)
     revieweeProfileID = models.ForeignKey(
         Profile,
         on_delete=models.CASCADE,
-        related_name='reviews_received',
+        related_name="reviews_received",
         null=True,
         blank=True,
-        help_text="The specific profile (WORKER or CLIENT) that received this review"
+        help_text="The specific profile (WORKER or CLIENT) that received this review",
     )
-    
+
     # For agency employee reviews
     revieweeEmployeeID = models.ForeignKey(
-        'agency.AgencyEmployee',
+        "agency.AgencyEmployee",
         on_delete=models.CASCADE,
-        related_name='reviews_received',
+        related_name="reviews_received",
         null=True,
-        blank=True
+        blank=True,
     )
-    
+
     # For agency reviews
     revieweeAgencyID = models.ForeignKey(
         Agency,
         on_delete=models.CASCADE,
-        related_name='reviews_received',
+        related_name="reviews_received",
         null=True,
-        blank=True
+        blank=True,
     )
-    
+
     # Review Type (to identify if it's from client, worker, or agency)
     class ReviewerType(models.TextChoices):
         CLIENT = "CLIENT", "Client"
         WORKER = "WORKER", "Worker"
         AGENCY = "AGENCY", "Agency"
-    
-    reviewerType = models.CharField(
-        max_length=10,
-        choices=ReviewerType.choices
-    )
-    
+
+    reviewerType = models.CharField(max_length=10, choices=ReviewerType.choices)
+
     # Rating (1-5 stars, decimal for precision)
     from django.core.validators import MinValueValidator, MaxValueValidator
+
     rating = models.DecimalField(
-        max_digits=3, 
-        decimal_places=2, 
+        max_digits=3,
+        decimal_places=2,
         validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
-        help_text="Overall rating (auto-calculated as average of criteria)"
+        help_text="Overall rating (auto-calculated as average of criteria)",
     )
     # Multi-criteria rating fields (1-5 stars each)
     rating_quality = models.DecimalField(
-        max_digits=3, decimal_places=2, 
+        max_digits=3,
+        decimal_places=2,
         validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
-        null=True, blank=True, help_text="Quality of work rating"
+        null=True,
+        blank=True,
+        help_text="Quality of work rating",
     )
     rating_communication = models.DecimalField(
-        max_digits=3, decimal_places=2, 
+        max_digits=3,
+        decimal_places=2,
         validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
-        null=True, blank=True, help_text="Communication rating"
+        null=True,
+        blank=True,
+        help_text="Communication rating",
     )
     rating_punctuality = models.DecimalField(
-        max_digits=3, decimal_places=2, 
+        max_digits=3,
+        decimal_places=2,
         validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
-        null=True, blank=True, help_text="Punctuality rating"
+        null=True,
+        blank=True,
+        help_text="Punctuality rating",
     )
     rating_professionalism = models.DecimalField(
-        max_digits=3, decimal_places=2, 
+        max_digits=3,
+        decimal_places=2,
         validators=[MinValueValidator(1.0), MaxValueValidator(5.0)],
-        null=True, blank=True, help_text="Professionalism rating"
+        null=True,
+        blank=True,
+        help_text="Professionalism rating",
     )
-    
+
     # Review Content
     comment = models.TextField()
-    
+
     # Review Status
     class ReviewStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Active"
         FLAGGED = "FLAGGED", "Flagged"
         HIDDEN = "HIDDEN", "Hidden"
         DELETED = "DELETED", "Deleted"
-    
+
     status = models.CharField(
-        max_length=10,
-        choices=ReviewStatus.choices,
-        default="ACTIVE"
+        max_length=10, choices=ReviewStatus.choices, default="ACTIVE"
     )
-    
+
     # Moderation
     isFlagged = models.BooleanField(default=False)
     flagReason = models.TextField(blank=True, null=True)
@@ -2499,10 +2615,10 @@ class JobReview(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='flagged_reviews'
+        related_name="flagged_reviews",
     )
     flaggedAt = models.DateTimeField(blank=True, null=True)
-    
+
     # Helpful votes (optional feature)
     helpfulCount = models.IntegerField(default=0)
 
@@ -2510,42 +2626,40 @@ class JobReview(models.Model):
     agency_response = models.TextField(
         null=True,
         blank=True,
-        help_text="Response from the agency or reviewee to this review"
+        help_text="Response from the agency or reviewee to this review",
     )
     agency_response_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Timestamp when the response was submitted"
+        null=True, blank=True, help_text="Timestamp when the response was submitted"
     )
 
     # Backjob review edit window (7 days after backjob resolved)
     backjob_edit_deadline = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Deadline for client to edit review after backjob resolution"
+        help_text="Deadline for client to edit review after backjob resolution",
     )
 
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'job_reviews'
-        ordering = ['-createdAt']
+        db_table = "job_reviews"
+        ordering = ["-createdAt"]
         indexes = [
-            models.Index(fields=['jobID', '-createdAt']),
-            models.Index(fields=['reviewerID', '-createdAt']),
-            models.Index(fields=['revieweeID', '-createdAt']),
-            models.Index(fields=['revieweeProfileID', '-createdAt']),
-            models.Index(fields=['revieweeEmployeeID', '-createdAt']),
-            models.Index(fields=['revieweeAgencyID', '-createdAt']),
-            models.Index(fields=['status', '-createdAt']),
-            models.Index(fields=['isFlagged', '-createdAt']),
+            models.Index(fields=["jobID", "-createdAt"]),
+            models.Index(fields=["reviewerID", "-createdAt"]),
+            models.Index(fields=["revieweeID", "-createdAt"]),
+            models.Index(fields=["revieweeProfileID", "-createdAt"]),
+            models.Index(fields=["revieweeEmployeeID", "-createdAt"]),
+            models.Index(fields=["revieweeAgencyID", "-createdAt"]),
+            models.Index(fields=["status", "-createdAt"]),
+            models.Index(fields=["isFlagged", "-createdAt"]),
         ]
         # Note: Unique constraint removed to allow multiple reviews for agency jobs
         # (client reviews employee + agency separately)
         # Uniqueness is now enforced in the API layer
-    
+
     def __str__(self):
         return f"Review by {self.reviewerID.email} for job #{self.jobID.jobID} - {self.rating}★"
 
@@ -2555,29 +2669,30 @@ class ReviewSkillTag(models.Model):
     Junction table linking reviews to specific skills demonstrated in the job.
     Allows clients to rate workers on specific skills (e.g., 5★ for Plumbing, 4★ for Punctuality)
     """
+
     tagID = models.BigAutoField(primary_key=True)
     reviewID = models.ForeignKey(
-        JobReview,
-        on_delete=models.CASCADE,
-        related_name='skill_tags'
+        JobReview, on_delete=models.CASCADE, related_name="skill_tags"
     )
     workerSpecializationID = models.ForeignKey(
-        'workerSpecialization',
+        "workerSpecialization",
         on_delete=models.CASCADE,
-        related_name='review_tags',
-        help_text="The specific skill being tagged (from worker's skill list)"
+        related_name="review_tags",
+        help_text="The specific skill being tagged (from worker's skill list)",
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        db_table = 'review_skill_tags'
-        unique_together = [['reviewID', 'workerSpecializationID']]  # One tag per skill per review
+        db_table = "review_skill_tags"
+        unique_together = [
+            ["reviewID", "workerSpecializationID"]
+        ]  # One tag per skill per review
         indexes = [
-            models.Index(fields=['reviewID']),
-            models.Index(fields=['workerSpecializationID']),
+            models.Index(fields=["reviewID"]),
+            models.Index(fields=["workerSpecializationID"]),
         ]
-    
+
     def __str__(self):
         return f"Review #{self.reviewID.reviewID} tagged with skill #{self.workerSpecializationID.id}"
 
@@ -2591,95 +2706,92 @@ class Wallet(models.Model):
     """
     User wallet for managing funds
     """
+
     walletID = models.BigAutoField(primary_key=True)
     accountFK = models.OneToOneField(
-        Accounts,
-        on_delete=models.CASCADE,
-        related_name='wallet'
+        Accounts, on_delete=models.CASCADE, related_name="wallet"
     )
-    
+
     # Balance
     balance = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('0.00')
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
-    
+
     # Reserved balance (funds reserved for pending jobs, not yet deducted)
     reservedBalance = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=Decimal('0.00')
+        max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
-    
+
     # Pending Earnings (Due Balance) - funds from completed jobs awaiting release
     # This is the "7-day buffer" where payment is held before transferring to balance
     pendingEarnings = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text="Earnings from completed jobs pending release (7-day buffer)"
+        default=Decimal("0.00"),
+        help_text="Earnings from completed jobs pending release (7-day buffer)",
     )
-    
+
     # Auto-Withdrawal Settings (Friday weekly auto-withdrawal requests)
     autoWithdrawEnabled = models.BooleanField(
         default=False,
-        help_text="Enable automatic weekly withdrawal requests every Friday"
+        help_text="Enable automatic weekly withdrawal requests every Friday",
     )
     preferredPaymentMethodID = models.ForeignKey(
-        'UserPaymentMethod',
+        "UserPaymentMethod",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='auto_withdraw_wallets',
-        help_text="Preferred payment method for auto-withdrawals"
+        related_name="auto_withdraw_wallets",
+        help_text="Preferred payment method for auto-withdrawals",
     )
     lastAutoWithdrawAt = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Last time an auto-withdrawal request was created"
+        help_text="Last time an auto-withdrawal request was created",
     )
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         indexes = [
-            models.Index(fields=['accountFK']),
-            models.Index(fields=['autoWithdrawEnabled']),
+            models.Index(fields=["accountFK"]),
+            models.Index(fields=["autoWithdrawEnabled"]),
         ]
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(balance__gte=Decimal('0.00')),
-                name='wallet_balance_non_negative',
+                condition=models.Q(balance__gte=Decimal("0.00")),
+                name="wallet_balance_non_negative",
             ),
             models.CheckConstraint(
-                condition=models.Q(reservedBalance__gte=Decimal('0.00')),
-                name='wallet_reserved_non_negative',
+                condition=models.Q(reservedBalance__gte=Decimal("0.00")),
+                name="wallet_reserved_non_negative",
             ),
             models.CheckConstraint(
-                condition=models.Q(pendingEarnings__gte=Decimal('0.00')),
-                name='wallet_pending_non_negative',
+                condition=models.Q(pendingEarnings__gte=Decimal("0.00")),
+                name="wallet_pending_non_negative",
             ),
             models.CheckConstraint(
-                condition=models.Q(balance__gte=models.F('reservedBalance')),
-                name='wallet_balance_gte_reserved',
+                condition=models.Q(balance__gte=models.F("reservedBalance")),
+                name="wallet_balance_gte_reserved",
             ),
         ]
-    
+
     @property
     def availableBalance(self):
         """Returns the balance available for new reservations (balance - reserved)"""
         return self.balance - self.reservedBalance
-    
+
     @property
     def totalBalance(self):
         """Returns total balance including pending earnings (balance + pendingEarnings)"""
         return self.balance + self.pendingEarnings
-    
+
     def __str__(self):
-        pending_str = f" + ₱{self.pendingEarnings} pending" if self.pendingEarnings > 0 else ""
+        pending_str = (
+            f" + ₱{self.pendingEarnings} pending" if self.pendingEarnings > 0 else ""
+        )
         return f"Wallet for {self.accountFK.email} - ₱{self.balance}{pending_str} (₱{self.reservedBalance} reserved)"
 
 
@@ -2687,13 +2799,12 @@ class Transaction(models.Model):
     """
     Transaction history for wallet operations
     """
+
     transactionID = models.BigAutoField(primary_key=True)
     walletID = models.ForeignKey(
-        Wallet,
-        on_delete=models.CASCADE,
-        related_name='transactions'
+        Wallet, on_delete=models.CASCADE, related_name="transactions"
     )
-    
+
     # Transaction Type
     class TransactionType(models.TextChoices):
         DEPOSIT = "DEPOSIT", "Deposit"
@@ -2704,44 +2815,39 @@ class Transaction(models.Model):
         PENDING_EARNING = "PENDING_EARNING", "Pending Earning (7-day buffer)"
         FEE = "FEE", "Platform Fee"
         MATERIALS_REIMBURSEMENT = "MATERIALS_REIMBURSEMENT", "Materials Reimbursement"
-    
-    transactionType = models.CharField(
-        max_length=30,
-        choices=TransactionType.choices
-    )
-    
+
+    transactionType = models.CharField(max_length=30, choices=TransactionType.choices)
+
     # Amount
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     # Balance after transaction
     balanceAfter = models.DecimalField(max_digits=10, decimal_places=2)
-    
+
     # Transaction Status
     class TransactionStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
         COMPLETED = "COMPLETED", "Completed"
         FAILED = "FAILED", "Failed"
         CANCELLED = "CANCELLED", "Cancelled"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=TransactionStatus.choices,
-        default="COMPLETED"
+        max_length=15, choices=TransactionStatus.choices, default="COMPLETED"
     )
-    
+
     # Description/Reference
     description = models.CharField(max_length=255, blank=True, null=True)
     referenceNumber = models.CharField(max_length=100, blank=True, null=True)
-    
+
     # Optional: Link to job posting if transaction is job-related
     relatedJobPosting = models.ForeignKey(
         JobPosting,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='transactions'
+        related_name="transactions",
     )
-    
+
     # Payment Method (for deposits/withdrawals)
     class PaymentMethod(models.TextChoices):
         WALLET = "WALLET", "Wallet"
@@ -2750,72 +2856,84 @@ class Transaction(models.Model):
         CARD = "CARD", "Credit/Debit Card"
         BANK_TRANSFER = "BANK_TRANSFER", "Bank Transfer"
         CASH = "CASH", "Cash"
-    
+
     paymentMethod = models.CharField(
         max_length=20,
         choices=PaymentMethod.choices,
         default="WALLET",
         blank=True,
-        null=True
+        null=True,
     )
-    
+
     # Xendit Integration Fields
-    xenditInvoiceID = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    xenditInvoiceID = models.CharField(
+        max_length=255, blank=True, null=True, unique=True
+    )
     xenditPaymentID = models.CharField(max_length=255, blank=True, null=True)
-    xenditPaymentChannel = models.CharField(max_length=50, blank=True, null=True)  # e.g., "GCASH"
-    xenditPaymentMethod = models.CharField(max_length=50, blank=True, null=True)   # e.g., "EWALLET"
-    invoiceURL = models.URLField(max_length=500, blank=True, null=True)  # Payment redirect URL
-    xenditExternalID = models.CharField(max_length=255, blank=True, null=True)  # Our internal reference
+    xenditPaymentChannel = models.CharField(
+        max_length=50, blank=True, null=True
+    )  # e.g., "GCASH"
+    xenditPaymentMethod = models.CharField(
+        max_length=50, blank=True, null=True
+    )  # e.g., "EWALLET"
+    invoiceURL = models.URLField(
+        max_length=500, blank=True, null=True
+    )  # Payment redirect URL
+    xenditExternalID = models.CharField(
+        max_length=255, blank=True, null=True
+    )  # Our internal reference
     paymongoPaymentId = models.CharField(
-        max_length=100, blank=True, null=True,
-        help_text="PayMongo pay_xxx payment ID (from webhook payments[] or lazy-fetched via checkout session)"
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="PayMongo pay_xxx payment ID (from webhook payments[] or lazy-fetched via checkout session)",
     )
     paymongoTransferId = models.CharField(
         max_length=100,
         blank=True,
         null=True,
-        help_text="PayMongo transfer ID (trf_xxx) for BANK withdrawal processing"
+        help_text="PayMongo transfer ID (trf_xxx) for BANK withdrawal processing",
     )
     paymongoTransferStatus = models.CharField(
         max_length=30,
         blank=True,
         null=True,
-        help_text="Latest PayMongo transfer status for BANK withdrawals"
+        help_text="Latest PayMongo transfer status for BANK withdrawals",
     )
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     completedAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Admin audit fields for manual withdrawal processing
     adminReferenceNumber = models.CharField(
-        max_length=100, 
-        blank=True, 
+        max_length=100,
+        blank=True,
         null=True,
-        help_text="Reference number from admin when manually processing withdrawal (e.g., bank ref #)"
+        help_text="Reference number from admin when manually processing withdrawal (e.g., bank ref #)",
     )
     processedByAdmin = models.ForeignKey(
-        'Accounts',
+        "Accounts",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='processed_withdrawals',
-        help_text="Admin who processed this withdrawal"
+        related_name="processed_withdrawals",
+        help_text="Admin who processed this withdrawal",
     )
     processedAt = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ["-createdAt"]
         indexes = [
-            models.Index(fields=['walletID', '-createdAt']),
-            models.Index(fields=['transactionType', '-createdAt']),
-            models.Index(fields=['status', '-createdAt']),
-            models.Index(fields=['referenceNumber']),
-            models.Index(fields=['xenditInvoiceID']),
-            models.Index(fields=['xenditExternalID']),
-            models.Index(fields=['adminReferenceNumber']),
+            models.Index(fields=["walletID", "-createdAt"]),
+            models.Index(fields=["transactionType", "-createdAt"]),
+            models.Index(fields=["status", "-createdAt"]),
+            models.Index(fields=["referenceNumber"]),
+            models.Index(fields=["xenditInvoiceID"]),
+            models.Index(fields=["xenditExternalID"]),
+            models.Index(fields=["adminReferenceNumber"]),
         ]
-    
+
     def __str__(self):
         return f"{self.transactionType} - ₱{self.amount} - {self.status}"
 
@@ -2825,24 +2943,25 @@ class City(models.Model):
     City model for location data
     Stores cities/municipalities in the Philippines
     """
+
     cityID = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True)
     province = models.CharField(max_length=100)
     region = models.CharField(max_length=100)
     zipCode = models.CharField(max_length=10, null=True, blank=True)
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        ordering = ['name']
-        verbose_name_plural = 'Cities'
+        ordering = ["name"]
+        verbose_name_plural = "Cities"
         indexes = [
-            models.Index(fields=['name']),
-            models.Index(fields=['province']),
+            models.Index(fields=["name"]),
+            models.Index(fields=["province"]),
         ]
-    
+
     def __str__(self):
         return f"{self.name}, {self.province}"
 
@@ -2852,31 +2971,32 @@ class Barangay(models.Model):
     Barangay model for location data
     Stores barangays within cities/municipalities
     """
+
     barangayID = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
-    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='barangays')
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="barangays")
     zipCode = models.CharField(max_length=10, null=True, blank=True)
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        ordering = ['name']
-        verbose_name_plural = 'Barangays'
-        unique_together = [['name', 'city']]
+        ordering = ["name"]
+        verbose_name_plural = "Barangays"
+        unique_together = [["name", "city"]]
         indexes = [
-            models.Index(fields=['city', 'name']),
-            models.Index(fields=['name']),
+            models.Index(fields=["city", "name"]),
+            models.Index(fields=["name"]),
         ]
-    
+
     def __str__(self):
         return f"{self.name}, {self.city.name}"
 
 
 class UserPaymentMethod(models.Model):
     """User's payment methods for withdrawals (GCash, Bank, PayPal, Visa, Mastercard, GrabPay, Maya)"""
-    
+
     class MethodType(models.TextChoices):
         GCASH = "GCASH", "GCash"
         BANK = "BANK", "Bank Account"
@@ -2885,24 +3005,34 @@ class UserPaymentMethod(models.Model):
         MASTERCARD = "MASTERCARD", "Mastercard/Credit Card"
         GRABPAY = "GRABPAY", "GrabPay"
         MAYA = "MAYA", "Maya"
-    
-    accountFK = models.ForeignKey(Accounts, on_delete=models.CASCADE, related_name='payment_methods')
+
+    accountFK = models.ForeignKey(
+        Accounts, on_delete=models.CASCADE, related_name="payment_methods"
+    )
     methodType = models.CharField(max_length=10, choices=MethodType.choices)
     accountName = models.CharField(max_length=255)  # Name on account
-    accountNumber = models.CharField(max_length=50)  # GCash number, bank account number, or PayPal email
-    bankName = models.CharField(max_length=100, null=True, blank=True)  # Only for bank accounts
-    bankCode = models.CharField(max_length=50, null=True, blank=True)  # PayMongo institution code (BANK only)
-    paymongoRecipientId = models.CharField(max_length=100, null=True, blank=True)  # Cached recipient for Transfer V2
+    accountNumber = models.CharField(
+        max_length=50
+    )  # GCash number, bank account number, or PayPal email
+    bankName = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # Only for bank accounts
+    bankCode = models.CharField(
+        max_length=50, null=True, blank=True
+    )  # PayMongo institution code (BANK only)
+    paymongoRecipientId = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # Cached recipient for Transfer V2
     isPrimary = models.BooleanField(default=False)
     isVerified = models.BooleanField(default=False)
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        ordering = ['-isPrimary', '-createdAt']
-        verbose_name = 'Payment Method'
-        verbose_name_plural = 'Payment Methods'
-    
+        ordering = ["-isPrimary", "-createdAt"]
+        verbose_name = "Payment Method"
+        verbose_name_plural = "Payment Methods"
+
     def __str__(self):
         return f"{self.methodType} - {self.accountName} ({self.accountNumber[-4:]})"
 
@@ -2911,105 +3041,135 @@ class UserPaymentMethod(models.Model):
 # TEAM MODE MULTI-SKILL MULTI-WORKER MODELS
 # ===========================================================================
 
+
 class JobSkillSlot(models.Model):
     """
     Represents a skill requirement slot for a team job.
     Each slot specifies a specialization needed, number of workers, and budget allocation.
     Example: Job needs 2 Plumbers (₱3000) + 3 Electricians (₱4500)
     """
+
     skillSlotID = models.BigAutoField(primary_key=True)
-    
-    jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='skill_slots'
-    )
-    
+
+    jobID = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="skill_slots")
+
     specializationID = models.ForeignKey(
         Specializations,
         on_delete=models.CASCADE,
-        related_name='job_skill_slots',
-        help_text="The specialization/skill required"
+        related_name="job_skill_slots",
+        help_text="The specialization/skill required",
     )
-    
+
     # Number of workers needed for this skill
     workers_needed = models.PositiveIntegerField(
-        default=1,
-        help_text="Number of workers needed for this skill (1-10)"
+        default=1, help_text="Number of workers needed for this skill (1-10)"
     )
-    
+
     # Budget allocated to this skill slot
     budget_allocated = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=0,
-        help_text="Budget allocated to this skill slot"
+        help_text="Budget allocated to this skill slot",
     )
-    
+
     # Skill level requirement
     class SkillLevel(models.TextChoices):
         ENTRY = "ENTRY", "Entry Level"
         INTERMEDIATE = "INTERMEDIATE", "Intermediate"
         EXPERT = "EXPERT", "Expert"
-    
+
     skill_level_required = models.CharField(
         max_length=15,
         choices=SkillLevel.choices,
         default="ENTRY",
-        help_text="Minimum skill level required"
+        help_text="Minimum skill level required",
     )
-    
+
     # Slot fill status
     class SlotStatus(models.TextChoices):
         OPEN = "OPEN", "Open - Accepting Applications"
         PARTIALLY_FILLED = "PARTIALLY_FILLED", "Partially Filled"
         FILLED = "FILLED", "Fully Filled"
         CLOSED = "CLOSED", "Closed"
-    
-    status = models.CharField(
-        max_length=20,
-        choices=SlotStatus.choices,
-        default="OPEN"
-    )
-    
+
+    status = models.CharField(max_length=20, choices=SlotStatus.choices, default="OPEN")
+
     # Optional notes for this skill slot
     notes = models.TextField(
         null=True,
         blank=True,
-        help_text="Additional requirements or notes for this skill slot"
+        help_text="Additional requirements or notes for this skill slot",
     )
-    
+
+    # ============================================================
+    # PER-SLOT AGENCY INVITE FIELDS
+    # ============================================================
+    # When a client invites an agency to fill a specific skill slot,
+    # these fields track the invitation and its status.
+    # Slots without an invited agency remain open for freelance workers.
+    invited_agency = models.ForeignKey(
+        Agency,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invited_skill_slots",
+        help_text="Agency invited to fill this skill slot (null = open for freelance workers)",
+    )
+
+    class AgencyInviteStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending Agency Response"
+        ACCEPTED = "ACCEPTED", "Agency Accepted"
+        REJECTED = "REJECTED", "Agency Rejected"
+
+    agency_invite_status = models.CharField(
+        max_length=10,
+        choices=AgencyInviteStatus.choices,
+        null=True,
+        blank=True,
+        help_text="Status of agency invite for this slot (null if no agency invited)",
+    )
+    agency_invite_responded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when agency responded to slot invite",
+    )
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'job_skill_slots'
-        ordering = ['jobID', 'specializationID']
+        db_table = "job_skill_slots"
+        ordering = ["jobID", "specializationID"]
         indexes = [
-            models.Index(fields=['jobID', 'status']),
-            models.Index(fields=['specializationID', 'status']),
+            models.Index(fields=["jobID", "status"]),
+            models.Index(fields=["specializationID", "status"]),
         ]
-    
+
     @property
     def budget_per_worker(self):
         """Calculate budget per worker for this slot"""
         if self.workers_needed > 0:
             return self.budget_allocated / self.workers_needed
-        return Decimal('0.00')
-    
+        return Decimal("0.00")
+
     @property
     def assigned_count(self):
-        """Count of currently assigned workers in this slot"""
-        return self.worker_assignments.filter(
-            assignment_status__in=['ACTIVE', 'COMPLETED']
+        """Count of currently assigned workers + agency employees in this slot"""
+        worker_count = self.worker_assignments.filter(
+            assignment_status__in=["ACTIVE", "COMPLETED"]
         ).count()
-    
+        employee_count = self.employee_slot_assignments.filter(
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"]
+        ).count()
+        return worker_count + employee_count
+
     @property
     def openings_remaining(self):
         """Number of openings still available"""
         return max(0, self.workers_needed - self.assigned_count)
-    
+
     def update_status(self):
         """Update slot status based on assignments"""
         assigned = self.assigned_count
@@ -3019,8 +3179,8 @@ class JobSkillSlot(models.Model):
             self.status = self.SlotStatus.PARTIALLY_FILLED
         else:
             self.status = self.SlotStatus.FILLED
-        self.save(update_fields=['status', 'updatedAt'])
-    
+        self.save(update_fields=["status", "updatedAt"])
+
     def __str__(self):
         return f"{self.specializationID.specializationName} x{self.workers_needed} for Job #{self.jobID_id}"
 
@@ -3030,118 +3190,139 @@ class JobWorkerAssignment(models.Model):
     Tracks individual worker assignments to skill slots in team jobs.
     Each worker occupies one position in a skill slot.
     """
+
     assignmentID = models.BigAutoField(primary_key=True)
-    
+
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='worker_assignments'
+        Job, on_delete=models.CASCADE, related_name="worker_assignments"
     )
-    
+
     skillSlotID = models.ForeignKey(
-        JobSkillSlot,
-        on_delete=models.CASCADE,
-        related_name='worker_assignments'
+        JobSkillSlot, on_delete=models.CASCADE, related_name="worker_assignments"
     )
-    
+
     workerID = models.ForeignKey(
-        WorkerProfile,
-        on_delete=models.CASCADE,
-        related_name='team_job_assignments'
+        WorkerProfile, on_delete=models.CASCADE, related_name="team_job_assignments"
     )
-    
+
     # Position within the slot (1st plumber, 2nd plumber, etc.)
     slot_position = models.PositiveIntegerField(
-        default=1,
-        help_text="Position number within this skill slot"
+        default=1, help_text="Position number within this skill slot"
     )
-    
+
     # Assignment status
     class AssignmentStatus(models.TextChoices):
         ACTIVE = "ACTIVE", "Actively Assigned"
         COMPLETED = "COMPLETED", "Work Completed"
         REMOVED = "REMOVED", "Removed from Job"
         WITHDRAWN = "WITHDRAWN", "Worker Withdrew"
-    
+
     assignment_status = models.CharField(
-        max_length=15,
-        choices=AssignmentStatus.choices,
-        default="ACTIVE"
+        max_length=15, choices=AssignmentStatus.choices, default="ACTIVE"
     )
-    
+
+    # Shift assignment (copied from applied_shift when application is accepted)
+    assigned_shift = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="Shift this worker is assigned to: MORNING or NIGHT. Null for legacy/PROJECT assignments.",
+    )
+
     # Worker arrival confirmation (matches regular job workflow)
     client_confirmed_arrival = models.BooleanField(default=False)
     client_confirmed_arrival_at = models.DateTimeField(null=True, blank=True)
-    
+
     # Worker completion tracking (for individual worker completion in team jobs)
     worker_marked_complete = models.BooleanField(default=False)
     worker_marked_complete_at = models.DateTimeField(null=True, blank=True)
     completion_notes = models.TextField(null=True, blank=True)
-    
+
     # Individual worker rating (after job completion)
     individual_rating = models.DecimalField(
         max_digits=3,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Client's rating for this specific worker's contribution"
+        help_text="Client's rating for this specific worker's contribution",
     )
-    
+
     # Daily payment tracking fields
     daily_rate_at_assignment = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Daily rate locked at time of assignment"
+        help_text="Daily rate locked at time of assignment",
     )
     days_worked = models.PositiveIntegerField(
-        default=0,
-        help_text="Number of days this worker has worked"
+        default=0, help_text="Number of days this worker has worked"
     )
     total_earned = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text="Total amount earned by this worker on this job"
+        default=Decimal("0.00"),
+        help_text="Total amount earned by this worker on this job",
     )
-    
+
+    # Per-worker early completion (Panelist #2)
+    # When a client marks a worker as done early on a DAILY team job,
+    # the worker receives the full contracted amount as a lump sum for remaining days.
+    early_completed = models.BooleanField(
+        default=False,
+        help_text="Whether this worker was completed early with full pay",
+    )
+    early_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the worker was early-completed",
+    )
+    early_completion_payout = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Lump-sum payout for remaining days on early completion",
+    )
+
     # Timestamps
     assignedAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'job_worker_assignments'
-        ordering = ['jobID', 'skillSlotID', 'slot_position']
+        db_table = "job_worker_assignments"
+        ordering = ["jobID", "skillSlotID", "slot_position"]
         indexes = [
-            models.Index(fields=['jobID', 'assignment_status']),
-            models.Index(fields=['workerID', 'assignment_status']),
-            models.Index(fields=['skillSlotID', 'slot_position']),
+            models.Index(fields=["jobID", "assignment_status"]),
+            models.Index(fields=["workerID", "assignment_status"]),
+            models.Index(fields=["skillSlotID", "slot_position"]),
         ]
         constraints = [
-            # Prevent same worker assigned twice to same job
+            # Prevent same worker assigned twice to same slot
+            # (but allow assignment to multiple different slots on the same job)
             models.UniqueConstraint(
-                fields=['jobID', 'workerID'],
-                name='unique_worker_per_job'
+                fields=["skillSlotID", "workerID"], name="unique_worker_per_slot"
             ),
             # Prevent duplicate positions in same slot
             models.UniqueConstraint(
-                fields=['skillSlotID', 'slot_position'],
-                name='unique_slot_position'
+                fields=["skillSlotID", "slot_position"], name="unique_slot_position"
             ),
         ]
-    
+
     def save(self, *args, **kwargs):
         """Auto-assign slot position if not set"""
         if not self.slot_position:
-            max_position = JobWorkerAssignment.objects.filter(
-                skillSlotID=self.skillSlotID
-            ).aggregate(models.Max('slot_position'))['slot_position__max'] or 0
+            max_position = (
+                JobWorkerAssignment.objects.filter(
+                    skillSlotID=self.skillSlotID
+                ).aggregate(models.Max("slot_position"))["slot_position__max"]
+                or 0
+            )
             self.slot_position = max_position + 1
         super().save(*args, **kwargs)
         # Update slot status after saving
         self.skillSlotID.update_status()
-    
+
     def __str__(self):
         return f"{self.workerID.profileID.firstName} - Position {self.slot_position} in {self.skillSlotID}"
 
@@ -3150,55 +3331,55 @@ class JobWorkerAssignment(models.Model):
 # DAILY PAYMENT MODEL - Per-Day Work Tracking
 # ============================================================
 
+
 class DailyAttendance(models.Model):
     """
     Tracks daily attendance for workers on daily-rate jobs.
     - Freelance workers: Each worker logs their own attendance
     - Agency jobs: Agency rep logs attendance for all assigned employees
     """
+
     attendanceID = models.BigAutoField(primary_key=True)
-    
+
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='daily_attendance'
+        Job, on_delete=models.CASCADE, related_name="daily_attendance"
     )
-    
+
     # For freelance/team jobs
     workerID = models.ForeignKey(
         WorkerProfile,
         on_delete=models.CASCADE,
-        related_name='daily_attendance',
+        related_name="daily_attendance",
         null=True,
         blank=True,
-        help_text='Worker (for freelance workers)'
+        help_text="Worker (for freelance workers)",
     )
-    
+
     # For team job assignments
     assignmentID = models.ForeignKey(
         JobWorkerAssignment,
         on_delete=models.CASCADE,
-        related_name='daily_attendance',
+        related_name="daily_attendance",
         null=True,
         blank=True,
-        help_text='Assignment (for team jobs)'
+        help_text="Assignment (for team jobs)",
     )
-    
+
     # For agency jobs
     employeeID = models.ForeignKey(
-        'agency.AgencyEmployee',
+        "agency.AgencyEmployee",
         on_delete=models.CASCADE,
-        related_name='daily_attendance',
+        related_name="daily_attendance",
         null=True,
         blank=True,
-        help_text='Agency employee (for agency jobs)'
+        help_text="Agency employee (for agency jobs)",
     )
-    
+
     # Work date
-    date = models.DateField(help_text='Work date')
-    time_in = models.DateTimeField(null=True, blank=True, help_text='Clock in time')
-    time_out = models.DateTimeField(null=True, blank=True, help_text='Clock out time')
-    
+    date = models.DateField(help_text="Work date")
+    time_in = models.DateTimeField(null=True, blank=True, help_text="Clock in time")
+    time_out = models.DateTimeField(null=True, blank=True, help_text="Clock out time")
+
     # Status
     class AttendanceStatus(models.TextChoices):
         DISPATCHED = "DISPATCHED", "Dispatched (on the way)"
@@ -3207,102 +3388,112 @@ class DailyAttendance(models.Model):
         HALF_DAY = "HALF_DAY", "Half day"
         ABSENT = "ABSENT", "Absent"
         DISPUTED = "DISPUTED", "Disputed"
-    
+
     status = models.CharField(
         max_length=15,
         choices=AttendanceStatus.choices,
         default="PENDING",
-        help_text='Attendance status for this day'
+        help_text="Attendance status for this day",
     )
-    
+
     # Confirmation tracking
     worker_confirmed = models.BooleanField(default=False)
     worker_confirmed_at = models.DateTimeField(null=True, blank=True)
     client_confirmed = models.BooleanField(default=False)
     client_confirmed_at = models.DateTimeField(null=True, blank=True)
-    
+
     # Payment
     amount_earned = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text='Amount earned for this day'
+        default=Decimal("0.00"),
+        help_text="Amount earned for this day",
     )
     absent_penalty_percent = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal('10.00'),
-        help_text='Penalty percent applied when day is marked ABSENT'
+        default=Decimal("10.00"),
+        help_text="Penalty percent applied when day is marked ABSENT",
     )
     absent_penalty_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text='Penalty amount deducted from expected earnings for ABSENT day'
+        default=Decimal("0.00"),
+        help_text="Penalty amount deducted from expected earnings for ABSENT day",
     )
     absent_penalty_applied = models.BooleanField(
         default=False,
-        help_text='Whether absent penalty was already computed/applied for this attendance row'
+        help_text="Whether absent penalty was already computed/applied for this attendance row",
     )
     absent_penalty_applied_at = models.DateTimeField(null=True, blank=True)
     payment_processed = models.BooleanField(
-        default=False,
-        help_text='Whether payment has been moved to pendingEarnings'
+        default=False, help_text="Whether payment has been moved to pendingEarnings"
     )
     payment_processed_at = models.DateTimeField(null=True, blank=True)
     payment_method = models.CharField(
         max_length=20,
         choices=Transaction.PaymentMethod.choices,
-        default='WALLET',
-        help_text='Payment method used when processing this attendance row'
+        default="WALLET",
+        help_text="Payment method used when processing this attendance row",
     )
     cash_payment_proof_url = models.CharField(
         max_length=500,
         blank=True,
         null=True,
-        help_text='Cash proof image URL for CASH confirmations'
+        help_text="Cash proof image URL for CASH confirmations",
     )
     cash_proof_uploaded_at = models.DateTimeField(null=True, blank=True)
     cash_payment_verified = models.BooleanField(
         default=False,
-        help_text='True when CASH proof has been accepted and payout released'
+        help_text="True when CASH proof has been accepted and payout released",
     )
     cash_payment_verified_at = models.DateTimeField(null=True, blank=True)
-    
-    notes = models.TextField(blank=True, default='')
-    
+
+    notes = models.TextField(blank=True, default="")
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'daily_attendance'
-        ordering = ['-date', 'jobID']
+        db_table = "daily_attendance"
+        ordering = ["-date", "jobID"]
         indexes = [
-            models.Index(fields=['jobID', 'date'], name='daily_att_job_date_idx'),
-            models.Index(fields=['workerID', 'date'], name='daily_att_worker_date_idx'),
-            models.Index(fields=['status'], name='daily_att_status_idx'),
-            models.Index(fields=['payment_processed'], name='daily_att_payment_idx'),
-            models.Index(fields=['payment_method'], name='daily_att_method_idx'),
+            models.Index(fields=["jobID", "date"], name="daily_att_job_date_idx"),
+            models.Index(fields=["workerID", "date"], name="daily_att_worker_date_idx"),
+            models.Index(fields=["status"], name="daily_att_status_idx"),
+            models.Index(fields=["payment_processed"], name="daily_att_payment_idx"),
+            models.Index(fields=["payment_method"], name="daily_att_method_idx"),
         ]
         constraints = [
+            # For non-team freelance jobs (no assignment): one attendance per worker per day
             models.UniqueConstraint(
-                fields=['jobID', 'workerID', 'date'],
-                condition=models.Q(workerID__isnull=False),
-                name='unique_worker_attendance_per_day'
+                fields=["jobID", "workerID", "date"],
+                condition=models.Q(
+                    workerID__isnull=False,
+                    assignmentID__isnull=True,
+                ),
+                name="unique_worker_attendance_per_day",
+            ),
+            # For team jobs: one attendance per assignment per day
+            # (allows multi-slot workers to have separate attendance per slot)
+            models.UniqueConstraint(
+                fields=["assignmentID", "date"],
+                condition=models.Q(assignmentID__isnull=False),
+                name="unique_assignment_attendance_per_day",
             ),
             models.UniqueConstraint(
-                fields=['jobID', 'employeeID', 'date'],
+                fields=["jobID", "employeeID", "date"],
                 condition=models.Q(employeeID__isnull=False),
-                name='unique_employee_attendance_per_day'
+                name="unique_employee_attendance_per_day",
             ),
         ]
-    
+
     def is_confirmed(self):
         """Check if both worker and client have confirmed attendance."""
         return self.worker_confirmed and self.client_confirmed
-    
+
     def __str__(self):
-        worker_name = ''
+        worker_name = ""
         if self.workerID:
             worker_name = self.workerID.profileID.firstName
         elif self.employeeID:
@@ -3315,75 +3506,71 @@ class DailyJobExtension(models.Model):
     Tracks requests to extend daily jobs.
     Requires mutual approval from both client and worker/agency.
     """
+
     extensionID = models.BigAutoField(primary_key=True)
-    
-    jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='extensions'
+
+    jobID = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="extensions")
+
+    additional_days = models.PositiveIntegerField(
+        help_text="Number of additional days requested"
     )
-    
-    additional_days = models.PositiveIntegerField(help_text='Number of additional days requested')
     additional_escrow = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        help_text='Additional escrow needed (daily_rate × workers × additional_days)'
+        help_text="Additional escrow needed (daily_rate × workers × additional_days)",
     )
-    reason = models.TextField(help_text='Reason for extension request')
-    
+    reason = models.TextField(help_text="Reason for extension request")
+
     class ExtensionStatus(models.TextChoices):
         PENDING = "PENDING", "Pending approval"
         APPROVED = "APPROVED", "Approved by both parties"
         REJECTED = "REJECTED", "Rejected"
         CANCELLED = "CANCELLED", "Cancelled by requester"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=ExtensionStatus.choices,
-        default="PENDING"
+        max_length=15, choices=ExtensionStatus.choices, default="PENDING"
     )
-    
+
     class RequestedBy(models.TextChoices):
         CLIENT = "CLIENT", "Client"
         WORKER = "WORKER", "Worker"
         AGENCY = "AGENCY", "Agency"
-    
+
     requested_by = models.CharField(
         max_length=10,
         choices=RequestedBy.choices,
-        help_text='Who requested the extension'
+        help_text="Who requested the extension",
     )
     requestedByUser = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='extension_requests'
+        related_name="extension_requests",
     )
-    
+
     # Mutual approval tracking
     client_approved = models.BooleanField(default=False)
     client_approved_at = models.DateTimeField(null=True, blank=True)
     worker_approved = models.BooleanField(default=False)
     worker_approved_at = models.DateTimeField(null=True, blank=True)
-    
+
     # Escrow collection
     escrow_collected = models.BooleanField(
-        default=False,
-        help_text='Whether additional escrow has been collected'
+        default=False, help_text="Whether additional escrow has been collected"
     )
     escrow_collected_at = models.DateTimeField(null=True, blank=True)
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'daily_job_extensions'
-        ordering = ['-createdAt']
-    
+        db_table = "daily_job_extensions"
+        ordering = ["-createdAt"]
+
     def is_fully_approved(self):
         """Check if both parties have approved."""
         return self.client_approved and self.worker_approved
-    
+
     def __str__(self):
         return f"Extension +{self.additional_days} days for Job #{self.jobID_id} ({self.status})"
 
@@ -3393,77 +3580,73 @@ class DailyRateChange(models.Model):
     Tracks requests to change daily rate during in-progress jobs.
     Requires mutual approval from both client and worker/agency.
     """
+
     changeID = models.BigAutoField(primary_key=True)
-    
+
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='rate_changes'
+        Job, on_delete=models.CASCADE, related_name="rate_changes"
     )
-    
+
     old_rate = models.DecimalField(max_digits=10, decimal_places=2)
     new_rate = models.DecimalField(max_digits=10, decimal_places=2)
-    reason = models.TextField(help_text='Reason for rate change request')
-    effective_date = models.DateField(help_text='Date from which new rate applies')
-    
+    reason = models.TextField(help_text="Reason for rate change request")
+    effective_date = models.DateField(help_text="Date from which new rate applies")
+
     class ChangeStatus(models.TextChoices):
         PENDING = "PENDING", "Pending approval"
         APPROVED = "APPROVED", "Approved by both parties"
         REJECTED = "REJECTED", "Rejected"
         CANCELLED = "CANCELLED", "Cancelled by requester"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=ChangeStatus.choices,
-        default="PENDING"
+        max_length=15, choices=ChangeStatus.choices, default="PENDING"
     )
-    
+
     class RequestedBy(models.TextChoices):
         CLIENT = "CLIENT", "Client"
         WORKER = "WORKER", "Worker"
         AGENCY = "AGENCY", "Agency"
-    
+
     requested_by = models.CharField(
         max_length=10,
         choices=RequestedBy.choices,
-        help_text='Who requested the rate change'
+        help_text="Who requested the rate change",
     )
     requestedByUser = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='rate_change_requests'
+        related_name="rate_change_requests",
     )
-    
+
     # Mutual approval tracking
     client_approved = models.BooleanField(default=False)
     client_approved_at = models.DateTimeField(null=True, blank=True)
     worker_approved = models.BooleanField(default=False)
     worker_approved_at = models.DateTimeField(null=True, blank=True)
-    
+
     # Escrow adjustment
     escrow_adjusted = models.BooleanField(
-        default=False,
-        help_text='Whether escrow has been adjusted for rate change'
+        default=False, help_text="Whether escrow has been adjusted for rate change"
     )
     escrow_adjustment_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=Decimal('0.00'),
-        help_text='Amount added/refunded for rate change (positive=client pays more)'
+        default=Decimal("0.00"),
+        help_text="Amount added/refunded for rate change (positive=client pays more)",
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'daily_rate_changes'
-        ordering = ['-createdAt']
-    
+        db_table = "daily_rate_changes"
+        ordering = ["-createdAt"]
+
     def is_fully_approved(self):
         """Check if both parties have approved."""
         return self.client_approved and self.worker_approved
-    
+
     def __str__(self):
         return f"Rate change ₱{self.old_rate}→₱{self.new_rate} for Job #{self.jobID_id} ({self.status})"
 
@@ -3473,15 +3656,14 @@ class DailySkipDayRequest(models.Model):
     Tracks skip-day requests for DAILY jobs.
     Worker/agency can request a skip day and the client can approve/reject.
     """
+
     skipRequestID = models.BigAutoField(primary_key=True)
 
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='daily_skip_requests'
+        Job, on_delete=models.CASCADE, related_name="daily_skip_requests"
     )
 
-    request_date = models.DateField(help_text='Date being requested to skip')
+    request_date = models.DateField(help_text="Date being requested to skip")
 
     class SkipStatus(models.TextChoices):
         PENDING = "PENDING", "Pending review"
@@ -3489,9 +3671,7 @@ class DailySkipDayRequest(models.Model):
         REJECTED = "REJECTED", "Rejected by client"
 
     status = models.CharField(
-        max_length=15,
-        choices=SkipStatus.choices,
-        default="PENDING"
+        max_length=15, choices=SkipStatus.choices, default="PENDING"
     )
 
     class RequestedBy(models.TextChoices):
@@ -3499,9 +3679,7 @@ class DailySkipDayRequest(models.Model):
         AGENCY = "AGENCY", "Agency"
 
     requested_by = models.CharField(
-        max_length=10,
-        choices=RequestedBy.choices,
-        default="WORKER"
+        max_length=10, choices=RequestedBy.choices, default="WORKER"
     )
 
     requestedByUser = models.ForeignKey(
@@ -3509,13 +3687,13 @@ class DailySkipDayRequest(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='daily_skip_requests_created'
+        related_name="daily_skip_requests_created",
     )
 
     requested_account_ids = models.JSONField(
         default=list,
         blank=True,
-        help_text='Account IDs that requested/joined this skip-day request'
+        help_text="Account IDs that requested/joined this skip-day request",
     )
 
     requested_count = models.PositiveIntegerField(default=1)
@@ -3528,7 +3706,7 @@ class DailySkipDayRequest(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='daily_skip_requests_reviewed'
+        related_name="daily_skip_requests_reviewed",
     )
     reviewedAt = models.DateTimeField(null=True, blank=True)
     client_rejection_reason = models.TextField(null=True, blank=True)
@@ -3537,108 +3715,105 @@ class DailySkipDayRequest(models.Model):
     updatedAt = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'daily_skip_day_requests'
-        ordering = ['-request_date', '-createdAt']
+        db_table = "daily_skip_day_requests"
+        ordering = ["-request_date", "-createdAt"]
         indexes = [
-            models.Index(fields=['jobID', 'request_date'], name='skip_req_job_date_idx'),
-            models.Index(fields=['status'], name='skip_req_status_idx'),
+            models.Index(
+                fields=["jobID", "request_date"], name="skip_req_job_date_idx"
+            ),
+            models.Index(fields=["status"], name="skip_req_status_idx"),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['jobID', 'request_date'],
-                name='unique_daily_skip_request_per_job_date'
+                fields=["jobID", "request_date"],
+                name="unique_daily_skip_request_per_job_date",
             )
         ]
 
     def __str__(self):
-        return f"Skip request Job #{self.jobID_id} on {self.request_date} ({self.status})"
+        return (
+            f"Skip request Job #{self.jobID_id} on {self.request_date} ({self.status})"
+        )
 
 
 # ============================================================
 # JOB MATERIALS - Materials Purchasing Workflow
 # ============================================================
 
+
 class JobMaterial(models.Model):
     """
     Materials associated with a specific job - either from worker's profile (no cost)
     or purchased by worker (cost added to final payment after client approval).
     """
+
     jobMaterialID = models.BigAutoField(primary_key=True)
     jobID = models.ForeignKey(
-        Job,
-        on_delete=models.CASCADE,
-        related_name='job_materials'
+        Job, on_delete=models.CASCADE, related_name="job_materials"
     )
     # Optional link to worker's existing material
     workerMaterialID = models.ForeignKey(
-        'WorkerMaterial',
+        "WorkerMaterial",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='job_usages'
+        related_name="job_usages",
     )
-    
+
     # Material details (copied from WorkerMaterial or entered manually)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
     quantity = models.IntegerField(default=1)
     unit = models.CharField(max_length=50, blank=True, null=True)
-    
+
     # Source type
     class SourceType(models.TextChoices):
         FROM_PROFILE = "FROM_PROFILE", "Worker already has this (no cost)"
         TO_PURCHASE = "TO_PURCHASE", "Worker will purchase"
         PURCHASED = "PURCHASED", "Worker has purchased"
-    
+
     source = models.CharField(
-        max_length=20,
-        choices=SourceType.choices,
-        default="TO_PURCHASE"
+        max_length=20, choices=SourceType.choices, default="TO_PURCHASE"
     )
-    
+
     # Purchase details (only for TO_PURCHASE / PURCHASED items)
     purchase_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Actual purchase price (set when worker uploads receipt)"
+        help_text="Actual purchase price (set when worker uploads receipt)",
     )
     receipt_image_url = models.CharField(
-        max_length=500,
-        blank=True,
-        null=True,
-        help_text="URL of purchase receipt image"
+        max_length=500, blank=True, null=True, help_text="URL of purchase receipt image"
     )
-    
+
     # Client approval
     client_approved = models.BooleanField(default=False)
     client_approved_at = models.DateTimeField(null=True, blank=True)
     client_rejected = models.BooleanField(default=False)
     rejection_reason = models.TextField(blank=True, null=True)
-    
+
     # Who added this material
     class AddedBy(models.TextChoices):
         CLIENT_REQUEST = "CLIENT_REQUEST", "From job posting materials list"
         WORKER_SUPPLIED = "WORKER_SUPPLIED", "Worker added during application"
-    
+
     added_by = models.CharField(
-        max_length=20,
-        choices=AddedBy.choices,
-        default="WORKER_SUPPLIED"
+        max_length=20, choices=AddedBy.choices, default="WORKER_SUPPLIED"
     )
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        db_table = 'job_materials'
-        ordering = ['createdAt']
+        db_table = "job_materials"
+        ordering = ["createdAt"]
         indexes = [
-            models.Index(fields=['jobID', 'source']),
-            models.Index(fields=['jobID', 'client_approved']),
+            models.Index(fields=["jobID", "source"]),
+            models.Index(fields=["jobID", "client_approved"]),
         ]
-    
+
     def __str__(self):
         return f"{self.name} for Job {self.jobID.title} ({self.source})"

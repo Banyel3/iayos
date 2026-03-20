@@ -14,12 +14,34 @@ export interface SkillSlot {
   specialization_name: string;
   workers_needed: number;
   workers_assigned: number;
+  freelancers_assigned: number;
+  employees_assigned: number;
   openings_remaining: number;
   budget_allocated: number;
   budget_per_worker: number;
   skill_level_required: "ENTRY" | "INTERMEDIATE" | "EXPERT";
   status: "OPEN" | "PARTIALLY_FILLED" | "FILLED" | "CLOSED";
   notes: string | null;
+  agency_invite: {
+    agency_id: number;
+    agency_name: string;
+    invite_status: "PENDING" | "ACCEPTED" | "REJECTED";
+    invite_responded_at: string | null;
+  } | null;
+  employee_assignments: EmployeeSlotAssignment[];
+}
+
+export interface EmployeeSlotAssignment {
+  assignment_id: string;
+  employee_id: string;
+  employee_name: string;
+  status: "ASSIGNED" | "IN_PROGRESS" | "COMPLETED";
+  dispatched: boolean;
+  client_confirmed_arrival: boolean;
+  agency_marked_complete: boolean;
+  client_approved: boolean;
+  is_primary_contact: boolean;
+  assigned_at: string;
 }
 
 export interface WorkerAssignment {
@@ -35,6 +57,27 @@ export interface WorkerAssignment {
   assigned_at: string;
   worker_marked_complete: boolean;
   individual_rating: number | null;
+  type?: "freelance";
+  // Early completion fields (DAILY team jobs)
+  early_completed?: boolean;
+  early_completed_at?: string | null;
+  early_completion_payout?: number | null;
+}
+
+export interface AgencyEmployeeAssignment {
+  assignment_id: string;
+  employee_id: string;
+  employee_name: string;
+  skill_slot_id: number | null;
+  specialization_name: string;
+  status: "ASSIGNED" | "IN_PROGRESS" | "COMPLETED";
+  dispatched: boolean;
+  client_confirmed_arrival: boolean;
+  agency_marked_complete: boolean;
+  client_approved: boolean;
+  is_primary_contact: boolean;
+  assigned_at: string;
+  type: "agency_employee";
 }
 
 export interface TeamJobDetail {
@@ -45,17 +88,27 @@ export interface TeamJobDetail {
   total_budget: number;
   status: string;
   is_team_job: boolean;
+  is_mixed_team: boolean;
+  has_agency_invites: boolean;
   budget_allocation_type: string;
   team_start_threshold: number;
   total_workers_needed: number;
   total_workers_assigned: number;
+  total_freelancers: number;
+  total_agency_employees: number;
+  multi_slot_workers: number[];
   team_fill_percentage: number;
   can_start: boolean;
   skill_slots: SkillSlot[];
   worker_assignments: WorkerAssignment[];
+  agency_employee_assignments: AgencyEmployeeAssignment[];
   client_id: number | null;
   client_name: string;
   created_at: string;
+  // Payment model fields (for daily rate negotiation)
+  payment_model?: "PROJECT" | "DAILY" | string;
+  daily_rate_agreed?: number | null;
+  duration_days?: number | null;
 }
 
 export interface TeamJobApplication {
@@ -70,6 +123,8 @@ export interface TeamJobApplication {
   proposed_budget: number;
   budget_option: "ACCEPT" | "NEGOTIATE";
   estimated_duration: string | null;
+  proposed_daily_rate: number | null;
+  proposed_days: number | null;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   applied_at: string;
 }
@@ -114,6 +169,9 @@ export function useApplyToSkillSlot() {
       proposedBudget,
       budgetOption = "ACCEPT",
       estimatedDuration,
+      proposedDailyRate,
+      proposedDays,
+      appliedShift,
     }: {
       jobId: number;
       skillSlotId: number;
@@ -121,6 +179,9 @@ export function useApplyToSkillSlot() {
       proposedBudget: number;
       budgetOption?: "ACCEPT" | "NEGOTIATE";
       estimatedDuration?: string;
+      proposedDailyRate?: number;
+      proposedDays?: number;
+      appliedShift?: "MORNING" | "NIGHT";
     }) => {
       const response = await apiRequest(
         ENDPOINTS.TEAM_APPLY_SKILL_SLOT(jobId),
@@ -132,6 +193,9 @@ export function useApplyToSkillSlot() {
             proposed_budget: proposedBudget,
             budget_option: budgetOption,
             estimated_duration: estimatedDuration,
+            proposed_daily_rate: proposedDailyRate || null,
+            proposed_days: proposedDays || null,
+            applied_shift: appliedShift || null,
           }),
         },
       );
@@ -175,13 +239,22 @@ export function useAcceptTeamApplication() {
     mutationFn: async ({
       jobId,
       applicationId,
+      dailyRateOverride,
     }: {
       jobId: number;
       applicationId: number;
+      dailyRateOverride?: number;
     }) => {
+      const body: Record<string, unknown> = {};
+      if (dailyRateOverride !== undefined) {
+        body.daily_rate_override = dailyRateOverride;
+      }
       const response = await apiRequest(
         ENDPOINTS.TEAM_ACCEPT_APPLICATION(jobId, applicationId),
-        { method: "POST" },
+        {
+          method: "POST",
+          body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+        },
       );
 
       const data = (await response.json()) as {
@@ -325,6 +398,68 @@ export function useWorkerCompleteAssignment() {
 }
 
 /**
+ * Client marks a worker as done early on a DAILY team job (full pay).
+ * The worker receives the full contracted amount; any remaining balance
+ * (daily_rate × duration_days − total_earned) is paid out as a lump-sum.
+ */
+export function useEarlyCompleteWorker() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_EARLY_COMPLETE(jobId, assignmentId),
+        { method: "POST" },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        remaining_payout?: number;
+        total_contracted?: number;
+        total_already_earned?: number;
+      };
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to early-complete worker"),
+        );
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      const payoutMsg = data.remaining_payout
+        ? `\nLump-sum payout: ₱${Number(data.remaining_payout).toLocaleString()}`
+        : "";
+      Alert.alert(
+        "Worker Completed Early",
+        (data.message || "Worker has been marked as done early with full pay.") +
+          payoutMsg,
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["team-job", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", variables.jobId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", "active", variables.jobId.toString()],
+      });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
  * Client approves the entire team job completion
  */
 export function useClientApproveTeamJob() {
@@ -455,5 +590,108 @@ export function useTeamJobApplications(jobId: number, enabled: boolean = true) {
       }>;
     },
     enabled: enabled && jobId > 0,
+  });
+}
+
+// ============================================================================
+// Agency Employee Hooks (Per-Slot Mixed Team)
+// ============================================================================
+
+/**
+ * Client confirms arrival of an agency employee on a team job
+ */
+export function useConfirmTeamEmployeeArrival() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: string;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_CONFIRM_EMPLOYEE_ARRIVAL(jobId, parseInt(assignmentId)),
+        { method: "POST" },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to confirm employee arrival"),
+        );
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert(
+        "Arrival Confirmed",
+        data.message || "Employee arrival has been confirmed.",
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["team-job", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", variables.jobId.toString()],
+      });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
+ * Agency marks an employee as complete on a team job
+ */
+export function useMarkTeamEmployeeComplete() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: string;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_MARK_EMPLOYEE_COMPLETE(jobId, parseInt(assignmentId)),
+        { method: "POST" },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(data, "Failed to mark employee complete"),
+        );
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert(
+        "Marked Complete",
+        data.message || "Employee has been marked as complete.",
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["team-job", variables.jobId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", variables.jobId.toString()],
+      });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
   });
 }

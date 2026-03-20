@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE } from "@/lib/api/config";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -68,6 +68,9 @@ const AgencyKYCPage = () => {
   // NEW: OCR Confirmation State (Step 5)
   const [ocrFields, setOcrFields] = useState<Record<string, string>>({});
   const [editedFields, setEditedFields] = useState<Set<string>>(new Set());
+  const [businessStepErrors, setBusinessStepErrors] = useState<
+    Record<string, string>
+  >({});
   const [isConfirmingOcr, setIsConfirmingOcr] = useState(false);
 
   // Hook for OCR autofill data
@@ -110,6 +113,90 @@ const AgencyKYCPage = () => {
   const [isExtractingOCR, setIsExtractingOCR] = useState(false);
   const [ocrExtracted, setOcrExtracted] = useState(false);
   const [ocrExtractedData, setOcrExtractedData] = useState<any>(null);
+
+  const normalizeBusinessNameForMatch = (value: string): string => {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const applyExtractedDataToOcrFields = (
+    extractedData: Record<string, any> | null | undefined,
+  ) => {
+    const incoming = extractedData || {};
+    const nextFields: Record<string, string> = {};
+
+    const splitFullName = (fullName: string) => {
+      const cleaned = (fullName || "").split(/\s+/).filter(Boolean).join(" ");
+      if (!cleaned) return { first: "", middle: "", last: "" };
+
+      const parts = cleaned.split(" ");
+      if (parts.length === 1) return { first: parts[0], middle: "", last: "" };
+      if (parts.length === 2) return { first: parts[0], middle: "", last: parts[1] };
+
+      return {
+        first: parts[0],
+        middle: parts.slice(1, -1).join(" "),
+        last: parts[parts.length - 1],
+      };
+    };
+
+    AGENCY_KYC_FIELD_CONFIG.forEach((config) => {
+      const raw = incoming[config.key];
+      nextFields[config.key] =
+        raw === null || raw === undefined ? "" : String(raw);
+    });
+
+    if (
+      !nextFields.rep_first_name &&
+      !nextFields.rep_middle_name &&
+      !nextFields.rep_last_name
+    ) {
+      const fallbackFullName = String(incoming.rep_full_name || "");
+      const split = splitFullName(fallbackFullName);
+      nextFields.rep_first_name = split.first;
+      nextFields.rep_middle_name = split.middle;
+      nextFields.rep_last_name = split.last;
+    }
+
+    if (!nextFields.rep_id_type) {
+      nextFields.rep_id_type = repIdType;
+    }
+
+    setOcrFields(nextFields);
+    setEditedFields(new Set());
+  };
+
+  const extractedBusinessNameForComparison = useMemo(() => {
+    const localExtractedName =
+      ocrExtractedData && typeof ocrExtractedData.business_name === "string"
+        ? ocrExtractedData.business_name
+        : "";
+
+    if (localExtractedName.trim()) {
+      return localExtractedName;
+    }
+
+    const autofillBusinessField = autofillData?.fields?.business_name;
+    if (autofillBusinessField?.source === "ocr") {
+      return String(autofillBusinessField.value || "");
+    }
+
+    return "";
+  }, [autofillData, ocrExtractedData]);
+
+  const showBusinessNameMismatchWarning = useMemo(() => {
+    if (!businessName || !extractedBusinessNameForComparison) {
+      return false;
+    }
+
+    return (
+      normalizeBusinessNameForMatch(businessName) !==
+      normalizeBusinessNameForMatch(extractedBusinessNameForComparison)
+    );
+  }, [businessName, extractedBusinessNameForComparison]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -536,6 +623,7 @@ const AgencyKYCPage = () => {
       formData.append("business_permit", businessPermit);
       formData.append("rep_id_front", repIDFront);
       formData.append("business_type", businessType);
+      formData.append("rep_id_type", repIdType);
 
       if (process.env.NODE_ENV === "development") {
         console.log("📝 Extracting OCR data for autofill...");
@@ -559,8 +647,11 @@ const AgencyKYCPage = () => {
       if (result.success && result.extracted_data) {
         const data = result.extracted_data;
 
-        // Autofill form fields from OCR
-        if (data.business_name) setBusinessName(data.business_name);
+        setOcrExtractedData(data);
+        applyExtractedDataToOcrFields(data);
+
+        // Keep profile business name as source-of-truth for mismatch comparison.
+        // OCR values are rendered through ocrFields for review/edit.
         if (data.business_address) setBusinessDesc(data.business_address);
         if (data.permit_number) setRegistrationNumber(data.permit_number);
 
@@ -571,6 +662,7 @@ const AgencyKYCPage = () => {
         setOcrExtracted(true);
         setCurrentStep(3); // Move to form step
       } else {
+        setOcrExtractedData(null);
         toast.warning("Low Confidence", {
           description:
             "OCR extraction completed with low confidence. Please fill the form manually.",
@@ -580,6 +672,7 @@ const AgencyKYCPage = () => {
       }
     } catch (error) {
       console.error("OCR extraction error:", error);
+      setOcrExtractedData(null);
       toast.error("OCR Failed", {
         description: "OCR extraction failed. Please fill the form manually.",
       });
@@ -591,10 +684,25 @@ const AgencyKYCPage = () => {
   };
 
   const handleSubmit = async () => {
+    const requiredRepresentativeFields = AGENCY_KYC_FIELD_CONFIG.filter(
+      (field) => field.section === "representative" && field.required,
+    );
+    const missingRepresentativeField = requiredRepresentativeFields.find(
+      (field) => !String(ocrFields[field.key] || "").trim(),
+    );
+
+    if (missingRepresentativeField) {
+      toast.error("Representative information incomplete", {
+        description: `${missingRepresentativeField.label} is required before submission.`,
+      });
+      return;
+    }
+
     // Note: registrationNumber is no longer required here - it's extracted via OCR from the business permit
-    if (!businessPermit || !repIDFront || !repIDBack) {
+    if (!businessPermit || !repIDFront || !repIDBack || !repSelfie) {
       toast.warning("Incomplete", {
-        description: "Please complete all required fields and uploads",
+        description:
+          "Please complete all required fields and uploads, including representative selfie for face matching",
       });
       return;
     }
@@ -696,30 +804,70 @@ const AgencyKYCPage = () => {
   const handleOcrFieldChange = (key: string, value: string) => {
     setOcrFields((prev) => ({ ...prev, [key]: value }));
     setEditedFields((prev) => new Set(prev).add(key));
+    setBusinessStepErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const validateBusinessInfoStep = () => {
+    const requiredBusinessFields = AGENCY_KYC_FIELD_CONFIG.filter(
+      (field) =>
+        field.section === "business" &&
+        field.required &&
+        (!field.applicableBusinessTypes ||
+          field.applicableBusinessTypes.includes(businessType)),
+    );
+
+    const nextErrors: Record<string, string> = {};
+    requiredBusinessFields.forEach((field) => {
+      const raw = ocrFields[field.key];
+      const value = raw === null || raw === undefined ? "" : String(raw).trim();
+      if (!value) {
+        nextErrors[field.key] = `${field.label} is required.`;
+      }
+    });
+
+    setBusinessStepErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error("Complete required business fields", {
+        description: "Please fill all required fields before continuing.",
+      });
+      return false;
+    }
+
+    return true;
   };
 
   // Issue #1: Initialize OCR fields when autofill data loads
   useEffect(() => {
+    if (ocrExtractedData) {
+      return;
+    }
+
     if (hasAutofillData && autofillData?.fields) {
       const initialFields: Record<string, string> = {};
       AGENCY_KYC_FIELD_CONFIG.forEach((config) => {
         initialFields[config.key] = getFieldValue(config.key);
       });
-      // Business name comes from agency profile (single source of truth)
-      if (businessName) initialFields["business_name"] = businessName;
-      if (registrationNumber)
-        initialFields["permit_number"] = registrationNumber;
+      if (!initialFields.rep_id_type) {
+        initialFields.rep_id_type = repIdType;
+      }
       setOcrFields(initialFields);
     }
   }, [
+    ocrExtractedData,
     hasAutofillData,
     autofillData,
     getFieldValue,
-    businessName,
-    registrationNumber,
+    repIdType,
   ]);
 
-  const validateOcrDateField = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const validateOcrDateField = (value: string) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(value);
 
   // Issue #1: Handle OCR confirmation submit
   const handleOcrConfirmSubmit = async () => {
@@ -1437,6 +1585,53 @@ const AgencyKYCPage = () => {
           </div>
         )}
 
+        {showBusinessNameMismatchWarning && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <svg
+                className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.922c.75 1.334-.213 2.979-1.742 2.979H4.42c-1.53 0-2.493-1.645-1.743-2.98l5.58-9.92zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-7a1 1 0 00-1 1v3a1 1 0 102 0V7a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex-1">
+                <h3 className="font-semibold text-amber-900 text-sm mb-1">
+                  Business Name Mismatch Detected
+                </h3>
+                <p className="text-xs text-amber-800 mb-2">
+                  The business name from your registration profile does not
+                  match the OCR-extracted name from your uploaded document.
+                </p>
+                <p className="text-xs text-amber-900">
+                  <span className="font-semibold">Registered:</span>{" "}
+                  {businessName}
+                </p>
+                <p className="text-xs text-amber-900">
+                  <span className="font-semibold">OCR Extracted:</span>{" "}
+                  {extractedBusinessNameForComparison}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {ocrExtracted &&
+          !ocrLoading &&
+          (!ocrFields.business_name || !ocrFields.permit_number) && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-800">
+                We could not confidently extract all key business fields from
+                the document. Please review and complete missing values
+                manually.
+              </p>
+            </div>
+          )}
+
         {ocrLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -1484,8 +1679,12 @@ const AgencyKYCPage = () => {
                           handleOcrFieldChange(field.key, e.target.value)
                         }
                         placeholder={field.placeholder}
+                        required={field.required}
+                        aria-invalid={Boolean(businessStepErrors[field.key])}
                         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                          editedFields.has(field.key)
+                          businessStepErrors[field.key]
+                            ? "border-red-500 bg-red-50"
+                            : editedFields.has(field.key)
                             ? "border-yellow-400 bg-yellow-50"
                             : "border-gray-300"
                         }`}
@@ -1505,6 +1704,11 @@ const AgencyKYCPage = () => {
                     {editedFields.has(field.key) && (
                       <p className="text-xs text-yellow-600 mt-1">
                         ✏️ Edited by you
+                      </p>
+                    )}
+                    {businessStepErrors[field.key] && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {businessStepErrors[field.key]}
                       </p>
                     )}
                   </div>
@@ -1541,7 +1745,10 @@ const AgencyKYCPage = () => {
                 ← Back
               </button>
               <button
-                onClick={() => setCurrentStep(4)}
+                onClick={() => {
+                  if (!validateBusinessInfoStep()) return;
+                  setCurrentStep(4);
+                }}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 Next: Representative ID
