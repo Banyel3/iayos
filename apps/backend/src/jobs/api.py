@@ -13366,12 +13366,32 @@ def finish_daily_job(request, job_id: int):
 
 @router.post("/{job_id}/daily/early-complete", auth=dual_auth)
 @require_kyc
-def early_complete_single_daily_job(request, job_id: int):
+def early_complete_single_daily_job(
+    request,
+    job_id: int,
+    payment_method: str = Form("WALLET"),
+    cash_proof_image: UploadedFile = File(None),
+):
     """
     Client ends a single (non-team) DAILY job early, paying the worker
     the full remaining escrow balance immediately.
+
+    Accepts:
+        payment_method: "WALLET" (default) or "CASH"
+        cash_proof_image: Required when payment_method == "CASH"
     """
     from jobs.daily_payment_service import DailyPaymentService
+
+    payment_method_upper = (payment_method or "WALLET").upper()
+    if payment_method_upper not in ["WALLET", "CASH"]:
+        return Response(
+            {"error": "Invalid payment method. Choose WALLET or CASH"}, status=400
+        )
+
+    if payment_method_upper == "CASH" and not cash_proof_image:
+        return Response(
+            {"error": "Cash proof image is required for CASH payment"}, status=400
+        )
 
     try:
         job = Job.objects.select_related(
@@ -13386,7 +13406,56 @@ def early_complete_single_daily_job(request, job_id: int):
             {"error": "Only the job client can perform early completion"}, status=403
         )
 
-    result = DailyPaymentService.early_complete_single_daily_job(job, request.auth)
+    # Upload cash proof image if provided
+    cash_proof_url = None
+    if payment_method_upper == "CASH" and cash_proof_image:
+        try:
+            from django.conf import settings
+            from datetime import datetime
+            import uuid
+
+            file_content = cash_proof_image.read()
+            file_extension = (
+                cash_proof_image.name.split(".")[-1]
+                if "." in cash_proof_image.name
+                else "jpg"
+            )
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_id = str(uuid.uuid4())[:8]
+            file_path = (
+                f"users/{request.auth.accountID}/jobs/{job_id}/proof/"
+                f"daily_early_cash_proof_{timestamp}_{unique_id}.{file_extension}"
+            )
+
+            if not settings.STORAGE:
+                raise Exception("Storage not configured")
+
+            settings.STORAGE.storage().from_("user-uploads").upload(
+                file_path,
+                file_content,
+                {
+                    "content-type": cash_proof_image.content_type or "image/jpeg",
+                    "upsert": "true",
+                },
+            )
+
+            cash_proof_url = (
+                settings.STORAGE.storage()
+                .from_("user-uploads")
+                .get_public_url(file_path)
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to upload cash proof image: {str(e)}"}, status=500
+            )
+
+    result = DailyPaymentService.early_complete_single_daily_job(
+        job,
+        request.auth,
+        payment_method=payment_method_upper,
+        cash_proof_url=cash_proof_url,
+    )
 
     if not result.get("success"):
         return Response(
