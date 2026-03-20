@@ -2735,24 +2735,20 @@ def update_user_profile_mobile(user, payload, request=None):
             updated_fields["lastName"] = payload["lastName"]
         if "contactNum" in payload:
             raw_contact = payload["contactNum"]
-            if raw_contact is None:
-                profile.contactNum = None
-                updated_fields["contactNum"] = None
+            normalized_contact = re.sub(r"\D", "", str(raw_contact))
+            if normalized_contact:
+                if len(normalized_contact) < 10 or len(normalized_contact) > 15:
+                    return {
+                        "success": False,
+                        "error": "Contact number must be 10-15 digits",
+                    }
+                profile.contactNum = normalized_contact
+                updated_fields["contactNum"] = normalized_contact
+                synced_contact_num = normalized_contact
             else:
-                normalized_contact = re.sub(r"\D", "", str(raw_contact))
-                if normalized_contact:
-                    if len(normalized_contact) < 10 or len(normalized_contact) > 15:
-                        return {
-                            "success": False,
-                            "error": "Contact number must be 10-15 digits",
-                        }
-                    profile.contactNum = normalized_contact
-                    updated_fields["contactNum"] = normalized_contact
-                    synced_contact_num = normalized_contact
-                else:
-                    profile.contactNum = ""
-                    updated_fields["contactNum"] = ""
-                    synced_contact_num = ""
+                profile.contactNum = ""
+                updated_fields["contactNum"] = ""
+                synced_contact_num = ""
         if "birthDate" in payload and payload["birthDate"]:
             # Parse date string (YYYY-MM-DD)
             try:
