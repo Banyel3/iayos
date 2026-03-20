@@ -569,12 +569,19 @@ export default function BrowseJobsScreen() {
     handleFilterPress,
   ]);
 
+  const getBarangayFromLocation = (location?: string | null) => {
+    const value = String(location || "").trim();
+    if (!value) return "Location not specified";
+    const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
+    return parts.length >= 2 ? parts[1] : parts[0];
+  };
+
   const renderJobItem = ({ item }: { item: Job }) => (
     <JobCard
       id={item.id}
       title={item.title}
       category={item.category}
-      location={item.location}
+      location={getBarangayFromLocation(item.location)}
       distance={item.distance}
       postedAt={item.postedAt}
       budget={item.budget}
