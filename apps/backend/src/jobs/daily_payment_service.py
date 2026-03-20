@@ -466,8 +466,17 @@ class DailyPaymentService:
             wallet.pendingEarnings += amount
         wallet.save()
 
-        # Update job tracking
-        job.total_days_worked += 1
+        # Update job tracking — count distinct calendar dates that have been paid,
+        # not raw attendance rows. This prevents team jobs (multiple workers per day)
+        # from inflating total_days_worked beyond the actual number of calendar days.
+        distinct_days_paid = (
+            DailyAttendance.objects.filter(jobID=job, payment_processed=True)
+            .values("date")
+            .distinct()
+            .count()
+        )
+        if distinct_days_paid > job.total_days_worked:
+            job.total_days_worked = distinct_days_paid
         job.save()
 
         # Update assignment if team job
