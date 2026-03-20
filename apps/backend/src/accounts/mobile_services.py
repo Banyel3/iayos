@@ -3984,6 +3984,13 @@ def submit_review_mobile(
         if job.status != "COMPLETED":
             return {"success": False, "error": "Can only review completed jobs"}
 
+        # Require final payment before any reviews can be submitted
+        if not job.remainingPaymentPaid:
+            return {
+                "success": False,
+                "error": "Final payment must be completed before submitting reviews",
+            }
+
         # Initialize review fields
         reviewer_type = None
         reviewee = None
