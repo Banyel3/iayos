@@ -5863,12 +5863,14 @@ export default function ChatScreen() {
                       </View>
                     )}
 
-                  {/* Single DAILY job: Client — Complete Early (Full Pay) */}
+                  {/* Single DAILY job: Client — Approve Early Completion & Pay Remaining */}
+                  {/* Shown when worker marks themselves complete early (before duration ends). */}
+                  {/* Client approves and the worker receives pay for all remaining unworked days. */}
                   {conversation.my_role === "CLIENT" &&
                     !conversation.is_team_job &&
                     !conversation.is_agency_job &&
                     conversation.job?.payment_model === "DAILY" &&
-                    (hasAnyClientConfirmedToday ||
+                    (conversation.job?.workerMarkedComplete ||
                       conversation.job?.is_early_completed) &&
                     !conversation.job?.clientMarkedComplete && (
                       <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
@@ -5891,7 +5893,7 @@ export default function ChatScreen() {
                                 fontSize: 13,
                               }}
                             >
-                              Job completed early with full pay
+                              Job completed early — remaining days paid
                               {conversation.job?.early_completion_payout
                                 ? ` · ₱${Number(conversation.job.early_completion_payout).toLocaleString()} payout`
                                 : ""}
@@ -5908,14 +5910,24 @@ export default function ChatScreen() {
                               padding: 12,
                               gap: 8,
                             }}
-                            onPress={() =>
+                            onPress={() => {
+                              const remainingDays =
+                                (conversation.job?.duration_days ?? 0) -
+                                (conversation.job?.total_days_worked ?? 0);
+                              const remainingAmount = Number(
+                                conversation.job?.remainingPayment ?? 0,
+                              );
+                              const amountLabel =
+                                remainingAmount > 0
+                                  ? `₱${remainingAmount.toLocaleString()}`
+                                  : "the remaining balance";
                               Alert.alert(
-                                "Complete Early (Full Pay)",
-                                `Pay the worker their full contracted amount now and finish the job early? They will receive payment for all ${conversation.job?.duration_days || "planned"} days.`,
+                                "Approve Early Completion & Pay Remaining",
+                                `The worker has marked this job complete early.\n\nPaying ${amountLabel} covers the remaining ${remainingDays > 0 ? `${remainingDays} day(s)` : "days"} of work.\n\nThis will close the job and release the remaining escrow to the worker.`,
                                 [
                                   { text: "Cancel", style: "cancel" },
                                   {
-                                    text: "Complete Early",
+                                    text: "Approve & Pay",
                                     style: "destructive",
                                     onPress: () =>
                                       earlyCompleteSingleDailyMutation.mutate({
@@ -5923,8 +5935,8 @@ export default function ChatScreen() {
                                       }),
                                   },
                                 ],
-                              )
-                            }
+                              );
+                            }}
                             disabled={
                               earlyCompleteSingleDailyMutation.isPending
                             }
@@ -5937,7 +5949,7 @@ export default function ChatScreen() {
                             ) : (
                               <>
                                 <Ionicons
-                                  name="flash"
+                                  name="wallet"
                                   size={18}
                                   color={Colors.white}
                                 />
@@ -5948,7 +5960,7 @@ export default function ChatScreen() {
                                     fontSize: 14,
                                   }}
                                 >
-                                  Complete Early (Full Pay)
+                                  {`Approve Early Completion & Pay (₱${Number(conversation.job?.remainingPayment ?? 0).toLocaleString()})`}
                                 </Text>
                               </>
                             )}
