@@ -3387,12 +3387,20 @@ def mobile_get_my_applications(request):
         except WorkerProfile.DoesNotExist:
             return Response({"error": "Only workers can view applications"}, status=403)
 
-        # Applied tab should only show pending actions.
-        # Accepted applications should appear in IN_PROGRESS jobs.
+        # Applied tab shows:
+        # 1. Pending applications (waiting for client decision)
+        # 2. Accepted applications on team jobs still ACTIVE (team not yet fully filled —
+        #    these are invisible everywhere else until the job moves to IN_PROGRESS)
+        from django.db.models import Q
+
         applications = (
-            JobApplication.objects.filter(
-                workerID=worker_profile,
-                status=JobApplication.ApplicationStatus.PENDING,
+            JobApplication.objects.filter(workerID=worker_profile)
+            .filter(
+                Q(status=JobApplication.ApplicationStatus.PENDING)
+                | Q(
+                    status=JobApplication.ApplicationStatus.ACCEPTED,
+                    jobID__status="ACTIVE",
+                )
             )
             .select_related(
                 "jobID", "jobID__clientID__profileID__accountFK", "applied_skill_slot"
