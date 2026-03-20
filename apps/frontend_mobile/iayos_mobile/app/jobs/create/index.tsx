@@ -16,6 +16,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -28,6 +29,7 @@ import {
   FlatList,
   StatusBar,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
@@ -323,6 +325,7 @@ export default function CreateJobScreen() {
   const [manualMaterials, setManualMaterials] = useState<string[]>([]);
   const [materialInput, setMaterialInput] = useState("");
   const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
+  const [jobPhotos, setJobPhotos] = useState<string[]>([]); // Up to 3 optional photos
   const [categorySearch, setCategorySearch] = useState("");
 
   // Skill slots for worker requirements (unified model for all job types)
@@ -993,6 +996,32 @@ export default function CreateJobScreen() {
     );
 
   // Create job mutation
+  const uploadJobPhotosAsync = async (jobId: number): Promise<number> => {
+    let failedCount = 0;
+    for (const uri of jobPhotos) {
+      try {
+        const formData = new FormData();
+        const filename = uri.split("/").pop() || "job_photo.jpg";
+        const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+        const safeName = `photo_${Date.now()}.${["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg"}`;
+        formData.append("image", { uri, type: "image/jpeg", name: safeName } as any);
+        const response = await apiRequest(
+          (ENDPOINTS as any).UPLOAD_JOB_IMAGE(jobId) as string,
+          { method: "POST", body: formData as any },
+        );
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "(no body)");
+          console.warn(`[CreateJob] Photo upload (${response.status}):`, errorText);
+          failedCount++;
+        }
+      } catch (e) {
+        console.warn("[CreateJob] Photo upload failed:", e);
+        failedCount++;
+      }
+    }
+    return failedCount;
+  };
+
   const createJobMutation = useMutation({
     mutationFn: async (jobData: CreateJobRequest) => {
       const response = await fetchJson<{
@@ -1015,7 +1044,7 @@ export default function CreateJobScreen() {
       });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // Invalidate wallet queries to reflect reserved balance change
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
@@ -1034,6 +1063,14 @@ export default function CreateJobScreen() {
           ],
         );
         return;
+      }
+
+      // Upload optional photos before navigating
+      if (jobPhotos.length > 0) {
+        const failed = await uploadJobPhotosAsync(data.job_posting_id);
+        if (failed > 0) {
+          console.warn(`[CreateJob] ${failed}/${jobPhotos.length} photo(s) failed to upload`);
+        }
       }
 
       // Check if payment is required (wallet payment)
@@ -1307,6 +1344,62 @@ export default function CreateJobScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
+            {/* Job Photos Section (Optional) */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="camera" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Job Photos{" "}
+                  <Text style={{ color: Colors.textSecondary, fontWeight: "normal", fontSize: 13 }}>
+                    (Optional, up to 3)
+                  </Text>
+                </Text>
+              </View>
+              <Text style={[styles.hint, { marginBottom: Spacing.sm }]}>
+                Add photos to help workers better understand the job (e.g. the area, existing damage, materials).
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
+                {jobPhotos.map((uri, index) => (
+                  <View key={index} style={styles.photoThumb}>
+                    <Image source={{ uri }} style={styles.photoThumbImage} />
+                    <TouchableOpacity
+                      style={styles.photoRemoveBtn}
+                      onPress={() => setJobPhotos((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      <Ionicons name="close-circle" size={20} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {jobPhotos.length < 3 && (
+                  <TouchableOpacity
+                    style={styles.photoAddBtn}
+                    onPress={async () => {
+                      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (status !== "granted") {
+                        Alert.alert("Permission Required", "Please allow access to your photo library.");
+                        return;
+                      }
+                      const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsMultipleSelection: true,
+                        selectionLimit: 3 - jobPhotos.length,
+                        quality: 0.8,
+                      });
+                      if (!result.canceled && result.assets.length > 0) {
+                        const uris = result.assets.map((a) => a.uri);
+                        setJobPhotos((prev) => [...prev, ...uris].slice(0, 3));
+                      }
+                    }}
+                  >
+                    <Ionicons name="add" size={28} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 2 }}>
+                      Add Photo
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
                 <Ionicons
@@ -3285,6 +3378,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.primary,
     lineHeight: 18,
+  },
+  photoThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.md,
+    overflow: "visible",
+    position: "relative",
+  },
+  photoThumbImage: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.md,
+  },
+  photoRemoveBtn: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+  },
+  photoAddBtn: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
   },
   footer: {
     position: "absolute",

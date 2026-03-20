@@ -546,6 +546,7 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/wallet/transactions/${id}`,
   CREATE_JOB_WITH_PAYMENT: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
   CREATE_JOB: `${API_URL}/api/jobs/create-mobile`, // Direct worker/agency hiring
+  UPLOAD_JOB_IMAGE: (jobId: number) => `${API_URL}/api/jobs/${jobId}/upload-image`,
   // Payment webhooks (server-side only, not called from frontend)
   PAYMENT_WEBHOOK: `${API_URL}/api/accounts/wallet/paymongo-webhook`,
   PAYMENT_RECEIPT: (id: number) =>

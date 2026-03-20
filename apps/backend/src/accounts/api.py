@@ -2308,11 +2308,18 @@ def get_specializations_endpoint(request):
 
         if agency:
             categories = Specializations.objects.filter(
-                Q(created_by_agency__isnull=True) | Q(created_by_agency=agency)
+                Q(
+                    created_by_agency__isnull=True,
+                    created_by_worker__isnull=True,
+                    is_custom=False,
+                )
+                | Q(created_by_agency=agency)
             ).order_by('specializationName')
         else:
             categories = Specializations.objects.filter(
-                created_by_agency__isnull=True
+                created_by_agency__isnull=True,
+                created_by_worker__isnull=True,
+                is_custom=False,
             ).order_by('specializationName')
 
         category_list = [
@@ -2380,6 +2387,8 @@ def create_agency_custom_specialization(request):
         global_match = Specializations.objects.filter(
             specializationName__iexact=name,
             created_by_agency__isnull=True,
+            created_by_worker__isnull=True,
+            is_custom=False,
         ).first()
         if global_match:
             return Response({"error": f"'{global_match.specializationName}' already exists as a standard specialization"}, status=400)

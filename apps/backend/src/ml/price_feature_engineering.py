@@ -103,7 +103,11 @@ class PriceFeatureExtractor:
         # Build category encoding from database if available
         try:
             from accounts.models import Specializations
-            categories = list(Specializations.objects.values_list('specializationID', flat=True))
+            categories = list(Specializations.objects.filter(
+                is_custom=False,
+                created_by_agency__isnull=True,
+                created_by_worker__isnull=True,
+            ).values_list('specializationID', flat=True))
             self.category_encoder = {cat_id: idx for idx, cat_id in enumerate(categories[:self.MAX_CATEGORIES])}
             logger.info(f"Loaded {len(self.category_encoder)} categories from database")
         except Exception as e:

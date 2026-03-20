@@ -29,7 +29,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import InlineLoader from "@/components/ui/InlineLoader";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ENDPOINTS, apiRequest } from "@/lib/api/config";
+import { ENDPOINTS, apiRequest, API_BASE_URL } from "@/lib/api/config";
 import { getErrorMessage } from "@/lib/utils/parse-api-error";
 import { SaveButton } from "@/components/SaveButton";
 import { JobDetailSkeleton } from "@/components/ui/SkeletonLoader";
@@ -467,7 +467,8 @@ export default function JobDetailScreen() {
         photos:
           jobData.photos?.map((url: string, idx: number) => ({
             id: idx,
-            url,
+            // Resolve relative URLs (e.g. /media/...) from local storage to absolute
+            url: url?.startsWith("/") ? `${API_BASE_URL.replace(/\/api$/, "")}${url}` : url,
             file_name: `photo-${idx}`,
           })) || [],
         expectedDuration: jobData.expected_duration,
@@ -2044,6 +2045,30 @@ export default function JobDetailScreen() {
       {/* Removed - now using skeleton loader above */}
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Photos */}
+        {job.photos && job.photos.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {job.photos.map((photo) => (
+                <TouchableOpacity
+                  key={photo.id}
+                  onPress={() => {
+                    setSelectedImage(photo.url);
+                    setShowImageModal(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Image
+                    source={{ uri: photo.url }}
+                    style={styles.photoThumbnail}
+                  />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Job Header */}
         <View style={styles.jobHeader}>
           <View style={styles.jobTitleRow}>
@@ -2417,30 +2442,6 @@ export default function JobDetailScreen() {
               prediction={job?.estimatedCompletion || null}
               isLoading={isLoading}
             />
-          </View>
-        )}
-
-        {/* Photos */}
-        {job.photos && job.photos.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photos</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {job.photos.map((photo) => (
-                <TouchableOpacity
-                  key={photo.id}
-                  onPress={() => {
-                    setSelectedImage(photo.url);
-                    setShowImageModal(true);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Image
-                    source={{ uri: photo.url }}
-                    style={styles.photoThumbnail}
-                  />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
           </View>
         )}
 

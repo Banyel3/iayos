@@ -305,6 +305,14 @@ class Specializations(models.Model):
         related_name="custom_specializations",
         help_text="The agency that created this custom specialization (None = global/admin-seeded)",
     )
+    created_by_worker = models.ForeignKey(
+        "accounts.Accounts",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="custom_worker_specializations",
+        help_text="The worker account that created this custom specialization (None = not worker-owned)",
+    )
 
     class Meta:
         db_table = "specializations"

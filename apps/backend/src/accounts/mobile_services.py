@@ -2591,7 +2591,12 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
     If worker_id is provided, return only categories mapped to that worker's skills.
     """
     try:
-        categories_qs = Specializations.objects.all()
+        # Keep category feed global by default. Custom worker/agency entries are private.
+        categories_qs = Specializations.objects.filter(
+            created_by_agency__isnull=True,
+            created_by_worker__isnull=True,
+            is_custom=False,
+        )
 
         if worker_id:
             # Support multiple worker_id formats sent by mobile/web flows:
@@ -2606,6 +2611,8 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
             if not worker:
                 return {"success": False, "error": "Worker not found"}
 
+            worker_account = worker.profileID.accountFK
+
             from .models import workerSpecialization
 
             worker_skill_spec_ids = list(
@@ -2614,8 +2621,14 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
                 )
             )
 
-            categories_qs = categories_qs.filter(
-                specializationID__in=worker_skill_spec_ids
+            # Return only GLOBAL specializations linked to this worker's profile.
+            # Custom (agency/worker-created) skills are private and must not
+            # appear in a client's job-post form.
+            categories_qs = Specializations.objects.filter(
+                specializationID__in=worker_skill_spec_ids,
+                is_custom=False,
+                created_by_agency__isnull=True,
+                created_by_worker__isnull=True,
             )
 
         categories = categories_qs.order_by("specializationName")
