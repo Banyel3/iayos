@@ -5993,11 +5993,11 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         if not (is_client or is_worker or is_agency_owner or is_team_worker):
             return Response({"error": "You are not part of this job"}, status=403)
 
-        # If client is reviewing, check if final payment has been made
-        if is_client and not job.remainingPaymentPaid:
+        # Require final payment before any reviews can be submitted (both sides)
+        if not job.remainingPaymentPaid:
             return Response(
                 {
-                    "error": "You must complete the final payment before leaving a review"
+                    "error": "Final payment must be completed before submitting reviews"
                 },
                 status=400,
             )

@@ -724,11 +724,11 @@ export default function ChatScreen() {
 
   // User can submit a review once completion/payment requirements are met.
   // Do not depend on conversation closed flags here because those can be stale.
+  // Reviews are only available AFTER the client has paid the final payment.
   const canSubmitReview = !!(
     conversation?.job &&
     !reviewStatusSyncing &&
-    (conversation.my_role !== "CLIENT" ||
-      conversation.job.remainingPaymentPaid) &&
+    conversation.job.remainingPaymentPaid &&
     (conversation.job.clientMarkedComplete || isJobCompleted) &&
     !hasApprovedBackjob &&
     !viewerHasReviewed

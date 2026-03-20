@@ -161,6 +161,8 @@ interface JobDetail {
   cancellationReason?: string | null;
   clientRefundAmount?: number;
   workerCompensationAmount?: number;
+  budgetRangeMin?: number;
+  budgetRangeMax?: number;
 }
 
 interface JobApplication {
@@ -442,6 +444,8 @@ export default function JobDetailScreen() {
           jobData.budget != null
             ? `₱${Number(jobData.budget).toLocaleString()}`
             : "TBD",
+        budgetRangeMin: jobData.budget_range_min ?? null,
+        budgetRangeMax: jobData.budget_range_max ?? null,
         location: jobData.location,
         distance: jobData.distance ?? null,
         status: jobData.status,
@@ -2226,8 +2230,12 @@ export default function JobDetailScreen() {
               color={Colors.primary}
             />
             <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Budget</Text>
-              <Text style={styles.detailValue}>{job.budget}</Text>
+              <Text style={styles.detailLabel}>Budget Range</Text>
+              <Text style={styles.detailValue}>
+                {job.budgetRangeMin != null && job.budgetRangeMax != null
+                  ? `₱${job.budgetRangeMin.toLocaleString()} - ₱${job.budgetRangeMax.toLocaleString()}`
+                  : job.budget}
+              </Text>
               {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
                 <View style={{ marginTop: 2 }}>
                   <Text style={{ fontSize: 11, color: Colors.primary }}>
