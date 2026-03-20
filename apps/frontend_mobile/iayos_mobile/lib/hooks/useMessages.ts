@@ -192,10 +192,17 @@ export type ConversationDetail = {
     // Completion tracking
     worker_marked_complete: boolean;
     worker_marked_complete_at: string | null;
+    // Early-finish tracking (additive)
+    early_completed?: boolean;
+    early_completed_at?: string | null;
+    early_completion_payout?: number | null;
+    can_early_finish?: boolean;
+    early_finish_quote?: number | null;
   }>;
   // Agency employees filling skill slots in a mixed team+agency job
   team_agency_employees?: Array<{
     id: number;
+    assignment_id?: number;
     name: string;
     avatar: string;
     rating?: number | null;
@@ -215,6 +222,12 @@ export type ConversationDetail = {
     paymentAmount?: number | null;
     clientApproved?: boolean;
     clientApprovedAt?: string | null;
+    // Early-finish tracking (additive)
+    early_completed?: boolean;
+    early_completed_at?: string | null;
+    early_completion_payout?: number | null;
+    can_early_finish?: boolean;
+    early_finish_quote?: number | null;
   }>;
   pending_team_worker_reviews?: Array<{
     worker_id: number;

@@ -312,7 +312,56 @@ export function useCancelJob() {
     onError: (error: Error) => {
       Toast.show({
         type: "error",
-        text1: "Cancellation Failed",
+        text1: "Approval Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Client early-finishes a single (non-team) PROJECT job.
+ * Pays out the full contracted amount immediately.
+ */
+export function useProjectEarlyComplete() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId }: { jobId: number }) => {
+      const response = await apiRequest(
+        ENDPOINTS.PROJECT_EARLY_COMPLETE(jobId),
+        { method: "POST" },
+      );
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to complete project early"));
+      }
+
+      return response.json() as Promise<{
+        success: boolean;
+        message?: string;
+        payout?: number;
+      }>;
+    },
+    onSuccess: (data, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Project Completed",
+        text2: data?.message || "Full project payment has been sent to worker",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Early Completion Failed",
         text2: error.message,
       });
     },

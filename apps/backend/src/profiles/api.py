@@ -2466,6 +2466,36 @@ def get_conversation_messages(request, conversation_id: int):
                     else None
                 )
 
+                # Early-finish quote for DAILY: remaining contracted daily amount
+                # For PROJECT: full budget_allocated on the slot
+                _payment_model = getattr(job, "payment_model", "DAILY")
+                _early_finish_quote = None
+                _can_early_finish = (
+                    not assignment.early_completed
+                    and assignment.client_confirmed_arrival
+                    and not assignment.worker_marked_complete
+                )
+                if _can_early_finish:
+                    if (
+                        _payment_model == "DAILY"
+                        and assignment.daily_rate_at_assignment
+                    ):
+                        _contracted_days = _derive_duration_days(job)
+                        _days_paid = int(assignment.days_worked or 0)
+                        _remaining_days = max(0, _contracted_days - _days_paid)
+                        _early_finish_quote = float(
+                            assignment.daily_rate_at_assignment * _remaining_days
+                        )
+                    elif _payment_model == "PROJECT":
+                        # Full contracted share for the slot
+                        _slot_budget = (
+                            float(assignment.skillSlotID.budget_allocated)
+                            if assignment.skillSlotID
+                            and assignment.skillSlotID.budget_allocated
+                            else None
+                        )
+                        _early_finish_quote = _slot_budget
+
                 worker_info = {
                     # Use FK raw id to avoid attribute errors (WorkerProfile has no workerID attr)
                     "worker_id": assignment.workerID_id,
@@ -2485,6 +2515,16 @@ def get_conversation_messages(request, conversation_id: int):
                     "worker_marked_complete_at": assignment.worker_marked_complete_at.isoformat()
                     if assignment.worker_marked_complete_at
                     else None,
+                    # Early-finish tracking (additive — alongside legacy fields)
+                    "early_completed": assignment.early_completed,
+                    "early_completed_at": assignment.early_completed_at.isoformat()
+                    if assignment.early_completed_at
+                    else None,
+                    "early_completion_payout": float(assignment.early_completion_payout)
+                    if assignment.early_completion_payout is not None
+                    else None,
+                    "can_early_finish": _can_early_finish,
+                    "early_finish_quote": _early_finish_quote,
                 }
                 team_worker_assignments.append(worker_info)
 
@@ -2523,6 +2563,7 @@ def get_conversation_messages(request, conversation_id: int):
                 team_agency_employees.append(
                     {
                         "id": emp.employeeID,
+                        "assignment_id": sea.assignmentID,
                         "name": emp.name,
                         "avatar": emp.avatar or "/worker-default.jpg",
                         "rating": float(emp.rating) if emp.rating else None,
@@ -2560,6 +2601,27 @@ def get_conversation_messages(request, conversation_id: int):
                         "clientApproved": getattr(sea, "clientApproved", False),
                         "clientApprovedAt": sea.clientApprovedAt.isoformat()
                         if getattr(sea, "clientApprovedAt", None)
+                        else None,
+                        # Early-finish tracking (additive — fields added via migration)
+                        "early_completed": getattr(sea, "early_completed", False),
+                        "early_completed_at": getattr(
+                            sea, "early_completed_at", None
+                        ).isoformat()
+                        if getattr(sea, "early_completed_at", None)
+                        else None,
+                        "early_completion_payout": float(
+                            getattr(sea, "early_completion_payout", None)
+                        )
+                        if getattr(sea, "early_completion_payout", None) is not None
+                        else None,
+                        "can_early_finish": (
+                            not getattr(sea, "early_completed", False)
+                            and getattr(sea, "clientConfirmedArrival", False)
+                            and not getattr(sea, "agencyMarkedComplete", False)
+                            and not getattr(sea, "clientApproved", False)
+                        ),
+                        "early_finish_quote": float(sea.paymentAmount)
+                        if getattr(sea, "paymentAmount", None) is not None
                         else None,
                     }
                 )

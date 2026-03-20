@@ -336,8 +336,8 @@ class workerSpecialization(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['workerID', 'skillType']),
-            models.Index(fields=['workerID', 'displayOrder']),
+            models.Index(fields=["workerID", "skillType"]),
+            models.Index(fields=["workerID", "displayOrder"]),
         ]
 
 
@@ -1964,6 +1964,20 @@ class JobEmployeeAssignment(models.Model):
         help_text="Client has approved this employee's work and paid their share",
     )
     clientApprovedAt = models.DateTimeField(null=True, blank=True)
+
+    # Per-employee early completion (client-triggered, routes payout to agency ledger)
+    early_completed = models.BooleanField(
+        default=False,
+        help_text="Whether this employee was finished early by the client",
+    )
+    early_completed_at = models.DateTimeField(null=True, blank=True)
+    early_completion_payout = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Payout amount sent to agency ledger on early completion",
+    )
 
     # Skill slot assignment (for multi-employee INVITE jobs)
     skill_slot = models.ForeignKey(

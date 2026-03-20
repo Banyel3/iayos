@@ -3490,3 +3490,430 @@ def agency_complete_team_employee(
         "incomplete_employees": incomplete_employees,
         "message": f"{employee_name} work marked as complete",
     }
+
+
+# ---------------------------------------------------------------------------
+# NEW: Per-member early-finish services
+# ---------------------------------------------------------------------------
+
+
+@transaction.atomic
+def early_complete_team_worker_project(
+    job_id: int, assignment_id: int, client_user
+) -> dict:
+    """
+    Client early-finishes a specific freelancer on a PROJECT team job.
+    Payout = full budget_allocated on their skill slot (not prorated).
+    Idempotent: returns success if already early-completed.
+    """
+    from accounts.models import JobLog
+
+    try:
+        job = Job.objects.select_related("clientID__profileID__accountFK").get(
+            jobID=job_id
+        )
+    except Job.DoesNotExist:
+        return {"success": False, "error": "Job not found"}
+
+    if not job.is_team_job:
+        return {"success": False, "error": "This is not a team job"}
+
+    if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() != "PROJECT":
+        return {
+            "success": False,
+            "error": "This endpoint is for PROJECT team jobs only",
+        }
+
+    if job.status != "IN_PROGRESS":
+        return {
+            "success": False,
+            "error": f"Job must be IN_PROGRESS (current: {job.status})",
+        }
+
+    client_profile = job.clientID
+    if not client_profile or client_profile.profileID.accountFK != client_user:
+        return {
+            "success": False,
+            "error": "Only the client can early-complete a worker",
+        }
+
+    try:
+        assignment = JobWorkerAssignment.objects.select_related(
+            "workerID__profileID__accountFK", "skillSlotID"
+        ).get(assignmentID=assignment_id, jobID=job)
+    except JobWorkerAssignment.DoesNotExist:
+        return {"success": False, "error": "Worker assignment not found"}
+
+    if assignment.assignment_status not in ("ACTIVE", "COMPLETED"):
+        return {
+            "success": False,
+            "error": f"Assignment status is {assignment.assignment_status}",
+        }
+
+    if assignment.early_completed:
+        return {
+            "success": True,
+            "already_done": True,
+            "assignment_id": assignment.assignmentID,
+            "message": "Worker was already early-completed",
+        }
+
+    if not assignment.client_confirmed_arrival:
+        return {"success": False, "error": "Client must confirm worker arrival first"}
+
+    # Full slot budget = the contracted share for this freelancer
+    payout = Decimal("0.00")
+    if assignment.skillSlotID and assignment.skillSlotID.budget_allocated:
+        payout = Decimal(str(assignment.skillSlotID.budget_allocated))
+
+    now = timezone.now()
+    worker_account = assignment.workerID.profileID.accountFK
+    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
+
+    if payout > Decimal("0.00"):
+        worker_wallet, _ = Wallet.objects.select_for_update().get_or_create(
+            accountFK=worker_account
+        )
+        worker_wallet.pendingEarnings += payout
+        worker_wallet.save()
+
+        Transaction.objects.create(
+            walletID=worker_wallet,
+            transactionType="PENDING_EARNING",
+            amount=payout,
+            balanceAfter=worker_wallet.balance,
+            status="PENDING",
+            description=f"Early completion payout (PROJECT full share) - Job #{job.jobID}",
+            relatedJobPosting=job,
+            paymentMethod="WALLET",
+        )
+
+    assignment.early_completed = True
+    assignment.early_completed_at = now
+    assignment.early_completion_payout = payout
+    assignment.assignment_status = "COMPLETED"
+    assignment.worker_marked_complete = True
+    assignment.worker_marked_complete_at = now
+    assignment.save()
+
+    JobLog.objects.create(
+        jobID=job,
+        notes=(
+            f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Client early-completed "
+            f"PROJECT worker {worker_name} (assignment #{assignment_id}). "
+            f"Payout: PHP {payout}"
+        ),
+        changedBy=client_user,
+        oldStatus="IN_PROGRESS",
+        newStatus="IN_PROGRESS",
+    )
+
+    Notification.objects.create(
+        accountFK=worker_account,
+        notificationType="TEAM_WORKER_COMPLETE",
+        title="Early Completion — Full Pay",
+        message=(
+            f"You've been marked as done early on '{job.title}'. "
+            f"Full project share of PHP {float(payout):,.2f} added to pending earnings."
+        ),
+        relatedJobID=job.jobID,
+    )
+
+    all_complete = (
+        not JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE"
+        ).exists()
+        and not JobEmployeeAssignment.objects.filter(
+            job=job, skill_slot__isnull=False, status__in=["ASSIGNED", "IN_PROGRESS"]
+        ).exists()
+    )
+
+    return {
+        "success": True,
+        "assignment_id": assignment.assignmentID,
+        "worker_name": worker_name,
+        "payout": float(payout),
+        "all_workers_complete": all_complete,
+        "message": f"{worker_name} early-completed with full PROJECT share of PHP {float(payout):,.2f}",
+    }
+
+
+@transaction.atomic
+def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -> dict:
+    """
+    Client early-finishes a specific agency employee on a team job (DAILY or PROJECT).
+    Payout = paymentAmount on the JobEmployeeAssignment, routed to agency owner ledger.
+    Idempotent: returns success if already early-completed.
+    """
+    from accounts.models import JobLog, Agency
+
+    try:
+        job = Job.objects.select_related(
+            "clientID__profileID__accountFK", "assignedAgencyFK__accountFK"
+        ).get(jobID=job_id)
+    except Job.DoesNotExist:
+        return {"success": False, "error": "Job not found"}
+
+    if not job.is_team_job:
+        return {"success": False, "error": "This is not a team job"}
+
+    if job.status != "IN_PROGRESS":
+        return {
+            "success": False,
+            "error": f"Job must be IN_PROGRESS (current: {job.status})",
+        }
+
+    client_profile = job.clientID
+    if not client_profile or client_profile.profileID.accountFK != client_user:
+        return {
+            "success": False,
+            "error": "Only the client can early-complete an employee",
+        }
+
+    try:
+        assignment = JobEmployeeAssignment.objects.select_related(
+            "employee",
+            "skill_slot__specializationID",
+            "skill_slot__invited_agency__accountFK",
+        ).get(assignmentID=assignment_id, job=job)
+    except JobEmployeeAssignment.DoesNotExist:
+        return {"success": False, "error": "Employee assignment not found"}
+
+    if assignment.status not in ("ASSIGNED", "IN_PROGRESS", "COMPLETED"):
+        return {"success": False, "error": f"Assignment status is {assignment.status}"}
+
+    if assignment.early_completed:
+        return {
+            "success": True,
+            "already_done": True,
+            "assignment_id": assignment.assignmentID,
+            "message": "Employee was already early-completed",
+        }
+
+    if not assignment.clientConfirmedArrival:
+        return {"success": False, "error": "Client must confirm employee arrival first"}
+
+    # Payout = full paymentAmount (works for both DAILY and PROJECT)
+    payout = Decimal(str(assignment.paymentAmount or "0.00"))
+
+    now = timezone.now()
+    employee_name = assignment.employee.name
+
+    # Determine the agency owner account to receive funds
+    agency_account = None
+    if assignment.skill_slot and assignment.skill_slot.invited_agency:
+        agency_account = assignment.skill_slot.invited_agency.accountFK
+    elif job.assignedAgencyFK:
+        agency_account = job.assignedAgencyFK.accountFK
+
+    if not agency_account:
+        return {
+            "success": False,
+            "error": "Could not determine agency account for payout",
+        }
+
+    if payout > Decimal("0.00"):
+        agency_wallet, _ = Wallet.objects.select_for_update().get_or_create(
+            accountFK=agency_account
+        )
+        agency_wallet.pendingEarnings += payout
+        agency_wallet.save()
+
+        Transaction.objects.create(
+            walletID=agency_wallet,
+            transactionType="PENDING_EARNING",
+            amount=payout,
+            balanceAfter=agency_wallet.balance,
+            status="PENDING",
+            description=f"Early completion payout for employee {employee_name} - Job #{job.jobID}",
+            relatedJobPosting=job,
+            paymentMethod="WALLET",
+        )
+
+    assignment.early_completed = True
+    assignment.early_completed_at = now
+    assignment.early_completion_payout = payout
+    assignment.agencyMarkedComplete = True
+    assignment.agencyMarkedCompleteAt = now
+    assignment.clientApproved = True
+    assignment.clientApprovedAt = now
+    assignment.status = "COMPLETED"
+    assignment.save()
+
+    JobLog.objects.create(
+        jobID=job,
+        notes=(
+            f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Client early-completed "
+            f"agency employee {employee_name} (assignment #{assignment_id}). "
+            f"Payout to agency: PHP {payout}"
+        ),
+        changedBy=client_user,
+        oldStatus="IN_PROGRESS",
+        newStatus="IN_PROGRESS",
+    )
+
+    Notification.objects.create(
+        accountFK=agency_account,
+        notificationType="TEAM_EMPLOYEE_COMPLETED",
+        title="Employee Early-Completed",
+        message=(
+            f"Client marked {employee_name} as done early on '{job.title}'. "
+            f"PHP {float(payout):,.2f} added to pending earnings."
+        ),
+        relatedJobID=job.jobID,
+    )
+
+    all_complete = (
+        not JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE"
+        ).exists()
+        and not JobEmployeeAssignment.objects.filter(
+            job=job, skill_slot__isnull=False, status__in=["ASSIGNED", "IN_PROGRESS"]
+        ).exists()
+    )
+
+    return {
+        "success": True,
+        "assignment_id": assignment.assignmentID,
+        "employee_name": employee_name,
+        "payout": float(payout),
+        "all_team_complete": all_complete,
+        "message": f"{employee_name} early-completed. PHP {float(payout):,.2f} to agency pending earnings.",
+    }
+
+
+@transaction.atomic
+def early_complete_single_project_job(job_id: int, client_user) -> dict:
+    """
+    Client early-finishes a single (non-team) PROJECT job.
+    Payout = full remaining project budget (budget + materialsCost).
+    Bypasses the multi-day gate. Idempotent.
+    """
+    from accounts.models import JobLog
+
+    try:
+        job = Job.objects.select_related(
+            "clientID__profileID__accountFK",
+            "assignedWorkerID__profileID__accountFK",
+        ).get(jobID=job_id)
+    except Job.DoesNotExist:
+        return {"success": False, "error": "Job not found"}
+
+    if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() != "PROJECT":
+        return {"success": False, "error": "This endpoint is for PROJECT jobs only"}
+
+    if job.is_team_job:
+        return {
+            "success": False,
+            "error": "Use team early-finish endpoints for team jobs",
+        }
+
+    if job.status != "IN_PROGRESS":
+        return {
+            "success": False,
+            "error": f"Job must be IN_PROGRESS (current: {job.status})",
+        }
+
+    client_profile = job.clientID
+    if not client_profile or client_profile.profileID.accountFK != client_user:
+        return {
+            "success": False,
+            "error": "Only the client can perform early completion",
+        }
+
+    if job.clientMarkedComplete:
+        return {
+            "success": True,
+            "already_done": True,
+            "message": "Job already completed",
+        }
+
+    if not job.clientConfirmedWorkerStarted:
+        return {"success": False, "error": "Client must confirm worker arrival first"}
+
+    # Payout = budget + materialsCost (full contracted amount, same as approve-completion)
+    budget = Decimal(str(job.budget or "0.00"))
+    materials_cost = Decimal(str(getattr(job, "materialsCost", None) or "0.00"))
+    payout = budget + materials_cost
+
+    worker_account = None
+    if job.assignedWorkerID and job.assignedWorkerID.profileID:
+        worker_account = job.assignedWorkerID.profileID.accountFK
+
+    if not worker_account:
+        return {"success": False, "error": "Could not determine worker account"}
+
+    now = timezone.now()
+
+    if payout > Decimal("0.00"):
+        worker_wallet, _ = Wallet.objects.select_for_update().get_or_create(
+            accountFK=worker_account
+        )
+        worker_wallet.pendingEarnings += payout
+        worker_wallet.save()
+
+        Transaction.objects.create(
+            walletID=worker_wallet,
+            transactionType="PENDING_EARNING",
+            amount=payout,
+            balanceAfter=worker_wallet.balance,
+            status="PENDING",
+            description=f"Early completion payout (PROJECT full share) - Job #{job.jobID}",
+            relatedJobPosting=job,
+            paymentMethod="WALLET",
+        )
+
+    old_status = job.status
+    job.is_early_completed = True
+    job.early_completed_at = now
+    job.early_completion_payout = payout
+    job.status = "COMPLETED"
+    job.workerMarkedComplete = True
+    job.clientMarkedComplete = True
+    job.workerMarkedCompleteAt = now
+    job.clientMarkedCompleteAt = now
+    job.finalPaymentMethod = "WALLET"
+    job.save()
+
+    JobLog.objects.create(
+        jobID=job,
+        notes=(
+            f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Client early-completed PROJECT job. "
+            f"Full payout: PHP {payout}"
+        ),
+        changedBy=client_user,
+        oldStatus=old_status,
+        newStatus="COMPLETED",
+    )
+
+    worker_name = f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}"
+    Notification.objects.create(
+        accountFK=worker_account,
+        notificationType="JOB_COMPLETED",
+        title="Job Completed — Full Pay",
+        message=(
+            f"Client has marked '{job.title}' as complete early. "
+            f"Full payment of PHP {float(payout):,.2f} added to pending earnings."
+        ),
+        relatedJobID=job.jobID,
+    )
+
+    # Archive conversation
+    try:
+        from profiles.models import Conversation
+
+        conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+        if conversation:
+            conversation.status = Conversation.ConversationStatus.COMPLETED
+            conversation.save(update_fields=["status", "updatedAt"])
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "job_id": job.jobID,
+        "worker_name": worker_name,
+        "payout": float(payout),
+        "status": job.status,
+        "message": f"PROJECT job early-completed. PHP {float(payout):,.2f} added to worker pending earnings.",
+    }
