@@ -106,6 +106,13 @@ const SKILL_LEVELS = [
   { value: "EXPERT", label: "Expert", multiplier: 3 },
 ];
 
+const formatLocalDateYYYYMMDD = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function CreateTeamJobScreen() {
   const router = useRouter();
 
@@ -626,11 +633,22 @@ export default function CreateTeamJobScreen() {
     if (paymentModel === "DAILY") {
       if (!dailyRate || dailyRateNum <= 0)
         return "Please enter a valid daily rate";
-      if (!durationDays || durationDaysNum <= 0)
-        return "Please enter a valid duration in days";
       if (budgetNum < 100)
         return "Computed total budget is too low (minimum ₱100)";
     }
+
+    // Number of working days validation (required for all team jobs)
+    if (!durationDays || durationDaysNum <= 0) {
+      return "Please enter the number of working days";
+    }
+    if (durationDaysNum > 365) {
+      return "Duration cannot exceed 365 days";
+    }
+
+    if (!startDate) {
+      return "Please select a start date for the job";
+    }
+
     if (!barangay || !street) return "Please provide a complete location";
 
     if (allocationMethod === "MANUAL_ALLOCATION") {
@@ -677,12 +695,27 @@ export default function CreateTeamJobScreen() {
       return;
     }
 
+    const computedEndDate =
+      startDate && durationDaysNum > 0
+        ? new Date(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate() + Math.max(durationDaysNum - 1, 0),
+          )
+        : null;
+
     const payload = {
       title: title.trim(),
       description: description.trim(),
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
-      preferred_start_date: startDate?.toISOString().split("T")[0],
+      preferred_start_date: startDate
+        ? formatLocalDateYYYYMMDD(startDate)
+        : undefined,
+      scheduled_end_date: computedEndDate
+        ? formatLocalDateYYYYMMDD(computedEndDate)
+        : undefined,
+      number_of_working_days: durationDaysNum || undefined,
       payment_model: paymentModel,
       daily_rate: paymentModel === "DAILY" ? dailyRateNum : undefined,
       duration_days: paymentModel === "DAILY" ? durationDaysNum : undefined,
@@ -1197,21 +1230,6 @@ export default function CreateTeamJobScreen() {
                       keyboardType="numeric"
                     />
                   </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Duration (Days)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={durationDays}
-                      onChangeText={setDurationDays}
-                      placeholder="5"
-                      keyboardType="numeric"
-                    />
-                    <Text style={styles.hint}>
-                      Total budget is auto-calculated: daily rate x days x
-                      workers
-                    </Text>
-                  </View>
                 </>
               ) : (
                 <View style={styles.inputGroup}>
@@ -1228,6 +1246,12 @@ export default function CreateTeamJobScreen() {
                     job.
                   </Text>
                 </View>
+              )}
+
+              {paymentModel === "DAILY" && (
+                <Text style={styles.hint}>
+                  Total budget is auto-calculated: daily rate x days x workers.
+                </Text>
               )}
 
               {/* Shift Picker - shown for all payment models */}
@@ -1445,6 +1469,79 @@ export default function CreateTeamJobScreen() {
               )}
             </View>
 
+            {/* Timing Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="time" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Timing <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Preferred Start Date</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Ionicons
+                    name="calendar"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                  <Text
+                    style={startDate ? styles.dateText : styles.datePlaceholder}
+                  >
+                    {startDate ? startDate.toLocaleDateString() : "Select date"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Working Days <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 5"
+                  value={durationDays}
+                  onChangeText={setDurationDays}
+                  keyboardType="number-pad"
+                  placeholderTextColor={Colors.textHint}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <TouchableOpacity
+                  style={styles.oneDayToggle}
+                  onPress={() => {
+                    const next = !isOneDayJob;
+                    setIsOneDayJob(next);
+                    if (next) {
+                      setDurationDays("1");
+                      setPaymentModel("PROJECT");
+                    }
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      isOneDayJob && styles.checkboxChecked,
+                    ]}
+                  >
+                    {isOneDayJob && (
+                      <Ionicons
+                        name="checkmark"
+                        size={14}
+                        color={Colors.white}
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.oneDayLabel}>This job is one day or less</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -1488,62 +1585,6 @@ export default function CreateTeamJobScreen() {
               </View>
             </View>
 
-            {/* Urgency & Date */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="time" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>Timing (Optional)</Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Preferred Start Date (Optional)
-                </Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Ionicons
-                    name="calendar"
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                  <Text
-                    style={startDate ? styles.dateText : styles.datePlaceholder}
-                  >
-                    {startDate ? startDate.toLocaleDateString() : "Select date"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <TouchableOpacity
-                  style={styles.oneDayToggle}
-                  onPress={() => {
-                    const next = !isOneDayJob;
-                    setIsOneDayJob(next);
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      isOneDayJob && styles.checkboxChecked,
-                    ]}
-                  >
-                    {isOneDayJob && (
-                      <Ionicons
-                        name="checkmark"
-                        size={14}
-                        color={Colors.white}
-                      />
-                    )}
-                  </View>
-                  <Text style={styles.oneDayLabel}>
-                    One-day team job (end date = start date)
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
             {/* Job Options Section */}
             <View style={styles.section}>
               <TouchableOpacity

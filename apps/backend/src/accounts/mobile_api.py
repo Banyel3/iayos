@@ -8751,14 +8751,20 @@ def worker_check_in(request, job_id: int):
 
         # Verify worker is assigned to this job
         team_assignment = None
+        team_assignments = []
         is_assigned = job.assignedWorkerID == worker
         if not is_assigned and job.is_team_job:
-            team_assignment = JobWorkerAssignment.objects.filter(
-                jobID=job,
-                workerID=worker,
-                assignment_status__in=["ACTIVE", "COMPLETED"],
-            ).first()
-            is_assigned = team_assignment is not None
+            team_assignments = list(
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    workerID=worker,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                )
+            )
+            is_assigned = len(team_assignments) > 0
+            # For single-assignment compatibility keep team_assignment set
+            if len(team_assignments) == 1:
+                team_assignment = team_assignments[0]
 
         if not is_assigned:
             return Response({"error": "You are not assigned to this job"}, status=403)
@@ -8766,6 +8772,118 @@ def worker_check_in(request, job_id: int):
         now = timezone.now()
         today = _get_effective_work_date(job)
 
+        # Multi-slot fan-out: team worker with 2+ assignments — dispatch once per slot.
+        if len(team_assignments) > 1:
+            dispatched_ids = []
+            for assign in team_assignments:
+                fan_filter = {
+                    "jobID": job,
+                    "workerID": worker,
+                    "date": today,
+                    "assignmentID": assign,
+                }
+                existing = DailyAttendance.objects.filter(**fan_filter).first()
+
+                # Skip stale rows from earlier backjob cycle
+                if existing and cycle_anchor_at:
+                    cycle_signals = [
+                        existing.worker_confirmed_at,
+                        existing.time_in,
+                        existing.time_out,
+                        existing.client_confirmed_at,
+                    ]
+                    if not any(s and s >= cycle_anchor_at for s in cycle_signals):
+                        existing = None
+
+                # Skip slots already dispatched / checked-in this cycle
+                if existing and (existing.status == "DISPATCHED" or existing.time_in):
+                    dispatched_ids.append(existing.attendanceID)
+                    continue
+
+                fan_att, _ = DailyAttendance.objects.update_or_create(
+                    **fan_filter,
+                    defaults={
+                        "employeeID": None,
+                        "time_in": None,
+                        "time_out": None,
+                        "status": "DISPATCHED",
+                        "worker_confirmed": True,
+                        "worker_confirmed_at": now,
+                        "amount_earned": Decimal("0.00"),
+                    },
+                )
+                dispatched_ids.append(fan_att.attendanceID)
+                print(
+                    f"✅ [MOBILE] Multi-slot check-in: attendance_id={fan_att.attendanceID}, "
+                    f"assignment_id={assign.pk}, at={now}"
+                )
+
+            # Notify client once
+            try:
+                Notification.objects.create(
+                    accountFK=job.clientID.profileID.accountFK,
+                    notificationType=Notification.NotificationType.SYSTEM,
+                    title="Worker On The Way",
+                    message=f"Worker is on the way for '{job.title}'.",
+                    relatedJobID=job.jobID,
+                )
+            except Exception as notif_error:
+                print(
+                    f"⚠️ [MOBILE] Worker on-the-way notification failed: {str(notif_error)}"
+                )
+
+            try:
+                from jobs.api import broadcast_job_status_update
+
+                broadcast_job_status_update(
+                    job.jobID,
+                    {
+                        "job_id": job.jobID,
+                        "event": "worker_marked_on_the_way",
+                        "worker_marked_on_the_way": True,
+                        "timestamp": now.isoformat(),
+                        "fan_out": True,
+                        "attendance_ids": dispatched_ids,
+                    },
+                )
+            except Exception as ws_error:
+                print(
+                    f"⚠️ [MOBILE] Worker on-the-way websocket broadcast failed: {str(ws_error)}"
+                )
+
+            auto_release = _release_previous_daily_pending_on_checkin(
+                job=job,
+                worker_account=request.auth,
+                checkin_date=today,
+            )
+            released_amount = auto_release.get("released_amount")
+            released_count = int(auto_release.get("released_count") or 0)
+            released_amount_float = float(released_amount) if released_amount else 0.0
+
+            response_message = "Marked on the way. Ask the client to verify arrival."
+            if released_count > 0:
+                response_message = (
+                    f"Marked on the way. ₱{released_amount_float:,.2f} from previous day pending payout(s) "
+                    "was released to your wallet balance."
+                )
+
+            return {
+                "success": True,
+                "fan_out": True,
+                "attendance_ids": dispatched_ids,
+                "attendance_id": dispatched_ids[0] if dispatched_ids else None,
+                "worker_id": getattr(worker, "workerProfileID", None),
+                "worker_account_id": getattr(request.auth, "accountID", None),
+                "time_in": None,
+                "date": str(today),
+                "status": "DISPATCHED",
+                "message": response_message,
+                "released_previous_pending_amount": released_amount_float,
+                "released_previous_pending_count": released_count,
+                "awaiting_client_confirmation": True,
+            }
+
+        # Single-assignment path (non-team job or team job with exactly one slot)
         # Check if attendance already exists for today
         attendance_filter = {
             "jobID": job,
@@ -9399,6 +9517,16 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
             return Response({"error": "worker_id is required for this job"}, status=400)
 
         today = _get_effective_work_date(job)
+
+        # Determine worker display name early (shared by all paths below)
+        if target_worker:
+            worker_name = (
+                f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip()
+                or target_worker.profileID.accountFK.email
+            )
+        else:
+            worker_name = target_employee.fullName if target_employee else "Worker"
+
         if target_employee:
             attendance, _ = DailyAttendance.objects.get_or_create(
                 jobID=job,
@@ -9413,20 +9541,131 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                     "notes": "Marked absent by client quick action",
                 },
             )
+            # Agency employee branch — single row, falls through to shared confirm below
+            team_no_work_assignments = []
         else:
-            attendance, _ = DailyAttendance.objects.get_or_create(
-                jobID=job,
-                workerID=target_worker,
-                date=today,
-                defaults={
-                    "employeeID": None,
+            # Check if this is a multi-slot team worker
+            team_no_work_assignments = []
+            if job.is_team_job and target_worker:
+                team_no_work_assignments = list(
+                    JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        workerID=target_worker,
+                        assignment_status__in=["ACTIVE", "COMPLETED"],
+                    )
+                )
+
+            if len(team_no_work_assignments) > 1:
+                # Multi-slot fan-out: create one ABSENT row per assignment
+                now_ts = timezone.now()
+                fan_attendance_ids = []
+                total_absent_penalty = Decimal("0.00")
+                last_result = {}
+                for assign in team_no_work_assignments:
+                    fan_att, _ = DailyAttendance.objects.get_or_create(
+                        jobID=job,
+                        workerID=target_worker,
+                        assignmentID=assign,
+                        date=today,
+                        defaults={
+                            "employeeID": None,
+                            "status": "ABSENT",
+                            "amount_earned": Decimal("0.00"),
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": now_ts,
+                            "notes": "Marked absent by client quick action",
+                        },
+                    )
+
+                    if fan_att.time_in:
+                        # Worker already checked in for this slot — skip silently
+                        fan_attendance_ids.append(fan_att.attendanceID)
+                        continue
+
+                    if not fan_att.client_confirmed:
+                        fan_att.worker_confirmed = True
+                        fan_att.worker_confirmed_at = (
+                            fan_att.worker_confirmed_at or now_ts
+                        )
+                        fan_att.status = "ABSENT"
+                        fan_att.amount_earned = Decimal("0.00")
+                        fan_att.save(
+                            update_fields=[
+                                "worker_confirmed",
+                                "worker_confirmed_at",
+                                "status",
+                                "amount_earned",
+                                "updatedAt",
+                            ]
+                        )
+
+                        if is_project_multiday_job:
+                            DailyPaymentService.apply_absent_penalty(fan_att)
+                            fan_att.client_confirmed = True
+                            fan_att.client_confirmed_at = now_ts
+                            fan_att.payment_processed = True
+                            fan_att.payment_processed_at = now_ts
+                            fan_att.save(
+                                update_fields=[
+                                    "client_confirmed",
+                                    "client_confirmed_at",
+                                    "payment_processed",
+                                    "payment_processed_at",
+                                    "updatedAt",
+                                ]
+                            )
+                        else:
+                            last_result = DailyPaymentService.confirm_attendance_client(
+                                fan_att,
+                                request.auth,
+                                approved_status="ABSENT",
+                            )
+
+                    total_absent_penalty += fan_att.absent_penalty_amount or Decimal(
+                        "0.00"
+                    )
+                    fan_attendance_ids.append(fan_att.attendanceID)
+
+                if is_project_multiday_job:
+                    synced_days_worked = _sync_project_multiday_total_days_worked(job)
+                    msg = "Marked absent. Penalty applied for final payout adjustments."
+                else:
+                    synced_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+                    msg = last_result.get(
+                        "message", "Marked as absent. No payment recorded for today."
+                    )
+
+                return {
+                    "success": True,
+                    "fan_out": True,
+                    "attendance_ids": fan_attendance_ids,
+                    "attendance_id": fan_attendance_ids[0]
+                    if fan_attendance_ids
+                    else None,
+                    "worker_name": worker_name,
+                    "date": str(today),
                     "status": "ABSENT",
-                    "amount_earned": Decimal("0.00"),
-                    "worker_confirmed": True,
-                    "worker_confirmed_at": timezone.now(),
-                    "notes": "Marked absent by client quick action",
-                },
-            )
+                    "amount_earned": 0.0,
+                    "payment_processed": True,
+                    "total_days_worked": synced_days_worked,
+                    "absent_penalty_amount": float(total_absent_penalty),
+                    "message": msg,
+                }
+            else:
+                # Single-assignment path (non-team job or single-slot team job)
+                attendance, _ = DailyAttendance.objects.get_or_create(
+                    jobID=job,
+                    workerID=target_worker,
+                    date=today,
+                    defaults={
+                        "employeeID": None,
+                        "status": "ABSENT",
+                        "amount_earned": Decimal("0.00"),
+                        "worker_confirmed": True,
+                        "worker_confirmed_at": timezone.now(),
+                        "notes": "Marked absent by client quick action",
+                    },
+                )
 
         if attendance.time_in:
             return Response(
@@ -9500,14 +9739,6 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 )
 
             synced_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
-
-        if target_worker:
-            worker_name = (
-                f"{target_worker.profileID.firstName or ''} {target_worker.profileID.lastName or ''}".strip()
-                or target_worker.profileID.accountFK.email
-            )
-        else:
-            worker_name = target_employee.fullName if target_employee else "Worker"
 
         return {
             "success": True,
