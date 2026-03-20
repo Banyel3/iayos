@@ -2039,8 +2039,8 @@ def mobile_remove_skill(request, skill_id: int):
                         "displayOrder", "id"
                     ).first()
                     if replacement_primary:
-                    replacement_primary.skillType = "PRIMARY"
-                    replacement_primary.save(update_fields=["skillType"])
+                        replacement_primary.skillType = "PRIMARY"
+                        replacement_primary.save(update_fields=["skillType"])
 
         print(
             f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)"
