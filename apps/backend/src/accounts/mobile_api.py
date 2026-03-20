@@ -2113,10 +2113,14 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
         elif requested_skill_type == "SECONDARY":
             is_current_primary = worker_skill.skillType == "PRIMARY"
             if is_current_primary:
-                remaining_primary_count = workerSpecialization.objects.filter(
-                    workerID=worker_profile,
-                    skillType="PRIMARY",
-                ).exclude(id=worker_skill.id).count()
+                remaining_primary_count = (
+                    workerSpecialization.objects.filter(
+                        workerID=worker_profile,
+                        skillType="PRIMARY",
+                    )
+                    .exclude(id=worker_skill.id)
+                    .count()
+                )
 
                 if remaining_primary_count == 0:
                     return Response(
@@ -3299,120 +3303,25 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "You cannot apply to your own job posting"}, status=403
             )
 
-        # Block workers from applying while currently working on another active assignment
-        active_regular_job = (
-            JobPosting.objects.filter(
-                assignedWorkerID=worker_profile,
-                status=JobPosting.JobStatus.IN_PROGRESS,
-            )
-            .filter(Q(cancellationReason__isnull=True) | Q(cancellationReason=""))
-            .exclude(jobID=job.jobID)
-            .first()
-        )
+        # Shift-aware + date-aware conflict check (replaces naive active-job block).
+        # MORNING + NIGHT on overlapping dates is allowed; same shift = blocked.
+        from jobs.team_job_services import find_worker_schedule_conflict
 
-        if active_regular_job:
-            Notification.objects.create(
-                accountFK=request.auth,
-                notificationType="JOB_APPLICATION_BLOCKED",
-                title="Application blocked: active job in progress",
-                message=(
-                    f"You can't apply right now because you're currently working on "
-                    f"'{active_regular_job.title}'. Complete it first, then apply again."
-                ),
-                relatedJobID=active_regular_job.jobID,
-            )
+        _applied_shift_for_conflict = getattr(payload, "applied_shift", None)
+        conflict = find_worker_schedule_conflict(
+            worker_profile=worker_profile,
+            target_job=job,
+            exclude_job_id=job.jobID,
+            applied_shift=_applied_shift_for_conflict,
+        )
+        if conflict:
+            conflicting_title = getattr(conflict, "title", str(conflict))
             return Response(
                 {
                     "error": (
-                        f"You already have an active job: '{active_regular_job.title}'. "
-                        "Complete it before applying to another job."
+                        f"You already have an overlapping job: '{conflicting_title}'. "
+                        "Complete it or choose a different shift before applying."
                     ),
-                    "active_job_id": active_regular_job.jobID,
-                    "active_job_title": active_regular_job.title,
-                },
-                status=400,
-            )
-
-        # Backward-compatible self-heal for legacy ACTIVE assignments linked to
-        # cancelled/completed jobs, so they no longer block fresh applications.
-        stale_cancelled_ids = list(
-            JobWorkerAssignment.objects.filter(
-                workerID=worker_profile,
-                assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
-            )
-            .filter(
-                Q(jobID__status=JobPosting.JobStatus.CANCELLED)
-                | (
-                    Q(jobID__cancellationReason__isnull=False)
-                    & ~Q(jobID__cancellationReason="")
-                )
-            )
-            .values_list("assignmentID", flat=True)
-        )
-        if stale_cancelled_ids:
-            JobWorkerAssignment.objects.filter(
-                assignmentID__in=stale_cancelled_ids
-            ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.REMOVED)
-
-        stale_completed_qs = JobWorkerAssignment.objects.filter(
-            workerID=worker_profile,
-            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
-        ).filter(
-            Q(jobID__status=JobPosting.JobStatus.COMPLETED)
-            | Q(jobID__clientMarkedComplete=True)
-        )
-        if stale_cancelled_ids:
-            stale_completed_qs = stale_completed_qs.exclude(
-                assignmentID__in=stale_cancelled_ids
-            )
-        stale_completed_ids = list(
-            stale_completed_qs.values_list("assignmentID", flat=True)
-        )
-        if stale_completed_ids:
-            JobWorkerAssignment.objects.filter(
-                assignmentID__in=stale_completed_ids
-            ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.COMPLETED)
-
-        active_team_assignment = (
-            JobWorkerAssignment.objects.filter(
-                workerID=worker_profile,
-                assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
-                jobID__status__in=[
-                    JobPosting.JobStatus.ACTIVE,
-                    JobPosting.JobStatus.IN_PROGRESS,
-                ],
-            )
-            .filter(
-                Q(jobID__cancellationReason__isnull=True)
-                | Q(jobID__cancellationReason="")
-            )
-            .select_related("jobID")
-            .first()
-        )
-
-        if (
-            active_team_assignment
-            and active_team_assignment.jobID
-            and active_team_assignment.jobID.jobID != job.jobID
-        ):
-            Notification.objects.create(
-                accountFK=request.auth,
-                notificationType="JOB_APPLICATION_BLOCKED",
-                title="Application blocked: active team assignment",
-                message=(
-                    f"You can't apply right now because you're currently assigned to "
-                    f"'{active_team_assignment.jobID.title}'. Complete it first, then apply again."
-                ),
-                relatedJobID=active_team_assignment.jobID.jobID,
-            )
-            return Response(
-                {
-                    "error": (
-                        f"You already have an active team assignment: '{active_team_assignment.jobID.title}'. "
-                        "Complete it before applying to another job."
-                    ),
-                    "active_job_id": active_team_assignment.jobID.jobID,
-                    "active_job_title": active_team_assignment.jobID.title,
                 },
                 status=400,
             )
@@ -3490,6 +3399,21 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                     status=400,
                 )
 
+        # Enforce applied_shift for DAILY jobs where shift_type == ANY
+        _applied_shift = getattr(payload, "applied_shift", None)
+        if (
+            getattr(job, "payment_model", None) == "DAILY"
+            and getattr(job, "shift_type", "ANY") == "ANY"
+        ):
+            if _applied_shift not in ("MORNING", "NIGHT"):
+                return Response(
+                    {
+                        "error": "This job requires you to choose a shift: MORNING or NIGHT.",
+                        "field": "applied_shift",
+                    },
+                    status=400,
+                )
+
         # Determine initial proposed_daily_rate / proposed_days for DAILY jobs
         _proposed_daily_rate = None
         _proposed_days = None
@@ -3512,6 +3436,7 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             selected_materials=payload.selected_materials or [],
             proposed_daily_rate=_proposed_daily_rate,
             proposed_days=_proposed_days,
+            applied_shift=_applied_shift,
             status=JobApplication.ApplicationStatus.PENDING,
             negotiation_count=1 if payload.budget_option == "NEGOTIATE" else 0,
         )

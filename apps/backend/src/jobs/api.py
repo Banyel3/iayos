@@ -813,6 +813,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     else [],
                     jobType=job_type,
                     status=JobPosting.JobStatus.ACTIVE,
+                    shift_type=getattr(data, "shift_type", None) or "ANY",
                 )
 
                 print(f"📋 Job created as {job_type} (Web endpoint)")
@@ -924,6 +925,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 scheduled_end_date=scheduled_end_date,
                 materialsNeeded=data.materials_needed if data.materials_needed else [],
                 status=JobPosting.JobStatus.ACTIVE,
+                shift_type=getattr(data, "shift_type", None) or "ANY",
             )
 
             # Create pending transaction for escrow payment
@@ -1641,6 +1643,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         if payment_model == "DAILY"
                         else _resolve_project_duration_days_from_payload(data)
                     ),
+                    shift_type=(data.shift_type or "ANY")
+                    if payment_model == "DAILY"
+                    else "ANY",
                 )
 
                 print(
@@ -9792,6 +9797,7 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             if payload.daily_rate is not None
             else None,
             duration_days=payload.duration_days,
+            shift_type=payload.shift_type or "ANY",
             job_scope=payload.job_scope or "MODERATE_PROJECT",
             skill_level_required=payload.skill_level_required or "INTERMEDIATE",
             work_environment=payload.work_environment or "INDOOR",
