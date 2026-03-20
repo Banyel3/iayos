@@ -1391,6 +1391,21 @@ class Job(models.Model):
         help_text="Payment model: PROJECT = fixed budget, DAILY = per day worked",
     )
 
+    # ============================================================
+    # SHIFT TYPE - Morning vs Night vs Any (for DAILY jobs)
+    # ============================================================
+    class ShiftType(models.TextChoices):
+        ANY = "ANY", "Any shift (worker chooses)"
+        MORNING = "MORNING", "Morning shift (~6 AM – 2 PM)"
+        NIGHT = "NIGHT", "Night shift (~6 PM – 2 AM)"
+
+    shift_type = models.CharField(
+        max_length=10,
+        choices=ShiftType.choices,
+        default="ANY",
+        help_text="Shift type for DAILY jobs. ANY = worker picks; MORNING/NIGHT = fixed shift.",
+    )
+
     # Daily rate specific fields
     duration_days = models.PositiveIntegerField(
         null=True,
@@ -2120,6 +2135,14 @@ class JobApplication(models.Model):
     negotiation_count = models.PositiveSmallIntegerField(
         default=0,
         help_text="Number of price proposals the worker has submitted (max 3)",
+    )
+
+    # Shift selection (for DAILY jobs where job shift_type = ANY)
+    applied_shift = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="Shift the worker chose when applying: MORNING or NIGHT. Null for legacy/PROJECT jobs.",
     )
 
     # Timestamps
@@ -3198,6 +3221,14 @@ class JobWorkerAssignment(models.Model):
 
     assignment_status = models.CharField(
         max_length=15, choices=AssignmentStatus.choices, default="ACTIVE"
+    )
+
+    # Shift assignment (copied from applied_shift when application is accepted)
+    assigned_shift = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        help_text="Shift this worker is assigned to: MORNING or NIGHT. Null for legacy/PROJECT assignments.",
     )
 
     # Worker arrival confirmation (matches regular job workflow)

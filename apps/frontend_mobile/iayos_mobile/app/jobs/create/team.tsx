@@ -112,6 +112,7 @@ export default function CreateTeamJobScreen() {
   const [description, setDescription] = useState("");
   const [totalBudget, setTotalBudget] = useState("");
   const [paymentModel, setPaymentModel] = useState<PaymentModel>("PROJECT");
+  const [shiftType, setShiftType] = useState<"ANY" | "MORNING" | "NIGHT">("ANY");
   const [dailyRate, setDailyRate] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [barangay, setBarangay] = useState("");
@@ -650,6 +651,7 @@ export default function CreateTeamJobScreen() {
       payment_model: paymentModel,
       daily_rate: paymentModel === "DAILY" ? dailyRateNum : undefined,
       duration_days: paymentModel === "DAILY" ? durationDaysNum : undefined,
+      shift_type: paymentModel === "DAILY" ? shiftType : undefined,
       materials_needed: materials,
       budget_allocation_type: allocationMethod,
       job_scope: jobScope,
@@ -1118,6 +1120,49 @@ export default function CreateTeamJobScreen() {
                       Total budget is auto-calculated: daily rate x days x
                       workers
                     </Text>
+                  </View>
+
+                  {/* Shift Picker */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Shift</Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {(["ANY", "MORNING", "NIGHT"] as const).map((s) => (
+                        <TouchableOpacity
+                          key={s}
+                          onPress={() => setShiftType(s)}
+                          style={[
+                            {
+                              flex: 1,
+                              paddingVertical: 10,
+                              paddingHorizontal: 6,
+                              borderRadius: 8,
+                              borderWidth: 1.5,
+                              borderColor: shiftType === s ? Colors.primary : Colors.border,
+                              backgroundColor: shiftType === s ? Colors.primary + "15" : Colors.background,
+                              alignItems: "center",
+                            },
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: shiftType === s ? "700" : "400",
+                              color: shiftType === s ? Colors.primary : Colors.textSecondary,
+                            }}
+                          >
+                            {s === "ANY" ? "Any" : s === "MORNING" ? "Morning" : "Night"}
+                          </Text>
+                          {s !== "ANY" && (
+                            <Text
+                              style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}
+                            >
+                              {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
                 </>
               ) : (

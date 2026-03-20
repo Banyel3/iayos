@@ -171,6 +171,7 @@ export function useApplyToSkillSlot() {
       estimatedDuration,
       proposedDailyRate,
       proposedDays,
+      appliedShift,
     }: {
       jobId: number;
       skillSlotId: number;
@@ -180,6 +181,7 @@ export function useApplyToSkillSlot() {
       estimatedDuration?: string;
       proposedDailyRate?: number;
       proposedDays?: number;
+      appliedShift?: "MORNING" | "NIGHT";
     }) => {
       const response = await apiRequest(
         ENDPOINTS.TEAM_APPLY_SKILL_SLOT(jobId),
@@ -193,6 +195,7 @@ export function useApplyToSkillSlot() {
             estimated_duration: estimatedDuration,
             proposed_daily_rate: proposedDailyRate || null,
             proposed_days: proposedDays || null,
+            applied_shift: appliedShift || null,
           }),
         },
       );

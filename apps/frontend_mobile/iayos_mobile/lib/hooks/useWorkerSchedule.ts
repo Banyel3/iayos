@@ -11,6 +11,9 @@ export interface ScheduledJob {
   preferred_start_date: string; // "YYYY-MM-DD"
   scheduled_end_date: string;   // "YYYY-MM-DD"
   other_party_name?: string;
+  shift_type?: "ANY" | "MORNING" | "NIGHT" | null;
+  payment_model?: "PROJECT" | "DAILY" | string;
+  job_type?: string;
 }
 
 export interface WorkerScheduleResponse {
@@ -56,9 +59,18 @@ export function buildMarkedDates(jobs: ScheduledJob[]): Record<string, any> {
     return `${year}-${month}-${day}`;
   };
 
-  jobs.forEach((job, idx) => {
-    const colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
-    const color = colors[idx % colors.length];
+  jobs.forEach((job) => {
+    // Determine dot color based on status/shift/payment_model
+    let color: string;
+    if (job.status === "IN_PROGRESS") {
+      color = "#10B981"; // green — in progress
+    } else if (job.payment_model === "DAILY" && job.shift_type === "MORNING") {
+      color = "#F59E0B"; // amber — morning shift
+    } else if (job.payment_model === "DAILY" && job.shift_type === "NIGHT") {
+      color = "#6366F1"; // indigo — night shift
+    } else {
+      color = "#3B82F6"; // blue — legacy / PROJECT
+    }
 
     const start = parseLocalDate(job.preferred_start_date);
     const end = parseLocalDate(job.scheduled_end_date);

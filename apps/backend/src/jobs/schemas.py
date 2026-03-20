@@ -61,6 +61,7 @@ class CreateJobPostingMobileSchema(Schema):
     payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
     daily_rate: Optional[float] = None  # Required for DAILY model
     duration_days: Optional[int] = None  # Required for DAILY model
+    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
 
     # ML enhancement fields (from Mobile Phase 1)
     skill_level_required: Optional[str] = "INTERMEDIATE"  # ENTRY, INTERMEDIATE, EXPERT
@@ -96,6 +97,7 @@ class JobApplicationSchema(Schema):
     # Daily rate negotiation fields (for DAILY payment_model jobs)
     proposed_daily_rate: Optional[float] = None
     proposed_days: Optional[int] = None
+    applied_shift: Optional[str] = None  # MORNING or NIGHT (for DAILY ANY jobs)
 
 
 class SubmitReviewSchema(Schema):
@@ -168,6 +170,7 @@ class CreateTeamJobSchema(Schema):
     payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
     daily_rate: Optional[float] = None  # Required for DAILY model
     duration_days: Optional[int] = None  # Required for DAILY model
+    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
 
     # ML enhancement fields
     job_scope: Optional[str] = (
@@ -260,6 +263,7 @@ class TeamJobApplicationSchema(Schema):
     # Daily rate negotiation fields (for DAILY payment_model jobs)
     proposed_daily_rate: Optional[float] = None
     proposed_days: Optional[int] = None
+    applied_shift: Optional[str] = None  # MORNING or NIGHT (for DAILY ANY jobs)
 
 
 class AssignWorkerToSlotSchema(Schema):

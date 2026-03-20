@@ -199,6 +199,17 @@ def _has_meaningful_text(value: str) -> bool:
     return bool(re.search(r"[A-Za-z]", value or ""))
 
 
+def _shifts_conflict(shift_a, shift_b) -> bool:
+    """
+    Return True if two shifts conflict (cannot be worked simultaneously).
+    Only MORNING + NIGHT is non-conflicting.
+    Legacy rows (None) always conflict conservatively.
+    """
+    if not shift_a or not shift_b:
+        return True  # legacy = always blocks
+    return frozenset([shift_a, shift_b]) != frozenset(["MORNING", "NIGHT"])
+
+
 def _self_heal_worker_team_assignments(worker_profile: WorkerProfile) -> int:
     """
     Backward-compatible cleanup for legacy team assignments that still look ACTIVE
@@ -1351,6 +1362,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         if payment_model == "DAILY"
                         else _resolve_project_duration_days_from_payload(data)
                     ),
+                    shift_type=(data.shift_type or "ANY")
+                    if payment_model == "DAILY"
+                    else "ANY",
                     # ML Enhancement Fields
                     job_scope=data.job_scope if data.job_scope else "MODERATE_PROJECT",
                     skill_level_required=data.skill_level_required
@@ -2433,6 +2447,12 @@ def get_worker_schedule(request):
                     ),
                     "location": j.location,
                     "budget": float(j.budget),
+                    "shift_type": getattr(j, "shift_type", "ANY") or "ANY",
+                    "payment_model": getattr(j, "payment_model", "PROJECT")
+                    or "PROJECT",
+                    "job_type": "TEAM"
+                    if getattr(j, "is_team_job", False)
+                    else "REGULAR",
                 }
             )
 
@@ -3126,7 +3146,8 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             )
 
         # Block workers from applying while currently working on another active assignment
-        active_regular_job = (
+        # Multi-shift allowance: MORNING + NIGHT is non-conflicting for DAILY jobs
+        active_regular_jobs = (
             JobPosting.objects.filter(
                 assignedWorkerID=worker_profile,
                 status=JobPosting.JobStatus.IN_PROGRESS,
@@ -3134,8 +3155,17 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             )
             .filter(Q(cancelledByRole__isnull=True) | Q(cancelledByRole=""))
             .exclude(jobID=job.jobID)
-            .first()
         )
+
+        active_regular_job = None
+        for candidate in active_regular_jobs:
+            if _shifts_conflict(
+                getattr(candidate, "shift_type", None),
+                getattr(data, "applied_shift", None)
+                or getattr(job, "shift_type", "ANY"),
+            ):
+                active_regular_job = candidate
+                break
 
         if active_regular_job:
             Notification.objects.create(
@@ -3163,7 +3193,7 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         # Self-heal legacy ACTIVE assignments linked to cancelled/completed jobs
         _self_heal_worker_team_assignments(worker_profile)
 
-        active_team_assignment = (
+        active_team_assignments = (
             JobWorkerAssignment.objects.filter(
                 workerID=worker_profile,
                 assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
@@ -3177,8 +3207,20 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 Q(jobID__cancelledByRole__isnull=True) | Q(jobID__cancelledByRole="")
             )
             .select_related("jobID")
-            .first()
         )
+
+        active_team_assignment = None
+        incoming_shift = getattr(data, "applied_shift", None) or getattr(
+            job, "shift_type", "ANY"
+        )
+        for candidate in active_team_assignments:
+            if candidate.jobID and candidate.jobID.jobID != job.jobID:
+                if _shifts_conflict(
+                    getattr(candidate, "assigned_shift", None),
+                    incoming_shift,
+                ):
+                    active_team_assignment = candidate
+                    break
 
         if (
             active_team_assignment
@@ -3281,6 +3323,11 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
             else None,
             proposed_days=data.proposed_days,
             status=JobApplication.ApplicationStatus.PENDING,
+            applied_shift=(
+                job.shift_type
+                if job.shift_type in ("MORNING", "NIGHT")
+                else (getattr(data, "applied_shift", None) or None)
+            ),
         )
 
         print(f"✅ Application {application.applicationID} created successfully")
@@ -9810,6 +9857,7 @@ def apply_to_team_job_endpoint(request, job_id: int, payload: TeamJobApplication
             if payload.proposed_daily_rate is not None
             else None,
             proposed_days=payload.proposed_days,
+            applied_shift=getattr(payload, "applied_shift", None),
         )
 
         if not result.get("success"):

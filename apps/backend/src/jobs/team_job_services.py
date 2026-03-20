@@ -505,16 +505,33 @@ def _windows_overlap(start_a, end_a, start_b, end_b) -> bool:
     return start_a <= end_b and end_a >= start_b
 
 
+def _shifts_conflict(shift_a, shift_b) -> bool:
+    """
+    Return True if two shifts conflict (cannot be worked simultaneously).
+    Only MORNING + NIGHT is non-conflicting.
+    Legacy rows (None) always conflict conservatively.
+    """
+    if not shift_a or not shift_b:
+        return True
+    return frozenset([shift_a, shift_b]) != frozenset(["MORNING", "NIGHT"])
+
+
 def find_worker_schedule_conflict(
-    worker_profile: WorkerProfile, target_job: Job, exclude_job_id: Optional[int] = None
+    worker_profile: WorkerProfile,
+    target_job: Job,
+    exclude_job_id: Optional[int] = None,
+    applied_shift: Optional[str] = None,
 ):
     """
     Find a conflicting active assignment for a worker.
 
     If target job has no schedule, conservatively block on any active assignment.
     If target job has schedule, block on overlapping windows and on active jobs missing dates.
+    Multi-shift: MORNING + NIGHT is non-conflicting; pass applied_shift to allow that combo.
     """
     target_start, target_end = _job_date_window(target_job)
+    # Effective shift of the incoming job/application
+    incoming_shift = applied_shift or getattr(target_job, "shift_type", None)
 
     direct_jobs = Job.objects.filter(
         assignedWorkerID=worker_profile,
@@ -532,15 +549,17 @@ def find_worker_schedule_conflict(
         team_assignments = team_assignments.exclude(jobID__jobID=exclude_job_id)
 
     if not target_start:
-        direct_conflict = direct_jobs.first()
-        if direct_conflict:
-            return direct_conflict
-        team_conflict = team_assignments.first()
-        if team_conflict:
-            return team_conflict.jobID
+        for job in direct_jobs:
+            if _shifts_conflict(getattr(job, "shift_type", None), incoming_shift):
+                return job
+        for ta in team_assignments:
+            if _shifts_conflict(getattr(ta, "assigned_shift", None), incoming_shift):
+                return ta.jobID
         return None
 
     for job in direct_jobs:
+        if not _shifts_conflict(getattr(job, "shift_type", None), incoming_shift):
+            continue  # Non-conflicting shifts — no block
         start_date, end_date = _job_date_window(job)
         if not start_date:
             return job
@@ -548,6 +567,10 @@ def find_worker_schedule_conflict(
             return job
 
     for assignment in team_assignments:
+        if not _shifts_conflict(
+            getattr(assignment, "assigned_shift", None), incoming_shift
+        ):
+            continue  # Non-conflicting shifts — no block
         job = assignment.jobID
         start_date, end_date = _job_date_window(job)
         if not start_date:
@@ -1267,6 +1290,7 @@ def apply_to_skill_slot(
     estimated_duration: Optional[str] = None,
     proposed_daily_rate: Optional[Decimal] = None,
     proposed_days: Optional[int] = None,
+    applied_shift: Optional[str] = None,
 ) -> dict:
     """
     Worker applies to a specific skill slot in a team job.
@@ -1290,7 +1314,11 @@ def apply_to_skill_slot(
 
     # Date-overlap policy parity: workers may handle multiple jobs if schedules do not overlap.
     scheduled_conflict = find_worker_schedule_conflict(
-        worker_profile, job, exclude_job_id=job.jobID
+        worker_profile,
+        job,
+        exclude_job_id=job.jobID,
+        applied_shift=applied_shift
+        or (job.shift_type if job.shift_type in ("MORNING", "NIGHT") else None),
     )
     if scheduled_conflict:
         conflict_start, conflict_end = _job_date_window(scheduled_conflict)
@@ -1389,6 +1417,11 @@ def apply_to_skill_slot(
         proposed_daily_rate=proposed_daily_rate,
         proposed_days=proposed_days,
         status="PENDING",
+        applied_shift=(
+            job.shift_type
+            if job.shift_type in ("MORNING", "NIGHT")
+            else (applied_shift or None)
+        ),
     )
 
     # Notify client
@@ -1450,7 +1483,10 @@ def accept_team_application(
 
     # Re-check schedule overlap at accept time to avoid race-condition assignments.
     scheduled_conflict = find_worker_schedule_conflict(
-        application.workerID, job, exclude_job_id=job.jobID
+        application.workerID,
+        job,
+        exclude_job_id=job.jobID,
+        applied_shift=getattr(application, "applied_shift", None),
     )
     if scheduled_conflict:
         conflict_start, conflict_end = _job_date_window(scheduled_conflict)
@@ -1557,6 +1593,7 @@ def accept_team_application(
         slot_position=max_position + 1,
         assignment_status="ACTIVE",
         daily_rate_at_assignment=assignment_daily_rate,
+        assigned_shift=getattr(application, "applied_shift", None),
     )
 
     # Update application status
