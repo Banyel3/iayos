@@ -4308,11 +4308,12 @@ def accept_job_invite_worker(request, job_id: int):
 # region JOB IMAGE UPLOAD
 
 
-@router.post("/{job_id}/upload-image", auth=cookie_auth)
+@router.post("/{job_id}/upload-image", auth=dual_auth)
 @require_kyc
 def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # type: ignore[misc]
     """
     Upload image for a job posting to Supabase storage.
+    Supports both cookie auth (web) and JWT auth (mobile).
 
     Path structure: users/user_{userID}/job_{jobID}/image_filename.ext
 
@@ -4327,6 +4328,8 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
     """
     try:
         from iayos_project.utils import upload_file
+
+        user = request.auth
 
         # Validate job exists and user owns it
         profile = get_user_profile(request)
@@ -4360,10 +4363,7 @@ def upload_job_image(request, job_id: int, image: UploadedFile = File(...)):  # 
                 {"error": "File too large. Maximum size is 5MB"}, status=400
             )
 
-        # Generate filename from original file
         import os
-
-        file_extension = os.path.splitext(image.name)[1] or ".jpg"
 
         print(f"📸 Uploading image: {image.name} ({image.size} bytes)")
         print(f"   User ID: {user.accountID}, Job ID: {job_id}")

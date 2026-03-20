@@ -13,6 +13,7 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -24,6 +25,7 @@ import {
   Modal,
   FlatList,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, Stack } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
@@ -37,6 +39,7 @@ import {
 } from "@/constants/theme";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, ENDPOINTS } from "@/lib/api/config";
+import { getAccessToken } from "@/lib/utils/tokenStorage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
@@ -128,6 +131,7 @@ export default function CreateTeamJobScreen() {
   const [materials, setMaterials] = useState<string[]>([]);
   const [isJobOptionsExpanded, setIsJobOptionsExpanded] = useState(false);
   const [materialInput, setMaterialInput] = useState("");
+  const [jobPhotos, setJobPhotos] = useState<string[]>([]); // Up to 3 optional photos
 
   // Universal job fields for ML accuracy (same as single job form)
   const [jobScope, setJobScope] = useState<
@@ -453,6 +457,24 @@ export default function CreateTeamJobScreen() {
   }
 
   // Create mutation
+  const uploadJobPhotosAsync = async (jobId: number) => {
+    const token = await getAccessToken();
+    for (const uri of jobPhotos) {
+      try {
+        const formData = new FormData();
+        const filename = uri.split("/").pop() || "job_photo.jpg";
+        formData.append("image", { uri, type: "image/jpeg", name: filename } as any);
+        await fetch((ENDPOINTS as any).UPLOAD_JOB_IMAGE(jobId), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          body: formData as any,
+        });
+      } catch (e) {
+        console.warn("[CreateTeamJob] Photo upload failed:", e);
+      }
+    }
+  };
+
   const createJobMutation = useMutation({
     mutationFn: async (data: any): Promise<CreateTeamJobResponse> => {
       const response = await apiRequest(ENDPOINTS.CREATE_TEAM_JOB, {
@@ -473,7 +495,10 @@ export default function CreateTeamJobScreen() {
       }
       return result as CreateTeamJobResponse;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      if (jobPhotos.length > 0) {
+        await uploadJobPhotosAsync(data.job_id);
+      }
       Alert.alert(
         "Success! 🎉",
         `Team job created! ${data.skill_slots_created} skill slots with ${data.total_workers_needed} workers needed.`,
@@ -705,6 +730,62 @@ export default function CreateTeamJobScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
+            {/* Job Photos Section (Optional) */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="camera" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Job Photos{" "}
+                  <Text style={{ color: Colors.textSecondary, fontWeight: "normal", fontSize: 13 }}>
+                    (Optional, up to 3)
+                  </Text>
+                </Text>
+              </View>
+              <Text style={[styles.hintText, { marginBottom: Spacing.sm }]}>
+                Add photos to help workers better understand the job (e.g. the area, existing damage, materials).
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm }}>
+                {jobPhotos.map((uri, index) => (
+                  <View key={index} style={styles.photoThumb}>
+                    <Image source={{ uri }} style={styles.photoThumbImage} />
+                    <TouchableOpacity
+                      style={styles.photoRemoveBtn}
+                      onPress={() => setJobPhotos((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      <Ionicons name="close-circle" size={20} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {jobPhotos.length < 3 && (
+                  <TouchableOpacity
+                    style={styles.photoAddBtn}
+                    onPress={async () => {
+                      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (status !== "granted") {
+                        Alert.alert("Permission Required", "Please allow access to your photo library.");
+                        return;
+                      }
+                      const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsMultipleSelection: true,
+                        selectionLimit: 3 - jobPhotos.length,
+                        quality: 0.8,
+                      });
+                      if (!result.canceled && result.assets.length > 0) {
+                        const uris = result.assets.map((a) => a.uri);
+                        setJobPhotos((prev) => [...prev, ...uris].slice(0, 3));
+                      }
+                    }}
+                  >
+                    <Ionicons name="add" size={28} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontSize: 12, marginTop: 2 }}>
+                      Add Photo
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             {/* Job Details Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -1615,6 +1696,7 @@ export default function CreateTeamJobScreen() {
                 </View>
               )}
             </View>
+
           </View>
         </ScrollView>
 
@@ -2526,6 +2608,35 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     ...Shadows.lg,
+  },
+  photoThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.md,
+    overflow: "visible",
+    position: "relative",
+  },
+  photoThumbImage: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.md,
+  },
+  photoRemoveBtn: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+  },
+  photoAddBtn: {
+    width: 88,
+    height: 88,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalContainer: {
     flex: 1,
