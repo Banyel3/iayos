@@ -166,8 +166,14 @@ export default function CreateTeamJobScreen() {
     isLoading: walletLoading,
     isError: walletError,
   } = useWallet();
+  const walletTyped = walletData as
+    | { balance?: number; availableBalance?: number; reservedBalance?: number }
+    | undefined;
+  // Use availableBalance (balance minus funds locked in other job escrows) for
+  // all sufficiency checks — matches the backend constraint-safe calculation.
   const walletBalance =
-    (walletData as { balance?: number } | undefined)?.balance || 0;
+    walletTyped?.availableBalance ?? walletTyped?.balance ?? 0;
+  const reservedBalance = walletTyped?.reservedBalance ?? 0;
 
   // Fetch specializations (all available skills for team jobs)
   const { data: specializations, isLoading: specsLoading } = useQuery<
@@ -607,9 +613,13 @@ export default function CreateTeamJobScreen() {
   // Submit form
   const handleSubmit = () => {
     if (!hasEnoughBalance) {
+      const reservedNote =
+        reservedBalance > 0
+          ? `\n\n₱${reservedBalance.toFixed(2)} of your wallet is currently locked in other active job escrows.`
+          : "";
       Alert.alert(
-        "Insufficient Wallet Balance",
-        `You need ₱${totalDue.toFixed(2)} to post this team job, but your wallet only has ₱${walletBalance.toFixed(2)}.\n\nYou're short by ₱${shortfallAmount.toFixed(2)}.\n\nWould you like to deposit funds now?`,
+        "Insufficient Available Balance",
+        `You need ₱${totalDue.toFixed(2)} to post this team job (escrow + platform fee), but your available balance is only ₱${walletBalance.toFixed(2)}.${reservedNote}\n\nYou're short by ₱${shortfallAmount.toFixed(2)}. Would you like to deposit funds now?`,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -1233,28 +1243,40 @@ export default function CreateTeamJobScreen() {
                       ₱{totalDue.toFixed(2)}
                     </Text>
                   </View>
-                  <View style={styles.walletBalanceRow}>
-                    {walletError ? (
-                      <Text style={styles.walletErrorText}>
-                        ⚠️ Failed to load wallet balance. Please try again.
-                      </Text>
-                    ) : walletLoading ? (
-                      <Text style={styles.walletLabel}>
-                        Loading wallet balance...
-                      </Text>
-                    ) : (
-                      <>
-                        <Text style={styles.walletLabel}>
-                          Wallet Balance: ₱{walletBalance.toFixed(2)}
-                        </Text>
-                        {!hasEnoughBalance && (
-                          <Text style={styles.insufficientText}>
-                            (Need ₱{shortfallAmount.toFixed(2)} more)
-                          </Text>
-                        )}
-                      </>
-                    )}
-                  </View>
+                   <View style={styles.walletBalanceRow}>
+                     {walletError ? (
+                       <Text style={styles.walletErrorText}>
+                         ⚠️ Failed to load wallet balance. Please try again.
+                       </Text>
+                     ) : walletLoading ? (
+                       <Text style={styles.walletLabel}>
+                         Loading wallet balance...
+                       </Text>
+                     ) : (
+                       <>
+                         <Text style={styles.walletLabel}>
+                           Available Balance: ₱{walletBalance.toFixed(2)}
+                         </Text>
+                         {reservedBalance > 0 && (
+                           <View style={styles.reservedBalanceRow}>
+                             <Ionicons
+                               name="lock-closed"
+                               size={13}
+                               color={Colors.warning}
+                             />
+                             <Text style={styles.reservedBalanceText}>
+                               ₱{reservedBalance.toFixed(2)} locked in active job escrows
+                             </Text>
+                           </View>
+                         )}
+                         {!hasEnoughBalance && (
+                           <Text style={styles.insufficientText}>
+                             (Need ₱{shortfallAmount.toFixed(2)} more)
+                           </Text>
+                         )}
+                       </>
+                     )}
+                   </View>
 
                   {!walletError && !walletLoading && !hasEnoughBalance && (
                     <View style={styles.walletTopUpSection}>
@@ -2272,6 +2294,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: Spacing.sm,
     flexWrap: "wrap",
+  },
+  reservedBalanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+    width: "100%",
+  },
+  reservedBalanceText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    flexShrink: 1,
   },
   walletLabel: {
     ...Typography.body.small,

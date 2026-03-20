@@ -792,17 +792,26 @@ def create_team_job(
             wallet = Wallet.objects.select_for_update().get(
                 accountFK=client_profile_obj.accountFK
             )
-            available_balance = wallet.availableBalance
-            if available_balance < total_needed:
+            # The wallet save will both decrease balance by total_needed AND
+            # increase reservedBalance by escrow_amount. The DB constraint
+            # requires balance >= reservedBalance at all times, so we must verify:
+            #   (wallet.balance - total_needed) >= (wallet.reservedBalance + escrow_amount)
+            # A simpler check (availableBalance >= total_needed) is NOT sufficient when
+            # the client already has funds locked in other active job escrows.
+            post_save_balance = wallet.balance - total_needed
+            post_save_reserved = wallet.reservedBalance + escrow_amount
+            if post_save_balance < post_save_reserved:
+                shortfall = post_save_reserved - post_save_balance
                 return {
                     "success": False,
                     "error": (
-                        f"Insufficient wallet balance. Need ₱{total_needed}, "
-                        f"have ₱{available_balance} available "
-                        f"(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved)."
+                        f"Not enough free funds to post this team job. "
+                        f"You need ₱{total_needed:.2f} (₱{escrow_amount:.2f} escrow + ₱{platform_fee:.2f} platform fee), "
+                        f"but ₱{wallet.reservedBalance:.2f} of your wallet is already locked in other active job escrows. "
+                        f"Please deposit at least ₱{shortfall:.2f} more to proceed, or wait for an active job to complete."
                     ),
                     "requires_deposit": True,
-                    "amount_needed": float(total_needed),
+                    "amount_needed": float(shortfall),
                 }
         except Wallet.DoesNotExist:
             return {"success": False, "error": "Wallet not found"}
@@ -941,17 +950,23 @@ def create_team_job(
         if wallet is None:
             return {"success": False, "error": "Wallet not found"}
 
-        available_balance = wallet.availableBalance
-        if available_balance < total_needed:
+        # Re-verify the constraint-safe condition right before saving.
+        # (wallet object is the same select_for_update instance; no concurrent
+        # modification is possible within this atomic transaction.)
+        post_save_balance = wallet.balance - total_needed
+        post_save_reserved = wallet.reservedBalance + escrow_amount
+        if post_save_balance < post_save_reserved:
+            shortfall = post_save_reserved - post_save_balance
             return {
                 "success": False,
                 "error": (
-                    f"Insufficient wallet balance. Need ₱{total_needed}, "
-                    f"have ₱{available_balance} available "
-                    f"(₱{wallet.balance} balance, ₱{wallet.reservedBalance} reserved)."
+                    f"Not enough free funds to post this team job. "
+                    f"You need ₱{total_needed:.2f} (₱{escrow_amount:.2f} escrow + ₱{platform_fee:.2f} platform fee), "
+                    f"but ₱{wallet.reservedBalance:.2f} of your wallet is already locked in other active job escrows. "
+                    f"Please deposit at least ₱{shortfall:.2f} more to proceed, or wait for an active job to complete."
                 ),
                 "requires_deposit": True,
-                "amount_needed": float(total_needed),
+                "amount_needed": float(shortfall),
             }
 
         wallet.balance -= total_needed
@@ -959,11 +974,13 @@ def create_team_job(
         try:
             wallet.save(update_fields=["balance", "reservedBalance", "updatedAt"])
         except IntegrityError:
+            # Fallback: should not reach here after the pre-check above, but guard anyway.
             return {
                 "success": False,
                 "error": (
-                    "Unable to reserve/deduct wallet funds due to reserved-balance constraint. "
-                    "Please retry, deposit more funds, or choose a different payment flow."
+                    "Unable to reserve wallet funds due to an escrow balance conflict. "
+                    "This usually means another active job is holding funds in your wallet. "
+                    "Please deposit more funds or wait for an active job to complete."
                 ),
             }
 
