@@ -2,7 +2,19 @@
 Management command: wipe_jobs
 Deletes all job-related records and resets all wallet balances to ₱0.00.
 Preserves: Accounts, Profiles, Skills, Certifications, Portfolios, KYC data.
+
+Cascade-deleted via Job.delete():
+  JobPhoto, JobLog, JobApplication, SavedJob, PriceNegotiation,
+  JobDispute, BackjobScheduleConfirmation, DisputeEvidence, JobReview,
+  ReviewSkillTag, JobSkillSlot, JobWorkerAssignment, DailyAttendance,
+  DailyJobExtension, DailyRateChange, DailySkipDayRequest, JobMaterial,
+  JobEmployeeAssignment, Conversation (+ Message, MessageAttachment,
+  ConversationParticipant via Conversation cascade).
+
+SET_NULL on Job.delete() (handled explicitly before Job.delete()):
+  Transaction.relatedJobPosting
 """
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from decimal import Decimal
@@ -11,13 +23,17 @@ from decimal import Decimal
 class Command(BaseCommand):
     help = (
         "Wipe all jobs and cascade-delete related data "
-        "(applications, conversations, transactions, etc.). "
-        "Resets all wallet balances to ₱0.00. "
+        "(applications, conversations, attendance, assignments, disputes, etc.). "
+        "Resets all wallet balances to ₱0.00 and clears auto-withdraw settings. "
         "Does NOT delete accounts, profiles, skills, or certifications."
     )
 
     def handle(self, *args, **options):
-        from accounts.models import Job, Wallet, Transaction  # local import to avoid circular refs
+        from accounts.models import (
+            Job,
+            Wallet,
+            Transaction,
+        )  # local import to avoid circular refs
 
         self.stdout.write("Starting job wipe and wallet reset...")
 
@@ -25,7 +41,9 @@ class Command(BaseCommand):
             # Delete job-related transactions FIRST, before Job.delete() sets relatedJobPosting to NULL.
             # Transaction.relatedJobPosting uses SET_NULL (not CASCADE), so they survive job deletion
             # and become impossible to filter by job after the fact.
-            txn_count, _ = Transaction.objects.filter(relatedJobPosting__isnull=False).delete()
+            txn_count, _ = Transaction.objects.filter(
+                relatedJobPosting__isnull=False
+            ).delete()
             self.stdout.write(f"  Deleted {txn_count} job-related transaction(s).")
 
             job_count, deleted_detail = Job.objects.all().delete()
@@ -33,6 +51,9 @@ class Command(BaseCommand):
                 balance=Decimal("0.00"),
                 reservedBalance=Decimal("0.00"),
                 pendingEarnings=Decimal("0.00"),
+                autoWithdrawEnabled=False,
+                preferredPaymentMethodID=None,
+                lastAutoWithdrawAt=None,
             )
 
         # Build a readable breakdown
@@ -46,6 +67,7 @@ class Command(BaseCommand):
                 f"\n✅ Done!\n"
                 f"Deleted {job_count} total records:\n{detail_str}\n"
                 f"Reset {wallet_count} wallet(s) to ₱0.00 "
-                f"(balance, reservedBalance, pendingEarnings)."
+                f"(balance, reservedBalance, pendingEarnings, "
+                f"autoWithdrawEnabled, preferredPaymentMethodID, lastAutoWithdrawAt)."
             )
         )
