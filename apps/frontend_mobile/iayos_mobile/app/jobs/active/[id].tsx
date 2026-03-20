@@ -671,46 +671,6 @@ export default function ActiveJobDetailScreen() {
   };
 
   const handleTeamApproveCompletion = () => {
-    if (isTeamDaily) {
-      Alert.alert(
-        "Finish Daily Job",
-        "This team DAILY job follows daily attendance settlement. Mark it as finished now?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Finish",
-            style: "destructive",
-            onPress: () => {
-              dailyFinishMutation.mutate(
-                { jobId: Number(id) },
-                {
-                  onSuccess: () => {
-                    Alert.alert(
-                      "Success",
-                      "Daily job finished. Unused escrow (if any) was refunded.",
-                      [
-                        {
-                          text: "OK",
-                          onPress: () => safeGoBack(router, "/(tabs)/jobs"),
-                        },
-                      ],
-                    );
-                  },
-                  onError: (error: any) => {
-                    Alert.alert(
-                      "Error",
-                      error.message || "Failed to finish daily job",
-                    );
-                  },
-                },
-              );
-            },
-          },
-        ],
-      );
-      return;
-    }
-
     if (!allWorkersComplete) {
       Alert.alert(
         "Workers Not Complete",
@@ -1353,7 +1313,6 @@ export default function ActiveJobDetailScreen() {
 
                 {/* Client: Approve All Workers Button */}
                 {!isWorker &&
-                  job.payment_model !== "DAILY" &&
                   allWorkersComplete &&
                   !job.client_marked_complete && (
                     <TouchableOpacity
@@ -1395,31 +1354,6 @@ export default function ActiveJobDetailScreen() {
                   </View>
                 )}
 
-                {!isWorker &&
-                  job.payment_model === "DAILY" &&
-                  !job.client_marked_complete && (
-                    <TouchableOpacity
-                      style={styles.approveAllButton}
-                      onPress={handleTeamApproveCompletion}
-                      disabled={dailyFinishMutation.isPending}
-                      activeOpacity={0.8}
-                    >
-                      {dailyFinishMutation.isPending ? (
-                        <ActivityIndicator color={Colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="flag"
-                            size={20}
-                            color={Colors.white}
-                          />
-                          <Text style={styles.approveAllText}>
-                            Finish Daily Job
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
               </>
             )}
           </View>

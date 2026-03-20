@@ -130,6 +130,10 @@ export type ConversationDetail = {
       | "PURCHASED"
       | "APPROVED";
     materials_cost?: number;
+    // Single DAILY early completion
+    is_early_completed?: boolean;
+    early_completed_at?: string | null;
+    early_completion_payout?: number | null;
   };
   other_participant: {
     name: string;

@@ -1756,6 +1756,13 @@ class Job(models.Model):
     workerMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
     clientMarkedCompleteAt = models.DateTimeField(null=True, blank=True)
 
+    # Single DAILY job early completion (client ends job early with full pay)
+    is_early_completed = models.BooleanField(default=False)
+    early_completed_at = models.DateTimeField(null=True, blank=True)
+    early_completion_payout = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+
     # ============================================================
     # PAYMENT BUFFER SYSTEM - 7-Day Holding Period
     # Worker receives "Due Balance" which releases after buffer period

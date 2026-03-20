@@ -571,6 +571,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/extend-one-day`,
   DAILY_FINISH_JOB: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/finish`,
+  DAILY_EARLY_COMPLETE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/early-complete`,
   PROJECT_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/project/extend-one-day`,
   PROJECT_FINISH_JOB: (jobId: number) =>

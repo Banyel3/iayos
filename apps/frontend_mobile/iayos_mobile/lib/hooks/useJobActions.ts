@@ -613,6 +613,55 @@ export function useProjectFinishJob() {
 }
 
 /**
+ * Client ends a single DAILY job early, paying the worker remaining escrow in full.
+ */
+export function useEarlyCompleteSingleDailyJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ jobId }: { jobId: number }) => {
+      const response = await apiRequest(
+        ENDPOINTS.DAILY_EARLY_COMPLETE(jobId),
+        { method: "POST" },
+      );
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(
+          getErrorMessage(error, "Failed to complete job early"),
+        );
+      }
+
+      return response.json() as Promise<{
+        success: boolean;
+        message?: string;
+      }>;
+    },
+    onSuccess: (data, { jobId }) => {
+      Toast.show({
+        type: "success",
+        text1: "Job Completed",
+        text2: data?.message || "Worker has been paid the remaining balance",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["walletBalance"] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Early Completion Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
  * Worker marks job as complete
  */
 export function useMarkComplete() {
