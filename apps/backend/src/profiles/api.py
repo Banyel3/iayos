@@ -2128,6 +2128,35 @@ def get_conversation_messages(request, conversation_id: int):
         else:
             other_participant_info = None
 
+        # For mixed team jobs (agency fills skill slots), detect the agency owner
+        # early so my_role can be set correctly below.
+        # The standard is_agency_conversation path is False for team jobs because
+        # conversation.agency is typically not set; we detect via JobEmployeeAssignment.
+        if not is_client and not is_agency_owner and getattr(job, "is_team_job", False):
+            try:
+                from accounts.models import (
+                    Agency as _AgencyEarly,
+                    JobEmployeeAssignment as _JEAEarly,
+                )
+
+                requesting_agency_early = _AgencyEarly.objects.filter(
+                    accountFK=request.auth
+                ).first()
+                if requesting_agency_early:
+                    has_slot_assignments = _JEAEarly.objects.filter(
+                        job=job,
+                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                        skill_slot__isnull=False,
+                        employee__agency=requesting_agency_early.accountFK,
+                    ).exists()
+                    if has_slot_assignments:
+                        is_agency_owner = True
+                        print(
+                            f"   ✅ [TEAM AGENCY EARLY] my_role=AGENCY for user in mixed team job {job.jobID}"
+                        )
+            except Exception as _early_err:
+                print(f"   ⚠️ [TEAM AGENCY EARLY] check failed: {_early_err}")
+
         # Determine my_role
         if is_client:
             my_role = "CLIENT"
@@ -2403,6 +2432,7 @@ def get_conversation_messages(request, conversation_id: int):
         team_workers_pending_review = []
         all_team_workers_reviewed = False
         team_worker_assignments = []
+        team_agency_employees = []  # Agency employees filling skill slots in a team job
 
         # Populate team_worker_assignments for BOTH clients AND workers
         # Workers need this to see their own assignment status (Phase 2 banners)
@@ -2470,6 +2500,69 @@ def get_conversation_messages(request, conversation_id: int):
                 total_team_workers > 0
                 and reviewed_by_client_count >= total_team_workers
             )
+
+            # Also populate agency employees filling skill slots in this team job
+            # (JobEmployeeAssignment records with skill_slot set)
+            from accounts.models import JobEmployeeAssignment as _JobEmpAssign
+
+            slot_employee_assignments = (
+                _JobEmpAssign.objects.filter(
+                    job=job,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    skill_slot__isnull=False,
+                )
+                .select_related("employee", "skill_slot__specializationID")
+                .order_by("-isPrimaryContact", "assignedAt")
+            )
+
+            for sea in slot_employee_assignments:
+                emp = sea.employee
+                slot_name = None
+                if sea.skill_slot and sea.skill_slot.specializationID:
+                    slot_name = sea.skill_slot.specializationID.specializationName
+                team_agency_employees.append(
+                    {
+                        "id": emp.employeeID,
+                        "name": emp.name,
+                        "avatar": emp.avatar or "/worker-default.jpg",
+                        "rating": float(emp.rating) if emp.rating else None,
+                        "isPrimaryContact": sea.isPrimaryContact,
+                        "status": sea.status,
+                        "skill": slot_name,
+                        # PROJECT job workflow tracking — same field names as assigned_employees
+                        "dispatched": getattr(sea, "dispatched", False),
+                        "dispatchedAt": sea.dispatchedAt.isoformat()
+                        if getattr(sea, "dispatchedAt", None)
+                        else None,
+                        "clientConfirmedArrival": getattr(
+                            sea, "clientConfirmedArrival", False
+                        ),
+                        "clientConfirmedArrivalAt": sea.clientConfirmedArrivalAt.isoformat()
+                        if getattr(sea, "clientConfirmedArrivalAt", None)
+                        else None,
+                        "agencyMarkedComplete": getattr(
+                            sea, "agencyMarkedComplete", False
+                        ),
+                        "agencyMarkedCompleteAt": sea.agencyMarkedCompleteAt.isoformat()
+                        if getattr(sea, "agencyMarkedCompleteAt", None)
+                        else None,
+                        "employeeMarkedComplete": getattr(
+                            sea, "employeeMarkedComplete", False
+                        ),
+                        "employeeMarkedCompleteAt": sea.employeeMarkedCompleteAt.isoformat()
+                        if getattr(sea, "employeeMarkedCompleteAt", None)
+                        else None,
+                        "marked_complete": getattr(sea, "agencyMarkedComplete", False)
+                        or getattr(sea, "employeeMarkedComplete", False),
+                        "paymentAmount": float(sea.paymentAmount)
+                        if getattr(sea, "paymentAmount", None)
+                        else None,
+                        "clientApproved": getattr(sea, "clientApproved", False),
+                        "clientApprovedAt": sea.clientApprovedAt.isoformat()
+                        if getattr(sea, "clientApprovedAt", None)
+                        else None,
+                    }
+                )
 
         # Check for active backjob/dispute
         from accounts.models import JobDispute
@@ -3371,6 +3464,9 @@ def get_conversation_messages(request, conversation_id: int):
             "is_agency_job": is_agency_conversation,
             "is_team_job": is_team_job,
             "team_worker_assignments": team_worker_assignments if is_team_job else [],
+            "team_agency_employees": team_agency_employees
+            if is_team_job
+            else [],  # Agency employees filling skill slots
             "pending_team_worker_reviews": team_workers_pending_review
             if is_team_job
             else [],

@@ -193,6 +193,29 @@ export type ConversationDetail = {
     worker_marked_complete: boolean;
     worker_marked_complete_at: string | null;
   }>;
+  // Agency employees filling skill slots in a mixed team+agency job
+  team_agency_employees?: Array<{
+    id: number;
+    name: string;
+    avatar: string;
+    rating?: number | null;
+    isPrimaryContact?: boolean;
+    skill?: string | null;
+    status?: string;
+    // PROJECT job workflow tracking (same fields as assigned_employees)
+    dispatched?: boolean;
+    dispatchedAt?: string | null;
+    clientConfirmedArrival?: boolean;
+    clientConfirmedArrivalAt?: string | null;
+    agencyMarkedComplete?: boolean;
+    agencyMarkedCompleteAt?: string | null;
+    employeeMarkedComplete?: boolean;
+    employeeMarkedCompleteAt?: string | null;
+    marked_complete?: boolean;
+    paymentAmount?: number | null;
+    clientApproved?: boolean;
+    clientApprovedAt?: string | null;
+  }>;
   pending_team_worker_reviews?: Array<{
     worker_id: number;
     account_id: number;
@@ -377,6 +400,13 @@ export function useMessages(
           (worker: any) => ({
             ...worker,
             avatar: getAbsoluteMediaUrl(worker.avatar) || "",
+          }),
+        ),
+        // Agency employees filling skill slots in a mixed team+agency job
+        team_agency_employees: data.team_agency_employees?.map(
+          (emp: any) => ({
+            ...emp,
+            avatar: getAbsoluteMediaUrl(emp.avatar) || "",
           }),
         ),
         pending_team_worker_reviews: data.pending_team_worker_reviews?.map(

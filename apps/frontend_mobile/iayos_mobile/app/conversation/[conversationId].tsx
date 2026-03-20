@@ -899,9 +899,12 @@ export default function ChatScreen() {
     conversation?.backjob?.my_schedule_confirmed === true ||
     localBackjobScheduleConfirmed;
 
-  const agencyAssignedEmployees = conversation?.is_agency_job
-    ? conversation?.assigned_employees || []
-    : [];
+  const agencyAssignedEmployees =
+    conversation?.is_agency_job
+      ? conversation?.assigned_employees || []
+      : conversation?.is_team_job && conversation?.my_role === "AGENCY"
+        ? conversation?.team_agency_employees || []
+        : [];
   // Backward compatibility: some legacy team backjob payloads can miss/lag
   // is_team_job, but still include team_worker_assignments.
   const teamAssignedWorkers = Array.isArray(
@@ -4443,23 +4446,30 @@ export default function ChatScreen() {
                   {isAttendanceExpanded &&
                     (conversation.my_role === "CLIENT" ||
                       conversation.my_role === "AGENCY") &&
-                    conversation.is_agency_job &&
+                    (conversation.is_agency_job ||
+                      (conversation.is_team_job &&
+                        (conversation.team_agency_employees?.length ?? 0) >
+                          0)) &&
                     conversation.job.payment_model === "PROJECT" &&
                     (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
-                    Array.isArray(conversation.assigned_employees) &&
                     (() => {
-                      const pendingArrivalEmployees =
-                        conversation.assigned_employees.filter(
-                          (e) =>
-                            isAgencyStatusInCurrentBackjobCycle(
-                              e.dispatched,
-                              e.dispatchedAt,
-                            ) &&
-                            !isAgencyStatusInCurrentBackjobCycle(
-                              e.clientConfirmedArrival,
-                              e.clientConfirmedArrivalAt,
-                            ),
-                        );
+                      // For pure agency jobs use assigned_employees; for
+                      // mixed team+agency jobs use team_agency_employees.
+                      const sourceEmployees = conversation.is_team_job
+                        ? (conversation.team_agency_employees ?? [])
+                        : (conversation.assigned_employees ?? []);
+
+                      const pendingArrivalEmployees = sourceEmployees.filter(
+                        (e) =>
+                          isAgencyStatusInCurrentBackjobCycle(
+                            e.dispatched,
+                            e.dispatchedAt,
+                          ) &&
+                          !isAgencyStatusInCurrentBackjobCycle(
+                            e.clientConfirmedArrival,
+                            e.clientConfirmedArrivalAt,
+                          ),
+                      );
 
                       if (pendingArrivalEmployees.length === 0) return null;
 
@@ -6299,8 +6309,12 @@ export default function ChatScreen() {
 
               {/* TEAM JOB PHASE 3: Client Approves All Workers */}
               {/* Applies to both DAILY and PROJECT team jobs (simplified flow). */}
+              {/* Excluded when agency employees are also on the job — that case */}
+              {/* is handled by the agency CLIENT VIEW panel below, which shows */}
+              {/* a single "Approve & Pay All" button for both freelancers + agency. */}
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
+                !((conversation.team_agency_employees?.length ?? 0) > 0) &&
                 conversation.my_role === "CLIENT" &&
                 !isTeamProjectAttendance &&
                 !isProjectMultiDayJob &&
@@ -7165,20 +7179,21 @@ export default function ChatScreen() {
               {/* Workflow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays */}
 
               {/* AGENCY VIEW: Dispatch and Mark Complete buttons */}
-              {conversation.is_agency_job &&
+              {(conversation.is_agency_job ||
+                (conversation.is_team_job &&
+                  conversation.my_role === "AGENCY" &&
+                  (conversation.team_agency_employees?.length ?? 0) > 0)) &&
                 conversation.my_role === "AGENCY" &&
                 conversation.job.payment_model === "PROJECT" &&
                 (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
-                conversation.assigned_employees &&
-                conversation.assigned_employees.length > 0 &&
-                (() => {
-                  const assignedEmployees =
-                    conversation.assigned_employees || [];
-                  const isEmployeeComplete = (employee: any) =>
-                    employee.agencyMarkedComplete ||
-                    employee.employeeMarkedComplete ||
-                    employee.marked_complete ||
-                    employee.status === "COMPLETED";
+                 agencyAssignedEmployees.length > 0 &&
+                 (() => {
+                   const assignedEmployees = agencyAssignedEmployees;
+                   const isEmployeeComplete = (employee: any) =>
+                     employee.agencyMarkedComplete ||
+                     employee.employeeMarkedComplete ||
+                     employee.marked_complete ||
+                     employee.status === "COMPLETED";
 
                   const allDispatched = assignedEmployees.every((e) =>
                     isAgencyStatusInCurrentBackjobCycle(
@@ -7384,16 +7399,18 @@ export default function ChatScreen() {
                   );
                 })()}
 
-              {/* CLIENT VIEW: Confirm arrivals and Approve & Pay */}
-              {conversation.is_agency_job &&
+              {/* CLIENT VIEW: Confirm arrivals and Approve & Pay (agency job or mixed team+agency) */}
+              {(conversation.is_agency_job ||
+                (conversation.is_team_job &&
+                  (conversation.team_agency_employees?.length ?? 0) > 0)) &&
                 conversation.my_role === "CLIENT" &&
                 conversation.job.payment_model === "PROJECT" &&
                 (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
-                conversation.assigned_employees &&
-                conversation.assigned_employees.length > 0 &&
+                agencyAssignedEmployees.length > 0 &&
                 (() => {
-                  const assignedEmployees =
-                    conversation.assigned_employees || [];
+                  const assignedEmployees = agencyAssignedEmployees;
+                  const isTeamAgencyJob =
+                    conversation.is_team_job && !conversation.is_agency_job;
                   const isEmployeeComplete = (employee: any) =>
                     employee.agencyMarkedComplete ||
                     employee.employeeMarkedComplete ||
@@ -7431,19 +7448,29 @@ export default function ChatScreen() {
                         !conversation.job.clientMarkedComplete && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>
-                              Approve & Pay Agency
+                              {isTeamAgencyJob
+                                ? "Approve & Pay Team + Agency"
+                                : "Approve & Pay Agency"}
                             </Text>
                             <TouchableOpacity
                               style={[
                                 styles.actionButton,
                                 styles.approveCompletionButton,
                               ]}
-                              onPress={handleApproveCompletion}
+                              onPress={
+                                isTeamAgencyJob
+                                  ? handleApproveTeamJobCompletion
+                                  : handleApproveCompletion
+                              }
                               disabled={
-                                approveAgencyProjectJobMutation.isPending
+                                isTeamAgencyJob
+                                  ? approveTeamJobCompletionMutation.isPending
+                                  : approveAgencyProjectJobMutation.isPending
                               }
                             >
-                              {approveAgencyProjectJobMutation.isPending ? (
+                              {(isTeamAgencyJob
+                                ? approveTeamJobCompletionMutation.isPending
+                                : approveAgencyProjectJobMutation.isPending) ? (
                                 <ActivityIndicator
                                   size="small"
                                   color={Colors.white}
@@ -7456,13 +7483,13 @@ export default function ChatScreen() {
                                     color={Colors.white}
                                   />
                                   <Text style={styles.actionButtonText}>
-                                    Approve & Pay Agency (₱
-                                    {(
-                                      (conversation.job.remainingPayment ??
-                                        conversation.job.budget * 0.5) +
-                                      (conversation.job.materials_cost ?? 0)
-                                    ).toLocaleString()}
-                                    )
+                                    {isTeamAgencyJob
+                                      ? `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                      : `Approve & Pay Agency (₱${(
+                                          (conversation.job.remainingPayment ??
+                                            conversation.job.budget * 0.5) +
+                                          (conversation.job.materials_cost ?? 0)
+                                        ).toLocaleString()})`}
                                   </Text>
                                 </>
                               )}
@@ -7471,11 +7498,11 @@ export default function ChatScreen() {
                         )}
 
                       {/* Show already-approved employees */}
-                      {conversation.assigned_employees.filter(
+                      {assignedEmployees.filter(
                         (e) => e.clientApproved,
                       ).length > 0 && (
                         <View style={styles.employeeActionsSection}>
-                          {conversation.assigned_employees
+                          {assignedEmployees
                             .filter((e) => e.clientApproved)
                             .map((employee) => (
                               <View
