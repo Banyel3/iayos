@@ -301,14 +301,13 @@ export default function JobsScreen() {
 
   // Applied tab contains:
   // 1. Pending applications (awaiting client decision)
-  // 2. Accepted applications on team jobs still ACTIVE (team not yet fully filled —
-  //    these are invisible in every other tab until the job transitions to IN_PROGRESS)
+  // 2. Accepted applications still ACTIVE (job not yet started — visible here until
+  //    the job transitions to IN_PROGRESS, applies to both team and non-team jobs)
   const filteredApplications = applications.filter(
     (app) =>
       (app.application_status === "PENDING" ||
         (app.application_status === "ACCEPTED" &&
-          app.job_status === "ACTIVE" &&
-          app.is_team_job === true)) &&
+          app.job_status === "ACTIVE")) &&
       !inProgressJobIds.has(app.job_id) &&
       !pastJobIds.has(app.job_id) &&
       !isApplicationPastOrMovedForward(app),
