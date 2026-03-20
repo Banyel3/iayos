@@ -13,6 +13,7 @@ import {
   Alert,
   Platform,
   ActionSheetIOS,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -224,6 +225,36 @@ const getWorkEnvironmentInfo = (env: string) => {
     default:
       return { label: env, emoji: "📍", color: Colors.textSecondary };
   }
+};
+
+const getBarangayFromLocation = (location?: string | null) => {
+  const value = String(location || "").trim();
+  if (!value) return "Location not specified";
+
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 3) return parts[1];
+  if (parts.length >= 2) return parts[1];
+  return parts[0];
+};
+
+const getStreetAndBarangayFromLocation = (location?: string | null) => {
+  const value = String(location || "").trim();
+  if (!value) return "Location not specified";
+
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length >= 2) {
+    return `${parts[0]}, ${parts[1]}`;
+  }
+
+  return parts[0] || "Location not specified";
 };
 
 // ============================================================================
@@ -1409,8 +1440,48 @@ export default function JobDetailScreen() {
     (assignedWorkerId !== "" && currentUserIdCandidates.has(assignedWorkerId)) ||
     !!currentWorkerAssignment;
 
+  const canWorkerViewFullAddress =
+    isWorker &&
+    (hasAcceptedApplication ||
+      job?.inviteStatus === "ACCEPTED" ||
+      isCurrentWorkerAssigned ||
+      job?.status === "IN_PROGRESS" ||
+      job?.status === "COMPLETED" ||
+      (job?.status === "CANCELLED" &&
+        (hasAcceptedApplication || job?.inviteStatus === "ACCEPTED" || isCurrentWorkerAssigned)));
+
+  const locationDisplayText = isWorker
+    ? canWorkerViewFullAddress
+      ? getStreetAndBarangayFromLocation(job?.location)
+      : getBarangayFromLocation(job?.location)
+    : job?.distance != null && job.distance > 0
+      ? `${job.distance.toFixed(1)} km away`
+      : String(job?.location || "Location not specified");
+
   const canAccessTeamGroupChat =
     isTeamJob && isTeamFilled && (isClient || !!currentWorkerAssignment);
+
+  const handleCallClient = useCallback(async () => {
+    const rawPhone = String(job?.postedBy?.phone || "").trim();
+    if (!rawPhone) {
+      Alert.alert("Contact unavailable", "Client contact number is not available.");
+      return;
+    }
+
+    const normalizedPhone = rawPhone.replace(/[^\d+]/g, "");
+    const callUrl = `tel:${normalizedPhone || rawPhone}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(callUrl);
+      if (!canOpen) {
+        Alert.alert("Cannot place call", "Your device cannot place this call right now.");
+        return;
+      }
+      await Linking.openURL(callUrl);
+    } catch {
+      Alert.alert("Call failed", "Unable to start the call. Please try again.");
+    }
+  }, [job?.postedBy?.phone]);
 
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
@@ -2179,11 +2250,25 @@ export default function JobDetailScreen() {
             />
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Location</Text>
-              <Text style={styles.detailValue}>
-                {job.distance != null && job.distance > 0
-                  ? `${job.distance.toFixed(1)} km away`
-                  : job.location}
-              </Text>
+              <Text style={styles.detailValue}>{locationDisplayText}</Text>
+              {isWorker && canWorkerViewFullAddress && (
+                <View style={styles.clientContactBlock}>
+                  <Text style={styles.clientContactLabel}>Client Contact</Text>
+                  <Text style={styles.clientContactValue}>
+                    {job.postedBy?.phone || "Not available"}
+                  </Text>
+                  {!!job.postedBy?.phone && (
+                    <TouchableOpacity
+                      style={styles.callClientButton}
+                      onPress={handleCallClient}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="call-outline" size={16} color={Colors.white} />
+                      <Text style={styles.callClientButtonText}>Call Client</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -4861,6 +4946,39 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
     fontWeight: "500",
+  },
+  clientContactBlock: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    gap: 4,
+  },
+  clientContactLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  clientContactValue: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  callClientButton: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+  },
+  callClientButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "700",
   },
   section: {
     paddingHorizontal: Spacing.xl,

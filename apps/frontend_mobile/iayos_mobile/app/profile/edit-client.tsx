@@ -114,6 +114,7 @@ export default function EditClientProfileScreen() {
       );
 
       if (response.ok) {
+        await refreshUserData();
         Alert.alert("Success", "Profile updated successfully", [
           {
             text: "OK",

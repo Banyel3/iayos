@@ -2726,6 +2726,7 @@ def update_user_profile_mobile(user, payload, request=None):
 
         # Update allowed fields
         updated_fields = {}
+        synced_contact_num = None
         if "firstName" in payload:
             profile.firstName = payload["firstName"]
             updated_fields["firstName"] = payload["firstName"]
@@ -2733,8 +2734,21 @@ def update_user_profile_mobile(user, payload, request=None):
             profile.lastName = payload["lastName"]
             updated_fields["lastName"] = payload["lastName"]
         if "contactNum" in payload:
-            profile.contactNum = payload["contactNum"]
-            updated_fields["contactNum"] = payload["contactNum"]
+            raw_contact = payload["contactNum"]
+            normalized_contact = re.sub(r"\D", "", str(raw_contact))
+            if normalized_contact:
+                if len(normalized_contact) < 10 or len(normalized_contact) > 15:
+                    return {
+                        "success": False,
+                        "error": "Contact number must be 10-15 digits",
+                    }
+                profile.contactNum = normalized_contact
+                updated_fields["contactNum"] = normalized_contact
+                synced_contact_num = normalized_contact
+            else:
+                profile.contactNum = ""
+                updated_fields["contactNum"] = ""
+                synced_contact_num = ""
         if "birthDate" in payload and payload["birthDate"]:
             # Parse date string (YYYY-MM-DD)
             try:
@@ -2749,6 +2763,14 @@ def update_user_profile_mobile(user, payload, request=None):
                 }
 
         profile.save()
+
+        # Keep phone number consistent across dual profiles (WORKER/CLIENT).
+        # This avoids apparent save failures when a stale profile_type context points
+        # to a different profile row than the one currently viewed in the app.
+        if synced_contact_num is not None:
+            Profile.objects.filter(accountFK=user).exclude(profileID=profile.profileID).update(
+                contactNum=synced_contact_num
+            )
 
         # Log profile update for audit trail
         if updated_fields:

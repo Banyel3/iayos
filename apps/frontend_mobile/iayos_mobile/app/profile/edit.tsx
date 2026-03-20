@@ -287,6 +287,7 @@ export default function EditProfileScreen() {
     onSuccess: () => {
       // Invalidate profile query to refetch
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      refreshUserData();
       Alert.alert("Success", "Profile updated successfully", [
         {
           text: "OK",
