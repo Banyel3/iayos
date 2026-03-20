@@ -98,7 +98,8 @@ export type ConversationDetail = {
     workerMarkedOnTheWay?: boolean;
     workerMarkedJobStarted?: boolean;
     clientMarkedComplete: boolean;
-    remainingPaymentPaid?: boolean;
+     remainingPaymentPaid?: boolean;
+     remainingPayment?: number;
     workerReviewed: boolean;
     clientReviewed: boolean;
     // Agency job review tracking - null for non-agency jobs
