@@ -117,13 +117,8 @@ export default function CreateTeamJobScreen() {
   const [barangay, setBarangay] = useState("");
   const [barangayModalVisible, setBarangayModalVisible] = useState(false);
   const [street, setStreet] = useState("");
-  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(
-    null,
-  );
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [scheduledEndDate, setScheduledEndDate] = useState<Date | null>(null);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [isOneDayJob, setIsOneDayJob] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [pendingTeamJobData, setPendingTeamJobData] = useState<any | null>(
@@ -254,24 +249,14 @@ export default function CreateTeamJobScreen() {
     }
   }, [allocationMethod]);
 
-  // Auto-calculate duration days for Daily Rate when dates are provided
-  // (inclusive date range), same behavior as single-job daily creation.
+  // Auto-calculate duration days for Daily Rate when one-day job is selected
   useEffect(() => {
     if (paymentModel !== "DAILY") return;
 
     if (startDate && isOneDayJob) {
       setDurationDays("1");
-      return;
     }
-
-    if (startDate && scheduledEndDate) {
-      const diffTime = Math.abs(
-        scheduledEndDate.getTime() - startDate.getTime(),
-      );
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      setDurationDays(diffDays.toString());
-    }
-  }, [paymentModel, startDate, scheduledEndDate, isOneDayJob]);
+  }, [paymentModel, startDate, isOneDayJob]);
 
   // Calculate budget allocation preview
   const budgetAllocation = useMemo(() => {
@@ -413,7 +398,6 @@ export default function CreateTeamJobScreen() {
           title,
           description,
           category_id: primaryCategoryId,
-          urgency: urgency ?? undefined,
           skill_level: highestSkillLevel,
           job_scope: jobScope ?? undefined,
           work_environment: workEnvironment ?? undefined,
@@ -434,7 +418,6 @@ export default function CreateTeamJobScreen() {
     title,
     description,
     primaryCategoryId,
-    urgency,
     highestSkillLevel,
     jobScope,
     workEnvironment,
@@ -607,9 +590,6 @@ export default function CreateTeamJobScreen() {
         return "Computed total budget is too low (minimum ₱100)";
     }
     if (!barangay || !street) return "Please provide a complete location";
-    if (startDate && scheduledEndDate && scheduledEndDate < startDate) {
-      return "Scheduled end date cannot be earlier than preferred start date";
-    }
 
     if (allocationMethod === "MANUAL_ALLOCATION") {
       const totalAllocated = skillSlots.reduce(
@@ -656,9 +636,7 @@ export default function CreateTeamJobScreen() {
       description: description.trim(),
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
-      urgency: urgency,
       preferred_start_date: startDate?.toISOString().split("T")[0],
-      scheduled_end_date: scheduledEndDate?.toISOString().split("T")[0],
       payment_model: paymentModel,
       daily_rate: paymentModel === "DAILY" ? dailyRateNum : undefined,
       duration_days: paymentModel === "DAILY" ? durationDaysNum : undefined,
@@ -1360,46 +1338,6 @@ export default function CreateTeamJobScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Urgency Level</Text>
-                <View style={styles.urgencyOptions}>
-                  {[
-                    { value: "LOW", label: "Low", color: Colors.success },
-                    {
-                      value: "MEDIUM",
-                      label: "Medium",
-                      color: Colors.warning,
-                    },
-                    { value: "HIGH", label: "High", color: Colors.error },
-                  ].map((opt) => (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[
-                        styles.urgencyOption,
-                        urgency === opt.value && {
-                          borderColor: Colors.primary,
-                          backgroundColor: `${Colors.primary}10`,
-                        },
-                      ]}
-                      onPress={() =>
-                        setUrgency(
-                          urgency === opt.value ? null : (opt.value as any),
-                        )
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyText,
-                          urgency === opt.value && { color: Colors.primary },
-                        ]}
-                      >
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
                 <Text style={styles.label}>
                   Preferred Start Date (Optional)
                 </Text>
@@ -1426,12 +1364,6 @@ export default function CreateTeamJobScreen() {
                   onPress={() => {
                     const next = !isOneDayJob;
                     setIsOneDayJob(next);
-                    if (next && startDate) {
-                      setScheduledEndDate(startDate);
-                    }
-                    if (!next) {
-                      setScheduledEndDate(null);
-                    }
                   }}
                 >
                   <View
@@ -1453,35 +1385,6 @@ export default function CreateTeamJobScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-
-              {!isOneDayJob && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>
-                    Scheduled End Date (Optional)
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowEndDatePicker(true)}
-                  >
-                    <Ionicons
-                      name="calendar-clear"
-                      size={20}
-                      color={Colors.textSecondary}
-                    />
-                    <Text
-                      style={
-                        scheduledEndDate
-                          ? styles.dateText
-                          : styles.datePlaceholder
-                      }
-                    >
-                      {scheduledEndDate
-                        ? scheduledEndDate.toLocaleDateString()
-                        : "Select end date"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
             {/* Job Options Section */}
             <View style={styles.section}>
@@ -1937,22 +1840,7 @@ export default function CreateTeamJobScreen() {
               setShowDatePicker(false);
               if (date) {
                 setStartDate(date);
-                if (isOneDayJob) {
-                  setScheduledEndDate(date);
-                }
               }
-            }}
-          />
-        )}
-
-        {showEndDatePicker && (
-          <DateTimePicker
-            value={scheduledEndDate || startDate || new Date()}
-            mode="date"
-            minimumDate={startDate || new Date()}
-            onChange={(event, date) => {
-              setShowEndDatePicker(false);
-              if (date) setScheduledEndDate(date);
             }}
           />
         )}

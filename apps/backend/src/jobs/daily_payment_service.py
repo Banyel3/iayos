@@ -1296,3 +1296,146 @@ class DailyPaymentService:
                 f"Platform fee retained: ₱{platform_fee_retained}."
             ),
         }
+
+    @staticmethod
+    def early_complete_single_daily_job(
+        job: Job, client_user: "Accounts"
+    ) -> Dict[str, Any]:
+        """
+        Client ends a single (non-team) DAILY job early and pays the worker
+        the full remaining escrow balance immediately.
+
+        Conditions:
+        - Job must be payment_model == "DAILY"
+        - Job must NOT be a team job
+        - Job status must be "IN_PROGRESS"
+        - At least one DailyAttendance record must have client_confirmed_arrival == True today
+        """
+        if job.payment_model != "DAILY":
+            return {"success": False, "error": "Job is not a daily-rate job"}
+
+        if job.is_team_job:
+            return {
+                "success": False,
+                "error": "This endpoint is for single (non-team) DAILY jobs only",
+            }
+
+        if job.status != "IN_PROGRESS":
+            return {
+                "success": False,
+                "error": f"Job must be IN_PROGRESS (current: {job.status})",
+            }
+
+        # Gate: at least one arrival confirmed today
+        today = timezone.localdate()
+        has_confirmed_today = DailyAttendance.objects.filter(
+            jobID=job,
+            date=today,
+            client_confirmed_arrival=True,
+        ).exists()
+
+        if not has_confirmed_today:
+            return {
+                "success": False,
+                "error": "No confirmed worker arrival today — cannot complete early yet",
+            }
+
+        # Calculate remaining payout
+        total_already_paid = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=True,
+        ).aggregate(total=Sum("amount_earned"))["total"] or Decimal("0.00")
+
+        escrow_total = Decimal(str(job.daily_escrow_total or Decimal("0.00")))
+        remaining_payout = escrow_total - total_already_paid
+        if remaining_payout < Decimal("0.00"):
+            remaining_payout = Decimal("0.00")
+
+        # Get worker account
+        worker_account = None
+        if job.assignedWorkerID and job.assignedWorkerID.profileID:
+            worker_account = job.assignedWorkerID.profileID.accountFK
+
+        if not worker_account:
+            return {"success": False, "error": "Could not determine worker account"}
+
+        worker_wallet, _ = Wallet.objects.get_or_create(accountFK=worker_account)
+
+        if remaining_payout > Decimal("0.00"):
+            worker_wallet.pendingEarnings += remaining_payout
+            worker_wallet.save()
+
+            Transaction.objects.create(
+                walletID=worker_wallet,
+                transactionType="PENDING_EARNING",
+                amount=remaining_payout,
+                balanceAfter=worker_wallet.balance,
+                status="PENDING",
+                description=f"Early completion payout — remaining daily escrow for Job #{job.jobID}",
+                relatedJobPosting=job,
+                paymentMethod="WALLET",
+            )
+
+        # Mark job as completed
+        now = timezone.now()
+        job.is_early_completed = True
+        job.early_completed_at = now
+        job.early_completion_payout = remaining_payout
+        job.status = "COMPLETED"
+        job.workerMarkedComplete = True
+        job.clientMarkedComplete = True
+        job.workerMarkedCompleteAt = now
+        job.clientMarkedCompleteAt = now
+        job.save()
+
+        JobLog.objects.create(
+            jobID=job,
+            notes=(
+                f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Client completed daily job early. "
+                f"Remaining payout: ₱{remaining_payout}"
+            ),
+            changedBy=client_user,
+            oldStatus="IN_PROGRESS",
+            newStatus="COMPLETED",
+        )
+
+        # Close conversation
+        try:
+            from profiles.models import Conversation
+            from profiles.conversation_service import archive_conversation
+
+            conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+            if conversation:
+                conversation.status = Conversation.ConversationStatus.COMPLETED
+                conversation.save(update_fields=["status", "updatedAt"])
+                archive_conversation(conversation)
+        except Exception:
+            pass
+
+        # Notify worker
+        if remaining_payout > Decimal("0.00"):
+            Notification.objects.create(
+                accountFK=worker_account,
+                notificationType="PAYMENT_RECEIVED",
+                title="Job Completed Early — Full Pay Received",
+                message=(
+                    f"Your client ended the job early. ₱{remaining_payout:.2f} remaining "
+                    f"balance has been added to your pending earnings for Job '{job.title}'."
+                ),
+                relatedJobID=job.jobID,
+            )
+        else:
+            Notification.objects.create(
+                accountFK=worker_account,
+                notificationType="JOB_COMPLETED",
+                title="Job Completed",
+                message=f"Job '{job.title}' has been completed by your client.",
+                relatedJobID=job.jobID,
+            )
+
+        return {
+            "success": True,
+            "message": f"Job completed early. ₱{remaining_payout:.2f} paid to worker.",
+            "remaining_payout": float(remaining_payout),
+            "is_early_completed": True,
+        }

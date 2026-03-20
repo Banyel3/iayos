@@ -13316,6 +13316,38 @@ def finish_daily_job(request, job_id: int):
     }
 
 
+@router.post("/{job_id}/daily/early-complete", auth=dual_auth)
+@require_kyc
+def early_complete_single_daily_job(request, job_id: int):
+    """
+    Client ends a single (non-team) DAILY job early, paying the worker
+    the full remaining escrow balance immediately.
+    """
+    from jobs.daily_payment_service import DailyPaymentService
+
+    try:
+        job = Job.objects.select_related(
+            "clientID__profileID__accountFK",
+            "assignedWorkerID__profileID__accountFK",
+        ).get(jobID=job_id)
+    except Job.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if not job.clientID or job.clientID.profileID.accountFK != request.auth:
+        return Response(
+            {"error": "Only the job client can perform early completion"}, status=403
+        )
+
+    result = DailyPaymentService.early_complete_single_daily_job(job, request.auth)
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Early completion failed")}, status=400
+        )
+
+    return result
+
+
 @router.post("/{job_id}/project/finish", auth=dual_auth)
 @require_kyc
 def finish_project_multiday_job(request, job_id: int):

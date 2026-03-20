@@ -40,7 +40,9 @@ import {
 } from "../../lib/hooks/useWebSocket";
 import { useImageUpload } from "../../lib/hooks/useImageUpload";
 import {
-  useConfirmWorkerArrived,
+  useConfirmWorkStarted,
+  useMarkOnTheWay,
+  useMarkJobStarted,
   useCancelJob,
   useMarkComplete,
   useApproveCompletion,
@@ -53,6 +55,7 @@ import {
   useConfirmProjectArrival,
   useAgencyMarkProjectComplete,
   useApproveAgencyProjectJob,
+  useEarlyCompleteSingleDailyJob,
 } from "../../lib/hooks/useJobActions";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -194,6 +197,7 @@ export default function ChatScreen() {
     return d;
   });
   const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
+  const [isMarkOnTheWayLocked, setIsMarkOnTheWayLocked] = useState(false);
   const [localBackjobScheduleConfirmed, setLocalBackjobScheduleConfirmed] =
     useState(false);
 
@@ -783,7 +787,9 @@ export default function ChatScreen() {
   const sendMutation = useSendMessageMutation();
 
   // Job action mutations
-  const confirmWorkerArrivedMutation = useConfirmWorkerArrived();
+  const confirmWorkStartedMutation = useConfirmWorkStarted();
+  const markOnTheWayMutation = useMarkOnTheWay();
+  const markJobStartedMutation = useMarkJobStarted();
   const cancelJobMutation = useCancelJob();
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
@@ -817,6 +823,7 @@ export default function ChatScreen() {
   const clientQASkipNextDayMutation = useClientQASkipNextDay();
   const dailyExtendOneDayMutation = useDailyExtendOneDay();
   const dailyFinishJobMutation = useDailyFinishJob();
+  const earlyCompleteSingleDailyMutation = useEarlyCompleteSingleDailyJob();
 
   // Voice calling
   const { initiateCall, callStatus, error: callError } = useAgoraCall();
@@ -1174,15 +1181,15 @@ export default function ChatScreen() {
           : conversation?.is_agency_job &&
               dispatchedAgencyEmployees.length < agencyAssignedEmployees.length
             ? `Waiting for agency to dispatch workers (${dispatchedAgencyEmployees.length} of ${agencyAssignedEmployees.length}).`
+            : isTeamBackjobFlow &&
+                isTeamDailyBackjobFlow &&
+                !effectiveWorkerScheduleConfirmed
+              ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
               : isTeamBackjobFlow &&
-                  isTeamDailyBackjobFlow &&
-                  !effectiveWorkerScheduleConfirmed
-                ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
-                : isTeamBackjobFlow &&
-                    !isTeamDailyBackjobFlow &&
-                    pendingTeamArrivalWorkers.length > 0
-              ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
-              : null;
+                  !isTeamDailyBackjobFlow &&
+                  pendingTeamArrivalWorkers.length > 0
+                ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
+                : null;
 
   // Materials purchasing workflow mutations
   const approveMaterialMutation = useApproveMaterialPurchase();
@@ -1282,21 +1289,68 @@ export default function ChatScreen() {
   }, [conversation?.messages.length]);
 
   // Handle confirm work started (CLIENT only)
-  const handleConfirmWorkerArrived = () => {
+  const handleConfirmWorkStarted = () => {
     if (!conversation) return;
 
+    // For agency jobs, show employee name if assigned, otherwise agency name
     const workerName =
-      conversation.other_participant?.name || "the worker";
+      conversation.assigned_employee?.name ||
+      conversation.other_participant?.name ||
+      "the worker";
 
     Alert.alert(
-      "Mark Worker Arrived",
-      `Confirm that ${workerName} has arrived at the job site?`,
+      "Confirm Work Started",
+      `Are you sure ${workerName} has arrived and started working?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Confirm",
           onPress: () => {
-            confirmWorkerArrivedMutation.mutate(conversation.job.id);
+            confirmWorkStartedMutation.mutate(conversation.job.id);
+          },
+        },
+      ],
+    );
+  };
+
+  // Handle worker self-status: on the way
+  const handleMarkOnTheWay = () => {
+    if (!conversation) return;
+    if (markOnTheWayMutation.isPending || isMarkOnTheWayLocked) return;
+
+    Alert.alert(
+      "Mark On The Way",
+      "Confirm that you're now heading to the job location.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            setIsMarkOnTheWayLocked(true);
+            markOnTheWayMutation.mutate(conversation.job.id, {
+              onError: () => {
+                setIsMarkOnTheWayLocked(false);
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  // Handle worker self-status: job started
+  const handleMarkJobStarted = () => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Mark Job Started",
+      "Confirm that you have arrived and started work.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: () => {
+            markJobStartedMutation.mutate(conversation.job.id);
           },
         },
       ],
@@ -1489,16 +1543,6 @@ export default function ChatScreen() {
         {
           text: "Submit",
           onPress: () => {
-            if (isTeamDailyBackjobFlow) {
-              // Team DAILY backjob completion must use the backjob flow endpoint,
-              // not the regular team assignment-complete endpoint.
-              markBackjobCompleteMutation.mutate({
-                jobId: conversation.job.id,
-                notes: undefined,
-              });
-              return;
-            }
-
             markTeamAssignmentCompleteMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
@@ -3538,7 +3582,9 @@ export default function ChatScreen() {
     !hasAnyCheckedInToday &&
     !hasAnyClientConfirmedToday;
   const canShowWorkerOnTheWayQuickAction =
-    isWorkerSideRole && conversation.job?.payment_model === "DAILY";
+    isWorkerSideRole &&
+    conversation.job?.payment_model === "DAILY" &&
+    !conversation.is_team_job;
   const isWorkerAlreadyCheckedIn = Boolean(
     myWorkerAttendanceToday?.time_in ||
       myWorkerAttendanceToday?.worker_confirmed_at,
@@ -4060,7 +4106,8 @@ export default function ChatScreen() {
                 })()}
 
               {/* Attendance Tracking Section (DAILY + TEAM PROJECT) */}
-              {(conversation.job?.payment_model === "DAILY" ||
+              {((conversation.job?.payment_model === "DAILY" &&
+                !conversation.is_team_job) ||
                 isTeamProjectAttendance ||
                 isProjectMultiDayJob) && (
                 <View style={styles.dailyAttendanceSection}>
@@ -5814,16 +5861,109 @@ export default function ChatScreen() {
                         </Text>
                       </View>
                     )}
+
+                  {/* Single DAILY job: Client — Complete Early (Full Pay) */}
+                  {conversation.my_role === "CLIENT" &&
+                    !conversation.is_team_job &&
+                    !conversation.is_agency_job &&
+                    conversation.job?.payment_model === "DAILY" &&
+                    (hasAnyClientConfirmedToday ||
+                      conversation.job?.is_early_completed) &&
+                    !conversation.job?.clientMarkedComplete && (
+                      <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
+                        {conversation.job?.is_early_completed ? (
+                          <View
+                            style={{
+                              backgroundColor: "#FEF3C7",
+                              borderRadius: 8,
+                              padding: 10,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <Ionicons name="flash" size={16} color="#D97706" />
+                            <Text
+                              style={{
+                                color: "#D97706",
+                                fontWeight: "600",
+                                fontSize: 13,
+                              }}
+                            >
+                              Job completed early with full pay
+                              {conversation.job?.early_completion_payout
+                                ? ` · ₱${Number(conversation.job.early_completion_payout).toLocaleString()} payout`
+                                : ""}
+                            </Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: Colors.warning,
+                              borderRadius: 8,
+                              padding: 12,
+                              gap: 8,
+                            }}
+                            onPress={() =>
+                              Alert.alert(
+                                "Complete Early (Full Pay)",
+                                `Pay the worker their full contracted amount now and finish the job early? They will receive payment for all ${conversation.job?.duration_days || "planned"} days.`,
+                                [
+                                  { text: "Cancel", style: "cancel" },
+                                  {
+                                    text: "Complete Early",
+                                    style: "destructive",
+                                    onPress: () =>
+                                      earlyCompleteSingleDailyMutation.mutate({
+                                        jobId: conversation.job!.id,
+                                      }),
+                                  },
+                                ],
+                              )
+                            }
+                            disabled={
+                              earlyCompleteSingleDailyMutation.isPending
+                            }
+                          >
+                            {earlyCompleteSingleDailyMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="flash"
+                                  size={18}
+                                  color={Colors.white}
+                                />
+                                <Text
+                                  style={{
+                                    color: Colors.white,
+                                    fontWeight: "600",
+                                    fontSize: 14,
+                                  }}
+                                >
+                                  Complete Early (Full Pay)
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
                 </View>
               )}
 
-              {/* TEAM PROJECT PHASE 1: Client sees full team arrival status */}
-              {/* Gap fix: DAILY flow already shows per-worker attendance cards; this mirrors that visibility for PROJECT team jobs. */}
+              {/* TEAM JOB PHASE 1: Client sees full team arrival status */}
+              {/* Covers both DAILY and PROJECT team jobs (simplified arrival flow). */}
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 !isTeamProjectAttendance &&
-                conversation.job?.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
                 conversation.team_worker_assignments &&
@@ -5992,9 +6132,8 @@ export default function ChatScreen() {
                 })()}
 
               {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
-              {/* NOTE: DAILY jobs use Daily Attendance check-in/check-out, not one-time completion */}
+              {/* Applies to both DAILY and PROJECT team jobs (simplified flow). */}
               {conversation.is_team_job &&
-                conversation.job?.payment_model !== "DAILY" &&
                 !isTeamProjectAttendance &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
@@ -6028,13 +6167,12 @@ export default function ChatScreen() {
                     return (
                       <View style={[styles.actionButton, styles.waitingButton]}>
                         <Ionicons
-                          name="navigate-outline"
+                          name="time-outline"
                           size={20}
                           color={Colors.textSecondary}
                         />
                         <Text style={styles.waitingButtonText}>
-                          Please proceed to the client's location. The client
-                          will mark your arrival.
+                          Waiting for client to confirm your arrival...
                         </Text>
                       </View>
                     );
@@ -6089,13 +6227,11 @@ export default function ChatScreen() {
                 })()}
 
               {/* TEAM JOB PHASE 3: Client Approves All Workers */}
-              {/* NOTE: DAILY jobs use Daily Attendance section above for per-day payment */}
-              {/* This section is for PROJECT jobs only (one-time lump-sum payment) */}
+              {/* Applies to both DAILY and PROJECT team jobs (simplified flow). */}
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 !isTeamProjectAttendance &&
-                conversation.job.payment_model !== "DAILY" &&
                 !isProjectMultiDayJob &&
                 conversation.team_worker_assignments &&
                 conversation.team_worker_assignments.length > 0 &&
@@ -6569,22 +6705,44 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* CLIENT: Mark Worker Arrived button (Regular Jobs Only — simplified flow) */}
+              {/* CLIENT: Waiting for worker to mark on the way (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted && (
+                !conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedOnTheWay &&
+                !conversation.job.workerMarkedJobStarted && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      Waiting for worker to mark on the way...
+                    </Text>
+                  </View>
+                )}
+
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isLegacySingleProjectFlow &&
+                conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted &&
+                conversation.job.workerMarkedOnTheWay &&
+                !conversation.job.workerMarkedJobStarted && (
                   <TouchableOpacity
                     style={[
                       styles.actionButton,
                       styles.confirmWorkStartedButton,
                     ]}
-                    onPress={handleConfirmWorkerArrived}
-                    disabled={confirmWorkerArrivedMutation.isPending}
+                    onPress={handleConfirmWorkStarted}
+                    disabled={confirmWorkStartedMutation.isPending}
                   >
-                    {confirmWorkerArrivedMutation.isPending ? (
+                    {confirmWorkStartedMutation.isPending ? (
                       <ActivityIndicator size="small" color={Colors.white} />
                     ) : (
                       <>
@@ -6594,7 +6752,7 @@ export default function ChatScreen() {
                           color={Colors.white}
                         />
                         <Text style={styles.actionButtonText}>
-                          Mark Worker Arrived
+                          Confirm Worker Has Arrived
                         </Text>
                       </>
                     )}
@@ -6621,24 +6779,93 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* WORKER: Proceed to client location message (Regular Jobs Only — simplified flow) */}
+              {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted && (
+                !conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedOnTheWay &&
+                !isMarkOnTheWayLocked && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.onTheWayButton]}
+                    onPress={handleMarkOnTheWay}
+                    disabled={
+                      markOnTheWayMutation.isPending || isMarkOnTheWayLocked
+                    }
+                  >
+                    {markOnTheWayMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="navigate"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Mark On The Way
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isLegacySingleProjectFlow &&
+                conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted &&
+                conversation.job.workerMarkedOnTheWay &&
+                !conversation.job.workerMarkedJobStarted && (
                   <View style={[styles.actionButton, styles.waitingButton]}>
                     <Ionicons
-                      name="navigate-outline"
-                      size={20}
+                      name="time-outline"
+                      size={24}
                       color={Colors.textSecondary}
                     />
-                    <Text style={styles.waitingButtonText}>
-                      Please proceed to the client's location. The client will
-                      mark your arrival.
-                    </Text>
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text
+                        style={styles.waitingButtonText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        Waiting for client to confirm worker arrival...
+                      </Text>
+                    </View>
                   </View>
+                )}
+
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isLegacySingleProjectFlow &&
+                conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
+                conversation.job.clientConfirmedWorkStarted &&
+                conversation.job.workerMarkedOnTheWay &&
+                !conversation.job.workerMarkedJobStarted && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.jobStartedButton]}
+                    onPress={handleMarkJobStarted}
+                    disabled={markJobStartedMutation.isPending}
+                  >
+                    {markJobStartedMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="play-circle"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Mark Job Started
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 )}
 
               {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
@@ -6648,6 +6875,7 @@ export default function ChatScreen() {
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
+                conversation.job.workerMarkedJobStarted &&
                 !conversation.job.workerMarkedComplete && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.markCompleteButton]}
@@ -9019,92 +9247,98 @@ export default function ChatScreen() {
                           </Text>
 
                           <View style={styles.teamProjectArrivalList}>
-                            {pendingTeamArrivalWorkers.map((assignment: any) => {
-                              const workerName =
-                                assignment?.name ||
-                                assignment?.worker_name ||
-                                "Team Worker";
+                            {pendingTeamArrivalWorkers.map(
+                              (assignment: any) => {
+                                const workerName =
+                                  assignment?.name ||
+                                  assignment?.worker_name ||
+                                  "Team Worker";
 
-                              return (
-                                <View
-                                  key={`backjob-arrival-${assignment.assignment_id}`}
-                                  style={styles.teamProjectArrivalRow}
-                                >
+                                return (
                                   <View
-                                    style={styles.teamProjectArrivalWorkerInfo}
+                                    key={`backjob-arrival-${assignment.assignment_id}`}
+                                    style={styles.teamProjectArrivalRow}
                                   >
-                                    {assignment?.avatar ? (
-                                      <Image
-                                        source={{ uri: assignment.avatar }}
-                                        style={styles.teamWorkerAvatarCompact}
-                                      />
-                                    ) : (
-                                      <View
-                                        style={[
-                                          styles.teamWorkerAvatarCompact,
-                                          styles.teamWorkerAvatarPlaceholder,
-                                        ]}
-                                      >
-                                        <Ionicons
-                                          name="person"
-                                          size={16}
-                                          color={Colors.textSecondary}
-                                        />
-                                      </View>
-                                    )}
-
                                     <View
                                       style={
-                                        styles.teamProjectArrivalWorkerTextBlock
+                                        styles.teamProjectArrivalWorkerInfo
                                       }
                                     >
-                                      <Text
-                                        style={
-                                          styles.teamProjectArrivalWorkerName
-                                        }
-                                      >
-                                        {workerName}
-                                      </Text>
-                                      <Text
-                                        style={
-                                          styles.teamProjectArrivalWorkerSkill
-                                        }
-                                      >
-                                        {assignment?.skill || "Team Worker"}
-                                      </Text>
-                                    </View>
-                                  </View>
+                                      {assignment?.avatar ? (
+                                        <Image
+                                          source={{ uri: assignment.avatar }}
+                                          style={styles.teamWorkerAvatarCompact}
+                                        />
+                                      ) : (
+                                        <View
+                                          style={[
+                                            styles.teamWorkerAvatarCompact,
+                                            styles.teamWorkerAvatarPlaceholder,
+                                          ]}
+                                        >
+                                          <Ionicons
+                                            name="person"
+                                            size={16}
+                                            color={Colors.textSecondary}
+                                          />
+                                        </View>
+                                      )}
 
-                                  <TouchableOpacity
-                                    style={styles.teamProjectConfirmArrivalButton}
-                                    onPress={() =>
-                                      handleConfirmTeamWorkerArrival(
-                                        assignment.assignment_id,
-                                        workerName,
-                                      )
-                                    }
-                                    disabled={
-                                      confirmTeamWorkerArrivalMutation.isPending
-                                    }
-                                  >
-                                    {confirmTeamWorkerArrivalMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Text
+                                      <View
                                         style={
-                                          styles.teamProjectConfirmArrivalText
+                                          styles.teamProjectArrivalWorkerTextBlock
                                         }
                                       >
-                                        Confirm Arrival
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                </View>
-                              );
-                            })}
+                                        <Text
+                                          style={
+                                            styles.teamProjectArrivalWorkerName
+                                          }
+                                        >
+                                          {workerName}
+                                        </Text>
+                                        <Text
+                                          style={
+                                            styles.teamProjectArrivalWorkerSkill
+                                          }
+                                        >
+                                          {assignment?.skill || "Team Worker"}
+                                        </Text>
+                                      </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                      style={
+                                        styles.teamProjectConfirmArrivalButton
+                                      }
+                                      onPress={() =>
+                                        handleConfirmTeamWorkerArrival(
+                                          assignment.assignment_id,
+                                          workerName,
+                                        )
+                                      }
+                                      disabled={
+                                        confirmTeamWorkerArrivalMutation.isPending
+                                      }
+                                    >
+                                      {confirmTeamWorkerArrivalMutation.isPending ? (
+                                        <ActivityIndicator
+                                          size="small"
+                                          color={Colors.white}
+                                        />
+                                      ) : (
+                                        <Text
+                                          style={
+                                            styles.teamProjectConfirmArrivalText
+                                          }
+                                        >
+                                          Confirm Arrival
+                                        </Text>
+                                      )}
+                                    </TouchableOpacity>
+                                  </View>
+                                );
+                              },
+                            )}
                           </View>
                         </View>
                       )}

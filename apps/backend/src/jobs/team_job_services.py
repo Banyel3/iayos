@@ -165,6 +165,67 @@ def _calculate_team_pending_payouts(job: Job, total_pending_pool: Decimal) -> di
     return payouts
 
 
+def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
+    """
+    Calculate remaining DAILY payout per recipient account for team jobs.
+
+    Remaining payout is computed from each assignment's contracted amount minus
+    amounts already earned/credited (`total_earned` for freelancers,
+    `paymentAmount` for agency employees).
+    """
+    payouts = {}
+    planned_days = int(getattr(job, "duration_days", 0) or 0)
+    if planned_days <= 0:
+        planned_days = 1
+
+    worker_assignments = JobWorkerAssignment.objects.select_related(
+        "workerID__profileID__accountFK"
+    ).filter(jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"])
+
+    for assignment in worker_assignments:
+        account = assignment.workerID.profileID.accountFK
+        daily_rate = (
+            assignment.daily_rate_at_assignment
+            or job.daily_rate_agreed
+            or Decimal("0.00")
+        )
+        full_contract = Decimal(daily_rate) * Decimal(planned_days)
+        already_earned = Decimal(assignment.total_earned or Decimal("0.00"))
+        remaining = full_contract - already_earned
+        if remaining < Decimal("0.00"):
+            remaining = Decimal("0.00")
+        payouts[account] = payouts.get(account, Decimal("0.00")) + remaining
+
+    employee_assignments = JobEmployeeAssignment.objects.select_related(
+        "employee__agency"
+    ).filter(
+        job=job,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        skill_slot__isnull=False,
+    )
+
+    for emp_assignment in employee_assignments:
+        account = emp_assignment.employee.agency
+        daily_rate = Decimal("0.00")
+        if (
+            hasattr(emp_assignment.employee, "daily_rate")
+            and emp_assignment.employee.daily_rate
+        ):
+            daily_rate = Decimal(str(emp_assignment.employee.daily_rate))
+        else:
+            daily_rate = Decimal(str(job.daily_rate_agreed or "0.00"))
+
+        full_contract = daily_rate * Decimal(planned_days)
+        already_earned = Decimal(emp_assignment.paymentAmount or Decimal("0.00"))
+        remaining = full_contract - already_earned
+        if remaining < Decimal("0.00"):
+            remaining = Decimal("0.00")
+
+        payouts[account] = payouts.get(account, Decimal("0.00")) + remaining
+
+    return {account: amount for account, amount in payouts.items() if amount > 0}
+
+
 def _get_required_project_days(job: Job) -> int:
     configured = int(getattr(job, "duration_days", 0) or 0)
     if configured > 0:
@@ -2011,20 +2072,11 @@ def worker_complete_team_assignment(
     is_daily_job = (
         str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY"
     )
-    if is_daily_job:
-        active_backjob_exists = JobDispute.objects.filter(
-            jobID=job,
-            status__in=[
-                JobDispute.DisputeStatus.IN_NEGOTIATION,
-                JobDispute.DisputeStatus.UNDER_REVIEW,
-            ],
-            backjobStarted=True,
-        ).exists()
-        if not active_backjob_exists:
-            return {
-                "success": False,
-                "error": "Team DAILY jobs use attendance check-in/check-out flow. Assignment completion is only allowed during active backjob cycles.",
-            }
+    if is_daily_job and not assignment.client_confirmed_arrival:
+        return {
+            "success": False,
+            "error": "Client must confirm your arrival before you can mark this assignment complete",
+        }
 
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
@@ -2340,11 +2392,9 @@ def client_approve_team_job(
             "error": f"Cannot complete job with status {job.status}",
         }
 
-    if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
-        return {
-            "success": False,
-            "error": "Team DAILY jobs must be finished via /jobs/{job_id}/daily/finish after attendance settlement.",
-        }
+    is_daily_job = (
+        str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY"
+    )
 
     required_project_days = _get_required_project_days(job)
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
@@ -2438,10 +2488,17 @@ def client_approve_team_job(
             "error": "Cash proof image is required for CASH payment",
         }
 
-    # Remaining final payment follows single-job behavior: remainingPayment + materialsCost.
-    remaining_amount = (job.remainingPayment or Decimal("0.00")) + (
-        job.materialsCost or Decimal("0.00")
-    )
+    # Remaining final payment:
+    # - DAILY team jobs: pay remaining per-assignment contracted amounts.
+    # - PROJECT team jobs: use legacy remainingPayment + materialsCost.
+    if is_daily_job:
+        pending_payouts = _calculate_team_daily_remaining_payouts(job)
+        payouts_total = sum(pending_payouts.values(), Decimal("0.00"))
+        remaining_amount = payouts_total + (job.materialsCost or Decimal("0.00"))
+    else:
+        remaining_amount = (job.remainingPayment or Decimal("0.00")) + (
+            job.materialsCost or Decimal("0.00")
+        )
     if remaining_amount <= 0:
         return {
             "success": False,
@@ -2455,15 +2512,17 @@ def client_approve_team_job(
         get_payment_buffer_days,
     )
 
-    if payment_method_upper == "WALLET":
-        pending_pool = (job.budget or Decimal("0.00")) + (
-            job.materialsCost or Decimal("0.00")
-        )
-    else:
-        # For cash completion, only escrow/downpayment portion is buffered.
-        pending_pool = (job.budget or Decimal("0.00")) * Decimal("0.50")
+    if not is_daily_job:
+        if payment_method_upper == "WALLET":
+            pending_pool = (job.budget or Decimal("0.00")) + (
+                job.materialsCost or Decimal("0.00")
+            )
+        else:
+            # For cash completion, only escrow/downpayment portion is buffered.
+            pending_pool = (job.budget or Decimal("0.00")) * Decimal("0.50")
 
-    pending_payouts = _calculate_team_pending_payouts(job, pending_pool)
+        pending_payouts = _calculate_team_pending_payouts(job, pending_pool)
+
     if not pending_payouts:
         return {
             "success": False,
@@ -2672,7 +2731,7 @@ def client_approve_team_job(
         "job_id": job_id,
         "payment_method": payment_method_upper,
         "amount_paid": float(remaining_amount),
-        "pending_payout_total": float(pending_pool),
+        "pending_payout_total": float(payouts_total if is_daily_job else pending_pool),
         "pending_recipients_count": len(pending_payouts),
         "payment_buffer_days": buffer_days,
         "worker_payment_pending": True,
