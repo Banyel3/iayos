@@ -1729,83 +1729,6 @@ export default function CreateJobScreen() {
               />
             </View>
 
-            {/* Location Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="location" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Location <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-              </View>
-
-              {/* Barangay */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Barangay</Text>
-                {barangaysLoading ? (
-                  <View style={styles.pickerContainer}>
-                    <View style={[styles.picker, styles.pickerLoading]}>
-                      <ActivityIndicator size="small" color={Colors.primary} />
-                      <Text style={styles.pickerLoadingText}>
-                        Loading barangays...
-                      </Text>
-                    </View>
-                  </View>
-                ) : barangaysError ? (
-                  <View style={styles.pickerContainer}>
-                    <View style={[styles.picker, styles.pickerError]}>
-                      <Text style={styles.pickerErrorText}>
-                        ⚠️ Failed to load
-                      </Text>
-                    </View>
-                  </View>
-                ) : barangays.length === 0 ? (
-                  <View style={styles.emptyStateContainer}>
-                    <Ionicons
-                      name="location-outline"
-                      size={24}
-                      color={Colors.warning}
-                    />
-                    <Text style={styles.emptyStateText}>
-                      No barangays available in database for Zamboanga City.
-                      Please contact support.
-                    </Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.barangayButton}
-                    onPress={() => setBarangayModalVisible(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={
-                        barangay
-                          ? styles.barangayButtonText
-                          : styles.barangayButtonPlaceholder
-                      }
-                    >
-                      {barangay || "Select a barangay"}
-                    </Text>
-                    <Text style={styles.barangayButtonIcon}>▼</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Street Address */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Street Address</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 123 Bonifacio Street"
-                  value={street}
-                  onChangeText={setStreet}
-                  placeholderTextColor={Colors.textHint}
-                />
-                <Text style={styles.hint}>
-                  Provide the specific street address or landmark
-                </Text>
-              </View>
-            </View>
-
             {/* Barangay Selection Modal */}
             <Modal
               visible={barangayModalVisible}
@@ -1986,132 +1909,6 @@ export default function CreateJobScreen() {
               </View>
             </Modal>
 
-            {/* Timing Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="time" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Timing
-                  <Text style={{ color: Colors.error }}> *</Text>
-                </Text>
-              </View>
-
-              {/* Job Dates */}
-              <View style={styles.datesRow}>
-                {/* Start Date */}
-                <View style={[styles.inputGroup, styles.dateHalf]}>
-                  <Text style={styles.label}>Start Date</Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.dateButton,
-                      !startDate && { borderColor: Colors.border },
-                    ]}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Ionicons
-                      name="calendar"
-                      size={18}
-                      color={startDate ? Colors.textSecondary : Colors.textHint}
-                    />
-                    <Text
-                      style={[
-                        styles.dateButtonText,
-                        styles.dateButtonTextSmall,
-                        !startDate && { color: Colors.textHint },
-                      ]}
-                    >
-                      {startDate
-                        ? startDate.toLocaleDateString()
-                        : "Select date"}
-                    </Text>
-                  </TouchableOpacity>
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={startDate || new Date()}
-                      mode="date"
-                      display="default"
-                      minimumDate={new Date()}
-                      onChange={(event, selectedDate) => {
-                        setShowDatePicker(Platform.OS === "ios");
-                        if (selectedDate) {
-                          setStartDate(selectedDate);
-                        }
-                      }}
-                    />
-                  )}
-                </View>
-
-                {/* Number of Working Days */}
-                <View style={[styles.inputGroup, styles.dateHalf]}>
-                  <Text style={styles.label}>
-                    Working Days
-                    <Text style={{ color: Colors.error }}> *</Text>
-                  </Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., 5"
-                    value={durationDays}
-                    onChangeText={setDurationDays}
-                    keyboardType="number-pad"
-                    placeholderTextColor={Colors.textHint}
-                  />
-                </View>
-              </View>
-
-              {/* One day or less checkbox */}
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() => {
-                  const next = !isOneDayJob;
-                  setIsOneDayJob(next);
-                  if (next) {
-                    setDurationDays("1");
-                    // Force PROJECT payment model for one-day jobs
-                    setPaymentModel("PROJECT");
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.checkbox,
-                    isOneDayJob && styles.checkboxChecked,
-                  ]}
-                >
-                  {isOneDayJob && (
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                  )}
-                </View>
-                <Text style={styles.checkboxLabel}>
-                  This job is one day or less
-                </Text>
-              </TouchableOpacity>
-
-              {/* Expected Duration - visible for one-day jobs */}
-              {isOneDayJob && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Expected Duration (Optional)</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., 1-3 hours, half a day"
-                    value={duration}
-                    onChangeText={setDuration}
-                    placeholderTextColor={Colors.textHint}
-                  />
-                  <SuggestionBubbles
-                    suggestions={durationSuggestions.filter(
-                      (s) =>
-                        !s.text.toLowerCase().includes("1 day") &&
-                        !s.text.toLowerCase().includes("2 days"),
-                    )}
-                    onSelect={setDuration}
-                    isLoading={loadingSuggestionFields.has("duration")}
-                    label="Common durations"
-                    icon="time-outline"
-                  />
-                </View>
-              )}
-            </View>
             {/* Job Options Section */}
             <View style={styles.section}>
               <TouchableOpacity
@@ -2763,6 +2560,210 @@ export default function CreateJobScreen() {
                     </Text>
                   </View>
                 )}
+            </View>
+
+            {/* Location Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="location" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Location <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
+
+              {/* Barangay */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Barangay</Text>
+                {barangaysLoading ? (
+                  <View style={styles.pickerContainer}>
+                    <View style={[styles.picker, styles.pickerLoading]}>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.pickerLoadingText}>
+                        Loading barangays...
+                      </Text>
+                    </View>
+                  </View>
+                ) : barangaysError ? (
+                  <View style={styles.pickerContainer}>
+                    <View style={[styles.picker, styles.pickerError]}>
+                      <Text style={styles.pickerErrorText}>
+                        ⚠️ Failed to load
+                      </Text>
+                    </View>
+                  </View>
+                ) : barangays.length === 0 ? (
+                  <View style={styles.emptyStateContainer}>
+                    <Ionicons
+                      name="location-outline"
+                      size={24}
+                      color={Colors.warning}
+                    />
+                    <Text style={styles.emptyStateText}>
+                      No barangays available in database for Zamboanga City.
+                      Please contact support.
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.barangayButton}
+                    onPress={() => setBarangayModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={
+                        barangay
+                          ? styles.barangayButtonText
+                          : styles.barangayButtonPlaceholder
+                      }
+                    >
+                      {barangay || "Select a barangay"}
+                    </Text>
+                    <Text style={styles.barangayButtonIcon}>▼</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Street Address */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Street Address</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 123 Bonifacio Street"
+                  value={street}
+                  onChangeText={setStreet}
+                  placeholderTextColor={Colors.textHint}
+                />
+                <Text style={styles.hint}>
+                  Provide the specific street address or landmark
+                </Text>
+              </View>
+            </View>
+
+            {/* Timing Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="time" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Timing
+                  <Text style={{ color: Colors.error }}> *</Text>
+                </Text>
+              </View>
+
+              {/* Job Dates */}
+              <View style={styles.datesRow}>
+                {/* Start Date */}
+                <View style={[styles.inputGroup, styles.dateHalf]}>
+                  <Text style={styles.label}>Start Date</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.dateButton,
+                      !startDate && { borderColor: Colors.border },
+                    ]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Ionicons
+                      name="calendar"
+                      size={18}
+                      color={startDate ? Colors.textSecondary : Colors.textHint}
+                    />
+                    <Text
+                      style={[
+                        styles.dateButtonText,
+                        styles.dateButtonTextSmall,
+                        !startDate && { color: Colors.textHint },
+                      ]}
+                    >
+                      {startDate
+                        ? startDate.toLocaleDateString()
+                        : "Select date"}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={startDate || new Date()}
+                      mode="date"
+                      display="default"
+                      minimumDate={new Date()}
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(Platform.OS === "ios");
+                        if (selectedDate) {
+                          setStartDate(selectedDate);
+                        }
+                      }}
+                    />
+                  )}
+                </View>
+
+                {/* Number of Working Days */}
+                <View style={[styles.inputGroup, styles.dateHalf]}>
+                  <Text style={styles.label}>
+                    Working Days
+                    <Text style={{ color: Colors.error }}> *</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 5"
+                    value={durationDays}
+                    onChangeText={setDurationDays}
+                    keyboardType="number-pad"
+                    placeholderTextColor={Colors.textHint}
+                  />
+                </View>
+              </View>
+
+              {/* One day or less checkbox */}
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => {
+                  const next = !isOneDayJob;
+                  setIsOneDayJob(next);
+                  if (next) {
+                    setDurationDays("1");
+                    // Force PROJECT payment model for one-day jobs
+                    setPaymentModel("PROJECT");
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    isOneDayJob && styles.checkboxChecked,
+                  ]}
+                >
+                  {isOneDayJob && (
+                    <Ionicons name="checkmark" size={14} color="#fff" />
+                  )}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  This job is one day or less
+                </Text>
+              </TouchableOpacity>
+
+              {/* Expected Duration - visible for one-day jobs */}
+              {isOneDayJob && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Expected Duration (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 1-3 hours, half a day"
+                    value={duration}
+                    onChangeText={setDuration}
+                    placeholderTextColor={Colors.textHint}
+                  />
+                  <SuggestionBubbles
+                    suggestions={durationSuggestions.filter(
+                      (s) =>
+                        !s.text.toLowerCase().includes("1 day") &&
+                        !s.text.toLowerCase().includes("2 days"),
+                    )}
+                    onSelect={setDuration}
+                    isLoading={loadingSuggestionFields.has("duration")}
+                    label="Common durations"
+                    icon="time-outline"
+                  />
+                </View>
+              )}
             </View>
 
             {/* Payment Method Section */}
