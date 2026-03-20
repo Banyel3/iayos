@@ -112,6 +112,7 @@ export default function EmployeesPage() {
   >([]);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
+  const [customSpecInput, setCustomSpecInput] = useState("");
 
   // Edit Employee modal state
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -122,6 +123,7 @@ export default function EmployeesPage() {
   const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editMobileError, setEditMobileError] = useState<string | null>(null);
+  const [editCustomSpecInput, setEditCustomSpecInput] = useState("");
 
   // EOTM modal state
   const [settingEOTM, setSettingEOTM] = useState(false);
@@ -279,6 +281,28 @@ export default function EmployeesPage() {
     );
   };
 
+  const addCustomSpec = () => {
+    const name = customSpecInput.trim();
+    if (!name) return;
+    if (selectedSpecializations.includes(name)) {
+      toast.error("Specialization already selected");
+      return;
+    }
+    setSelectedSpecializations((prev) => [...prev, name]);
+    setCustomSpecInput("");
+  };
+
+  const addEditCustomSpec = () => {
+    const name = editCustomSpecInput.trim();
+    if (!name) return;
+    if (editSpecializations.includes(name)) {
+      toast.error("Specialization already selected");
+      return;
+    }
+    setEditSpecializations((prev) => [...prev, name]);
+    setEditCustomSpecInput("");
+  };
+
   const normalizeMobile = (value: string) => value.replace(/[\s-]/g, "");
 
   const isValidMobile = (value: string) => {
@@ -414,6 +438,7 @@ export default function EmployeesPage() {
         setLastName("");
         setMobile("");
         setSelectedSpecializations([]);
+        setCustomSpecInput("");
         setMobileError(null);
         fetchEmployees();
       } else {
@@ -718,6 +743,28 @@ export default function EmployeesPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        placeholder="Add custom specialization…"
+                        value={customSpecInput}
+                        onChange={(e) => setCustomSpecInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSpec(); } }}
+                        className="flex-1 h-8 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        onClick={addCustomSpec}
+                        disabled={!customSpecInput.trim()}
+                        className="h-8 px-3 text-sm bg-[#00BAF1] hover:bg-[#00A7D9] text-white"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {selectedSpecializations.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Selected: {selectedSpecializations.join(", ")}
+                      </p>
+                    )}
                   </div>
                   <Button
                     onClick={addEmployee}
@@ -1242,6 +1289,23 @@ export default function EmployeesPage() {
                       )}
                     </button>
                   ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Add custom specialization…"
+                    value={editCustomSpecInput}
+                    onChange={(e) => setEditCustomSpecInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEditCustomSpec(); } }}
+                    className="flex-1 h-8 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addEditCustomSpec}
+                    disabled={!editCustomSpecInput.trim()}
+                    className="h-8 px-3 text-sm bg-[#00BAF1] hover:bg-[#00A7D9] text-white"
+                  >
+                    Add
+                  </Button>
                 </div>
                 {editSpecializations.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">

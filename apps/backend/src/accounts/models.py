@@ -293,6 +293,10 @@ class Specializations(models.Model):
     averageProjectCostMax = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0.00")
     )
+    is_custom = models.BooleanField(
+        default=False,
+        help_text="True when created by a worker or agency (not admin-seeded)",
+    )
 
     class Meta:
         db_table = "specializations"

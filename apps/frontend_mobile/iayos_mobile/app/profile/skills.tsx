@@ -35,6 +35,7 @@ import {
   useAddSkill,
   useUpdateSkill,
   useRemoveSkill,
+  useCreateCustomSkill,
   type AvailableSkill,
   type WorkerSkill,
 } from "@/lib/hooks/useSkills";
@@ -64,6 +65,8 @@ export default function SkillsScreen() {
   const [editSkillType, setEditSkillType] = useState<"PRIMARY" | "SECONDARY">(
     "SECONDARY",
   );
+  const [customSkillName, setCustomSkillName] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Queries
   const { data: availableSkills = [], isLoading: availableLoading } =
@@ -78,6 +81,7 @@ export default function SkillsScreen() {
   const addSkill = useAddSkill();
   const updateSkill = useUpdateSkill();
   const removeSkill = useRemoveSkill();
+  const createCustomSkill = useCreateCustomSkill();
 
   const sortedMySkills = useMemo(() => {
     return [...mySkills].sort((a, b) => {
@@ -184,8 +188,60 @@ export default function SkillsScreen() {
           setSelectedSkill(null);
           setExperienceYears("0");
           setAddSkillType("SECONDARY");
+          setShowCustomInput(false);
+          setCustomSkillName("");
 
           // Show custom certification suggestion modal with skill ID
+          setShowCertificationSuggestion(true);
+        },
+        onError: (error) => {
+          Alert.alert("Error", error.message);
+        },
+      },
+    );
+  };
+
+  // Handle creating a custom skill
+  const handleCreateCustomSkill = () => {
+    const name = customSkillName.trim();
+    if (!name) {
+      Alert.alert("Invalid Input", "Please enter a skill name");
+      return;
+    }
+
+    Keyboard.dismiss();
+
+    const years = parseInt(experienceYears, 10) || 0;
+    if (years < 0 || years > 50) {
+      Alert.alert("Invalid Input", "Experience years must be between 0 and 50");
+      return;
+    }
+
+    if (addSkillType === "PRIMARY" && primarySkillCount >= MAX_PRIMARY_SKILLS) {
+      Alert.alert(
+        "Primary Skill Limit Reached",
+        `You can only set up to ${MAX_PRIMARY_SKILLS} primary skills.`,
+      );
+      return;
+    }
+
+    createCustomSkill.mutate(
+      {
+        skill_name: name,
+        experience_years: years,
+        skill_type: addSkillType,
+      },
+      {
+        onSuccess: (data) => {
+          setShowAddModal(false);
+          const addedSkillId = data.data?.id;
+          setJustAddedSkillId(addedSkillId || null);
+          setSelectedSkill(null);
+          setCustomSkillName("");
+          setShowCustomInput(false);
+          setExperienceYears("0");
+          setAddSkillType("SECONDARY");
+
           setShowCertificationSuggestion(true);
         },
         onError: (error) => {
@@ -385,6 +441,8 @@ export default function SkillsScreen() {
         onRequestClose={() => {
           Keyboard.dismiss();
           setShowAddModal(false);
+          setShowCustomInput(false);
+          setCustomSkillName("");
         }}
       >
         <KeyboardAvoidingView
@@ -395,8 +453,14 @@ export default function SkillsScreen() {
             <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             <View style={styles.addModalContent}>
               <View style={styles.modalHeaderFixed}>
-                <Text style={styles.modalTitle}>Add Skill</Text>
-                <Pressable onPress={() => setShowAddModal(false)}>
+                <Text style={styles.modalTitle}>
+                  {showCustomInput ? "Add Custom Skill" : "Add Skill"}
+                </Text>
+                <Pressable onPress={() => {
+                  setShowAddModal(false);
+                  setShowCustomInput(false);
+                  setCustomSkillName("");
+                }}>
                   <Ionicons
                     name="close"
                     size={24}
@@ -423,6 +487,128 @@ export default function SkillsScreen() {
                     first to add a new skill.
                   </Text>
                 </View>
+              ) : showCustomInput ? (
+                <>
+                  <View style={styles.addModalBody}>
+                    <View style={{ padding: Spacing.md }}>
+                      <Text style={styles.modalLabel}>Skill Name</Text>
+                      <TextInput
+                        style={styles.customSkillInput}
+                        value={customSkillName}
+                        onChangeText={setCustomSkillName}
+                        placeholder="e.g. Roof Waterproofing"
+                        placeholderTextColor={Colors.textHint}
+                        maxLength={100}
+                        autoFocus
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                        blurOnSubmit={true}
+                      />
+                      <Text style={styles.experienceHint}>
+                        Enter your custom specialization name
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.addModalFooter}>
+                    <Pressable
+                      style={styles.customToggle}
+                      onPress={() => {
+                        setShowCustomInput(false);
+                        setCustomSkillName("");
+                      }}
+                    >
+                      <Ionicons name="arrow-back" size={16} color={Colors.primary} />
+                      <Text style={styles.customToggleText}>Back to skill list</Text>
+                    </Pressable>
+
+                    {customSkillName.trim() ? (
+                      <View style={styles.experienceSkillTypeRow}>
+                        <View style={styles.experienceInlineSection}>
+                          <Text style={styles.modalLabel}>Years</Text>
+                          <TextInput
+                            style={styles.experienceInputCompact}
+                            value={experienceYears}
+                            onChangeText={setExperienceYears}
+                            keyboardType="number-pad"
+                            placeholder="0"
+                            maxLength={2}
+                            returnKeyType="done"
+                            onSubmitEditing={Keyboard.dismiss}
+                            blurOnSubmit={true}
+                          />
+                        </View>
+
+                        <View style={styles.skillTypeInlineSection}>
+                          <Text style={styles.modalLabel}>Skill Type</Text>
+                          <View style={styles.skillTypeRow}>
+                            <Pressable
+                              style={[
+                                styles.skillTypeChip,
+                                addSkillType === "PRIMARY" && styles.skillTypeChipActive,
+                                primarySkillCount >= MAX_PRIMARY_SKILLS &&
+                                  styles.skillTypeChipDisabled,
+                              ]}
+                              onPress={() => {
+                                if (primarySkillCount >= MAX_PRIMARY_SKILLS) {
+                                  Alert.alert(
+                                    "Primary Skill Limit Reached",
+                                    `You can only set up to ${MAX_PRIMARY_SKILLS} primary skills.`,
+                                  );
+                                  return;
+                                }
+                                setAddSkillType("PRIMARY");
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.skillTypeChipText,
+                                  addSkillType === "PRIMARY" &&
+                                    styles.skillTypeChipTextActive,
+                                ]}
+                              >
+                                Primary
+                              </Text>
+                            </Pressable>
+                            <Pressable
+                              style={[
+                                styles.skillTypeChip,
+                                addSkillType === "SECONDARY" && styles.skillTypeChipActive,
+                              ]}
+                              onPress={() => setAddSkillType("SECONDARY")}
+                            >
+                              <Text
+                                style={[
+                                  styles.skillTypeChipText,
+                                  addSkillType === "SECONDARY" &&
+                                    styles.skillTypeChipTextActive,
+                                ]}
+                              >
+                                Secondary
+                              </Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      </View>
+                    ) : null}
+
+                    <Pressable
+                      style={[
+                        styles.modalButton,
+                        (!customSkillName.trim() || createCustomSkill.isPending) &&
+                          styles.modalButtonDisabled,
+                      ]}
+                      onPress={handleCreateCustomSkill}
+                      disabled={!customSkillName.trim() || createCustomSkill.isPending}
+                    >
+                      {createCustomSkill.isPending ? (
+                        <ActivityIndicator size="small" color={Colors.white} />
+                      ) : (
+                        <Text style={styles.modalButtonText}>Create & Add Skill</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
               ) : availableToAdd.length === 0 ? (
                 <View style={styles.modalEmpty}>
                   <Ionicons
@@ -434,6 +620,16 @@ export default function SkillsScreen() {
                   <Text style={styles.modalEmptyText}>
                     You&apos;ve added all available specializations to your profile.
                   </Text>
+                  <Pressable
+                    style={[styles.customToggle, { marginTop: Spacing.md }]}
+                    onPress={() => {
+                      setShowCustomInput(true);
+                      setSelectedSkill(null);
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.customToggleText}>Add a custom skill</Text>
+                  </Pressable>
                 </View>
               ) : (
                 <>
@@ -475,6 +671,17 @@ export default function SkillsScreen() {
                   </View>
 
                   <View style={styles.addModalFooter}>
+                    <Pressable
+                      style={styles.customToggle}
+                      onPress={() => {
+                        setShowCustomInput(true);
+                        setSelectedSkill(null);
+                      }}
+                    >
+                      <Ionicons name="create-outline" size={16} color={Colors.primary} />
+                      <Text style={styles.customToggleText}>Can&apos;t find your skill? Add a custom one</Text>
+                    </Pressable>
+
                     {selectedSkill && (
                       <View style={styles.experienceSkillTypeRow}>
                         <View style={styles.experienceInlineSection}>
@@ -1189,5 +1396,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.white,
     flexShrink: 1,
+  },
+  customToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: Spacing.sm,
+  },
+  customToggleText: {
+    ...Typography.body.small,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  customSkillInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.white,
+    marginTop: Spacing.xs,
   },
 });

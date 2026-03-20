@@ -444,6 +444,13 @@ class AddSkillSchema(Schema):
     skill_type: Optional[str] = "SECONDARY"
 
 
+class CreateCustomSkillSchema(Schema):
+    """Schema for creating a custom skill and adding it to worker profile in one step"""
+    skill_name: str
+    experience_years: int = 0
+    skill_type: Optional[str] = "SECONDARY"
+
+
 class UpdateSkillSchema(Schema):
     """Schema for updating skill experience years"""
     experience_years: Optional[int] = None

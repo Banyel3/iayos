@@ -14,6 +14,7 @@ export interface AvailableSkill {
   minimumRate: number;
   rateType: string;
   skillLevel: string;
+  isCustom?: boolean;
 }
 
 export interface WorkerSkill {
@@ -256,6 +257,63 @@ export function useReorderSkills() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+    },
+  });
+}
+
+interface CreateCustomSkillResponse {
+  success: boolean;
+  message: string;
+  data: {
+    id: number;
+    workerSkillId: number;
+    name: string;
+    experienceYears: number;
+    skillType?: "PRIMARY" | "SECONDARY";
+    isPrimary?: boolean;
+    isCustom: boolean;
+  };
+}
+
+/**
+ * Create a custom skill (new or existing name) and add it to the worker's profile.
+ */
+export function useCreateCustomSkill() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      skill_name: string;
+      experience_years: number;
+      skill_type?: "PRIMARY" | "SECONDARY";
+    }): Promise<CreateCustomSkillResponse> => {
+      const response = await apiRequest(ENDPOINTS.CREATE_CUSTOM_SKILL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await response.json()) as CreateCustomSkillResponse & {
+        error?: string;
+        current_count?: number;
+        max_allowed?: number;
+      };
+
+      if (!response.ok) {
+        if (data.current_count !== undefined && data.max_allowed !== undefined) {
+          throw new Error(
+            `${data.error || "Maximum skills reached"} (${data.current_count}/${data.max_allowed})`,
+          );
+        }
+        throw new Error(getErrorMessage(data, "Failed to create custom skill"));
+      }
+
+      return data as CreateCustomSkillResponse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-skills"] });
+      queryClient.invalidateQueries({ queryKey: ["available-skills"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
     },
   });

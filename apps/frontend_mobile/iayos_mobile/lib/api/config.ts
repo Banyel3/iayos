@@ -482,6 +482,7 @@ export const ENDPOINTS = {
   AVAILABLE_SKILLS: `${API_URL}/api/mobile/skills/available`,
   MY_SKILLS: `${API_URL}/api/mobile/skills/my-skills`,
   ADD_SKILL: `${API_URL}/api/mobile/skills/add`,
+  CREATE_CUSTOM_SKILL: `${API_URL}/api/mobile/skills/create-custom`,
   UPDATE_SKILL: (skillId: number) => `${API_URL}/api/mobile/skills/${skillId}`,
   REMOVE_SKILL: (skillId: number) => `${API_URL}/api/mobile/skills/${skillId}`,
   REORDER_SKILLS: `${API_URL}/api/mobile/skills/reorder-list`,

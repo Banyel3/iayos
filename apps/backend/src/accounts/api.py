@@ -2300,6 +2300,7 @@ def get_specializations_endpoint(request):
             {
                 'specializationID': cat.specializationID,
                 'categoryName': cat.specializationName,
+                'isCustom': cat.is_custom,
             }
             for cat in categories
         ]
