@@ -419,6 +419,10 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/confirm-arrival`,
   TEAM_MARK_EMPLOYEE_COMPLETE: (jobId: number, assignmentId: number) =>
     `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/mark-complete`,
+  TEAM_EARLY_COMPLETE_EMPLOYEE: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/early-complete`,
+  TEAM_EARLY_COMPLETE_PROJECT: (jobId: number, assignmentId: number) =>
+    `${API_BASE_URL}/jobs/${jobId}/team/early-complete-project/${assignmentId}`,
 
   // Agency PROJECT Job Workflow (mirrors DAILY job workflow)
   // Flow: Agency dispatches → Client confirms arrival → Agency marks complete → Client approves & pays
@@ -575,6 +579,8 @@ export const ENDPOINTS = {
     `${API_URL}/api/jobs/${jobId}/daily/finish`,
   DAILY_EARLY_COMPLETE: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/early-complete`,
+  PROJECT_EARLY_COMPLETE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/project/early-complete`,
   PROJECT_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/project/extend-one-day`,
   PROJECT_FINISH_JOB: (jobId: number) =>

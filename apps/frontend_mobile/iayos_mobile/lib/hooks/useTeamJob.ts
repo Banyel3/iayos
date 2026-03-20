@@ -221,10 +221,100 @@ export function useApplyToSkillSlot() {
       queryClient.invalidateQueries({
         queryKey: ["jobs", variables.jobId.toString()],
       });
-      queryClient.invalidateQueries({ queryKey: ["jobs", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
     },
     onError: (error: Error) => {
-      Alert.alert("Application Failed", error.message);
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
+ * Client early-finishes a freelancer on a PROJECT team job.
+ * Payout = full budget_allocated on their skill slot.
+ */
+export function useEarlyCompleteProjectWorker() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_EARLY_COMPLETE_PROJECT(jobId, assignmentId),
+        { method: "POST" },
+      );
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        payout?: number;
+      };
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to early-complete worker"));
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert(
+        "Worker Completed Early",
+        data.message || "Worker has been marked as done with full project pay.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["team-job", variables.jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", variables.jobId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
+ * Client early-finishes an agency employee on a team job (DAILY or PROJECT).
+ * Payout = full paymentAmount, routed to agency ledger.
+ */
+export function useEarlyCompleteTeamEmployee() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_EARLY_COMPLETE_EMPLOYEE(jobId, assignmentId),
+        { method: "POST" },
+      );
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        payout?: number;
+      };
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to early-complete employee"));
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert(
+        "Employee Completed Early",
+        data.message || "Employee has been marked as done early.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["team-job", variables.jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", variables.jobId.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
     },
   });
 }

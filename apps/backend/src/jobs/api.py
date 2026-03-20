@@ -10250,6 +10250,56 @@ def early_complete_team_worker_endpoint(request, job_id: int, assignment_id: int
     return result
 
 
+@router.post("/{job_id}/team/early-complete-project/{assignment_id}", auth=dual_auth)
+@require_kyc
+def early_complete_team_worker_project_endpoint(
+    request, job_id: int, assignment_id: int
+):
+    """
+    Client early-finishes a specific freelancer on a PROJECT team job.
+    Payout = full budget_allocated on the skill slot (not prorated).
+    """
+    from jobs.team_job_services import early_complete_team_worker_project
+
+    result = early_complete_team_worker_project(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        client_user=request.auth,
+    )
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Failed to early-complete worker")},
+            status=400,
+        )
+
+    return result
+
+
+@router.post("/{job_id}/team/employees/{assignment_id}/early-complete", auth=dual_auth)
+@require_kyc
+def early_complete_team_employee_endpoint(request, job_id: int, assignment_id: int):
+    """
+    Client early-finishes a specific agency employee on a team job (DAILY or PROJECT).
+    Payout = full paymentAmount, routed to agency ledger.
+    """
+    from jobs.team_job_services import early_complete_team_employee
+
+    result = early_complete_team_employee(
+        job_id=job_id,
+        assignment_id=assignment_id,
+        client_user=request.auth,
+    )
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Failed to early-complete employee")},
+            status=400,
+        )
+
+    return result
+
+
 # --- Agency Employee Lifecycle on Team Jobs ---
 
 
@@ -13460,6 +13510,30 @@ def early_complete_single_daily_job(
     if not result.get("success"):
         return Response(
             {"error": result.get("error", "Early completion failed")}, status=400
+        )
+
+    return result
+
+
+@router.post("/{job_id}/project/early-complete", auth=dual_auth)
+@require_kyc
+def early_complete_single_project_job_endpoint(request, job_id: int):
+    """
+    Client early-finishes a single (non-team) PROJECT job.
+    Pays out the full contracted amount (budget + materialsCost) immediately,
+    bypassing the multi-day completion gate.
+    """
+    from jobs.team_job_services import early_complete_single_project_job
+
+    result = early_complete_single_project_job(
+        job_id=job_id,
+        client_user=request.auth,
+    )
+
+    if not result.get("success"):
+        return Response(
+            {"error": result.get("error", "Failed to early-complete project job")},
+            status=400,
         )
 
     return result
