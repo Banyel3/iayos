@@ -1558,15 +1558,15 @@ export default function ChatScreen() {
   const handleApproveTeamJobCompletion = () => {
     if (!conversation) return;
 
-    // Calculate remaining amount (50% of total budget)
-    const remainingAmount = conversation.job.budget
-      ? (conversation.job.budget * 0.5).toFixed(2)
-      : "0.00";
+    // Calculate remaining amount from the backend-computed field
+    const remainingAmount = Number(
+      conversation.job.remainingPayment ?? 0,
+    ).toFixed(2);
 
     setCountdownConfig({
       visible: true,
       title: "Approve Team Job & Pay",
-      message: `All workers have completed their assignments.\n\nYou will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      message: `All workers have completed their assignments.\n\nYou will need to pay the remaining balance:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
       confirmLabel: "Continue",
       countdownSeconds: 7,
       onConfirm: () => {
@@ -3545,6 +3545,7 @@ export default function ChatScreen() {
   const showDailyEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
+    !conversation.is_team_job &&
     conversation.job?.status === "IN_PROGRESS" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const attendanceRows = Array.isArray(conversation.attendance_today)
@@ -6405,13 +6406,11 @@ export default function ChatScreen() {
                                 size={20}
                                 color={Colors.white}
                               />
-                              <Text style={styles.actionButtonText}>
-                                {conversation.job.remainingPaymentPaid
-                                  ? "Approve Team Completion"
-                                  : `Approve & Pay Team (₱${(
-                                      conversation.job.budget * 0.5
-                                    ).toLocaleString()})`}
-                              </Text>
+                               <Text style={styles.actionButtonText}>
+                                 {conversation.job.remainingPaymentPaid
+                                   ? "Approve Team Completion"
+                                   : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                               </Text>
                             </>
                           )}
                         </TouchableOpacity>
