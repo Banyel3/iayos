@@ -44,7 +44,6 @@ import {
 } from "@/constants/theme";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, ENDPOINTS, apiRequest } from "@/lib/api/config";
-import { getAccessToken } from "@/lib/utils/tokenStorage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useBarangays } from "@/lib/hooks/useLocations";
 import { useWallet } from "@/lib/hooks/useWallet";
@@ -997,22 +996,30 @@ export default function CreateJobScreen() {
     );
 
   // Create job mutation
-  const uploadJobPhotosAsync = async (jobId: number) => {
-    const token = await getAccessToken();
+  const uploadJobPhotosAsync = async (jobId: number): Promise<number> => {
+    let failedCount = 0;
     for (const uri of jobPhotos) {
       try {
         const formData = new FormData();
         const filename = uri.split("/").pop() || "job_photo.jpg";
-        formData.append("image", { uri, type: "image/jpeg", name: filename } as any);
-        await fetch((ENDPOINTS as any).UPLOAD_JOB_IMAGE(jobId), {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-          body: formData as any,
-        });
+        const ext = filename.split(".").pop()?.toLowerCase() || "jpg";
+        const safeName = `photo_${Date.now()}.${["jpg", "jpeg", "png", "webp"].includes(ext) ? ext : "jpg"}`;
+        formData.append("image", { uri, type: "image/jpeg", name: safeName } as any);
+        const response = await apiRequest(
+          (ENDPOINTS as any).UPLOAD_JOB_IMAGE(jobId) as string,
+          { method: "POST", body: formData as any },
+        );
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "(no body)");
+          console.warn(`[CreateJob] Photo upload (${response.status}):`, errorText);
+          failedCount++;
+        }
       } catch (e) {
         console.warn("[CreateJob] Photo upload failed:", e);
+        failedCount++;
       }
     }
+    return failedCount;
   };
 
   const createJobMutation = useMutation({
@@ -1060,7 +1067,10 @@ export default function CreateJobScreen() {
 
       // Upload optional photos before navigating
       if (jobPhotos.length > 0) {
-        await uploadJobPhotosAsync(data.job_posting_id);
+        const failed = await uploadJobPhotosAsync(data.job_posting_id);
+        if (failed > 0) {
+          console.warn(`[CreateJob] ${failed}/${jobPhotos.length} photo(s) failed to upload`);
+        }
       }
 
       // Check if payment is required (wallet payment)

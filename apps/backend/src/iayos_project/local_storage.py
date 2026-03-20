@@ -99,18 +99,14 @@ class LocalBucketInterface:
             path: File path in bucket
 
         Returns:
-            str: Relative URL path that works from any client
-            The frontend will resolve this relative to its API base URL
+            str: Absolute URL accessible by both mobile and web clients
         """
         # Clean path
         path = path.lstrip('/')
         
-        # Return relative URL - the frontend/admin panel will prepend the appropriate host
-        # Format: /media/{bucket}/{path}
-        # This works because:
-        # - Admin panel requests go through Next.js proxy or direct to localhost:8000
-        # - Mobile app prepends its configured API URL
-        public_url = f"{self.media_url}{self.bucket_name}/{path}"
+        # Return absolute URL so mobile clients can load media files directly
+        # Format: http://{host}/media/{bucket}/{path}
+        public_url = f"{self.base_url}{self.media_url}{self.bucket_name}/{path}"
         return public_url
 
     def create_signed_url(self, path: str, expires_in: int = 3600) -> dict:
