@@ -44,6 +44,11 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta, datetime as dt_datetime
 from zoneinfo import ZoneInfo
+from jobs.schemas import (
+    WorkerProposeSchema,
+    ClientCounterSchema,
+    ClientRejectPriceSchema,
+)
 
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
@@ -3274,6 +3279,17 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                     status=400,
                 )
 
+        # Determine initial proposed_daily_rate / proposed_days for DAILY jobs
+        _proposed_daily_rate = None
+        _proposed_days = None
+        if job.payment_model == "DAILY" and payload.budget_option == "NEGOTIATE":
+            _proposed_daily_rate = (
+                Decimal(str(payload.proposed_daily_rate))
+                if payload.proposed_daily_rate
+                else None
+            )
+            _proposed_days = payload.proposed_days or None
+
         # Create the application
         application = JobApplication.objects.create(
             jobID=job,
@@ -3283,8 +3299,26 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             estimatedDuration=payload.estimated_duration or "",
             budgetOption=payload.budget_option,
             selected_materials=payload.selected_materials or [],
+            proposed_daily_rate=_proposed_daily_rate,
+            proposed_days=_proposed_days,
             status=JobApplication.ApplicationStatus.PENDING,
+            negotiation_count=1 if payload.budget_option == "NEGOTIATE" else 0,
         )
+
+        # Seed the first PriceNegotiation row when worker negotiates
+        if payload.budget_option == "NEGOTIATE":
+            from accounts.models import PriceNegotiation
+
+            PriceNegotiation.objects.create(
+                application=application,
+                actor=PriceNegotiation.Actor.WORKER,
+                round_number=1,
+                proposed_budget=Decimal(str(payload.proposed_budget or 0)),
+                proposed_daily_rate=_proposed_daily_rate,
+                proposed_days=_proposed_days,
+                message=payload.proposal_message,
+                status=PriceNegotiation.NegotiationStatus.PENDING,
+            )
 
         print(
             f"✅ [MOBILE] Application {application.applicationID} created successfully"
@@ -3483,17 +3517,27 @@ def mobile_get_application_detail(request, application_id: int):
             "job_title": job.title,
             "job_description": job.description,
             "job_budget": float(job.budget),
+            "job_daily_rate": float(job.daily_rate_agreed)
+            if job.daily_rate_agreed
+            else None,
+            "job_duration_days": job.duration_days,
             "job_location": job.location,
             "job_status": job.status,
             "job_category": job.category,
             "job_urgency": job.urgency,
+            "payment_model": job.payment_model,
             "application_status": application.status,
             "proposal_message": application.proposalMessage,
             "proposed_budget": float(application.proposedBudget)
             if application.proposedBudget
             else None,
+            "proposed_daily_rate": float(application.proposed_daily_rate)
+            if application.proposed_daily_rate
+            else None,
+            "proposed_days": application.proposed_days,
             "estimated_duration": application.estimatedDuration,
             "budget_option": application.budgetOption,
+            "negotiation_count": application.negotiation_count,
             "created_at": application.createdAt.isoformat(),
             "updated_at": application.updatedAt.isoformat(),
             "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
@@ -3613,6 +3657,545 @@ def mobile_withdraw_application(request, application_id: int):
         traceback.print_exc()
         return Response(
             {"error": f"Failed to withdraw application: {str(e)}"}, status=500
+        )
+
+
+# ===========================================================================
+# PRICE NEGOTIATION ENDPOINTS
+# ===========================================================================
+
+MAX_WORKER_PROPOSALS = 3
+
+
+@mobile_router.get("/applications/{application_id}/negotiations", auth=dual_auth)
+def get_negotiation_thread(request, application_id: int):
+    """
+    Get the full price negotiation thread for an application.
+    Accessible by both the applying worker and the job's client.
+    """
+    from accounts.models import JobApplication, PriceNegotiation
+    from .models import Profile, WorkerProfile
+
+    try:
+        # Resolve profile
+        profile_type = getattr(request.auth, "profile_type", None)
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            **({"profileType": profile_type} if profile_type else {}),
+        ).first()
+
+        if not profile:
+            return Response({"error": "Profile not found"}, status=403)
+
+        # Fetch the application — allow both worker and client to read
+        try:
+            application = JobApplication.objects.select_related(
+                "jobID", "jobID__clientID__profileID", "workerID__profileID"
+            ).get(applicationID=application_id)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=404)
+
+        job = application.jobID
+
+        # Access control: must be the applying worker or the job's client
+        is_worker = (
+            profile.profileType == "WORKER"
+            and hasattr(application.workerID, "profileID")
+            and application.workerID.profileID == profile
+        )
+        is_client = (
+            profile.profileType == "CLIENT" and job.clientID.profileID == profile
+        )
+        if not is_worker and not is_client:
+            return Response({"error": "Access denied"}, status=403)
+
+        rounds = PriceNegotiation.objects.filter(application=application).order_by(
+            "createdAt"
+        )
+
+        thread = []
+        for r in rounds:
+            thread.append(
+                {
+                    "negotiation_id": r.negotiationID,
+                    "actor": r.actor,
+                    "round_number": r.round_number,
+                    "proposed_budget": float(r.proposed_budget),
+                    "proposed_daily_rate": float(r.proposed_daily_rate)
+                    if r.proposed_daily_rate
+                    else None,
+                    "proposed_days": r.proposed_days,
+                    "message": r.message,
+                    "status": r.status,
+                    "created_at": r.createdAt.isoformat(),
+                }
+            )
+
+        return {
+            "success": True,
+            "application_id": application_id,
+            "negotiation_count": application.negotiation_count,
+            "max_proposals": MAX_WORKER_PROPOSALS,
+            "proposals_remaining": max(
+                MAX_WORKER_PROPOSALS - application.negotiation_count, 0
+            ),
+            "thread": thread,
+        }
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to fetch negotiations: {str(e)}"}, status=500
+        )
+
+
+@mobile_router.post(
+    "/applications/{application_id}/negotiations/propose", auth=dual_auth
+)
+@require_kyc
+def worker_propose_price(request, application_id: int, payload: WorkerProposeSchema):
+    """
+    Worker submits a new price proposal (or re-proposes after client rejected/countered).
+    Limited to MAX_WORKER_PROPOSALS total.
+    """
+    from accounts.models import JobApplication, PriceNegotiation
+    from .models import Profile, WorkerProfile, Notification
+
+    try:
+        profile_type = getattr(request.auth, "profile_type", None)
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            **({"profileType": profile_type} if profile_type else {}),
+        ).first()
+        if not profile or profile.profileType != "WORKER":
+            return Response({"error": "Only workers can propose prices"}, status=403)
+
+        worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+        if not worker_profile:
+            return Response({"error": "Worker profile not found"}, status=403)
+
+        try:
+            application = JobApplication.objects.select_related(
+                "jobID", "jobID__clientID__profileID__accountFK", "workerID"
+            ).get(applicationID=application_id, workerID=worker_profile)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=404)
+
+        if application.status != JobApplication.ApplicationStatus.PENDING:
+            return Response(
+                {"error": "Can only negotiate on a pending application"}, status=400
+            )
+
+        if application.negotiation_count >= MAX_WORKER_PROPOSALS:
+            return Response(
+                {
+                    "error": f"You have used all {MAX_WORKER_PROPOSALS} proposals. "
+                    "You must accept the original job price or withdraw."
+                },
+                status=400,
+            )
+
+        # Check the last negotiation entry is awaiting a worker response
+        # (i.e. last entry is a CLIENT counter-offer or this is the first proposal)
+        last = (
+            PriceNegotiation.objects.filter(application=application)
+            .order_by("-createdAt")
+            .first()
+        )
+        if (
+            last
+            and last.actor == PriceNegotiation.Actor.WORKER
+            and last.status == PriceNegotiation.NegotiationStatus.PENDING
+        ):
+            return Response(
+                {"error": "Awaiting client response on your previous proposal."},
+                status=400,
+            )
+
+        job = application.jobID
+        new_round = application.negotiation_count + 1
+
+        proposed_budget = Decimal(str(payload.proposed_budget))
+        proposed_daily_rate = (
+            Decimal(str(payload.proposed_daily_rate))
+            if payload.proposed_daily_rate
+            else None
+        )
+        proposed_days = payload.proposed_days or None
+
+        # Mark previous pending entry as superseded
+        PriceNegotiation.objects.filter(
+            application=application,
+            status=PriceNegotiation.NegotiationStatus.PENDING,
+        ).update(status=PriceNegotiation.NegotiationStatus.SUPERSEDED)
+
+        negotiation = PriceNegotiation.objects.create(
+            application=application,
+            actor=PriceNegotiation.Actor.WORKER,
+            round_number=new_round,
+            proposed_budget=proposed_budget,
+            proposed_daily_rate=proposed_daily_rate,
+            proposed_days=proposed_days,
+            message=payload.message or "",
+            status=PriceNegotiation.NegotiationStatus.PENDING,
+        )
+
+        # Update application with latest proposal values
+        application.negotiation_count = new_round
+        application.proposedBudget = proposed_budget
+        application.proposed_daily_rate = proposed_daily_rate
+        application.proposed_days = proposed_days
+        application.budgetOption = "NEGOTIATE"
+        application.save(
+            update_fields=[
+                "negotiation_count",
+                "proposedBudget",
+                "proposed_daily_rate",
+                "proposed_days",
+                "budgetOption",
+                "updatedAt",
+            ]
+        )
+
+        # Notify client
+        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}".strip()
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="NEGOTIATION_PROPOSAL",
+            title=f"New Price Proposal for '{job.title}'",
+            message=(
+                f"{worker_name} proposed ₱{proposed_budget:,.2f}"
+                + (
+                    f" (₱{proposed_daily_rate}/day × {proposed_days} days)"
+                    if proposed_daily_rate
+                    else ""
+                )
+                + f". Round {new_round} of {MAX_WORKER_PROPOSALS}."
+            ),
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID,
+        )
+
+        return {
+            "success": True,
+            "message": f"Proposal submitted (round {new_round}/{MAX_WORKER_PROPOSALS})",
+            "negotiation_id": negotiation.negotiationID,
+            "negotiation_count": new_round,
+            "proposals_remaining": MAX_WORKER_PROPOSALS - new_round,
+        }
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return Response({"error": f"Failed to submit proposal: {str(e)}"}, status=500)
+
+
+@mobile_router.post(
+    "/applications/{application_id}/negotiations/counter", auth=dual_auth
+)
+@require_kyc
+def client_counter_offer(request, application_id: int, payload: ClientCounterSchema):
+    """
+    Client issues a counter-offer (price + message) on a pending proposal.
+    Does NOT count toward the worker's 3-proposal limit.
+    """
+    from accounts.models import JobApplication, PriceNegotiation
+    from .models import Profile, Notification
+
+    try:
+        profile_type = getattr(request.auth, "profile_type", None)
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            **({"profileType": profile_type} if profile_type else {}),
+        ).first()
+        if not profile or profile.profileType != "CLIENT":
+            return Response(
+                {"error": "Only clients can issue counter-offers"}, status=403
+            )
+
+        try:
+            application = JobApplication.objects.select_related(
+                "jobID",
+                "jobID__clientID__profileID",
+                "workerID__profileID__accountFK",
+            ).get(applicationID=application_id)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=404)
+
+        job = application.jobID
+        if job.clientID.profileID != profile:
+            return Response({"error": "Access denied"}, status=403)
+
+        if application.status != JobApplication.ApplicationStatus.PENDING:
+            return Response(
+                {"error": "Can only counter on a pending application"}, status=400
+            )
+
+        # Must have a pending worker proposal to counter
+        last = (
+            PriceNegotiation.objects.filter(application=application)
+            .order_by("-createdAt")
+            .first()
+        )
+        if (
+            not last
+            or last.actor != PriceNegotiation.Actor.WORKER
+            or last.status != PriceNegotiation.NegotiationStatus.PENDING
+        ):
+            return Response(
+                {"error": "No pending worker proposal to counter."}, status=400
+            )
+
+        proposed_budget = Decimal(str(payload.proposed_budget))
+        proposed_daily_rate = (
+            Decimal(str(payload.proposed_daily_rate))
+            if payload.proposed_daily_rate
+            else None
+        )
+        proposed_days = payload.proposed_days or None
+
+        # Mark the last worker proposal as COUNTERED
+        last.status = PriceNegotiation.NegotiationStatus.COUNTERED
+        last.save(update_fields=["status"])
+
+        # Create the CLIENT counter entry (round_number=0 — doesn't count against worker)
+        negotiation = PriceNegotiation.objects.create(
+            application=application,
+            actor=PriceNegotiation.Actor.CLIENT,
+            round_number=0,
+            proposed_budget=proposed_budget,
+            proposed_daily_rate=proposed_daily_rate,
+            proposed_days=proposed_days,
+            message=payload.message or "",
+            status=PriceNegotiation.NegotiationStatus.PENDING,
+        )
+
+        # Notify worker
+        worker_account = application.workerID.profileID.accountFK
+        Notification.objects.create(
+            accountFK=worker_account,
+            notificationType="NEGOTIATION_COUNTER",
+            title=f"Counter-offer on '{job.title}'",
+            message=(
+                f"The client offered ₱{proposed_budget:,.2f}"
+                + (
+                    f" (₱{proposed_daily_rate}/day × {proposed_days} days)"
+                    if proposed_daily_rate
+                    else ""
+                )
+                + ". Review and respond."
+            ),
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID,
+        )
+
+        return {
+            "success": True,
+            "message": "Counter-offer submitted",
+            "negotiation_id": negotiation.negotiationID,
+            "negotiation_count": application.negotiation_count,
+            "proposals_remaining": max(
+                MAX_WORKER_PROPOSALS - application.negotiation_count, 0
+            ),
+        }
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to submit counter-offer: {str(e)}"}, status=500
+        )
+
+
+@mobile_router.post(
+    "/applications/{application_id}/negotiations/reject-price", auth=dual_auth
+)
+@require_kyc
+def client_reject_price(request, application_id: int, payload: ClientRejectPriceSchema):
+    """
+    Client rejects the worker's current price proposal (not the applicant).
+    Worker can re-propose up to their remaining limit.
+    """
+    from accounts.models import JobApplication, PriceNegotiation
+    from .models import Profile, Notification
+
+    try:
+        profile_type = getattr(request.auth, "profile_type", None)
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            **({"profileType": profile_type} if profile_type else {}),
+        ).first()
+        if not profile or profile.profileType != "CLIENT":
+            return Response({"error": "Only clients can reject prices"}, status=403)
+
+        try:
+            application = JobApplication.objects.select_related(
+                "jobID",
+                "jobID__clientID__profileID",
+                "workerID__profileID__accountFK",
+            ).get(applicationID=application_id)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=404)
+
+        job = application.jobID
+        if job.clientID.profileID != profile:
+            return Response({"error": "Access denied"}, status=403)
+
+        if application.status != JobApplication.ApplicationStatus.PENDING:
+            return Response(
+                {"error": "Can only reject a pending application"}, status=400
+            )
+
+        last = (
+            PriceNegotiation.objects.filter(application=application)
+            .order_by("-createdAt")
+            .first()
+        )
+        if not last or last.status != PriceNegotiation.NegotiationStatus.PENDING:
+            return Response({"error": "No pending proposal to reject."}, status=400)
+
+        last.status = PriceNegotiation.NegotiationStatus.REJECTED
+        last.save(update_fields=["status"])
+
+        # Notify worker
+        proposals_remaining = MAX_WORKER_PROPOSALS - application.negotiation_count
+        worker_account = application.workerID.profileID.accountFK
+        Notification.objects.create(
+            accountFK=worker_account,
+            notificationType="NEGOTIATION_REJECTED",
+            title=f"Price proposal rejected for '{job.title}'",
+            message=(
+                f"The client rejected your price proposal."
+                + (
+                    f" You have {proposals_remaining} proposal(s) remaining."
+                    if proposals_remaining > 0
+                    else " You have no proposals remaining. Accept the original job price or withdraw."
+                )
+            ),
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID,
+        )
+
+        return {
+            "success": True,
+            "message": "Price proposal rejected",
+            "negotiation_count": application.negotiation_count,
+            "proposals_remaining": proposals_remaining,
+        }
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return Response({"error": f"Failed to reject price: {str(e)}"}, status=500)
+
+
+@mobile_router.post(
+    "/applications/{application_id}/negotiations/accept-counter", auth=dual_auth
+)
+@require_kyc
+def worker_accept_counter(request, application_id: int):
+    """
+    Worker accepts the client's counter-offer price.
+    Updates the application's proposed budget to the counter-offer price.
+    """
+    from accounts.models import JobApplication, PriceNegotiation
+    from .models import Profile, WorkerProfile, Notification
+
+    try:
+        profile_type = getattr(request.auth, "profile_type", None)
+        profile = Profile.objects.filter(
+            accountFK=request.auth,
+            **({"profileType": profile_type} if profile_type else {}),
+        ).first()
+        if not profile or profile.profileType != "WORKER":
+            return Response(
+                {"error": "Only workers can accept counter-offers"}, status=403
+            )
+
+        worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
+        if not worker_profile:
+            return Response({"error": "Worker profile not found"}, status=403)
+
+        try:
+            application = JobApplication.objects.select_related(
+                "jobID", "jobID__clientID__profileID__accountFK"
+            ).get(applicationID=application_id, workerID=worker_profile)
+        except JobApplication.DoesNotExist:
+            return Response({"error": "Application not found"}, status=404)
+
+        if application.status != JobApplication.ApplicationStatus.PENDING:
+            return Response(
+                {"error": "Can only accept counter on a pending application"},
+                status=400,
+            )
+
+        # Get the last pending CLIENT counter-offer
+        last = (
+            PriceNegotiation.objects.filter(application=application)
+            .order_by("-createdAt")
+            .first()
+        )
+        if (
+            not last
+            or last.actor != PriceNegotiation.Actor.CLIENT
+            or last.status != PriceNegotiation.NegotiationStatus.PENDING
+        ):
+            return Response(
+                {"error": "No pending client counter-offer to accept."}, status=400
+            )
+
+        # Mark it accepted
+        last.status = PriceNegotiation.NegotiationStatus.ACCEPTED
+        last.save(update_fields=["status"])
+
+        # Update application to reflect the accepted counter price
+        application.proposedBudget = last.proposed_budget
+        application.proposed_daily_rate = last.proposed_daily_rate
+        application.proposed_days = last.proposed_days
+        application.budgetOption = "NEGOTIATE"
+        application.save(
+            update_fields=[
+                "proposedBudget",
+                "proposed_daily_rate",
+                "proposed_days",
+                "budgetOption",
+                "updatedAt",
+            ]
+        )
+
+        job = application.jobID
+        # Notify client
+        worker_name = f"{worker_profile.profileID.firstName} {worker_profile.profileID.lastName}".strip()
+        Notification.objects.create(
+            accountFK=job.clientID.profileID.accountFK,
+            notificationType="NEGOTIATION_COUNTER_ACCEPTED",
+            title=f"Counter-offer accepted for '{job.title}'",
+            message=f"{worker_name} accepted your counter-offer of ₱{last.proposed_budget:,.2f}.",
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID,
+        )
+
+        return {
+            "success": True,
+            "message": "Counter-offer accepted",
+            "agreed_budget": float(last.proposed_budget),
+            "agreed_daily_rate": float(last.proposed_daily_rate)
+            if last.proposed_daily_rate
+            else None,
+            "agreed_days": last.proposed_days,
+        }
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return Response(
+            {"error": f"Failed to accept counter-offer: {str(e)}"}, status=500
         )
 
 

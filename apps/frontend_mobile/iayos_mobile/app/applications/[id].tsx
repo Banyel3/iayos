@@ -1,5 +1,5 @@
 // Application Detail Screen
-// Shows detailed information about a job application with timeline and actions
+// Shows detailed information about a job application with negotiation thread and actions
 
 import React, { useState } from "react";
 import {
@@ -10,6 +10,8 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  TextInput,
+  Modal,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -41,6 +43,12 @@ interface ApplicationDetail {
   status: "PENDING" | "ACCEPTED" | "REJECTED" | "WITHDRAWN";
   appliedAt: string;
   respondedAt: string | null;
+  paymentModel: "PROJECT" | "DAILY" | null;
+  proposedDailyRate: number | null;
+  proposedDays: number | null;
+  jobDailyRate: number | null;
+  jobDurationDays: number | null;
+  negotiationCount: number;
   client: {
     id: number;
     name: string;
@@ -74,21 +82,42 @@ interface MobileApplicationDetailResponse {
     client_name: string;
     client_img: string | null;
     client_id: number;
+    payment_model?: "PROJECT" | "DAILY" | null;
+    proposed_daily_rate?: number | null;
+    proposed_days?: number | null;
+    job_daily_rate?: number | null;
+    job_duration_days?: number | null;
+    negotiation_count?: number;
   };
+}
+
+interface NegotiationRound {
+  negotiation_id: number;
+  actor: "WORKER" | "CLIENT";
+  round_number: number;
+  proposed_budget: number;
+  proposed_daily_rate: number | null;
+  proposed_days: number | null;
+  message: string;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED";
+  created_at: string;
+}
+
+interface NegotiationThreadResponse {
+  success: boolean;
+  application_id: number;
+  negotiation_count: number;
+  max_proposals: number;
+  proposals_remaining: number;
+  thread: NegotiationRound[];
 }
 
 // ===== HELPER FUNCTIONS =====
 
-/**
- * Format currency value to PHP format
- */
 const formatCurrency = (amount: number): string => {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 };
 
-/**
- * Format date to relative time
- */
 const formatTimeAgo = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();
@@ -112,9 +141,6 @@ const formatTimeAgo = (dateString: string): string => {
   }
 };
 
-/**
- * Get status badge styling
- */
 const getStatusStyle = (status: string) => {
   switch (status) {
     case "ACCEPTED":
@@ -149,12 +175,34 @@ const getStatusStyle = (status: string) => {
   }
 };
 
+const getRoundStatusColor = (status: string) => {
+  switch (status) {
+    case "ACCEPTED":
+      return Colors.success;
+    case "REJECTED":
+      return Colors.error;
+    case "COUNTERED":
+      return Colors.warning;
+    default:
+      return Colors.textSecondary;
+  }
+};
+
 // ===== MAIN COMPONENT =====
 
 export default function ApplicationDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const queryClient = useQueryClient();
+
+  // Propose modal state
+  const [showProposeModal, setShowProposeModal] = useState(false);
+  const [proposeAmount, setProposeAmount] = useState("");
+  const [proposeDailyRate, setProposeDailyRate] = useState("");
+  const [proposeDays, setProposeDays] = useState("");
+  const [proposeMessage, setProposeMessage] = useState("");
+
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
 
   // Fetch application detail
   const {
@@ -192,6 +240,12 @@ export default function ApplicationDetailScreen() {
         status: raw.application.application_status,
         appliedAt: raw.application.created_at,
         respondedAt: raw.application.updated_at || null,
+        paymentModel: raw.application.payment_model ?? null,
+        proposedDailyRate: raw.application.proposed_daily_rate ?? null,
+        proposedDays: raw.application.proposed_days ?? null,
+        jobDailyRate: raw.application.job_daily_rate ?? null,
+        jobDurationDays: raw.application.job_duration_days ?? null,
+        negotiationCount: raw.application.negotiation_count ?? 0,
         client: {
           id: raw.application.client_id,
           name: raw.application.client_name || "Client",
@@ -219,23 +273,38 @@ export default function ApplicationDetailScreen() {
     enabled: !!id,
   });
 
+  // Fetch negotiation thread (only when app is loaded and has negotiations)
+  const {
+    data: negotiationData,
+    isLoading: negotiationLoading,
+  } = useQuery<NegotiationThreadResponse>({
+    queryKey: ["negotiation-thread", id],
+    queryFn: async () => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_THREAD(Number(id))
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch negotiation thread");
+      }
+      return response.json() as Promise<NegotiationThreadResponse>;
+    },
+    enabled: !!id && !!application && application.negotiationCount > 0,
+  });
+
   // Withdraw application mutation
   const withdrawMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest(
         ENDPOINTS.WITHDRAW_APPLICATION(Number(id)),
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to withdraw application");
+        const err = await response.json() as { message?: string };
+        throw new Error(err.message || "Failed to withdraw application");
       }
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["applications", "my"] });
 
@@ -251,11 +320,110 @@ export default function ApplicationDetailScreen() {
     },
   });
 
-  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  // Worker propose mutation
+  const proposeMutation = useMutation({
+    mutationFn: async (payload: {
+      proposed_budget?: number;
+      proposed_daily_rate?: number;
+      proposed_days?: number;
+      message: string;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_PROPOSE(Number(id)),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!response.ok) {
+        const err = await response.json() as { error?: string };
+        throw new Error(err.error || "Failed to submit proposal");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["negotiation-thread", id] });
+      setShowProposeModal(false);
+      setProposeAmount("");
+      setProposeDailyRate("");
+      setProposeDays("");
+      setProposeMessage("");
+      Alert.alert("Success", "Your proposal has been submitted!");
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
 
-  // Handle withdraw
+  // Worker accept-counter mutation
+  const acceptCounterMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_ACCEPT_COUNTER(Number(id)),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+      if (!response.ok) {
+        const err = await response.json() as { error?: string };
+        throw new Error(err.error || "Failed to accept counter-offer");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["application-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["negotiation-thread", id] });
+      Alert.alert("Success", "You have accepted the client's counter-offer!");
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+
   const handleWithdraw = () => {
     setShowWithdrawConfirm(true);
+  };
+
+  const handleSubmitProposal = () => {
+    if (!proposeMessage.trim()) {
+      Alert.alert("Error", "Please enter a message with your proposal");
+      return;
+    }
+
+    const isDaily = application?.paymentModel === "DAILY";
+
+    if (isDaily) {
+      const rate = parseFloat(proposeDailyRate);
+      const days = parseInt(proposeDays);
+      if (!rate || rate <= 0) {
+        Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (!days || days <= 0) {
+        Alert.alert("Error", "Please enter a valid number of days");
+        return;
+      }
+      proposeMutation.mutate({
+        proposed_daily_rate: rate,
+        proposed_days: days,
+        proposed_budget: rate * days,
+        message: proposeMessage.trim(),
+      });
+    } else {
+      const amount = parseFloat(proposeAmount);
+      if (!amount || amount <= 0) {
+        Alert.alert("Error", "Please enter a valid proposed amount");
+        return;
+      }
+      proposeMutation.mutate({
+        proposed_budget: amount,
+        message: proposeMessage.trim(),
+      });
+    }
   };
 
   // ===== LOADING STATE =====
@@ -283,6 +451,22 @@ export default function ApplicationDetailScreen() {
 
   const statusStyle = getStatusStyle(application.status);
   const canWithdraw = application.status === "PENDING";
+  const isDaily = application.paymentModel === "DAILY";
+
+  // Derive negotiation state
+  const thread = negotiationData?.thread ?? [];
+  const proposalsRemaining = negotiationData?.proposals_remaining ?? 0;
+  const lastRound = thread.length > 0 ? thread[thread.length - 1] : null;
+  const clientCountered =
+    lastRound?.actor === "CLIENT" && lastRound?.status === "PENDING";
+  const awaitingClientResponse =
+    lastRound?.actor === "WORKER" && lastRound?.status === "PENDING";
+  const proposalsExhausted = proposalsRemaining === 0 && application.negotiationCount > 0;
+  const canPropose =
+    application.status === "PENDING" &&
+    !awaitingClientResponse &&
+    !clientCountered &&
+    !proposalsExhausted;
 
   // ===== MAIN CONTENT =====
   return (
@@ -339,9 +523,15 @@ export default function ApplicationDetailScreen() {
             </Text>
             <View style={styles.budgetRow}>
               <Text style={styles.budgetLabel}>Job Budget:</Text>
-              <Text style={styles.budgetValue}>
-                {formatCurrency(application.jobBudget)}
-              </Text>
+              {isDaily && application.jobDailyRate && application.jobDurationDays ? (
+                <Text style={styles.budgetValue}>
+                  {formatCurrency(application.jobDailyRate)}/day × {application.jobDurationDays} days
+                </Text>
+              ) : (
+                <Text style={styles.budgetValue}>
+                  {formatCurrency(application.jobBudget)}
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -352,9 +542,15 @@ export default function ApplicationDetailScreen() {
           <View style={styles.card}>
             <View style={styles.proposalRow}>
               <Text style={styles.proposalLabel}>Your Proposal:</Text>
-              <Text style={styles.proposalValue}>
-                {formatCurrency(application.proposedBudget)}
-              </Text>
+              {isDaily && application.proposedDailyRate && application.proposedDays ? (
+                <Text style={styles.proposalValue}>
+                  {formatCurrency(application.proposedDailyRate)}/day × {application.proposedDays} days
+                </Text>
+              ) : (
+                <Text style={styles.proposalValue}>
+                  {formatCurrency(application.proposedBudget)}
+                </Text>
+              )}
             </View>
             {application.estimatedDuration && (
               <View style={styles.durationRow}>
@@ -384,31 +580,175 @@ export default function ApplicationDetailScreen() {
           </View>
         </View>
 
+        {/* Negotiation Section */}
+        {application.negotiationCount > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Price Negotiation</Text>
+
+            {/* Proposals remaining banner */}
+            {application.status === "PENDING" && (
+              <View style={[
+                styles.negotiationBanner,
+                proposalsExhausted
+                  ? styles.negotiationBannerWarning
+                  : styles.negotiationBannerInfo,
+              ]}>
+                <Ionicons
+                  name={proposalsExhausted ? "warning-outline" : "information-circle-outline"}
+                  size={16}
+                  color={proposalsExhausted ? Colors.warning : Colors.primary}
+                />
+                <Text style={[
+                  styles.negotiationBannerText,
+                  { color: proposalsExhausted ? Colors.warning : Colors.primary },
+                ]}>
+                  {proposalsExhausted
+                    ? "No more proposals allowed. Accept original price or withdraw."
+                    : `${proposalsRemaining} proposal${proposalsRemaining !== 1 ? "s" : ""} remaining`}
+                </Text>
+              </View>
+            )}
+
+            {/* Awaiting response banner */}
+            {awaitingClientResponse && (
+              <View style={styles.awaitingBanner}>
+                <ActivityIndicator size="small" color={Colors.warning} />
+                <Text style={styles.awaitingText}>
+                  Awaiting client response...
+                </Text>
+              </View>
+            )}
+
+            {/* Thread */}
+            {negotiationLoading ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginTop: Spacing.md }} />
+            ) : (
+              <View style={styles.card}>
+                {thread.map((round, index) => (
+                  <View
+                    key={round.negotiation_id}
+                    style={[
+                      styles.negotiationRound,
+                      index < thread.length - 1 && styles.negotiationRoundBorder,
+                    ]}
+                  >
+                    <View style={styles.roundHeader}>
+                      <View style={styles.roundActorBadge}>
+                        <Ionicons
+                          name={round.actor === "WORKER" ? "person" : "business"}
+                          size={12}
+                          color={round.actor === "WORKER" ? Colors.primary : Colors.warning}
+                        />
+                        <Text style={[
+                          styles.roundActorText,
+                          { color: round.actor === "WORKER" ? Colors.primary : Colors.warning },
+                        ]}>
+                          {round.actor === "WORKER" ? "You" : "Client"}
+                        </Text>
+                      </View>
+                      <Text style={styles.roundTime}>
+                        {formatTimeAgo(round.created_at)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.roundPriceRow}>
+                      {isDaily && round.proposed_daily_rate && round.proposed_days ? (
+                        <Text style={styles.roundPrice}>
+                          {formatCurrency(round.proposed_daily_rate)}/day × {round.proposed_days} days
+                          {" = "}{formatCurrency(round.proposed_budget)}
+                        </Text>
+                      ) : (
+                        <Text style={styles.roundPrice}>
+                          {formatCurrency(round.proposed_budget)}
+                        </Text>
+                      )}
+                      <Text style={[
+                        styles.roundStatus,
+                        { color: getRoundStatusColor(round.status) },
+                      ]}>
+                        {round.status}
+                      </Text>
+                    </View>
+
+                    {round.message ? (
+                      <Text style={styles.roundMessage}>{round.message}</Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Client countered — action buttons */}
+            {clientCountered && lastRound && (
+              <View style={styles.counterActionCard}>
+                <Text style={styles.counterActionTitle}>
+                  Client's Counter-Offer
+                </Text>
+                <Text style={styles.counterActionPrice}>
+                  {isDaily && lastRound.proposed_daily_rate && lastRound.proposed_days
+                    ? `${formatCurrency(lastRound.proposed_daily_rate)}/day × ${lastRound.proposed_days} days`
+                    : formatCurrency(lastRound.proposed_budget)}
+                </Text>
+
+                <Pressable
+                  style={[
+                    styles.acceptCounterButton,
+                    acceptCounterMutation.isPending && styles.buttonDisabled,
+                  ]}
+                  onPress={() => acceptCounterMutation.mutate()}
+                  disabled={acceptCounterMutation.isPending}
+                >
+                  {acceptCounterMutation.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.textLight} />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color={Colors.textLight} />
+                      <Text style={styles.acceptCounterButtonText}>Accept Counter-Offer</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                {!proposalsExhausted && (
+                  <Pressable
+                    style={styles.reproposButton}
+                    onPress={() => setShowProposeModal(true)}
+                  >
+                    <Ionicons name="refresh" size={18} color={Colors.primary} />
+                    <Text style={styles.reproposButtonText}>Re-Propose</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            {/* Worker can propose */}
+            {canPropose && application.status === "PENDING" && (
+              <Pressable
+                style={styles.proposeButton}
+                onPress={() => setShowProposeModal(true)}
+              >
+                <Ionicons name="cash-outline" size={18} color={Colors.textLight} />
+                <Text style={styles.proposeButtonText}>
+                  {application.negotiationCount === 0 ? "Propose Price" : "Re-Propose"}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
         {/* Client Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Client</Text>
           <View style={styles.card}>
             <View style={styles.clientRow}>
               <View style={styles.clientAvatar}>
-                {application.client.avatar ? (
-                  <Ionicons
-                    name="person"
-                    size={24}
-                    color={Colors.textSecondary}
-                  />
-                ) : (
-                  <Ionicons
-                    name="person-outline"
-                    size={24}
-                    color={Colors.textSecondary}
-                  />
-                )}
+                <Ionicons
+                  name={application.client.avatar ? "person" : "person-outline"}
+                  size={24}
+                  color={Colors.textSecondary}
+                />
               </View>
               <View style={styles.clientInfo}>
                 <Text style={styles.clientName}>{application.client.name}</Text>
-                <Text style={styles.clientEmail}>
-                  {application.client.email}
-                </Text>
               </View>
             </View>
           </View>
@@ -419,7 +759,7 @@ export default function ApplicationDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Timeline</Text>
             <View style={styles.card}>
-              {application.timeline.map((event: any, index: number) => (
+              {application.timeline.map((event, index) => (
                 <View key={event.id} style={styles.timelineItem}>
                   <View style={styles.timelineDot}>
                     <View style={styles.dotInner} />
@@ -453,7 +793,10 @@ export default function ApplicationDetailScreen() {
           </Pressable>
 
           {application.status === "ACCEPTED" && (
-            <Pressable style={styles.contactButton}>
+            <Pressable
+              style={styles.contactButton}
+              onPress={() => router.push(`/conversation/new?targetId=${application.client.id}` as any)}
+            >
               <Ionicons
                 name="chatbubble-outline"
                 size={20}
@@ -490,6 +833,91 @@ export default function ApplicationDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Propose Modal */}
+      <Modal
+        visible={showProposeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowProposeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Submit Price Proposal</Text>
+              <Pressable onPress={() => setShowProposeModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </Pressable>
+            </View>
+
+            {isDaily ? (
+              <>
+                <Text style={styles.modalLabel}>Daily Rate (₱)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. 800"
+                  value={proposeDailyRate}
+                  onChangeText={setProposeDailyRate}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={Colors.textHint}
+                />
+                <Text style={styles.modalLabel}>Number of Days</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. 5"
+                  value={proposeDays}
+                  onChangeText={setProposeDays}
+                  keyboardType="number-pad"
+                  placeholderTextColor={Colors.textHint}
+                />
+                {proposeDailyRate && proposeDays && parseFloat(proposeDailyRate) > 0 && parseInt(proposeDays) > 0 && (
+                  <Text style={styles.modalTotal}>
+                    Total: {formatCurrency(parseFloat(proposeDailyRate) * parseInt(proposeDays))}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>Proposed Amount (₱)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. 2500"
+                  value={proposeAmount}
+                  onChangeText={setProposeAmount}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={Colors.textHint}
+                />
+              </>
+            )}
+
+            <Text style={styles.modalLabel}>Message</Text>
+            <TextInput
+              style={[styles.modalInput, styles.modalTextArea]}
+              placeholder="Explain your proposed price..."
+              value={proposeMessage}
+              onChangeText={setProposeMessage}
+              multiline
+              numberOfLines={4}
+              placeholderTextColor={Colors.textHint}
+            />
+
+            <Pressable
+              style={[
+                styles.modalSubmitButton,
+                proposeMutation.isPending && styles.buttonDisabled,
+              ]}
+              onPress={handleSubmitProposal}
+              disabled={proposeMutation.isPending}
+            >
+              {proposeMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.textLight} />
+              ) : (
+                <Text style={styles.modalSubmitText}>Submit Proposal</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <CountdownConfirmModal
         visible={showWithdrawConfirm}
@@ -687,6 +1115,151 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
+  // Negotiation
+  negotiationBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.medium,
+    marginBottom: Spacing.sm,
+  },
+  negotiationBannerInfo: {
+    backgroundColor: Colors.primaryLight,
+  },
+  negotiationBannerWarning: {
+    backgroundColor: Colors.warningLight,
+  },
+  negotiationBannerText: {
+    ...Typography.body.small,
+    fontWeight: "600",
+  },
+  awaitingBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.medium,
+    marginBottom: Spacing.sm,
+  },
+  awaitingText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
+  negotiationRound: {
+    paddingVertical: Spacing.sm,
+  },
+  negotiationRoundBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Spacing.sm,
+  },
+  roundHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  roundActorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  roundActorText: {
+    ...Typography.body.small,
+    fontWeight: "700",
+  },
+  roundTime: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontSize: 11,
+  },
+  roundPriceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  roundPrice: {
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  roundStatus: {
+    ...Typography.body.small,
+    fontWeight: "600",
+    fontSize: 11,
+  },
+  roundMessage: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    fontStyle: "italic",
+  },
+  counterActionCard: {
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.large,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  counterActionTitle: {
+    ...Typography.body.medium,
+    color: Colors.warning,
+    fontWeight: "700",
+  },
+  counterActionPrice: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+    fontWeight: "bold",
+  },
+  acceptCounterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.large,
+  },
+  acceptCounterButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textLight,
+    fontWeight: "600",
+  },
+  reproposButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.large,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  reproposButtonText: {
+    ...Typography.body.medium,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  proposeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.large,
+    marginTop: Spacing.sm,
+  },
+  proposeButtonText: {
+    ...Typography.body.medium,
+    color: Colors.textLight,
+    fontWeight: "600",
+  },
+
   // Client
   clientRow: {
     flexDirection: "row",
@@ -708,10 +1281,6 @@ const styles = StyleSheet.create({
     ...Typography.body.large,
     color: Colors.textPrimary,
     fontWeight: "600",
-  },
-  clientEmail: {
-    ...Typography.body.small,
-    color: Colors.textSecondary,
   },
 
   // Timeline
@@ -822,5 +1391,64 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: BorderRadius.large,
+    borderTopRightRadius: BorderRadius.large,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  modalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  modalLabel: {
+    ...Typography.body.medium,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.md,
+    ...Typography.body.medium,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.background,
+  },
+  modalTextArea: {
+    height: 100,
+    textAlignVertical: "top",
+  },
+  modalTotal: {
+    ...Typography.body.medium,
+    color: Colors.primary,
+    fontWeight: "700",
+  },
+  modalSubmitButton: {
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.large,
+    alignItems: "center",
+    marginTop: Spacing.sm,
+  },
+  modalSubmitText: {
+    ...Typography.body.medium,
+    color: Colors.textLight,
+    fontWeight: "600",
   },
 });

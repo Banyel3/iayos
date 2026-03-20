@@ -172,9 +172,12 @@ interface JobApplication {
   };
   proposal_message: string;
   proposed_budget: number;
+  proposed_daily_rate?: number | null;
+  proposed_days?: number | null;
   estimated_duration: string;
   budget_option: "ACCEPT" | "NEGOTIATE";
   status: "PENDING" | "ACCEPTED" | "REJECTED";
+  negotiation_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -289,6 +292,13 @@ export default function JobDetailScreen() {
   // Daily rate negotiation state (for DAILY payment_model jobs)
   const [proposedDailyRate, setProposedDailyRate] = useState("");
   const [proposedDays, setProposedDays] = useState("");
+
+  // Client counter-offer state
+  const [counterModalApplicationId, setCounterModalApplicationId] = useState<number | null>(null);
+  const [counterOfferMessage, setCounterOfferMessage] = useState("");
+  const [counterOfferRate, setCounterOfferRate] = useState("");
+  const [counterOfferDays, setCounterOfferDays] = useState("");
+  const [counterOfferAmount, setCounterOfferAmount] = useState("");
 
   // Team Job state
   const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
@@ -963,6 +973,134 @@ export default function JobDetailScreen() {
       onConfirm: () => rejectApplicationMutation.mutate(applicationId),
       icon: "close-circle",
       iconColor: Colors.error,
+    });
+  };
+
+  // Client counter-offer mutation
+  const counterOfferMutation = useMutation({
+    mutationFn: async ({
+      applicationId,
+      message,
+      proposed_budget,
+      proposed_daily_rate,
+      proposed_days,
+    }: {
+      applicationId: number;
+      message: string;
+      proposed_budget?: number;
+      proposed_daily_rate?: number;
+      proposed_days?: number;
+    }) => {
+      const body: Record<string, unknown> = { message };
+      if (proposed_budget !== undefined) body.proposed_budget = proposed_budget;
+      if (proposed_daily_rate !== undefined) body.proposed_daily_rate = proposed_daily_rate;
+      if (proposed_days !== undefined) body.proposed_days = proposed_days;
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_COUNTER(applicationId),
+        { method: "POST", body: JSON.stringify(body) },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(String((data as any)?.error || (data as any)?.detail || "Failed to send counter-offer"));
+      }
+      return data;
+    },
+    onSuccess: () => {
+      Alert.alert("Counter-offer sent", "The worker has been notified of your counter-offer.");
+      setCounterModalApplicationId(null);
+      setCounterOfferMessage("");
+      setCounterOfferRate("");
+      setCounterOfferDays("");
+      setCounterOfferAmount("");
+      queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+
+  // Client reject-price mutation (reject price, not applicant)
+  const rejectPriceMutation = useMutation({
+    mutationFn: async (applicationId: number) => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_REJECT_PRICE(applicationId),
+        { method: "POST", body: JSON.stringify({ message: "Price rejected by client." }) },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(String((data as any)?.error || (data as any)?.detail || "Failed to reject price"));
+      }
+      return data;
+    },
+    onSuccess: () => {
+      Alert.alert("Price rejected", "The worker has been notified. They may re-negotiate or withdraw.");
+      queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+
+  const handleCounterOffer = (application: JobApplication) => {
+    setCounterModalApplicationId(application.id);
+    // Pre-fill with worker's current proposed values
+    if (job?.payment_model === "DAILY") {
+      setCounterOfferRate(application.proposed_daily_rate ? String(application.proposed_daily_rate) : "");
+      setCounterOfferDays(application.proposed_days ? String(application.proposed_days) : "");
+      setCounterOfferAmount("");
+    } else {
+      setCounterOfferAmount(application.proposed_budget ? String(application.proposed_budget) : "");
+      setCounterOfferRate("");
+      setCounterOfferDays("");
+    }
+    setCounterOfferMessage("");
+  };
+
+  const handleSubmitCounterOffer = () => {
+    if (!counterModalApplicationId) return;
+    const msg = counterOfferMessage.trim();
+    if (!msg) {
+      Alert.alert("Message required", "Please enter a message for your counter-offer.");
+      return;
+    }
+    if (job?.payment_model === "DAILY") {
+      const rate = parseFloat(counterOfferRate);
+      const days = parseInt(counterOfferDays, 10);
+      if (!rate || !days) {
+        Alert.alert("Missing fields", "Enter both daily rate and number of days.");
+        return;
+      }
+      counterOfferMutation.mutate({
+        applicationId: counterModalApplicationId,
+        message: msg,
+        proposed_daily_rate: rate,
+        proposed_days: days,
+      });
+    } else {
+      const amount = parseFloat(counterOfferAmount);
+      if (!amount) {
+        Alert.alert("Missing fields", "Enter a proposed budget amount.");
+        return;
+      }
+      counterOfferMutation.mutate({
+        applicationId: counterModalApplicationId,
+        message: msg,
+        proposed_budget: amount,
+      });
+    }
+  };
+
+  const handleRejectPrice = (applicationId: number, workerName: string) => {
+    setCountdownConfig({
+      visible: true,
+      title: "Reject Price",
+      message: `Reject ${workerName}'s proposed price? The worker can still re-negotiate or withdraw.`,
+      confirmLabel: "Reject Price",
+      confirmStyle: "destructive",
+      countdownSeconds: 3,
+      onConfirm: () => rejectPriceMutation.mutate(applicationId),
+      icon: "pricetag-outline",
+      iconColor: Colors.warning,
     });
   };
 
@@ -3011,8 +3149,9 @@ export default function JobDetailScreen() {
                             color={Colors.textSecondary}
                           />
                           <Text style={styles.applicationDetailText}>
-                            Proposed: ₱
-                            {application.proposed_budget.toLocaleString()}
+                            {job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
+                              ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
+                              : `Proposed: ₱${application.proposed_budget.toLocaleString()}`}
                           </Text>
                         </View>
                       )}
@@ -3048,35 +3187,8 @@ export default function JobDetailScreen() {
 
                     {/* Action Buttons */}
                     {application.status === "PENDING" && (
-                      <View style={styles.applicationActions}>
-                        <TouchableOpacity
-                          style={styles.rejectButton}
-                          onPress={() =>
-                            handleRejectApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={rejectApplicationMutation.isPending}
-                        >
-                          {rejectApplicationMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.error}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={20}
-                                color={Colors.error}
-                              />
-                              <Text style={styles.rejectButtonText}>
-                                Reject
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
+                      <View style={{ gap: 8, marginTop: 8 }}>
+                        {/* Accept row */}
                         <TouchableOpacity
                           style={styles.acceptButton}
                           onPress={() =>
@@ -3098,6 +3210,65 @@ export default function JobDetailScreen() {
                               />
                               <Text style={styles.acceptButtonText}>
                                 Accept
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+
+                        {/* Counter-offer + Reject Price row (only if worker negotiated) */}
+                        {application.budget_option === "NEGOTIATE" && (
+                          <View style={styles.applicationActions}>
+                            <TouchableOpacity
+                              style={[styles.rejectButton, { flex: 1, borderColor: Colors.warning }]}
+                              onPress={() => handleRejectPrice(application.id, application.worker.name)}
+                              disabled={rejectPriceMutation.isPending}
+                            >
+                              {rejectPriceMutation.isPending ? (
+                                <ActivityIndicator size="small" color={Colors.warning} />
+                              ) : (
+                                <>
+                                  <Ionicons name="pricetag-outline" size={16} color={Colors.warning} />
+                                  <Text style={[styles.rejectButtonText, { color: Colors.warning }]}>
+                                    Reject Price
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.acceptButton, { flex: 1, backgroundColor: Colors.textSecondary }]}
+                              onPress={() => handleCounterOffer(application)}
+                            >
+                              <Ionicons name="swap-horizontal-outline" size={16} color="#FFF" />
+                              <Text style={styles.acceptButtonText}>Counter</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Reject Applicant */}
+                        <TouchableOpacity
+                          style={[styles.rejectButton, { borderColor: Colors.error }]}
+                          onPress={() =>
+                            handleRejectApplication(
+                              application.id,
+                              application.worker.name,
+                            )
+                          }
+                          disabled={rejectApplicationMutation.isPending}
+                        >
+                          {rejectApplicationMutation.isPending ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={Colors.error}
+                            />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="close-circle-outline"
+                                size={20}
+                                color={Colors.error}
+                              />
+                              <Text style={styles.rejectButtonText}>
+                                Reject Applicant
                               </Text>
                             </>
                           )}
@@ -4308,6 +4479,83 @@ export default function JobDetailScreen() {
         title="How It Works"
         items={WORKER_PAYMENT_INFO_ITEMS}
       />
+
+      {/* Client Counter-Offer Modal */}
+      <Modal
+        visible={counterModalApplicationId !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCounterModalApplicationId(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: Colors.white, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24 }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.textPrimary, marginBottom: 16 }}>
+              Send Counter-Offer
+            </Text>
+
+            {job?.payment_model === "DAILY" ? (
+              <>
+                <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Daily Rate (₱)</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
+                  placeholder="e.g. 1200"
+                  keyboardType="numeric"
+                  value={counterOfferRate}
+                  onChangeText={setCounterOfferRate}
+                />
+                <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Number of Days</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
+                  placeholder="e.g. 5"
+                  keyboardType="numeric"
+                  value={counterOfferDays}
+                  onChangeText={setCounterOfferDays}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Proposed Budget (₱)</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
+                  placeholder="e.g. 5000"
+                  keyboardType="numeric"
+                  value={counterOfferAmount}
+                  onChangeText={setCounterOfferAmount}
+                />
+              </>
+            )}
+
+            <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Message</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 16, color: Colors.textPrimary, minHeight: 80 }}
+              placeholder="Explain your counter-offer..."
+              multiline
+              value={counterOfferMessage}
+              onChangeText={setCounterOfferMessage}
+            />
+
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: "center" }}
+                onPress={() => setCounterModalApplicationId(null)}
+              >
+                <Text style={{ color: Colors.textSecondary, fontWeight: "600" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: Colors.primary, alignItems: "center" }}
+                onPress={handleSubmitCounterOffer}
+                disabled={counterOfferMutation.isPending}
+              >
+                {counterOfferMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: "#FFF", fontWeight: "600" }}>Send Counter</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
