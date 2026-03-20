@@ -1239,7 +1239,7 @@ export default function CreateJobScreen() {
       work_environment: workEnvironment ?? null,
       // Payment model specific fields
       payment_model: effectivePaymentModel,
-      shift_type: effectivePaymentModel === "DAILY" ? shiftType : undefined,
+      shift_type: shiftType,
     };
 
     // Materials needed - map selected IDs to names + add manual materials
@@ -2535,76 +2535,74 @@ export default function CreateJobScreen() {
 
               {/* Daily Rate Fields */}
               {effectivePaymentModel === "DAILY" && (
-                <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Daily Rate per Worker (₱)</Text>
-                    <View
-                      style={[
-                        styles.budgetInput,
-                        !effectiveCategoryId && styles.inputDisabled,
-                      ]}
-                    >
-                      <Text style={styles.currencySymbol}>₱</Text>
-                      <TextInput
-                        style={styles.budgetTextInput}
-                        placeholder={
-                          effectiveCategoryId
-                            ? "0.00"
-                            : "Add a worker requirement first"
-                        }
-                        value={dailyRate}
-                        onChangeText={setDailyRate}
-                        keyboardType="decimal-pad"
-                        placeholderTextColor={Colors.textHint}
-                        editable={!!effectiveCategoryId}
-                      />
-                    </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Daily Rate per Worker (₱)</Text>
+                  <View
+                    style={[
+                      styles.budgetInput,
+                      !effectiveCategoryId && styles.inputDisabled,
+                    ]}
+                  >
+                    <Text style={styles.currencySymbol}>₱</Text>
+                    <TextInput
+                      style={styles.budgetTextInput}
+                      placeholder={
+                        effectiveCategoryId
+                          ? "0.00"
+                          : "Add a worker requirement first"
+                      }
+                      value={dailyRate}
+                      onChangeText={setDailyRate}
+                      keyboardType="decimal-pad"
+                      placeholderTextColor={Colors.textHint}
+                      editable={!!effectiveCategoryId}
+                    />
                   </View>
-
-                  {/* Shift Picker */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Shift</Text>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {(["ANY", "MORNING", "NIGHT"] as const).map((s) => (
-                        <TouchableOpacity
-                          key={s}
-                          onPress={() => setShiftType(s)}
-                          style={[
-                            {
-                              flex: 1,
-                              paddingVertical: 10,
-                              paddingHorizontal: 6,
-                              borderRadius: 8,
-                              borderWidth: 1.5,
-                              borderColor: shiftType === s ? Colors.primary : Colors.border,
-                              backgroundColor: shiftType === s ? Colors.primary + "15" : Colors.background,
-                              alignItems: "center",
-                            },
-                          ]}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              fontWeight: shiftType === s ? "700" : "400",
-                              color: shiftType === s ? Colors.primary : Colors.textSecondary,
-                            }}
-                          >
-                            {s === "ANY" ? "Any" : s === "MORNING" ? "Morning" : "Night"}
-                          </Text>
-                          {s !== "ANY" && (
-                            <Text
-                              style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}
-                            >
-                              {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </>
+                </View>
               )}
+
+              {/* Shift Picker - shown for all payment models */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Shift</Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {(["ANY", "MORNING", "NIGHT"] as const).map((s) => (
+                    <TouchableOpacity
+                      key={s}
+                      onPress={() => setShiftType(s)}
+                      style={[
+                        {
+                          flex: 1,
+                          paddingVertical: 10,
+                          paddingHorizontal: 6,
+                          borderRadius: 8,
+                          borderWidth: 1.5,
+                          borderColor: shiftType === s ? Colors.primary : Colors.border,
+                          backgroundColor: shiftType === s ? Colors.primary + "15" : Colors.background,
+                          alignItems: "center",
+                        },
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: shiftType === s ? "700" : "400",
+                          color: shiftType === s ? Colors.primary : Colors.textSecondary,
+                        }}
+                      >
+                        {s === "ANY" ? "Any" : s === "MORNING" ? "Morning" : "Night"}
+                      </Text>
+                      {s !== "ANY" && (
+                        <Text
+                          style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}
+                        >
+                          {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
               {/* AI Price Suggestion Card - Only for PROJECT model */}
               {effectivePaymentModel === "PROJECT" && effectiveCategoryId && (
