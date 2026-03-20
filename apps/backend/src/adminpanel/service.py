@@ -3056,7 +3056,14 @@ def get_job_detail(job_id: str):
     """
     Get comprehensive job details including timeline data for admin panel
     """
-    from accounts.models import Job, JobPhoto, JobApplication, JobReview, JobWorkerAssignment
+    from accounts.models import (
+        Job,
+        JobPhoto,
+        JobApplication,
+        JobReview,
+        JobWorkerAssignment,
+        JobEmployeeAssignment,
+    )
     from django.shortcuts import get_object_or_404
     
     try:
@@ -3168,6 +3175,32 @@ def get_job_detail(job_id: str):
         worker_arrived_ts = first_arrival_ts or job.clientConfirmedWorkStartedAt
         worker_marked_complete_ts = latest_worker_complete_ts or job.workerMarkedCompleteAt
 
+        # Completion notes can live in different models depending on workflow.
+        completion_notes = getattr(job, 'completionNotes', None)
+        if not completion_notes:
+            completion_notes = getattr(job, 'completion_notes', None)
+
+        if not completion_notes and team_mode:
+            latest_assignment_with_notes = (
+                assignments_qs
+                .exclude(completion_notes__isnull=True)
+                .exclude(completion_notes__exact='')
+                .order_by('-worker_marked_complete_at', '-updatedAt')
+                .first()
+            )
+            if latest_assignment_with_notes:
+                completion_notes = latest_assignment_with_notes.completion_notes
+
+        if not completion_notes:
+            latest_employee_assignment_with_notes = (
+                JobEmployeeAssignment.objects.filter(job=job)
+                .exclude(completionNotes__exact='')
+                .order_by('-employeeMarkedCompleteAt', '-assignedAt')
+                .first()
+            )
+            if latest_employee_assignment_with_notes:
+                completion_notes = latest_employee_assignment_with_notes.completionNotes
+
         active_reviews_qs = job.reviews.filter(status='ACTIVE')
         client_review = active_reviews_qs.filter(reviewerType='CLIENT').order_by('-createdAt').first()
         worker_review = active_reviews_qs.filter(reviewerType__in=['WORKER', 'AGENCY']).order_by('-createdAt').first()
@@ -3181,7 +3214,7 @@ def get_job_detail(job_id: str):
             'worker_arrived': worker_arrived_ts.isoformat() if worker_arrived_ts else None,
             'worker_marked_complete': worker_marked_complete_ts.isoformat() if worker_marked_complete_ts else None,
             'completion_photos': [p['url'] for p in photos],
-            'completion_notes': job.completionNotes or None,
+            'completion_notes': completion_notes or None,
             'client_confirmed': job.clientMarkedCompleteAt.isoformat() if job.clientMarkedCompleteAt else None,
             'client_reviewed': client_review.createdAt.isoformat() if client_review else None,
             'worker_reviewed': worker_review.createdAt.isoformat() if worker_review else None,
