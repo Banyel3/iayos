@@ -2697,7 +2697,6 @@ def update_user_profile_mobile(user, payload, request=None):
     try:
         from .models import Profile
         from datetime import datetime
-        import re
 
         # Get user's profile
         try:
