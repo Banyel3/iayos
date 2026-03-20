@@ -2109,6 +2109,12 @@ class JobApplication(models.Model):
         max_length=20, choices=ApplicationStatus.choices, default="PENDING"
     )
 
+    # Price Negotiation tracking
+    negotiation_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of price proposals the worker has submitted (max 3)",
+    )
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
@@ -2178,6 +2184,86 @@ class SavedJob(models.Model):
 
     def __str__(self):
         return f"Saved: {self.jobID.title} by {self.workerID.profileID.firstName}"
+
+
+class PriceNegotiation(models.Model):
+    """
+    Tracks each round of price negotiation between a worker and client
+    on a JobApplication. Supports up to 3 worker proposals with optional
+    client counter-offers between each round.
+    """
+
+    negotiationID = models.BigAutoField(primary_key=True)
+    application = models.ForeignKey(
+        JobApplication,
+        on_delete=models.CASCADE,
+        related_name="price_negotiations",
+    )
+
+    # Who made this entry
+    class Actor(models.TextChoices):
+        WORKER = "WORKER", "Worker"
+        CLIENT = "CLIENT", "Client"
+
+    actor = models.CharField(max_length=10, choices=Actor.choices)
+
+    # round_number counts only WORKER proposals (1, 2, or 3)
+    # CLIENT counter-offer entries always use round_number=0 (not counted)
+    round_number = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Worker proposal round (1-3). 0 for client counter-offers.",
+    )
+
+    # Price fields (mirrors JobApplication proposal fields)
+    proposed_budget = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Total proposed budget (PROJECT) or daily_rate × days (DAILY)",
+    )
+    proposed_daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Proposed daily rate (DAILY jobs only)",
+    )
+    proposed_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Proposed number of working days (DAILY jobs only)",
+    )
+
+    message = models.TextField(
+        blank=True, default="", help_text="Message accompanying the proposal/counter"
+    )
+
+    class NegotiationStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending response"
+        ACCEPTED = "ACCEPTED", "Accepted"
+        REJECTED = "REJECTED", "Rejected (price only — worker can re-propose)"
+        COUNTERED = "COUNTERED", "Client issued a counter-offer"
+        SUPERSEDED = "SUPERSEDED", "Superseded by a newer proposal"
+
+    status = models.CharField(
+        max_length=15,
+        choices=NegotiationStatus.choices,
+        default="PENDING",
+    )
+
+    createdAt = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "price_negotiations"
+        ordering = ["createdAt"]
+        indexes = [
+            models.Index(fields=["application", "createdAt"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"[Round {self.round_number}] {self.actor} proposal "
+            f"₱{self.proposed_budget} on app {self.application_id}"
+        )
 
 
 class JobDispute(models.Model):

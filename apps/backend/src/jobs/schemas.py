@@ -9,9 +9,14 @@ class CreateJobPostingSchema(Schema):
     budget: float
     location: str
     expected_duration: Optional[str] = None
-    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
+    urgency: Optional[str] = (
+        "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM, no longer shown in UI)
+    )
     preferred_start_date: Optional[str] = None
-    scheduled_end_date: Optional[str] = None
+    scheduled_end_date: Optional[str] = (
+        None  # Deprecated: computed from number_of_working_days
+    )
+    number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
 
@@ -34,10 +39,15 @@ class CreateJobPostingMobileSchema(Schema):
     budget: Optional[float] = None  # Required for PROJECT, not for DAILY
     location: str
     expected_duration: Optional[str] = None
-    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
+    urgency: Optional[str] = (
+        "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM, no longer shown in UI)
+    )
     urgency_level: Optional[str] = None  # Frontend alias for urgency
     preferred_start_date: Optional[str] = None
-    scheduled_end_date: Optional[str] = None
+    scheduled_end_date: Optional[str] = (
+        None  # Deprecated: computed from number_of_working_days
+    )
+    number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET only
     downpayment_method: Optional[str] = None  # Frontend alias for payment_method
@@ -140,9 +150,12 @@ class CreateTeamJobSchema(Schema):
     description: str
     location: str
     total_budget: float  # Total budget for entire job
-    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH
+    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (no longer shown in UI)
     preferred_start_date: Optional[str] = None
-    scheduled_end_date: Optional[str] = None
+    scheduled_end_date: Optional[str] = (
+        None  # Deprecated: computed from number_of_working_days
+    )
+    number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date
     materials_needed: Optional[list[str]] = []
     budget_allocation_type: Optional[str] = (
         "EQUAL_PER_WORKER"  # EQUAL_PER_SKILL, EQUAL_PER_WORKER, MANUAL_ALLOCATION, SKILL_WEIGHTED
@@ -383,3 +396,32 @@ class AgencySlotAssignEmployeesSchema(Schema):
 
     employee_ids: list[int]  # List of employee IDs to assign to the slot
     primary_contact_employee_id: Optional[int] = None  # Team lead (optional)
+
+
+# ===========================================================================
+# PRICE NEGOTIATION SCHEMAS
+# ===========================================================================
+
+
+class WorkerProposeSchema(Schema):
+    """Schema for a worker submitting a price proposal (round 1-3)"""
+
+    proposed_budget: float  # Total proposed budget
+    proposed_daily_rate: Optional[float] = None  # For DAILY jobs
+    proposed_days: Optional[int] = None  # For DAILY jobs
+    message: Optional[str] = None  # Accompanying message
+
+
+class ClientCounterSchema(Schema):
+    """Schema for a client issuing a counter-offer"""
+
+    proposed_budget: float  # Counter-offer total budget
+    proposed_daily_rate: Optional[float] = None  # For DAILY jobs
+    proposed_days: Optional[int] = None  # For DAILY jobs
+    message: Optional[str] = None  # Explanation / message to worker
+
+
+class ClientRejectPriceSchema(Schema):
+    """Schema for a client rejecting only the price (not the applicant)"""
+
+    message: Optional[str] = None  # Optional explanation

@@ -650,6 +650,18 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     status=400,
                 )
 
+        # number_of_working_days takes precedence: compute end date from start + days
+        number_of_working_days = getattr(data, "number_of_working_days", None)
+        if number_of_working_days and preferred_start_date:
+            from datetime import timedelta as _td
+
+            scheduled_end_date = preferred_start_date + _td(
+                days=number_of_working_days - 1
+            )
+        elif number_of_working_days and not preferred_start_date:
+            # Store working days in expected_duration as fallback
+            pass  # scheduled_end_date stays None until start date is known
+
         if (
             preferred_start_date
             and scheduled_end_date
@@ -1121,6 +1133,15 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     {"error": "Invalid scheduled_end_date format. Use YYYY-MM-DD"},
                     status=400,
                 )
+
+        # number_of_working_days takes precedence over scheduled_end_date
+        number_of_working_days = getattr(data, "number_of_working_days", None)
+        if number_of_working_days and preferred_start_date:
+            from datetime import timedelta as _td
+
+            scheduled_end_date = preferred_start_date + _td(
+                days=number_of_working_days - 1
+            )
 
         if (
             preferred_start_date
