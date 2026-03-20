@@ -179,6 +179,8 @@ def _get_conversation_remaining_payment(job) -> float:
 
     For DAILY team jobs the remaining amount is computed dynamically from each
     worker assignment's contracted days minus amounts already earned.
+    For solo DAILY jobs the remaining amount is escrow_total minus payments
+    already processed (matching DailyPaymentService.early_complete_single_daily_job).
     For all other job types the stored ``remainingPayment`` field is used
     (set to 50 % of the budget at job creation for PROJECT jobs).
     """
@@ -191,6 +193,18 @@ def _get_conversation_remaining_payment(job) -> float:
         payouts = _calculate_team_daily_remaining_payouts(job)
         total = sum(payouts.values(), Decimal("0.00"))
         return float(total)
+    if is_daily and not getattr(job, "is_team_job", False):
+        # Solo DAILY: remaining = escrow total minus already-processed daily payments
+        from accounts.models import DailyAttendance
+        from django.db.models import Sum as _Sum
+
+        escrow_total = Decimal(str(getattr(job, "daily_escrow_total", None) or "0.00"))
+        already_paid = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=True,
+        ).aggregate(total=_Sum("amount_earned"))["total"] or Decimal("0.00")
+        remaining = escrow_total - already_paid
+        return float(max(remaining, Decimal("0.00")))
     return float(job.remainingPayment or 0)
 
 
@@ -3331,6 +3345,16 @@ def get_conversation_messages(request, conversation_id: int):
                 "paymentBuffer": payment_buffer_info,
                 "materials_status": job.materials_status,
                 "materials_cost": float(job.materialsCost) if job.materialsCost else 0,
+                # Single DAILY early completion fields
+                "is_early_completed": bool(getattr(job, "is_early_completed", False)),
+                "early_completed_at": getattr(
+                    job, "early_completed_at", None
+                ).isoformat()
+                if getattr(job, "early_completed_at", None)
+                else None,
+                "early_completion_payout": float(job.early_completion_payout)
+                if getattr(job, "early_completion_payout", None) is not None
+                else None,
             },
             "other_participant": other_participant_info,
             "assigned_employee": assigned_employee_info,  # Legacy single employee
