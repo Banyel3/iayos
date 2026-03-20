@@ -38,6 +38,8 @@ import { toast } from "sonner";
 interface Specialization {
   specializationID: number;
   categoryName: string;
+  isCustom?: boolean;
+  createdByAgency?: boolean;
 }
 
 interface Employee {
@@ -112,6 +114,7 @@ export default function EmployeesPage() {
   >([]);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [mobileError, setMobileError] = useState<string | null>(null);
+  const [customSpecInput, setCustomSpecInput] = useState("");
 
   // Edit Employee modal state
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -122,6 +125,7 @@ export default function EmployeesPage() {
   const [editSpecializations, setEditSpecializations] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editMobileError, setEditMobileError] = useState<string | null>(null);
+  const [editCustomSpecInput, setEditCustomSpecInput] = useState("");
 
   // EOTM modal state
   const [settingEOTM, setSettingEOTM] = useState(false);
@@ -279,6 +283,84 @@ export default function EmployeesPage() {
     );
   };
 
+  const addCustomSpec = async () => {
+    const name = customSpecInput.trim();
+    if (!name) return;
+    if (selectedSpecializations.includes(name)) {
+      toast.error("Specialization already selected");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/accounts/specializations/custom`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to create custom specialization");
+        return;
+      }
+      // Refresh the specializations list so the new one appears as a chip
+      await fetchSpecializations();
+      setSelectedSpecializations((prev) => [...prev, data.categoryName]);
+      setCustomSpecInput("");
+      toast.success(`Added "${data.categoryName}" to your specializations`);
+    } catch {
+      toast.error("Failed to create custom specialization");
+    }
+  };
+
+  const addEditCustomSpec = async () => {
+    const name = editCustomSpecInput.trim();
+    if (!name) return;
+    if (editSpecializations.includes(name)) {
+      toast.error("Specialization already selected");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/accounts/specializations/custom`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to create custom specialization");
+        return;
+      }
+      await fetchSpecializations();
+      setEditSpecializations((prev) => [...prev, data.categoryName]);
+      setEditCustomSpecInput("");
+      toast.success(`Added "${data.categoryName}" to your specializations`);
+    } catch {
+      toast.error("Failed to create custom specialization");
+    }
+  };
+
+  const deleteAgencySpec = async (spec: Specialization) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/accounts/specializations/custom/${spec.specializationID}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Failed to delete specialization");
+        return;
+      }
+      // Remove from local state immediately
+      setSpecializations((prev) => prev.filter((s) => s.specializationID !== spec.specializationID));
+      setSelectedSpecializations((prev) => prev.filter((s) => s !== spec.categoryName));
+      setEditSpecializations((prev) => prev.filter((s) => s !== spec.categoryName));
+      toast.success(`Deleted "${spec.categoryName}"`);
+    } catch {
+      toast.error("Failed to delete specialization");
+    }
+  };
+
   const normalizeMobile = (value: string) => value.replace(/[\s-]/g, "");
 
   const isValidMobile = (value: string) => {
@@ -414,6 +496,7 @@ export default function EmployeesPage() {
         setLastName("");
         setMobile("");
         setSelectedSpecializations([]);
+        setCustomSpecInput("");
         setMobileError(null);
         fetchEmployees();
       } else {
@@ -698,26 +781,59 @@ export default function EmployeesPage() {
                     </label>
                     <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
                       {specializations.map((spec) => (
-                        <button
-                          key={spec.specializationID}
-                          type="button"
-                          onClick={() =>
-                            toggleSpecialization(spec.categoryName)
-                          }
-                          className={`px-3 py-1 text-sm rounded-full border transition-colors ${selectedSpecializations.includes(spec.categoryName)
-                            ? "bg-[#00BAF1] text-white border-[#00BAF1]"
-                            : "bg-white text-gray-700 border-gray-300 hover:border-[#00BAF1]/40"
-                            }`}
-                        >
-                          {spec.categoryName}
-                          {selectedSpecializations.includes(
-                            spec.categoryName,
-                          ) && (
-                              <CheckCircle className="inline-block ml-1 h-3 w-3" />
-                            )}
-                        </button>
+                        <div key={spec.specializationID} className="relative inline-flex items-center group">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleSpecialization(spec.categoryName)
+                            }
+                            className={`px-3 py-1 text-sm rounded-full border transition-colors ${selectedSpecializations.includes(spec.categoryName)
+                              ? "bg-[#00BAF1] text-white border-[#00BAF1]"
+                              : "bg-white text-gray-700 border-gray-300 hover:border-[#00BAF1]/40"
+                              } ${spec.createdByAgency ? "pr-7" : ""}`}
+                          >
+                            {spec.categoryName}
+                            {selectedSpecializations.includes(
+                              spec.categoryName,
+                            ) && (
+                                <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                              )}
+                          </button>
+                          {spec.createdByAgency && (
+                            <button
+                              type="button"
+                              title="Delete custom specialization"
+                              onClick={() => deleteAgencySpec(spec)}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        placeholder="Add custom specialization…"
+                        value={customSpecInput}
+                        onChange={(e) => setCustomSpecInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomSpec(); } }}
+                        className="flex-1 h-8 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        onClick={addCustomSpec}
+                        disabled={!customSpecInput.trim()}
+                        className="h-8 px-3 text-sm bg-[#00BAF1] hover:bg-[#00A7D9] text-white"
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {selectedSpecializations.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Selected: {selectedSpecializations.join(", ")}
+                      </p>
+                    )}
                   </div>
                   <Button
                     onClick={addEmployee}
@@ -1225,23 +1341,51 @@ export default function EmployeesPage() {
                 </label>
                 <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-2 border rounded-lg bg-gray-50">
                   {specializations.map((spec) => (
-                    <button
-                      key={spec.specializationID}
-                      type="button"
-                      onClick={() =>
-                        toggleEditSpecialization(spec.categoryName)
-                      }
-                      className={`px-3 py-1 text-sm rounded-full border transition-colors ${editSpecializations.includes(spec.categoryName)
-                        ? "bg-[#00BAF1] text-white border-[#00BAF1]"
-                        : "bg-white text-gray-700 border-gray-300 hover:border-[#00BAF1]/40"
-                        }`}
-                    >
-                      {spec.categoryName}
-                      {editSpecializations.includes(spec.categoryName) && (
-                        <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                    <div key={spec.specializationID} className="relative inline-flex items-center group">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleEditSpecialization(spec.categoryName)
+                        }
+                        className={`px-3 py-1 text-sm rounded-full border transition-colors ${editSpecializations.includes(spec.categoryName)
+                          ? "bg-[#00BAF1] text-white border-[#00BAF1]"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-[#00BAF1]/40"
+                          } ${spec.createdByAgency ? "pr-7" : ""}`}
+                      >
+                        {spec.categoryName}
+                        {editSpecializations.includes(spec.categoryName) && (
+                          <CheckCircle className="inline-block ml-1 h-3 w-3" />
+                        )}
+                      </button>
+                      {spec.createdByAgency && (
+                        <button
+                          type="button"
+                          title="Delete custom specialization"
+                          onClick={() => deleteAgencySpec(spec)}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       )}
-                    </button>
+                    </div>
                   ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Add custom specialization…"
+                    value={editCustomSpecInput}
+                    onChange={(e) => setEditCustomSpecInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addEditCustomSpec(); } }}
+                    className="flex-1 h-8 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addEditCustomSpec}
+                    disabled={!editCustomSpecInput.trim()}
+                    className="h-8 px-3 text-sm bg-[#00BAF1] hover:bg-[#00A7D9] text-white"
+                  >
+                    Add
+                  </Button>
                 </div>
                 {editSpecializations.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1">

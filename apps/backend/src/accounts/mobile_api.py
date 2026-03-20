@@ -29,6 +29,7 @@ from .schemas import (
     SwitchProfileSchema,
     AddPaymentMethodSchema,
     AddSkillSchema,
+    CreateCustomSkillSchema,
     UpdateSkillSchema,
     ReorderSkillsSchema,
     UpdateProfileMobileSchema,
@@ -1616,35 +1617,6 @@ def mobile_job_categories(request, worker_id: Optional[int] = None):
         return Response({"error": "Failed to fetch categories"}, status=500)
 
 
-@mobile_router.get("/skills/available", auth=jwt_auth)
-def mobile_available_skills(request):
-    """
-    Get all available skills (specializations) for skill picker
-    Returns: List of skills with id, name, description, minimumRate
-    """
-    from .models import Specializations
-
-    try:
-        skills = Specializations.objects.all().order_by("specializationName")
-
-        skills_data = [
-            {
-                "id": skill.specializationID,
-                "name": skill.specializationName,
-                "description": skill.description or "",
-                "minimumRate": float(skill.minimumRate) if skill.minimumRate else 0.0,
-                "rateType": skill.rateType,
-                "skillLevel": skill.skillLevel,
-            }
-            for skill in skills
-        ]
-
-        return {"success": True, "data": skills_data, "count": len(skills_data)}
-    except Exception as e:
-        print(f"[ERROR] Mobile available skills error: {str(e)}")
-        return Response({"error": "Failed to fetch available skills"}, status=500)
-
-
 @mobile_router.get("/skills/my-skills", auth=jwt_auth)
 def mobile_my_skills(request):
     """
@@ -1720,6 +1692,7 @@ def mobile_available_skills(request):
                 "minimumRate": float(spec.minimumRate),
                 "rateType": spec.rateType,
                 "skillLevel": spec.skillLevel,
+                "isCustom": spec.is_custom,
             }
             for spec in specializations
         ]
@@ -1861,6 +1834,201 @@ def mobile_add_skill(request, payload: AddSkillSchema):
 
         traceback.print_exc()
         return Response({"error": "Failed to add skill"}, status=500)
+
+
+@mobile_router.post("/skills/create-custom", auth=jwt_auth)
+@require_kyc
+def mobile_create_custom_skill(request, payload: CreateCustomSkillSchema):
+    """
+    Create a custom skill and add it to the worker's profile in one step.
+    If a skill with the same name already exists (case-insensitive) it is reused.
+    Payload: { skill_name: str, experience_years: int, skill_type: "PRIMARY"|"SECONDARY" }
+    """
+    from .models import WorkerProfile, workerSpecialization, Specializations
+
+    try:
+        user = request.auth
+
+        skill_name = (payload.skill_name or "").strip()
+        experience_years = payload.experience_years
+        requested_skill_type = (payload.skill_type or "SECONDARY").upper()
+
+        if not skill_name:
+            return Response({"error": "skill_name is required"}, status=400)
+
+        if len(skill_name) > 100:
+            return Response(
+                {"error": "skill_name must be 100 characters or less"}, status=400
+            )
+
+        if experience_years < 0 or experience_years > 50:
+            return Response(
+                {"error": "experience_years must be between 0 and 50"}, status=400
+            )
+
+        if requested_skill_type not in ["PRIMARY", "SECONDARY"]:
+            return Response(
+                {"error": "skill_type must be PRIMARY or SECONDARY"}, status=400
+            )
+
+        # Get worker profile
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=404)
+
+        # Enforce max skills cap
+        current_skill_count = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).count()
+        if current_skill_count >= MAX_WORKER_SKILLS:
+            return Response(
+                {
+                    "error": f"Maximum {MAX_WORKER_SKILLS} skills allowed per worker",
+                    "current_count": current_skill_count,
+                    "max_allowed": MAX_WORKER_SKILLS,
+                },
+                status=400,
+            )
+
+        # Find or create the specialization (case-insensitive match)
+        specialization = Specializations.objects.filter(
+            specializationName__iexact=skill_name
+        ).first()
+
+        if not specialization:
+            specialization = Specializations.objects.create(
+                specializationName=skill_name,
+                is_custom=True,
+            )
+            print(
+                f"✅ [SKILL] Created custom specialization '{skill_name}' by {user.email}"
+            )
+        else:
+            print(
+                f"ℹ️ [SKILL] Reusing existing specialization '{specialization.specializationName}'"
+            )
+
+        # Check if worker already has this skill
+        if workerSpecialization.objects.filter(
+            workerID=worker_profile, specializationID=specialization
+        ).exists():
+            return Response(
+                {
+                    "error": f"You already have '{specialization.specializationName}' as a skill"
+                },
+                status=400,
+            )
+
+        primary_count = workerSpecialization.objects.filter(
+            workerID=worker_profile, skillType="PRIMARY"
+        ).count()
+
+        if current_skill_count == 0:
+            skill_type_to_set = "PRIMARY"
+        elif requested_skill_type == "PRIMARY":
+            if primary_count >= MAX_PRIMARY_SKILLS:
+                return Response(
+                    {
+                        "error": f"Maximum {MAX_PRIMARY_SKILLS} primary skills allowed",
+                        "current_primary_count": primary_count,
+                        "max_primary_allowed": MAX_PRIMARY_SKILLS,
+                    },
+                    status=400,
+                )
+            skill_type_to_set = "PRIMARY"
+        else:
+            skill_type_to_set = "SECONDARY"
+
+        next_display_order = current_skill_count
+
+        worker_skill = workerSpecialization.objects.create(
+            workerID=worker_profile,
+            specializationID=specialization,
+            experienceYears=experience_years,
+            certification="",
+            skillType=skill_type_to_set,
+            displayOrder=next_display_order,
+        )
+
+        print(
+            f"✅ [SKILL] Added custom skill '{specialization.specializationName}' to {user.email}"
+        )
+
+        return {
+            "success": True,
+            "message": f"Added '{specialization.specializationName}' to your skills",
+            "data": {
+                "id": specialization.specializationID,
+                "workerSkillId": worker_skill.id,
+                "name": specialization.specializationName,
+                "experienceYears": experience_years,
+                "skillType": worker_skill.skillType,
+                "isPrimary": worker_skill.skillType == "PRIMARY",
+                "isCustom": specialization.is_custom,
+            },
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile create custom skill error: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return Response({"error": "Failed to create custom skill"}, status=500)
+
+
+@mobile_router.put("/skills/reorder-list", auth=jwt_auth)
+@require_kyc
+def mobile_reorder_skills(request, payload: ReorderSkillsSchema):
+    """Reorder worker skills by workerSpecialization IDs."""
+    from .models import WorkerProfile, workerSpecialization
+
+    try:
+        user = request.auth
+        skill_ids = payload.skill_ids or []
+
+        if not skill_ids:
+            return Response({"error": "skill_ids is required"}, status=400)
+
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=404)
+
+        current_skills = list(
+            workerSpecialization.objects.filter(workerID=worker_profile).values_list(
+                "id", flat=True
+            )
+        )
+
+        if sorted(current_skills) != sorted(skill_ids):
+            return Response(
+                {
+                    "error": "skill_ids must include all your current skills exactly once",
+                    "current_skill_ids": current_skills,
+                },
+                status=400,
+            )
+
+        from django.db import transaction as db_transaction
+
+        with db_transaction.atomic():
+            for index, worker_skill_id in enumerate(skill_ids):
+                workerSpecialization.objects.filter(
+                    workerID=worker_profile,
+                    id=worker_skill_id,
+                ).update(displayOrder=index)
+
+        return {
+            "success": True,
+            "message": "Skills reordered successfully",
+            "count": len(skill_ids),
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile reorder skills error: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return Response({"error": "Failed to reorder skills"}, status=500)
 
 
 @mobile_router.put("/skills/{skill_id}", auth=jwt_auth)
@@ -2056,61 +2224,6 @@ def mobile_remove_skill(request, skill_id: int):
 
         traceback.print_exc()
         return Response({"error": "Failed to remove skill"}, status=500)
-
-
-@mobile_router.put("/skills/reorder-list", auth=jwt_auth)
-@require_kyc
-def mobile_reorder_skills(request, payload: ReorderSkillsSchema):
-    """Reorder worker skills by workerSpecialization IDs."""
-    from .models import WorkerProfile, workerSpecialization
-
-    try:
-        user = request.auth
-        skill_ids = payload.skill_ids or []
-
-        if not skill_ids:
-            return Response({"error": "skill_ids is required"}, status=400)
-
-        try:
-            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
-        except WorkerProfile.DoesNotExist:
-            return Response({"error": "Worker profile not found"}, status=404)
-
-        current_skills = list(
-            workerSpecialization.objects.filter(workerID=worker_profile).values_list(
-                "id", flat=True
-            )
-        )
-
-        if sorted(current_skills) != sorted(skill_ids):
-            return Response(
-                {
-                    "error": "skill_ids must include all your current skills exactly once",
-                    "current_skill_ids": current_skills,
-                },
-                status=400,
-            )
-
-        from django.db import transaction as db_transaction
-
-        with db_transaction.atomic():
-            for index, worker_skill_id in enumerate(skill_ids):
-                workerSpecialization.objects.filter(
-                    workerID=worker_profile,
-                    id=worker_skill_id,
-                ).update(displayOrder=index)
-
-        return {
-            "success": True,
-            "message": "Skills reordered successfully",
-            "count": len(skill_ids),
-        }
-    except Exception as e:
-        print(f"[ERROR] Mobile reorder skills error: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
-        return Response({"error": "Failed to reorder skills"}, status=500)
 
 
 @mobile_router.get("/locations/cities")

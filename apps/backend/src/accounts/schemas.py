@@ -1,7 +1,7 @@
 from ninja import Schema
 from datetime import datetime
-from pydantic import EmailStr
-from typing import Optional, Literal, List
+from pydantic import EmailStr, field_validator
+from typing import Optional, Literal, List, Any
 
 class createAccountSchema(Schema):
     #profile table
@@ -444,6 +444,13 @@ class AddSkillSchema(Schema):
     skill_type: Optional[str] = "SECONDARY"
 
 
+class CreateCustomSkillSchema(Schema):
+    """Schema for creating a custom skill and adding it to worker profile in one step"""
+    skill_name: str
+    experience_years: int = 0
+    skill_type: Optional[str] = "SECONDARY"
+
+
 class UpdateSkillSchema(Schema):
     """Schema for updating skill experience years"""
     experience_years: Optional[int] = None
@@ -452,4 +459,17 @@ class UpdateSkillSchema(Schema):
 
 class ReorderSkillsSchema(Schema):
     """Schema for reordering worker skills"""
-    skill_ids: List[int]
+    skill_ids: List[Any]
+
+    @field_validator("skill_ids", mode="before")
+    @classmethod
+    def coerce_ids_to_int(cls, v: Any) -> List[int]:
+        if not isinstance(v, list):
+            raise ValueError("skill_ids must be a list")
+        result = []
+        for item in v:
+            try:
+                result.append(int(item))
+            except (ValueError, TypeError):
+                raise ValueError(f"skill_ids must contain valid integers, got: {item!r}")
+        return result
