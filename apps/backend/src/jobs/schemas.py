@@ -12,13 +12,14 @@ class CreateJobPostingSchema(Schema):
     urgency: Optional[str] = (
         "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM, no longer shown in UI)
     )
-    preferred_start_date: Optional[str] = None
+    preferred_start_date: str  # Required: YYYY-MM-DD
     scheduled_end_date: Optional[str] = (
         None  # Deprecated: computed from number_of_working_days
     )
     number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
+    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
 
 
 class MobileSkillSlotSchema(Schema):
@@ -43,7 +44,7 @@ class CreateJobPostingMobileSchema(Schema):
         "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM, no longer shown in UI)
     )
     urgency_level: Optional[str] = None  # Frontend alias for urgency
-    preferred_start_date: Optional[str] = None
+    preferred_start_date: str  # Required: YYYY-MM-DD
     scheduled_end_date: Optional[str] = (
         None  # Deprecated: computed from number_of_working_days
     )
@@ -153,7 +154,7 @@ class CreateTeamJobSchema(Schema):
     location: str
     total_budget: float  # Total budget for entire job
     urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (no longer shown in UI)
-    preferred_start_date: Optional[str] = None
+    preferred_start_date: str  # Required: YYYY-MM-DD
     scheduled_end_date: Optional[str] = (
         None  # Deprecated: computed from number_of_working_days
     )

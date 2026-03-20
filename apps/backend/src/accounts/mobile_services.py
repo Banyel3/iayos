@@ -1123,6 +1123,13 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         if budget <= 0:
             return {"success": False, "error": "Budget must be greater than 0"}
 
+        # Enforce required preferred_start_date
+        if not job_data.get("preferred_start_date"):
+            return {
+                "success": False,
+                "error": "preferred_start_date is required (YYYY-MM-DD)",
+            }
+
         # Calculate downpayment (50%) + platform commission (10%) - matches web implementation
         escrow_amount = budget * Decimal("0.5")  # 50% escrow
         commission_fee = budget * Decimal(
@@ -1169,6 +1176,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             status="PENDING_PAYMENT",  # Will change to ACTIVE after payment
             escrowAmount=escrow_amount,  # 50% held in escrow
             remainingPayment=escrow_amount,  # 50% remaining payment (no commission on final)
+            shift_type=job_data.get("shift_type") or "ANY",
             # Universal job fields for ML accuracy - use values from request (model has defaults if None)
             job_scope=job_data.get("job_scope"),
             skill_level_required=job_data.get("skill_level_required"),
@@ -1535,6 +1543,13 @@ def create_mobile_invite_job(
         if budget <= 0:
             return {"success": False, "error": "Budget must be greater than 0"}
 
+        # Enforce required preferred_start_date
+        if not job_data.get("preferred_start_date"):
+            return {
+                "success": False,
+                "error": "preferred_start_date is required (YYYY-MM-DD)",
+            }
+
         # Calculate escrow (50%) + commission (10%)
         escrow_amount = budget * Decimal("0.5")
         commission_fee = budget * settings.PLATFORM_FEE_RATE
@@ -1658,6 +1673,7 @@ def create_mobile_invite_job(
                     is_team_job=is_multi_employee,  # True if multi-employee mode
                     payment_model="PROJECT",
                     duration_days=project_duration_days,
+                    shift_type=job_data.get("shift_type") or "ANY",
                     # Universal job fields for ML accuracy - use values from request (model has defaults if None)
                     job_scope=job_data.get("job_scope"),
                     skill_level_required=job_data.get("skill_level_required"),
@@ -2768,9 +2784,9 @@ def update_user_profile_mobile(user, payload, request=None):
         # This avoids apparent save failures when a stale profile_type context points
         # to a different profile row than the one currently viewed in the app.
         if synced_contact_num is not None:
-            Profile.objects.filter(accountFK=user).exclude(profileID=profile.profileID).update(
-                contactNum=synced_contact_num
-            )
+            Profile.objects.filter(accountFK=user).exclude(
+                profileID=profile.profileID
+            ).update(contactNum=synced_contact_num)
 
         # Log profile update for audit trail
         if updated_fields:
@@ -3019,9 +3035,11 @@ def get_workers_list_mobile(
             # Get specializations using the correct model and relation with certification count
             from .models import workerSpecialization, WorkerCertification
 
-            specializations_query = workerSpecialization.objects.filter(
-                workerID=worker
-            ).select_related("specializationID").order_by("skillType", "displayOrder", "id")
+            specializations_query = (
+                workerSpecialization.objects.filter(workerID=worker)
+                .select_related("specializationID")
+                .order_by("skillType", "displayOrder", "id")
+            )
             # Build skills list with certification counts
             skills_list = []
             for ws in specializations_query:
@@ -3150,9 +3168,11 @@ def get_worker_detail_mobile(user, worker_id):
         # Get specializations with certification count
         from .models import workerSpecialization, WorkerCertification
 
-        specializations_query = workerSpecialization.objects.filter(
-            workerID=worker
-        ).select_related("specializationID").order_by("skillType", "displayOrder", "id")
+        specializations_query = (
+            workerSpecialization.objects.filter(workerID=worker)
+            .select_related("specializationID")
+            .order_by("skillType", "displayOrder", "id")
+        )
 
         # Build skills array with certification counts
         skills_list = []
@@ -3173,9 +3193,9 @@ def get_worker_detail_mobile(user, worker_id):
                 }
             )
 
-        explicit_job_title = (worker.description or '').strip()
+        explicit_job_title = (worker.description or "").strip()
         first_primary_skill_name = next(
-            (skill['name'] for skill in skills_list if skill.get('isPrimary')),
+            (skill["name"] for skill in skills_list if skill.get("isPrimary")),
             None,
         )
         resolved_job_title = explicit_job_title or first_primary_skill_name or None
@@ -3309,9 +3329,12 @@ def get_worker_detail_mobile_v2(user, worker_id):
 
         # Get skills with certification counts (structured data)
         from .models import WorkerCertification, workerSpecialization
-        specializations_query = workerSpecialization.objects.filter(
-            workerID=worker
-        ).select_related("specializationID").order_by("skillType", "displayOrder", "id")
+
+        specializations_query = (
+            workerSpecialization.objects.filter(workerID=worker)
+            .select_related("specializationID")
+            .order_by("skillType", "displayOrder", "id")
+        )
         skills_list = []
         for ws in specializations_query:
             cert_count = WorkerCertification.objects.filter(
@@ -3331,10 +3354,10 @@ def get_worker_detail_mobile_v2(user, worker_id):
             )
 
         # Keep plain specialization names aligned with sorted skill order.
-        specializations = [skill['name'] for skill in skills_list]
-        explicit_job_title = (worker.description or '').strip()
+        specializations = [skill["name"] for skill in skills_list]
+        explicit_job_title = (worker.description or "").strip()
         first_primary_skill_name = next(
-            (skill['name'] for skill in skills_list if skill.get('isPrimary')),
+            (skill["name"] for skill in skills_list if skill.get("isPrimary")),
             None,
         )
         resolved_job_title = explicit_job_title or first_primary_skill_name or None

@@ -671,6 +671,7 @@ def create_team_job(
     payment_model: str = "PROJECT",
     daily_rate: Optional[Decimal] = None,
     duration_days: Optional[int] = None,
+    shift_type: str = "ANY",
     job_scope: str = "MODERATE_PROJECT",
     skill_level_required: str = "INTERMEDIATE",
     work_environment: str = "INDOOR",
@@ -721,6 +722,16 @@ def create_team_job(
         return {
             "success": False,
             "error": "Invalid payment_model. Choose PROJECT or DAILY",
+        }
+
+    # Normalize shift_type; PROJECT jobs always use ANY
+    shift_type_upper = str(shift_type or "ANY").upper()
+    if payment_model_upper == "PROJECT":
+        shift_type_upper = "ANY"
+    elif shift_type_upper not in ["ANY", "MORNING", "NIGHT"]:
+        return {
+            "success": False,
+            "error": "Invalid shift_type. Choose ANY, MORNING, or NIGHT",
         }
 
     payment_method_upper = str(payment_method or "WALLET").upper()
@@ -910,6 +921,7 @@ def create_team_job(
         duration_days=effective_duration_days
         if payment_model_upper == "DAILY"
         else None,
+        shift_type=shift_type_upper,
         budget_allocation_type=allocation_type,
         team_job_start_threshold=Decimal(str(team_start_threshold)),
         job_scope=job_scope,
