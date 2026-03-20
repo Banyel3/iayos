@@ -1679,10 +1679,31 @@ def mobile_available_skills(request):
     Get all available specializations that workers can add to their profile.
     Returns: List of all specializations with id, name, description, rates
     """
-    from .models import Specializations
+    from django.db.models import Q
+    from .models import Specializations, WorkerProfile, workerSpecialization
 
     try:
-        specializations = Specializations.objects.all().order_by("specializationName")
+        user = request.auth
+
+        my_worker_profile = WorkerProfile.objects.filter(profileID__accountFK=user).first()
+        my_spec_ids = []
+        if my_worker_profile:
+            my_spec_ids = list(
+                workerSpecialization.objects.filter(workerID=my_worker_profile).values_list(
+                    "specializationID__specializationID", flat=True
+                )
+            )
+
+        # Show global skills to everyone, and include only this worker's custom skills.
+        specializations = Specializations.objects.filter(
+            Q(
+                created_by_agency__isnull=True,
+                created_by_worker__isnull=True,
+                is_custom=False,
+            )
+            | Q(created_by_worker=user)
+            | Q(specializationID__in=my_spec_ids)
+        ).order_by("specializationName")
 
         skills_data = [
             {
@@ -1713,6 +1734,7 @@ def mobile_add_skill(request, payload: AddSkillSchema):
     Add a skill (specialization) to worker's profile.
     Payload: { specialization_id: int, experience_years: int }
     """
+    from django.db.models import Q
     from .models import WorkerProfile, workerSpecialization, Specializations
 
     try:
@@ -1745,7 +1767,15 @@ def mobile_add_skill(request, payload: AddSkillSchema):
         # Check specialization exists
         try:
             specialization = Specializations.objects.get(
-                specializationID=specialization_id
+                Q(specializationID=specialization_id)
+                & (
+                    Q(
+                        created_by_agency__isnull=True,
+                        created_by_worker__isnull=True,
+                        is_custom=False,
+                    )
+                    | Q(created_by_worker=user)
+                )
             )
         except Specializations.DoesNotExist:
             return Response({"error": "Specialization not found"}, status=404)
@@ -1891,15 +1921,28 @@ def mobile_create_custom_skill(request, payload: CreateCustomSkillSchema):
                 status=400,
             )
 
-        # Find or create the specialization (case-insensitive match)
+        # Find or create specialization by precedence:
+        # 1) current worker's existing custom skill
+        # 2) global/admin-seeded skill
+        # 3) create a new worker-owned custom skill
         specialization = Specializations.objects.filter(
-            specializationName__iexact=skill_name
+            specializationName__iexact=skill_name,
+            created_by_worker=user,
         ).first()
+
+        if not specialization:
+            specialization = Specializations.objects.filter(
+                specializationName__iexact=skill_name,
+                created_by_worker__isnull=True,
+                created_by_agency__isnull=True,
+                is_custom=False,
+            ).first()
 
         if not specialization:
             specialization = Specializations.objects.create(
                 specializationName=skill_name,
                 is_custom=True,
+                created_by_worker=user,
             )
             print(
                 f"✅ [SKILL] Created custom specialization '{skill_name}' by {user.email}"
