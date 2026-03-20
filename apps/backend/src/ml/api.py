@@ -67,6 +67,8 @@ class BatchPredictionResponse(Schema):
 
 class ModelStatusResponse(Schema):
     """Response schema for model status."""
+    model_config = {"protected_namespaces": ()}
+
     tensorflow_available: bool = False
     model_loaded: bool = False
     model_exists: bool = False
@@ -337,6 +339,8 @@ class PricePredictionResponse(Schema):
 
 class PriceModelStatusResponse(Schema):
     """Response schema for price model status."""
+    model_config = {"protected_namespaces": ()}
+
     model_loaded: bool = False
     model_exists: bool = False
     trained_at: Optional[str] = None
@@ -776,6 +780,8 @@ class WorkerRatingResponse(Schema):
 
 class WorkerRatingModelStatusResponse(Schema):
     """Response schema for worker rating model status."""
+    model_config = {"protected_namespaces": ()}
+
     model_loaded: bool = False
     model_exists: bool = False
     trained_at: Optional[str] = None
