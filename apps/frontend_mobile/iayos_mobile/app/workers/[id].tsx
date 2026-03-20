@@ -326,6 +326,11 @@ export default function WorkerDetailScreen() {
   const { data: profileScore, isLoading: isLoadingScore } =
     useWorkerProfileScore(data?.id, !!data);
 
+  const shouldDeferProfileScore =
+    !!profileScore &&
+    profileScore.profile_score !== null &&
+    (profileScore.profile_score < 45 || profileScore.rating_category === "Poor");
+
   // Show skeleton while loading
   if (isLoading) {
     return <WorkerDetailSkeleton />;
@@ -575,13 +580,24 @@ export default function WorkerDetailScreen() {
                   <View style={styles.aiScoreMainRow}>
                     <View style={styles.aiScoreTextGroup}>
                       <Text style={styles.mlScoreLabelAbove} numberOfLines={1}>AI PROFILE SCORE</Text>
-                      <Text style={styles.mlScoreLabelBelow}>
-                        {profileScore.rating_category.toUpperCase()}
+                      <Text
+                        style={[
+                          styles.mlScoreLabelBelow,
+                          shouldDeferProfileScore && styles.mlScoreLabelBelowDeferred,
+                        ]}
+                      >
+                        {shouldDeferProfileScore
+                          ? "NEEDS MORE ASSESSMENT"
+                          : profileScore.rating_category.toUpperCase()}
                       </Text>
                     </View>
-                    <Text style={[styles.mlScoreValueCompact, { color: getScoreColor(profileScore.profile_score) }]}>
-                      {profileScore.profile_score.toFixed(0)}<Text style={styles.mlScorePercentSymbol}>%</Text>
-                    </Text>
+                    {shouldDeferProfileScore ? (
+                      <View style={styles.aiScoreValuePlaceholder} />
+                    ) : (
+                      <Text style={[styles.mlScoreValueCompact, { color: getScoreColor(profileScore.profile_score) }]}>
+                        {profileScore.profile_score.toFixed(0)}<Text style={styles.mlScorePercentSymbol}>%</Text>
+                      </Text>
+                    )}
                   </View>
                 </TouchableOpacity>
 
@@ -589,7 +605,9 @@ export default function WorkerDetailScreen() {
                   <View style={styles.aiScoreDetailsInline}>
                     <View style={styles.aiScoreTooltipDivider} />
                     <Text style={styles.aiScoreDetailsText}>
-                      Based on profile completeness, certifications, and job history
+                      {shouldDeferProfileScore
+                        ? "AI needs more assessment/data before showing a score."
+                        : "Based on profile completeness, certifications, and job history"}
                     </Text>
                   </View>
                 )}
@@ -1668,6 +1686,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#000000",
     letterSpacing: 1,
+  },
+  mlScoreLabelBelowDeferred: {
+    letterSpacing: 0.15,
+  },
+  aiScoreValuePlaceholder: {
+    width: 78,
+    height: 32,
   },
   aiScoreDetailsInline: {
     paddingHorizontal: 16,

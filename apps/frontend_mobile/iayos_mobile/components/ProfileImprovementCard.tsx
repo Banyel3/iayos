@@ -146,9 +146,13 @@ export default function ProfileImprovementCard({
     return null;
   }
 
+  const shouldDeferScoreDisplay =
+    profileScore < 45 || ratingCategory === "Poor";
   const scoreColor = getScoreColor(profileScore);
   const categoryInfo = getCategoryInfo(ratingCategory);
-  const motivationalMessage = getMotivationalMessage(profileScore);
+  const motivationalMessage = shouldDeferScoreDisplay
+    ? "AI needs more assessment/data before showing your profile score."
+    : getMotivationalMessage(profileScore);
   const progressInfo = getProgressToNextTier(profileScore);
   const isAIPowered = source === "model" || source === "ml_service";
   const hasSuggestions = improvementSuggestions.length > 0;
@@ -168,12 +172,27 @@ export default function ProfileImprovementCard({
         <View
           style={[
             styles.categoryBadge,
-            { backgroundColor: categoryInfo.color + "20" },
+            {
+              backgroundColor: shouldDeferScoreDisplay
+                ? Colors.textSecondary + "20"
+                : categoryInfo.color + "20",
+            },
           ]}
         >
-          <Text style={styles.categoryEmoji}>{categoryInfo.emoji}</Text>
-          <Text style={[styles.categoryText, { color: categoryInfo.color }]}>
-            {categoryInfo.label}
+          <Text style={styles.categoryEmoji}>
+            {shouldDeferScoreDisplay ? "🧠" : categoryInfo.emoji}
+          </Text>
+          <Text
+            style={[
+              styles.categoryText,
+              {
+                color: shouldDeferScoreDisplay
+                  ? Colors.textSecondary
+                  : categoryInfo.color,
+              },
+            ]}
+          >
+            {shouldDeferScoreDisplay ? "Needs More Data" : categoryInfo.label}
           </Text>
         </View>
       </View>
@@ -182,11 +201,28 @@ export default function ProfileImprovementCard({
       <View style={styles.scoreSection}>
         {/* Circular Score */}
         <View style={styles.scoreCircleContainer}>
-          <View style={[styles.scoreCircle, { borderColor: scoreColor }]}>
-            <Text style={[styles.scoreValue, { color: scoreColor }]}>
-              {Math.round(profileScore)}
-            </Text>
-            <Text style={styles.scoreMax}>/100</Text>
+          <View
+            style={[
+              styles.scoreCircle,
+              {
+                borderColor: shouldDeferScoreDisplay
+                  ? Colors.textSecondary
+                  : scoreColor,
+              },
+            ]}
+          >
+            {shouldDeferScoreDisplay ? (
+              <Text style={[styles.scoreMax, { color: Colors.textSecondary }]}>
+                Assessing
+              </Text>
+            ) : (
+              <>
+                <Text style={[styles.scoreValue, { color: scoreColor }]}>
+                  {Math.round(profileScore)}
+                </Text>
+                <Text style={styles.scoreMax}>/100</Text>
+              </>
+            )}
           </View>
         </View>
 
@@ -195,7 +231,7 @@ export default function ProfileImprovementCard({
           <Text style={styles.motivationalMessage}>{motivationalMessage}</Text>
 
           {/* Progress to Next Tier */}
-          {progressInfo.nextTier !== "Max" && (
+          {!shouldDeferScoreDisplay && progressInfo.nextTier !== "Max" && (
             <View style={styles.progressContainer}>
               <Text style={styles.progressLabel}>
                 {progressInfo.pointsNeeded} points to {progressInfo.nextTier}
