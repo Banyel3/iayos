@@ -1680,21 +1680,13 @@ def mobile_available_skills(request):
     Returns: List of all specializations with id, name, description, rates
     """
     from django.db.models import Q
-    from .models import Specializations, WorkerProfile, workerSpecialization
+    from .models import Specializations
 
     try:
         user = request.auth
 
-        my_worker_profile = WorkerProfile.objects.filter(profileID__accountFK=user).first()
-        my_spec_ids = []
-        if my_worker_profile:
-            my_spec_ids = list(
-                workerSpecialization.objects.filter(workerID=my_worker_profile).values_list(
-                    "specializationID__specializationID", flat=True
-                )
-            )
-
         # Show global skills to everyone, and include only this worker's custom skills.
+        # Custom skills created by other workers or agencies are NOT shown.
         specializations = Specializations.objects.filter(
             Q(
                 created_by_agency__isnull=True,
@@ -1702,7 +1694,6 @@ def mobile_available_skills(request):
                 is_custom=False,
             )
             | Q(created_by_worker=user)
-            | Q(specializationID__in=my_spec_ids)
         ).order_by("specializationName")
 
         skills_data = [

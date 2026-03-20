@@ -2380,8 +2380,12 @@ def get_job_categories_list():
         from accounts.models import Specializations
         from django.db.models import Count
         
-        # Get all categories with job counts
-        categories = Specializations.objects.annotate(
+        # Get only global (non-custom) categories with job counts
+        categories = Specializations.objects.filter(
+            is_custom=False,
+            created_by_agency__isnull=True,
+            created_by_worker__isnull=True,
+        ).annotate(
             jobs_count=Count('jobs', distinct=True),
             workers_count=Count('workerspecialization', distinct=True),
             clients_count=Count('interestedjobs', distinct=True)

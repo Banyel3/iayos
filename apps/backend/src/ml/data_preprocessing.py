@@ -60,8 +60,12 @@ class JobFeatureExtractor:
         """
         from accounts.models import Job, Specializations
         
-        # Get all unique categories and create encoding
-        categories = list(Specializations.objects.values_list('specializationID', flat=True))
+        # Get only global (non-custom) categories for encoding
+        categories = list(Specializations.objects.filter(
+            is_custom=False,
+            created_by_agency__isnull=True,
+            created_by_worker__isnull=True,
+        ).values_list('specializationID', flat=True))
         self.category_encoder = {cat_id: idx for idx, cat_id in enumerate(categories[:self.MAX_CATEGORIES])}
         
         # Calculate budget statistics for normalization

@@ -2605,9 +2605,14 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
                 )
             )
 
-            # Return only specializations actually linked to this worker's profile.
+            # Return only GLOBAL specializations linked to this worker's profile.
+            # Custom (agency/worker-created) skills are private and must not
+            # appear in a client's job-post form.
             categories_qs = Specializations.objects.filter(
-                specializationID__in=worker_skill_spec_ids
+                specializationID__in=worker_skill_spec_ids,
+                is_custom=False,
+                created_by_agency__isnull=True,
+                created_by_worker__isnull=True,
             )
 
         categories = categories_qs.order_by("specializationName")
