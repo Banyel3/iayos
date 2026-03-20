@@ -2285,36 +2285,165 @@ def delete_notification(request, notification_id: int):
         return {"success": False, "error": "Failed to delete notification"}
 
 
-@router.get("/specializations")
+@router.get("/specializations", auth=dual_auth)
 def get_specializations_endpoint(request):
     """
-    Get all job categories/specializations.
-    Public endpoint - no authentication required.
+    Get job categories/specializations.
+    Returns global (non-agency-specific) specs plus any custom specs created by the
+    authenticated agency. Unauthenticated callers receive only global specs.
     """
     try:
-        from .models import Specializations
-        
-        categories = Specializations.objects.all().order_by('specializationName')
-        
+        from django.db.models import Q
+        from .models import Specializations, Agency
+
+        user = request.auth
+
+        # Build filter: global specs (no agency owner) OR this agency's custom specs
+        agency = None
+        if user:
+            try:
+                agency = Agency.objects.get(accountFK=user)
+            except Agency.DoesNotExist:
+                pass
+
+        if agency:
+            categories = Specializations.objects.filter(
+                Q(created_by_agency__isnull=True) | Q(created_by_agency=agency)
+            ).order_by('specializationName')
+        else:
+            categories = Specializations.objects.filter(
+                created_by_agency__isnull=True
+            ).order_by('specializationName')
+
         category_list = [
             {
                 'specializationID': cat.specializationID,
                 'categoryName': cat.specializationName,
                 'isCustom': cat.is_custom,
+                'createdByAgency': cat.created_by_agency_id is not None,
             }
             for cat in categories
         ]
-        
+
         return category_list
-        
+
     except Exception as e:
         print(f"❌ Error fetching specializations: {str(e)}")
         import traceback
         traceback.print_exc()
         return Response(
-            {"error": "Failed to fetch specializations"}, 
+            {"error": "Failed to fetch specializations"},
             status=500
         )
+
+
+@router.post("/specializations/custom", auth=dual_auth)
+def create_agency_custom_specialization(request):
+    """
+    Create a custom specialization for the authenticated agency.
+    The new specialization will only be visible to this agency.
+    Body: { "name": "<string>" }
+    """
+    import json
+    from .models import Specializations, Agency
+
+    try:
+        user = request.auth
+        if not user:
+            return Response({"error": "Authentication required"}, status=401)
+
+        try:
+            body = json.loads(request.body)
+        except Exception:
+            return Response({"error": "Invalid JSON body"}, status=400)
+
+        name = (body.get("name") or "").strip()
+        if not name:
+            return Response({"error": "name is required"}, status=400)
+        if len(name) > 100:
+            return Response({"error": "name must be 100 characters or less"}, status=400)
+
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({"error": "Agency profile not found"}, status=404)
+
+        # Prevent duplicates: check if this agency already has a custom spec with same name
+        existing = Specializations.objects.filter(
+            specializationName__iexact=name,
+            created_by_agency=agency,
+        ).first()
+        if existing:
+            return Response({"error": f"Custom specialization '{existing.specializationName}' already exists"}, status=400)
+
+        # Also check global (non-custom) specs for exact match to avoid confusion
+        global_match = Specializations.objects.filter(
+            specializationName__iexact=name,
+            created_by_agency__isnull=True,
+        ).first()
+        if global_match:
+            return Response({"error": f"'{global_match.specializationName}' already exists as a standard specialization"}, status=400)
+
+        spec = Specializations.objects.create(
+            specializationName=name,
+            is_custom=True,
+            created_by_agency=agency,
+        )
+
+        return {
+            "specializationID": spec.specializationID,
+            "categoryName": spec.specializationName,
+            "isCustom": True,
+            "createdByAgency": True,
+        }
+
+    except Exception as e:
+        print(f"❌ Error creating agency custom specialization: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to create custom specialization"}, status=500)
+
+
+@router.delete("/specializations/custom/{spec_id}", auth=dual_auth)
+def delete_agency_custom_specialization(request, spec_id: int):
+    """
+    Delete a custom specialization created by the authenticated agency.
+    Only the agency that created it can delete it.
+    """
+    from .models import Specializations, Agency
+
+    try:
+        user = request.auth
+        if not user:
+            return Response({"error": "Authentication required"}, status=401)
+
+        try:
+            agency = Agency.objects.get(accountFK=user)
+        except Agency.DoesNotExist:
+            return Response({"error": "Agency profile not found"}, status=404)
+
+        try:
+            spec = Specializations.objects.get(
+                specializationID=spec_id,
+                created_by_agency=agency,
+                is_custom=True,
+            )
+        except Specializations.DoesNotExist:
+            return Response(
+                {"error": "Custom specialization not found or does not belong to your agency"},
+                status=404,
+            )
+
+        spec_name = spec.specializationName
+        spec.delete()
+
+        return {"success": True, "message": f"Deleted custom specialization '{spec_name}'"}
+
+    except Exception as e:
+        print(f"❌ Error deleting agency custom specialization: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({"error": "Failed to delete custom specialization"}, status=500)
 
 
 #region WORKER ENDPOINTS
