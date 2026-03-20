@@ -1491,12 +1491,13 @@ export default function JobDetailScreen() {
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
 
-  // Track worker IDs that are already accepted/assigned on this job
-  // Used to disable accept button for workers who already have another accepted application
-  const assignedWorkerIds = new Set(
+  // Track (worker_id, skill_slot_id) pairs that are already accepted on this job.
+  // A worker CAN be accepted on a DIFFERENT slot (multi-slot), so we gate per pair,
+  // not per worker. The key is `${worker_id}:${skill_slot_id}`.
+  const acceptedWorkerSlotKeys = new Set(
     teamApplications
       .filter((a: any) => a.status === "ACCEPTED")
-      .map((a: any) => a.worker_id),
+      .map((a: any) => `${a.worker_id}:${a.applied_skill_slot_id}`),
   );
 
   const handleTeamSlotApply = (slot: SkillSlot) => {
@@ -2958,7 +2959,7 @@ export default function JobDetailScreen() {
                 </View>
 
                 {app.status === "PENDING" &&
-                  !assignedWorkerIds.has(app.worker_id) && (
+                  !acceptedWorkerSlotKeys.has(`${app.worker_id}:${app.applied_skill_slot_id}`) && (
                     <View style={styles.applicationActions}>
                       <TouchableOpacity
                         style={styles.acceptButton}
@@ -3015,7 +3016,7 @@ export default function JobDetailScreen() {
                     </View>
                   )}
                 {app.status === "PENDING" &&
-                  assignedWorkerIds.has(app.worker_id) && (
+                  acceptedWorkerSlotKeys.has(`${app.worker_id}:${app.applied_skill_slot_id}`) && (
                     <View
                       style={[
                         styles.applicationActions,
