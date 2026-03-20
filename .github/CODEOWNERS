@@ -10,6 +10,6 @@
 # Specific paths that definitely require owner review
 
 /.github/ @Banyel3
-/apps/backend/ @Banyel3
-/apps/frontend_web/ @Banyel3
-/apps/frontend_mobile/ @Banyel3
+/apps/backend/ @Banyel3 @capydaraa
+/apps/frontend_web/ @Banyel3 @capydaraa 
+/apps/frontend_mobile/ @Banyel3 @capydaraa
