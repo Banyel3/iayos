@@ -1714,10 +1714,13 @@ export default function ChatScreen() {
       return;
     }
 
-    // Calculate remaining amount (50% of total budget + materials cost)
-    const baseRemaining = conversation.job.budget
-      ? conversation.job.budget * 0.5
-      : 0;
+    // Calculate remaining amount — use the server-set remainingPayment if available,
+    // falling back to 50% of budget for legacy jobs where it was not explicitly set.
+    const baseRemaining = conversation.job.remainingPayment != null
+      ? conversation.job.remainingPayment
+      : conversation.job.budget
+        ? conversation.job.budget * 0.5
+        : 0;
     const materialsCost = conversation.job.materials_cost ?? 0;
     const totalRemaining = baseRemaining + materialsCost;
     const remainingAmount = totalRemaining.toFixed(2);
@@ -1807,9 +1810,12 @@ export default function ChatScreen() {
 
     if (method === "CASH") {
       // Show cash amount confirmation before opening upload modal (non-solo-DAILY paths)
-      const baseRemaining = conversation.job.budget
-        ? conversation.job.budget * 0.5
-        : 0;
+      // Use the server-set remainingPayment if available; fall back to 50% for legacy jobs.
+      const baseRemaining = conversation.job.remainingPayment != null
+        ? conversation.job.remainingPayment
+        : conversation.job.budget
+          ? conversation.job.budget * 0.5
+          : 0;
       const materialsCostVal = conversation.job.materials_cost ?? 0;
 
       const remainingAmount = (baseRemaining + materialsCostVal).toFixed(2);
@@ -6301,8 +6307,8 @@ export default function ChatScreen() {
                 conversation.team_worker_assignments &&
                 conversation.team_worker_assignments.length > 0 &&
                 (() => {
-                  // For agency jobs: treat job-level workerMarkedComplete as all-complete
-                  // (agency marks complete as a unit; individual assignment flags may not be set)
+                  // Treat job-level workerMarkedComplete as a fallback for all-complete
+                  // in case individual assignment flags are not yet set.
                   const allWorkersComplete =
                     conversation.job.workerMarkedComplete ||
                     conversation.team_worker_assignments.every(
@@ -7186,8 +7192,14 @@ export default function ChatScreen() {
                       e.clientConfirmedArrivalAt,
                     ),
                   );
+                  // Use backjob-cycle-aware check so that a pre-backjob
+                  // agencyMarkedComplete flag does not falsely satisfy allComplete
+                  // in the current backjob cycle.
                   const allComplete = assignedEmployees.every((e) =>
-                    isEmployeeComplete(e),
+                    isAgencyStatusInCurrentBackjobCycle(
+                      isEmployeeComplete(e),
+                      e.agencyMarkedCompleteAt,
+                    ),
                   );
 
                   // Show dispatch buttons for employees not yet dispatched
@@ -7400,8 +7412,14 @@ export default function ChatScreen() {
                       e.clientConfirmedArrivalAt,
                     ),
                   );
+                  // Use backjob-cycle-aware check so that a pre-backjob
+                  // agencyMarkedComplete flag does not falsely enable the
+                  // "Approve & Pay" button in the current backjob cycle.
                   const allComplete = assignedEmployees.every((e) =>
-                    isEmployeeComplete(e),
+                    isAgencyStatusInCurrentBackjobCycle(
+                      isEmployeeComplete(e),
+                      e.agencyMarkedCompleteAt,
+                    ),
                   );
                   const allWorkflowComplete =
                     allDispatched && allArrived && allComplete;
@@ -7440,7 +7458,8 @@ export default function ChatScreen() {
                                   <Text style={styles.actionButtonText}>
                                     Approve & Pay Agency (₱
                                     {(
-                                      conversation.job.budget * 0.5 +
+                                      (conversation.job.remainingPayment ??
+                                        conversation.job.budget * 0.5) +
                                       (conversation.job.materials_cost ?? 0)
                                     ).toLocaleString()}
                                     )
