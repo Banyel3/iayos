@@ -2602,14 +2602,29 @@ def mobile_accept_application(request, job_id: int, application_id: int):
             )
 
         # CRITICAL: Prevent accepting if worker already has an active job (race condition prevention)
-        # Freelance workers can only have 1 in-progress job at a time
+        # Multi-shift allowance: MORNING + NIGHT is non-conflicting for DAILY jobs.
         from accounts.models import JobWorkerAssignment
 
         worker = application.workerID
 
-        active_regular_job = JobPosting.objects.filter(
+        def _shifts_conflict_mobile(shift_a, shift_b) -> bool:
+            if not shift_a or not shift_b:
+                return True
+            return frozenset([shift_a, shift_b]) != frozenset(["MORNING", "NIGHT"])
+
+        incoming_shift = getattr(application, "applied_shift", None) or getattr(
+            job, "shift_type", "ANY"
+        )
+
+        active_regular_job = None
+        for candidate in JobPosting.objects.filter(
             assignedWorkerID=worker, status=JobPosting.JobStatus.IN_PROGRESS
-        ).first()
+        ):
+            if _shifts_conflict_mobile(
+                getattr(candidate, "shift_type", None), incoming_shift
+            ):
+                active_regular_job = candidate
+                break
 
         if active_regular_job:
             worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
@@ -2622,13 +2637,15 @@ def mobile_accept_application(request, job_id: int, application_id: int):
                 status=400,
             )
 
-        active_team_assignment = (
-            JobWorkerAssignment.objects.filter(
-                workerID=worker, assignment_status="ACTIVE"
-            )
-            .select_related("jobID")
-            .first()
-        )
+        active_team_assignment = None
+        for candidate in JobWorkerAssignment.objects.filter(
+            workerID=worker, assignment_status="ACTIVE"
+        ).select_related("jobID"):
+            if _shifts_conflict_mobile(
+                getattr(candidate, "assigned_shift", None), incoming_shift
+            ):
+                active_team_assignment = candidate
+                break
 
         if active_team_assignment:
             worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}"
@@ -2652,6 +2669,12 @@ def mobile_accept_application(request, job_id: int, application_id: int):
             # Update job status to IN_PROGRESS and assign the worker
             job.status = JobPosting.JobStatus.IN_PROGRESS
             job.assignedWorkerID = application.workerID
+
+            # If the job shift was ANY, lock in the worker's chosen shift now
+            if getattr(job, "shift_type", "ANY") == "ANY" and getattr(
+                application, "applied_shift", None
+            ):
+                job.shift_type = application.applied_shift
 
             # If worker negotiated a different budget and it was accepted, update the job budget
             original_budget = job.budget
@@ -3448,6 +3471,8 @@ def mobile_get_my_applications(request):
                     else None,
                     "proposed_days": app.proposed_days,
                     "payment_model": job.payment_model,
+                    "applied_shift": getattr(app, "applied_shift", None),
+                    "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
                 }
             )
 
