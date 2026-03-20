@@ -2461,7 +2461,11 @@ def get_worker_schedule(request):
             "jobs": payload_jobs,
         }
     except Exception as e:
-        return Response({"error": str(e)}, status=500)
+        import traceback
+
+        tb = traceback.format_exc()
+        print(f"❌ worker-schedule error: {e}\n{tb}")
+        return Response({"error": str(e), "traceback": tb}, status=500)
 
 
 @router.get("/my-applications", auth=cookie_auth)
