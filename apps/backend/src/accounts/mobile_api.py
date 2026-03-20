@@ -30,6 +30,7 @@ from .schemas import (
     AddPaymentMethodSchema,
     AddSkillSchema,
     UpdateSkillSchema,
+    ReorderSkillsSchema,
     UpdateProfileMobileSchema,
     GoogleIdTokenSchema,
     MobileCreateReportSchema,
@@ -53,6 +54,7 @@ from jobs.schemas import (
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
 MAX_WORKER_SKILLS = 5
+MAX_PRIMARY_SKILLS = 3
 
 PHILIPPINE_BANKS = {
     "AllBank (A Thrift Bank), Inc.",
@@ -1672,7 +1674,7 @@ def mobile_my_skills(request):
                     output_field=IntegerField(),
                 )
             )
-            .order_by("primary_sort", "specializationID__specializationName")
+            .order_by("primary_sort", "displayOrder", "id")
         )
 
         skills_data = [
@@ -1685,6 +1687,7 @@ def mobile_my_skills(request):
                 "certification": ws.certification or "",
                 "skillType": ws.skillType,
                 "isPrimary": ws.skillType == "PRIMARY",
+                "displayOrder": ws.displayOrder,
             }
             for ws in worker_skills
         ]
@@ -1799,25 +1802,32 @@ def mobile_add_skill(request, payload: AddSkillSchema):
                 status=400,
             )
 
-        # Ensure we always keep a primary skill once at least one skill exists.
-        has_existing_skills = current_skill_count > 0
-        has_primary_skill = workerSpecialization.objects.filter(
-            workerID=worker_profile, skillType="PRIMARY"
-        ).exists()
+        primary_count = workerSpecialization.objects.filter(
+            workerID=worker_profile,
+            skillType="PRIMARY",
+        ).count()
 
-        # First skill is always primary. If data drift exists with no primary,
-        # promote the next added skill to PRIMARY automatically.
-        skill_type_to_set = (
-            "PRIMARY"
-            if not has_existing_skills or not has_primary_skill
-            else requested_skill_type
-        )
+        # First skill should always be primary. Otherwise respect requested type,
+        # but enforce max primary cap.
+        if current_skill_count == 0:
+            skill_type_to_set = "PRIMARY"
+        elif requested_skill_type == "PRIMARY":
+            if primary_count >= MAX_PRIMARY_SKILLS:
+                return Response(
+                    {
+                        "error": f"Maximum {MAX_PRIMARY_SKILLS} primary skills allowed",
+                        "current_primary_count": primary_count,
+                        "max_primary_allowed": MAX_PRIMARY_SKILLS,
+                    },
+                    status=400,
+                )
+            skill_type_to_set = "PRIMARY"
+        else:
+            skill_type_to_set = "SECONDARY"
 
-        # If setting a new primary skill, demote existing primary.
-        if skill_type_to_set == "PRIMARY":
-            workerSpecialization.objects.filter(
-                workerID=worker_profile, skillType="PRIMARY"
-            ).update(skillType="SECONDARY")
+        next_display_order = workerSpecialization.objects.filter(
+            workerID=worker_profile
+        ).count()
 
         # Create worker specialization
         worker_skill = workerSpecialization.objects.create(
@@ -1826,6 +1836,7 @@ def mobile_add_skill(request, payload: AddSkillSchema):
             experienceYears=experience_years,
             certification="",
             skillType=skill_type_to_set,
+            displayOrder=next_display_order,
         )
 
         print(
@@ -1915,26 +1926,34 @@ def mobile_update_skill(request, skill_id: int, payload: UpdateSkillSchema):
             worker_skill.experienceYears = experience_years
 
         if requested_skill_type == "PRIMARY":
-            workerSpecialization.objects.filter(
-                workerID=worker_profile, skillType="PRIMARY"
-            ).exclude(id=worker_skill.id).update(skillType="SECONDARY")
+            if worker_skill.skillType != "PRIMARY":
+                current_primary_count = workerSpecialization.objects.filter(
+                    workerID=worker_profile,
+                    skillType="PRIMARY",
+                ).count()
+                if current_primary_count >= MAX_PRIMARY_SKILLS:
+                    return Response(
+                        {
+                            "error": f"Maximum {MAX_PRIMARY_SKILLS} primary skills allowed",
+                            "current_primary_count": current_primary_count,
+                            "max_primary_allowed": MAX_PRIMARY_SKILLS,
+                        },
+                        status=400,
+                    )
+
             worker_skill.skillType = "PRIMARY"
         elif requested_skill_type == "SECONDARY":
             is_current_primary = worker_skill.skillType == "PRIMARY"
             if is_current_primary:
-                replacement_primary = (
-                    workerSpecialization.objects.filter(workerID=worker_profile)
-                    .exclude(id=worker_skill.id)
-                    .first()
-                )
+                remaining_primary_count = workerSpecialization.objects.filter(
+                    workerID=worker_profile,
+                    skillType="PRIMARY",
+                ).exclude(id=worker_skill.id).count()
 
-                if not replacement_primary:
+                if remaining_primary_count == 0:
                     return Response(
                         {"error": "At least one primary skill is required"}, status=400
                     )
-
-                replacement_primary.skillType = "PRIMARY"
-                replacement_primary.save(update_fields=["skillType"])
 
             worker_skill.skillType = "SECONDARY"
 
@@ -2009,22 +2028,23 @@ def mobile_remove_skill(request, skill_id: int):
         with db_transaction.atomic():
             worker_skill.delete()
 
-            # Preserve invariant: when skills remain, keep exactly one PRIMARY.
+            # Preserve invariant: when skills remain, keep at least one PRIMARY.
             if removed_primary:
-                replacement_primary = workerSpecialization.objects.filter(
+                remaining_skills = workerSpecialization.objects.filter(
                     workerID=worker_profile
-                ).first()
-                if replacement_primary:
-                    workerSpecialization.objects.filter(
-                        workerID=worker_profile, skillType="PRIMARY"
-                    ).exclude(id=replacement_primary.id).update(skillType="SECONDARY")
+                )
+                has_primary = remaining_skills.filter(skillType="PRIMARY").exists()
+                if remaining_skills.exists() and not has_primary:
+                    replacement_primary = remaining_skills.order_by(
+                        "displayOrder", "id"
+                    ).first()
+                    if replacement_primary:
                     replacement_primary.skillType = "PRIMARY"
                     replacement_primary.save(update_fields=["skillType"])
 
         print(
             f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)"
         )
-
         return {
             "success": True,
             "message": f"Removed '{skill_name}' from your skills",
@@ -2036,6 +2056,61 @@ def mobile_remove_skill(request, skill_id: int):
 
         traceback.print_exc()
         return Response({"error": "Failed to remove skill"}, status=500)
+
+
+@mobile_router.put("/skills/reorder-list", auth=jwt_auth)
+@require_kyc
+def mobile_reorder_skills(request, payload: ReorderSkillsSchema):
+    """Reorder worker skills by workerSpecialization IDs."""
+    from .models import WorkerProfile, workerSpecialization
+
+    try:
+        user = request.auth
+        skill_ids = payload.skill_ids or []
+
+        if not skill_ids:
+            return Response({"error": "skill_ids is required"}, status=400)
+
+        try:
+            worker_profile = WorkerProfile.objects.get(profileID__accountFK=user)
+        except WorkerProfile.DoesNotExist:
+            return Response({"error": "Worker profile not found"}, status=404)
+
+        current_skills = list(
+            workerSpecialization.objects.filter(workerID=worker_profile).values_list(
+                "id", flat=True
+            )
+        )
+
+        if sorted(current_skills) != sorted(skill_ids):
+            return Response(
+                {
+                    "error": "skill_ids must include all your current skills exactly once",
+                    "current_skill_ids": current_skills,
+                },
+                status=400,
+            )
+
+        from django.db import transaction as db_transaction
+
+        with db_transaction.atomic():
+            for index, worker_skill_id in enumerate(skill_ids):
+                workerSpecialization.objects.filter(
+                    workerID=worker_profile,
+                    id=worker_skill_id,
+                ).update(displayOrder=index)
+
+        return {
+            "success": True,
+            "message": "Skills reordered successfully",
+            "count": len(skill_ids),
+        }
+    except Exception as e:
+        print(f"[ERROR] Mobile reorder skills error: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return Response({"error": "Failed to reorder skills"}, status=500)
 
 
 @mobile_router.get("/locations/cities")

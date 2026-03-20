@@ -317,17 +317,15 @@ class workerSpecialization(models.Model):
         choices=SkillType.choices,
         default=SkillType.SECONDARY,
     )
+    displayOrder = models.PositiveIntegerField(
+        default=0,
+        help_text="Manual ordering for worker skills in profile lists",
+    )
 
     class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["workerID"],
-                condition=models.Q(skillType="PRIMARY"),
-                name="unique_primary_skill_per_worker",
-            ),
-        ]
         indexes = [
-            models.Index(fields=["workerID", "skillType"]),
+            models.Index(fields=['workerID', 'skillType']),
+            models.Index(fields=['workerID', 'displayOrder']),
         ]
 
 

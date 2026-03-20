@@ -1,7 +1,7 @@
 // Edit Profile Screen
 // Allows workers to update their profile information
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ interface WorkerProfile {
     phoneNumber: string | null;
   };
   bio: string | null;
+  description: string | null;
   hourlyRate: number | null;
   skills: string[];
   softSkills: string | null;
@@ -51,6 +52,7 @@ interface WorkerProfile {
 interface UpdateProfileData {
   firstName: string;
   lastName: string;
+  jobTitle: string;
   bio: string;
   hourlyRate: string;
   phoneNumber: string;
@@ -70,6 +72,7 @@ export default function EditProfileScreen() {
   const [email, setEmail] = useState("");
 
   // Form state - worker specific
+  const [jobTitle, setJobTitle] = useState("");
   const [bio, setBio] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -98,6 +101,18 @@ export default function EditProfileScreen() {
   // Fetch worker's current backend skills
   const { data: mySkills = [], refetch: refetchMySkills } = useMySkills();
   const removeSkillMutation = useRemoveSkill();
+
+  const sortedMySkills = useMemo(() => {
+    return [...mySkills].sort((a, b) => {
+      const aPrimary = a.skillType === "PRIMARY" || a.isPrimary;
+      const bPrimary = b.skillType === "PRIMARY" || b.isPrimary;
+      if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+      const aOrder = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.id - b.id;
+    });
+  }, [mySkills]);
 
   // Handle skill removal (one-tap delete)
   const handleRemoveSkill = (skillId: number, skillName: string) => {
@@ -144,6 +159,7 @@ export default function EditProfileScreen() {
 
     // Load worker-specific data from profile query
     if (profile) {
+      setJobTitle(profile.description || "");
       setBio(profile.bio || "");
       setHourlyRate(profile.hourlyRate ? profile.hourlyRate.toString() : "");
       setSoftSkills(profile.softSkills || "");
@@ -253,6 +269,7 @@ export default function EditProfileScreen() {
       const response = await apiRequest(ENDPOINTS.UPDATE_WORKER_PROFILE, {
         method: "POST",
         body: JSON.stringify({
+            description: data.jobTitle,
           bio: data.bio,
           hourly_rate: parseFloat(data.hourlyRate) || null,
           phone_number: data.phoneNumber,
@@ -288,6 +305,7 @@ export default function EditProfileScreen() {
     const originalLastName = user?.profile_data?.lastName || "";
     const originalPhone =
       user?.profile_data?.contactNum || profile?.user?.phoneNumber || "";
+    const originalJobTitle = profile?.description || "";
     const originalBio = profile?.bio || "";
     const originalRate = profile?.hourlyRate
       ? profile.hourlyRate.toString()
@@ -298,6 +316,7 @@ export default function EditProfileScreen() {
       avatarChanged ||
       firstName !== originalFirstName ||
       lastName !== originalLastName ||
+      jobTitle !== originalJobTitle ||
       bio !== originalBio ||
       hourlyRate !== originalRate ||
       phoneNumber !== originalPhone ||
@@ -307,6 +326,7 @@ export default function EditProfileScreen() {
   }, [
     firstName,
     lastName,
+    jobTitle,
     bio,
     hourlyRate,
     phoneNumber,
@@ -332,6 +352,10 @@ export default function EditProfileScreen() {
     }
     if (bio.length > 500) {
       return "Bio cannot exceed 500 characters";
+    }
+
+    if (jobTitle.trim().length > 80) {
+      return "Job title cannot exceed 80 characters";
     }
 
     // Hourly rate validation
@@ -375,6 +399,7 @@ export default function EditProfileScreen() {
     updateMutation.mutate({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      jobTitle: jobTitle.trim(),
       bio: bio.trim(),
       hourlyRate: hourlyRate.trim(),
       phoneNumber: phoneNumber.trim(),
@@ -552,6 +577,24 @@ export default function EditProfileScreen() {
           <View style={styles.formSection}>
             <Text style={styles.sectionHeader}>Worker Profile</Text>
 
+            {/* Job Title Field */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>
+                Job Title <Text style={styles.optional}>(optional)</Text>
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={jobTitle}
+                onChangeText={setJobTitle}
+                placeholder="e.g. Electrician, Carpenter, Plumber"
+                placeholderTextColor={Colors.textSecondary}
+                maxLength={80}
+              />
+              <Text style={styles.hint}>
+                If left empty, your first primary skill will be used as your job title.
+              </Text>
+            </View>
+
             {/* Bio Field */}
             <View style={styles.fieldContainer}>
               <Text style={styles.label}>
@@ -618,8 +661,8 @@ export default function EditProfileScreen() {
                   Skills (Specializations)
                 </Text>
                 <Text style={styles.managementHint}>
-                  {mySkills.length > 0
-                    ? `${mySkills.length} skill${mySkills.length === 1 ? "" : "s"} added`
+                  {sortedMySkills.length > 0
+                    ? `${sortedMySkills.length} skill${sortedMySkills.length === 1 ? "" : "s"} added`
                     : "Tap + to add your first skill"}
                 </Text>
               </View>
@@ -632,9 +675,9 @@ export default function EditProfileScreen() {
             </View>
 
             {/* Display current skills as deletable chips */}
-            {mySkills.length > 0 ? (
+            {sortedMySkills.length > 0 ? (
               <View style={styles.skillChipsContainer}>
-                {mySkills.map((skill) => (
+                {sortedMySkills.map((skill) => (
                   <View key={skill.id} style={styles.skillChip}>
                     <Text style={styles.skillChipText}>{skill.name}</Text>
                     <Text style={styles.skillChipYears}>{skill.experienceYears}y</Text>
@@ -663,7 +706,7 @@ export default function EditProfileScreen() {
                 Soft Skills <Text style={styles.optional}>(optional)</Text>
               </Text>
               <Text style={[styles.hint, { marginBottom: Spacing.sm }]}>
-                Personal attributes that don't affect job filtering
+                Personal attributes that do not affect job filtering
               </Text>
 
               {/* Suggestions chips */}

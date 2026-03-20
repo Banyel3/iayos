@@ -1,7 +1,7 @@
 from ninja import Schema
 from datetime import datetime
 from pydantic import EmailStr
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 class createAccountSchema(Schema):
     #profile table
@@ -448,3 +448,8 @@ class UpdateSkillSchema(Schema):
     """Schema for updating skill experience years"""
     experience_years: Optional[int] = None
     skill_type: Optional[str] = None
+
+
+class ReorderSkillsSchema(Schema):
+    """Schema for reordering worker skills"""
+    skill_ids: List[int]

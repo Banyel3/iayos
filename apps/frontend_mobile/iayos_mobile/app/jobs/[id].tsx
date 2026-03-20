@@ -320,6 +320,15 @@ export default function JobDetailScreen() {
   const isWorker = user?.profile_data?.profileType === "WORKER";
   const isClient = user?.profile_data?.profileType === "CLIENT";
 
+  const navigateToSkillsFromApply = useCallback(() => {
+      // Close any active apply modal first so the skills screen is not layered behind it.
+      setShowApplicationModal(false);
+      setShowTeamApplyModal(false);
+      requestAnimationFrame(() => {
+        router.push("/profile/skills" as any);
+      });
+    }, [router]);
+
   // Validate job ID
   const jobId = id ? Number(id) : NaN;
   const isValidJobId =
@@ -631,6 +640,10 @@ export default function JobDetailScreen() {
       } as any);
     },
     onError: (error: Error) => {
+      if (/required skill/i.test(error.message)) {
+        showMissingRequiredSkillAlert(error.message, "STANDARD");
+        return;
+      }
       Alert.alert("Error", error.message);
     },
   });
@@ -1254,6 +1267,22 @@ export default function JobDetailScreen() {
     });
   };
 
+  const showMissingRequiredSkillAlert = useCallback(
+    (errorMessage: string, _source: "STANDARD" | "TEAM" = "STANDARD") => {
+      Alert.alert("Required Skill Missing", errorMessage, [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Add a Skill",
+          onPress: () => navigateToSkillsFromApply(),
+        },
+      ]);
+    },
+    [navigateToSkillsFromApply],
+  );
+
   const handleAcceptInvite = () => {
     setCountdownConfig({
       visible: true,
@@ -1418,8 +1447,8 @@ export default function JobDetailScreen() {
             style: "cancel",
           },
           {
-            text: "Add Skill First",
-            onPress: () => router.push("/profile/skills" as any),
+            text: "Add a Skill",
+            onPress: () => navigateToSkillsFromApply(),
           },
           {
             text: "Continue Anyway",
@@ -1532,6 +1561,13 @@ export default function JobDetailScreen() {
           setProposedDailyRate("");
           setProposedDays("");
           setAppliedShift(null);
+        },
+        onError: (error: Error) => {
+          if (/required skill/i.test(error.message)) {
+            showMissingRequiredSkillAlert(error.message, "TEAM");
+            return;
+          }
+          Alert.alert("Application Failed", error.message);
         },
       },
     );
