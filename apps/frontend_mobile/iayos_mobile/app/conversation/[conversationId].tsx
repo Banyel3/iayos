@@ -3499,6 +3499,17 @@ export default function ChatScreen() {
       })
     : null;
 
+  // Declared here (before myWorkerAttendanceToday) so that the fallback inside
+  // the IIFE below can reference them without hitting a const TDZ error.
+  const isWorkerSideRole = ["WORKER", "EMPLOYEE", "TEAM_WORKER"].includes(
+    String(conversation.my_role || "").toUpperCase(),
+  );
+  const isTeamAttendanceFlow =
+    conversation.is_team_job &&
+    (conversation.job?.payment_model === "DAILY" ||
+      (conversation.is_team_job === true &&
+        conversation.job?.payment_model === "PROJECT"));
+
   const myWorkerAttendanceToday = (() => {
     const attendanceRows = Array.isArray(conversation.attendance_today)
       ? conversation.attendance_today
@@ -3602,10 +3613,13 @@ export default function ChatScreen() {
   const isTeamProjectAttendance =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "PROJECT";
-  const isTeamSingleDayProjectAttendanceFlow =
-    isTeamProjectAttendance && !isProjectMultiDayJob;
+  // Declare isProjectMultiDayJob BEFORE isTeamSingleDayProjectAttendanceFlow to
+  // avoid a const TDZ reference (isTeamSingleDayProjectAttendanceFlow used it while
+  // it was still in the temporal dead zone, making !isProjectMultiDayJob always true).
   const isProjectMultiDayJob =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const isTeamSingleDayProjectAttendanceFlow =
+    isTeamProjectAttendance && !isProjectMultiDayJob;
   const shouldChargePerAttendance = conversation.job?.payment_model === "DAILY";
   const canShowQASkipNextDay =
     conversation.my_role === "CLIENT" &&
@@ -3639,13 +3653,6 @@ export default function ChatScreen() {
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
-
-  const isTeamAttendanceFlow =
-    conversation.is_team_job &&
-    (conversation.job?.payment_model === "DAILY" || isTeamProjectAttendance);
-  const isWorkerSideRole = ["WORKER", "EMPLOYEE", "TEAM_WORKER"].includes(
-    String(conversation.my_role || "").toUpperCase(),
-  );
   const canShowNoWorkQuickAction =
     conversation.my_role === "CLIENT" &&
     !conversation.is_team_job &&
@@ -4584,8 +4591,7 @@ export default function ChatScreen() {
                         // No attendance yet - worker marks on the way first
                         if (!todayAttendance || !todayAttendance.time_in) {
                           if (
-                            todayAttendance?.is_dispatched &&
-                            !!todayAttendance?.worker_confirmed_at
+                            todayAttendance?.is_dispatched
                           ) {
                             return (
                               <View style={styles.dailyStatusContainer}>
@@ -6201,15 +6207,17 @@ export default function ChatScreen() {
                   // Find worker's own assignment
                   const myAssignment =
                     conversation.team_worker_assignments?.find(
-                      (a) => a.account_id === user.accountID,
+                      (a) => Number(a.account_id) === Number(user.accountID),
                     );
 
                   if (!myAssignment) return null;
 
                   // Attendance-driven team project flow supersedes legacy assignment phases.
-                  // If the worker already has today's attendance record/activity,
-                  // avoid rendering legacy "waiting for client to confirm arrival" banner.
+                  // Only hide the legacy "Mark My Assignment Complete" UI when this is a
+                  // team PROJECT (attendance-driven) flow — not team DAILY. For team DAILY,
+                  // client_confirmed on attendance is normal and should NOT blank the screen.
                   if (
+                    isTeamProjectAttendance &&
                     myWorkerAttendanceToday &&
                     (Boolean(myWorkerAttendanceToday.is_dispatched) ||
                       Boolean(myWorkerAttendanceToday.time_in) ||
@@ -6978,6 +6986,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.job?.payment_model === "DAILY" &&
                 conversation.my_role === "WORKER" &&
+                conversation.job.clientConfirmedWorkStarted &&
                 canUseRegularProjectActions &&
                 !conversation.job.workerMarkedComplete && (
                   <TouchableOpacity
