@@ -1765,6 +1765,45 @@ class Job(models.Model):
     completedAt = models.DateTimeField(null=True, blank=True)
     cancellationReason = models.TextField(null=True, blank=True)
 
+    # Cancellation tracking fields (set by cancellation_service.py)
+    cancelledAt = models.DateTimeField(
+        null=True, blank=True, help_text="Timestamp when job was cancelled"
+    )
+    cancelledByRole = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text="Role of the actor who cancelled (CLIENT/WORKER/ADMIN)",
+    )
+    cancelledByAccountID = models.ForeignKey(
+        "Accounts",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_jobs",
+        help_text="Account that performed the cancellation",
+    )
+    cancellationStage = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Stage at which the job was cancelled (e.g. BEFORE_START, AFTER_WORKER_MARKED_DONE)",
+    )
+    clientRefundAmount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Amount refunded to client on cancellation",
+    )
+    workerCompensationAmount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Amount paid to worker on cancellation",
+    )
+
     # Work started tracking (client confirms worker has arrived)
     clientConfirmedWorkStarted = models.BooleanField(default=False)
     clientConfirmedWorkStartedAt = models.DateTimeField(null=True, blank=True)
