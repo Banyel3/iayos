@@ -1447,7 +1447,8 @@ export default function JobDetailScreen() {
       isCurrentWorkerAssigned ||
       job?.status === "IN_PROGRESS" ||
       job?.status === "COMPLETED" ||
-      job?.status === "CANCELLED");
+      (job?.status === "CANCELLED" &&
+        (hasAcceptedApplication || job?.inviteStatus === "ACCEPTED" || isCurrentWorkerAssigned)));
 
   const locationDisplayText = isWorker
     ? canWorkerViewFullAddress
