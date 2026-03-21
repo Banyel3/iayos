@@ -2617,7 +2617,10 @@ def get_conversation_messages(request, conversation_id: int):
                         "can_early_finish": (
                             not getattr(sea, "early_completed", False)
                             and getattr(sea, "clientConfirmedArrival", False)
-                            and not getattr(sea, "agencyMarkedComplete", False)
+                            and (
+                                getattr(sea, "agencyMarkedComplete", False)
+                                or getattr(sea, "employeeMarkedComplete", False)
+                            )
                             and not getattr(sea, "clientApproved", False)
                         ),
                         "early_finish_quote": float(sea.paymentAmount)
