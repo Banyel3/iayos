@@ -12,53 +12,53 @@ class KYCLogs(models.Model):
     Audit log for all KYC reviews (approved or rejected).
     Records are tied to user Accounts (not KYC records) since accounts persist
     while KYC records are deleted after review for privacy.
-    
+
     Each log entry captures the review decision, reviewer, timestamp, and
     a snapshot of the user's information at the time of review.
     """
+
     kycLogID = models.BigAutoField(primary_key=True)
-    
+
     # Reference to the user whose KYC was reviewed (persists after KYC deletion)
     accountFK = models.ForeignKey(
-        Accounts, 
-        on_delete=models.CASCADE, 
-        related_name='kyc_logs',
-        help_text="The user account whose KYC was reviewed"
+        Accounts,
+        on_delete=models.CASCADE,
+        related_name="kyc_logs",
+        help_text="The user account whose KYC was reviewed",
     )
-    
+
     # Store KYC ID as integer since the original kyc record will be deleted
     kycID = models.BigIntegerField(
         help_text="Original KYC record ID (record deleted after review for privacy)"
     )
-    
+
     class ReviewAction(models.TextChoices):
         APPROVED = "APPROVED", "Approved"
         REJECTED = "Rejected", "Rejected"
-    
+
     action = models.CharField(
         max_length=10,
         choices=ReviewAction.choices,
-        help_text="Whether the KYC was approved or rejected"
+        help_text="Whether the KYC was approved or rejected",
     )
-    
+
     reviewedBy = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='kyc_reviews_performed'
+        related_name="kyc_reviews_performed",
     )
-    
+
     reviewedAt = models.DateTimeField(help_text="When the review decision was made")
     reason = models.TextField(
-        blank=True,
-        default="",
-        help_text="Reason for rejection or additional notes"
+        blank=True, default="", help_text="Reason for rejection or additional notes"
     )
-    
+
     # Snapshot of user info at time of review
     userEmail = models.EmailField(max_length=64)
     userAccountID = models.BigIntegerField()
+
     # Indicate whether the KYC was for a regular user or an agency
     class KYCSubject(models.TextChoices):
         USER = "USER", "User"
@@ -68,21 +68,21 @@ class KYCLogs(models.Model):
         max_length=10,
         choices=KYCSubject.choices,
         default=KYCSubject.USER,
-        help_text="Indicates whether the KYC was for a user account or an agency"
+        help_text="Indicates whether the KYC was for a user account or an agency",
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        ordering = ['-reviewedAt']
+        ordering = ["-reviewedAt"]
         verbose_name = "KYC Log"
         verbose_name_plural = "KYC Logs"
         indexes = [
-            models.Index(fields=['-reviewedAt']),
-            models.Index(fields=['action']),
-            models.Index(fields=['accountFK']),
+            models.Index(fields=["-reviewedAt"]),
+            models.Index(fields=["action"]),
+            models.Index(fields=["accountFK"]),
         ]
-    
+
     def __str__(self):
         return f"KYC {self.action} - {self.userEmail} (Log #{self.kycLogID})"
 
@@ -90,6 +90,7 @@ class KYCLogs(models.Model):
 class SystemRoles(models.Model):
     systemRoleID = models.BigAutoField(primary_key=True)
     accountID = models.ForeignKey(Accounts, on_delete=models.CASCADE)
+
     class systemRole(models.TextChoices):
         ADMIN = "ADMIN", "admin"
         STAFF = "CLIENT", "client"
@@ -106,73 +107,65 @@ class CertificationLog(models.Model):
     Audit trail for certification verification actions.
     Tracks all approve/reject actions by admins on worker certifications.
     """
+
     class ReviewAction(models.TextChoices):
         APPROVED = "APPROVED", "Approved"
         REJECTED = "REJECTED", "Rejected"
 
     certLogID = models.BigAutoField(primary_key=True)
-    
+
     # The certification that was reviewed
     certificationID = models.BigIntegerField(
         help_text="ID of the WorkerCertification that was reviewed"
     )
-    
+
     # The worker who owns this certification
     workerID = models.ForeignKey(
-        'accounts.WorkerProfile',
+        "accounts.WorkerProfile",
         on_delete=models.CASCADE,
-        related_name='certification_logs',
-        help_text="Worker profile this certification belongs to"
+        related_name="certification_logs",
+        help_text="Worker profile this certification belongs to",
     )
-    
+
     # Review details
     action = models.CharField(
-        max_length=20,
-        choices=ReviewAction.choices,
-        help_text="APPROVED or REJECTED"
+        max_length=20, choices=ReviewAction.choices, help_text="APPROVED or REJECTED"
     )
     reviewedBy = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='certification_reviews_performed',
-        help_text="Admin who performed the verification"
+        related_name="certification_reviews_performed",
+        help_text="Admin who performed the verification",
     )
-    reviewedAt = models.DateTimeField(
-        help_text="Timestamp of verification action"
-    )
+    reviewedAt = models.DateTimeField(help_text="Timestamp of verification action")
     reason = models.TextField(
-        blank=True,
-        default="",
-        help_text="Notes for approval or reason for rejection"
+        blank=True, default="", help_text="Notes for approval or reason for rejection"
     )
-    
+
     # Worker info (for easier querying without joins)
     workerEmail = models.EmailField(
         help_text="Email of the worker at time of verification"
     )
-    workerAccountID = models.BigIntegerField(
-        help_text="Account ID of the worker"
-    )
-    
+    workerAccountID = models.BigIntegerField(help_text="Account ID of the worker")
+
     # Certification snapshot (for historical reference)
     certificationName = models.CharField(
-        max_length=255,
-        help_text="Name of the certification at time of verification"
+        max_length=255, help_text="Name of the certification at time of verification"
     )
 
     class Meta:
-        db_table = 'certification_logs'
-        ordering = ['-reviewedAt']
+        db_table = "certification_logs"
+        ordering = ["-reviewedAt"]
         indexes = [
-            models.Index(fields=['certificationID', 'reviewedAt']),
-            models.Index(fields=['workerID', 'reviewedAt']),
-            models.Index(fields=['action']),
+            models.Index(fields=["certificationID", "reviewedAt"]),
+            models.Index(fields=["workerID", "reviewedAt"]),
+            models.Index(fields=["action"]),
         ]
 
     def __str__(self):
-        admin_email = self.reviewedBy.email if self.reviewedBy else 'System'
+        admin_email = self.reviewedBy.email if self.reviewedBy else "System"
         return f"Cert Log {self.certLogID} - {self.certificationName} {self.action} by {admin_email}"
 
 
@@ -180,44 +173,48 @@ class CertificationLog(models.Model):
 # SUPPORT TICKET SYSTEM
 # =============================================================================
 
+
 class SupportTicket(models.Model):
     """
     Support tickets submitted by users for platform issues.
     Supports both individual users and agencies.
     """
+
     ticketID = models.BigAutoField(primary_key=True)
-    
+
     # User who created the ticket
     userFK = models.ForeignKey(
         Accounts,
         on_delete=models.CASCADE,
-        related_name='support_tickets',
-        help_text="User who submitted the ticket"
+        related_name="support_tickets",
+        help_text="User who submitted the ticket",
     )
-    
+
     # Agency context (optional - for agency-submitted tickets)
     agencyFK = models.ForeignKey(
-        'accounts.Agency',
+        "accounts.Agency",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='support_tickets',
-        help_text="Agency that submitted the ticket (if agency ticket)"
+        related_name="support_tickets",
+        help_text="Agency that submitted the ticket (if agency ticket)",
     )
-    
+
     class TicketType(models.TextChoices):
         INDIVIDUAL = "individual", "Individual User"
         AGENCY = "agency", "Agency"
-    
+
     ticketType = models.CharField(
         max_length=15,
         choices=TicketType.choices,
         default=TicketType.INDIVIDUAL,
-        help_text="Whether ticket is from individual user or agency"
+        help_text="Whether ticket is from individual user or agency",
     )
-    
-    subject = models.CharField(max_length=200, help_text="Brief description of the issue")
-    
+
+    subject = models.CharField(
+        max_length=200, help_text="Brief description of the issue"
+    )
+
     class Category(models.TextChoices):
         # General categories
         ACCOUNT = "account", "Account Issues"
@@ -230,96 +227,85 @@ class SupportTicket(models.Model):
         KYC = "kyc", "KYC Verification"
         EMPLOYEES = "employees", "Employee Management"
         JOBS = "jobs", "Jobs & Invitations"
-    
+
     category = models.CharField(
-        max_length=20,
-        choices=Category.choices,
-        default=Category.GENERAL
+        max_length=20, choices=Category.choices, default=Category.GENERAL
     )
-    
+
     class Priority(models.TextChoices):
         LOW = "low", "Low"
         MEDIUM = "medium", "Medium"
         HIGH = "high", "High"
         URGENT = "urgent", "Urgent"
-    
+
     priority = models.CharField(
-        max_length=10,
-        choices=Priority.choices,
-        default=Priority.MEDIUM
+        max_length=10, choices=Priority.choices, default=Priority.MEDIUM
     )
-    
+
     class Status(models.TextChoices):
         OPEN = "open", "Open"
         IN_PROGRESS = "in_progress", "In Progress"
         WAITING_USER = "waiting_user", "Waiting for User"
         RESOLVED = "resolved", "Resolved"
         CLOSED = "closed", "Closed"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=Status.choices,
-        default=Status.OPEN
+        max_length=15, choices=Status.choices, default=Status.OPEN
     )
-    
+
     # Admin assigned to handle the ticket
     assignedTo = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='assigned_tickets',
-        help_text="Admin handling this ticket"
+        related_name="assigned_tickets",
+        help_text="Admin handling this ticket",
     )
-    
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     lastReplyAt = models.DateTimeField(null=True, blank=True)
     resolvedAt = models.DateTimeField(null=True, blank=True)
-    
+
     # Platform tracking
     class Platform(models.TextChoices):
         WEB = "web", "Web Browser"
         MOBILE = "mobile", "Mobile App"
         AGENCY_PORTAL = "agency_portal", "Agency Portal"
-    
+
     platform = models.CharField(
         max_length=15,
         choices=Platform.choices,
         default=Platform.WEB,
-        help_text="Platform where ticket was created"
+        help_text="Platform where ticket was created",
     )
     deviceInfo = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Device/browser info (User-Agent)"
+        null=True, blank=True, help_text="Device/browser info (User-Agent)"
     )
     appVersion = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        help_text="Mobile app version"
+        max_length=20, null=True, blank=True, help_text="Mobile app version"
     )
-    
+
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ["-createdAt"]
         verbose_name = "Support Ticket"
         verbose_name_plural = "Support Tickets"
         indexes = [
-            models.Index(fields=['-createdAt']),
-            models.Index(fields=['status']),
-            models.Index(fields=['priority']),
-            models.Index(fields=['category']),
-            models.Index(fields=['assignedTo']),
-            models.Index(fields=['ticketType']),
-            models.Index(fields=['agencyFK']),
-            models.Index(fields=['platform']),
+            models.Index(fields=["-createdAt"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["priority"]),
+            models.Index(fields=["category"]),
+            models.Index(fields=["assignedTo"]),
+            models.Index(fields=["ticketType"]),
+            models.Index(fields=["agencyFK"]),
+            models.Index(fields=["platform"]),
         ]
-    
+
     def __str__(self):
         return f"Ticket #{self.ticketID}: {self.subject[:50]}"
-    
+
     @property
     def reply_count(self):
         return self.replies.count()
@@ -329,36 +315,33 @@ class SupportTicketReply(models.Model):
     """
     Replies/messages within a support ticket thread.
     """
+
     replyID = models.BigAutoField(primary_key=True)
-    
+
     ticketFK = models.ForeignKey(
-        SupportTicket,
-        on_delete=models.CASCADE,
-        related_name='replies'
+        SupportTicket, on_delete=models.CASCADE, related_name="replies"
     )
-    
+
     # Who sent this reply (user or admin)
     senderFK = models.ForeignKey(
-        Accounts,
-        on_delete=models.CASCADE,
-        related_name='ticket_replies'
+        Accounts, on_delete=models.CASCADE, related_name="ticket_replies"
     )
-    
+
     content = models.TextField(help_text="Reply message content")
-    
+
     # Is this a system-generated message?
     isSystemMessage = models.BooleanField(default=False)
-    
+
     # Optional attachment
     attachmentURL = models.URLField(max_length=500, blank=True, null=True)
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        ordering = ['createdAt']
+        ordering = ["createdAt"]
         verbose_name = "Ticket Reply"
         verbose_name_plural = "Ticket Replies"
-    
+
     def __str__(self):
         return f"Reply to Ticket #{self.ticketFK_id} by {self.senderFK.email}"
 
@@ -367,50 +350,47 @@ class CannedResponse(models.Model):
     """
     Pre-written responses for common support issues.
     """
+
     responseID = models.BigAutoField(primary_key=True)
-    
+
     title = models.CharField(max_length=100, help_text="Short title for the response")
     content = models.TextField(help_text="The full response text")
-    
+
     class Category(models.TextChoices):
         ACCOUNT = "account", "Account Issues"
         PAYMENT = "payment", "Payment Issues"
         TECHNICAL = "technical", "Technical Problems"
         GENERAL = "general", "General"
-    
+
     category = models.CharField(
-        max_length=20,
-        choices=Category.choices,
-        default=Category.GENERAL
+        max_length=20, choices=Category.choices, default=Category.GENERAL
     )
-    
+
     # Keywords/shortcuts to quickly find this response
     shortcuts = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="List of shortcut keywords"
+        default=list, blank=True, help_text="List of shortcut keywords"
     )
-    
+
     # Usage tracking
     usageCount = models.IntegerField(default=0)
-    
+
     # Who created this response
     createdBy = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='created_canned_responses'
+        related_name="created_canned_responses",
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        ordering = ['-usageCount', 'title']
+        ordering = ["-usageCount", "title"]
         verbose_name = "Canned Response"
         verbose_name_plural = "Canned Responses"
-    
+
     def __str__(self):
         return self.title
 
@@ -419,11 +399,12 @@ class FAQ(models.Model):
     """
     Frequently Asked Questions for the platform.
     """
+
     faqID = models.BigAutoField(primary_key=True)
-    
+
     question = models.CharField(max_length=500)
     answer = models.TextField()
-    
+
     class Category(models.TextChoices):
         GETTING_STARTED = "getting_started", "Getting Started"
         ACCOUNT = "account", "Account & Profile"
@@ -434,30 +415,28 @@ class FAQ(models.Model):
         AGENCIES = "agencies", "For Agencies"
         SAFETY = "safety", "Safety & Security"
         GENERAL = "general", "General"
-    
+
     category = models.CharField(
-        max_length=20,
-        choices=Category.choices,
-        default=Category.GENERAL
+        max_length=20, choices=Category.choices, default=Category.GENERAL
     )
-    
+
     # For ordering FAQs within a category
     sortOrder = models.IntegerField(default=0)
-    
+
     # View count for analytics
     viewCount = models.IntegerField(default=0)
-    
+
     # Is this FAQ published/visible?
     isPublished = models.BooleanField(default=True)
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
-        ordering = ['category', 'sortOrder']
+        ordering = ["category", "sortOrder"]
         verbose_name = "FAQ"
         verbose_name_plural = "FAQs"
-    
+
     def __str__(self):
         return self.question[:80]
 
@@ -466,37 +445,34 @@ class UserReport(models.Model):
     """
     Reports submitted by users about other users or content.
     """
+
     reportID = models.BigAutoField(primary_key=True)
-    
+
     # Who submitted the report
     reporterFK = models.ForeignKey(
-        Accounts,
-        on_delete=models.CASCADE,
-        related_name='submitted_reports'
+        Accounts, on_delete=models.CASCADE, related_name="submitted_reports"
     )
-    
+
     # Who is being reported (optional - could be content report)
     reportedUserFK = models.ForeignKey(
         Accounts,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name='reports_received'
+        related_name="reports_received",
     )
-    
+
     class ReportType(models.TextChoices):
         USER = "user", "User Report"
         JOB = "job", "Job Posting"
         REVIEW = "review", "Review"
         MESSAGE = "message", "Message"
         OTHER = "other", "Other"
-    
+
     reportType = models.CharField(
-        max_length=10,
-        choices=ReportType.choices,
-        default=ReportType.USER
+        max_length=10, choices=ReportType.choices, default=ReportType.USER
     )
-    
+
     class Reason(models.TextChoices):
         SPAM = "spam", "Spam"
         HARASSMENT = "harassment", "Harassment"
@@ -504,40 +480,35 @@ class UserReport(models.Model):
         INAPPROPRIATE = "inappropriate", "Inappropriate Content"
         FAKE_PROFILE = "fake_profile", "Fake Profile"
         OTHER = "other", "Other"
-    
-    reason = models.CharField(
-        max_length=20,
-        choices=Reason.choices
-    )
-    
+
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+
     description = models.TextField(help_text="Detailed description of the issue")
-    
+
     # Reference to the reported content (job ID, review ID, etc.)
     relatedContentID = models.BigIntegerField(null=True, blank=True)
-    
+
     class Status(models.TextChoices):
         PENDING = "pending", "Pending Review"
         INVESTIGATING = "investigating", "Under Investigation"
         RESOLVED = "resolved", "Resolved"
         DISMISSED = "dismissed", "Dismissed"
-    
+
     status = models.CharField(
-        max_length=15,
-        choices=Status.choices,
-        default=Status.PENDING
+        max_length=15, choices=Status.choices, default=Status.PENDING
     )
-    
+
     # Admin handling the report
     reviewedBy = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='reviewed_reports'
+        related_name="reviewed_reports",
     )
-    
+
     adminNotes = models.TextField(blank=True, default="")
-    
+
     # Action taken
     class ActionTaken(models.TextChoices):
         NONE = "none", "No Action"
@@ -545,27 +516,25 @@ class UserReport(models.Model):
         SUSPENDED = "suspended", "Account Suspended"
         BANNED = "banned", "Account Banned"
         CONTENT_REMOVED = "content_removed", "Content Removed"
-    
+
     actionTaken = models.CharField(
-        max_length=20,
-        choices=ActionTaken.choices,
-        default=ActionTaken.NONE
+        max_length=20, choices=ActionTaken.choices, default=ActionTaken.NONE
     )
-    
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
     resolvedAt = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ["-createdAt"]
         verbose_name = "User Report"
         verbose_name_plural = "User Reports"
         indexes = [
-            models.Index(fields=['-createdAt']),
-            models.Index(fields=['status']),
-            models.Index(fields=['reportType']),
+            models.Index(fields=["-createdAt"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["reportType"]),
         ]
-    
+
     def __str__(self):
         return f"Report #{self.reportID}: {self.reason}"
 
@@ -574,26 +543,27 @@ class UserReport(models.Model):
 # AUDIT LOG SYSTEM
 # =============================================================================
 
+
 class AuditLog(models.Model):
     """
     Comprehensive audit log for tracking all admin actions in the platform.
     Records who did what, when, and the before/after states.
     """
+
     auditLogID = models.BigAutoField(primary_key=True)
-    
+
     # Who performed the action
     adminFK = models.ForeignKey(
         Accounts,
         on_delete=models.SET_NULL,
         null=True,
-        related_name='audit_logs',
-        help_text="Admin who performed the action"
+        related_name="audit_logs",
+        help_text="Admin who performed the action",
     )
     adminEmail = models.EmailField(
-        max_length=64,
-        help_text="Snapshot of admin email (in case account is deleted)"
+        max_length=64, help_text="Snapshot of admin email (in case account is deleted)"
     )
-    
+
     # What action was performed
     class ActionType(models.TextChoices):
         # Admin actions
@@ -627,13 +597,11 @@ class AuditLog(models.Model):
         USER_LOGIN = "user_login", "User Login"
         PASSWORD_RESET = "password_reset", "Password Reset"
         PROFILE_UPDATE = "profile_update", "Profile Update"
-    
+
     action = models.CharField(
-        max_length=30,
-        choices=ActionType.choices,
-        help_text="Type of action performed"
+        max_length=30, choices=ActionType.choices, help_text="Type of action performed"
     )
-    
+
     # What entity was affected
     class EntityType(models.TextChoices):
         USER = "user", "User"
@@ -646,62 +614,48 @@ class AuditLog(models.Model):
         SETTINGS = "settings", "Settings"
         FAQ = "faq", "FAQ"
         CATEGORY = "category", "Category"
-    
+
     entityType = models.CharField(
-        max_length=20,
-        choices=EntityType.choices,
-        help_text="Type of entity affected"
+        max_length=20, choices=EntityType.choices, help_text="Type of entity affected"
     )
     entityID = models.CharField(
-        max_length=50,
-        blank=True,
-        default="",
-        help_text="ID of the affected entity"
+        max_length=50, blank=True, default="", help_text="ID of the affected entity"
     )
-    
+
     # Details and state changes
     details = models.JSONField(
-        default=dict,
-        help_text="Additional details about the action"
+        default=dict, help_text="Additional details about the action"
     )
     beforeValue = models.JSONField(
-        null=True,
-        blank=True,
-        help_text="State before the change"
+        null=True, blank=True, help_text="State before the change"
     )
     afterValue = models.JSONField(
-        null=True,
-        blank=True,
-        help_text="State after the change"
+        null=True, blank=True, help_text="State after the change"
     )
-    
+
     # Request metadata
     ipAddress = models.GenericIPAddressField(
-        null=True,
-        blank=True,
-        help_text="IP address of the admin"
+        null=True, blank=True, help_text="IP address of the admin"
     )
     userAgent = models.TextField(
-        blank=True,
-        default="",
-        help_text="Browser/client user agent"
+        blank=True, default="", help_text="Browser/client user agent"
     )
-    
+
     # Timestamp
     createdAt = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        ordering = ['-createdAt']
+        ordering = ["-createdAt"]
         verbose_name = "Audit Log"
         verbose_name_plural = "Audit Logs"
         indexes = [
-            models.Index(fields=['-createdAt']),
-            models.Index(fields=['action']),
-            models.Index(fields=['adminFK']),
-            models.Index(fields=['entityType']),
-            models.Index(fields=['entityType', 'entityID']),
+            models.Index(fields=["-createdAt"]),
+            models.Index(fields=["action"]),
+            models.Index(fields=["adminFK"]),
+            models.Index(fields=["entityType"]),
+            models.Index(fields=["entityType", "entityID"]),
         ]
-    
+
     def __str__(self):
         return f"[{self.createdAt.strftime('%Y-%m-%d %H:%M')}] {self.adminEmail}: {self.action}"
 
@@ -710,83 +664,79 @@ class AuditLog(models.Model):
 # PLATFORM SETTINGS (Singleton)
 # =============================================================================
 
+
 class PlatformSettings(models.Model):
     """
     Singleton model for storing platform-wide configuration settings.
     Only one instance should exist.
     """
+
     settingsID = models.BigAutoField(primary_key=True)
-    
+
     # Financial Settings
     platformFeePercentage = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=5.00,
-        help_text="Platform fee percentage (e.g., 5.00 for 5%)"
+        help_text="Platform fee percentage (e.g., 5.00 for 5%)",
     )
     escrowHoldingDays = models.IntegerField(
-        default=7,
-        help_text="Days to hold funds in escrow before release"
+        default=7, help_text="Days to hold funds in escrow before release"
     )
     maxJobBudget = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=100000.00,
-        help_text="Maximum allowed job budget"
+        help_text="Maximum allowed job budget",
     )
     minJobBudget = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         default=100.00,
-        help_text="Minimum allowed job budget"
+        help_text="Minimum allowed job budget",
     )
-    
+
     # Verification Settings
     workerVerificationRequired = models.BooleanField(
-        default=True,
-        help_text="Require KYC verification for workers"
+        default=True, help_text="Require KYC verification for workers"
     )
     autoApproveKYC = models.BooleanField(
         default=False,
-        help_text="Automatically approve KYC submissions based on AI confidence"
+        help_text="Automatically approve KYC submissions based on AI confidence",
     )
     kycDocumentExpiryDays = models.IntegerField(
-        default=365,
-        help_text="Days until KYC documents expire"
+        default=365, help_text="Days until KYC documents expire"
     )
-    
+
     # AI-Based KYC Auto-Approval Thresholds
     kycAutoApproveMinConfidence = models.DecimalField(
         max_digits=3,
         decimal_places=2,
         default=0.90,
-        help_text="Minimum overall confidence score (0-1) for auto-approval"
+        help_text="Minimum overall confidence score (0-1) for auto-approval",
     )
     kycFaceMatchMinSimilarity = models.DecimalField(
         max_digits=3,
         decimal_places=2,
         default=0.85,
-        help_text="Minimum face match similarity (0-1) for auto-approval"
+        help_text="Minimum face match similarity (0-1) for auto-approval",
     )
     kycRequireUserConfirmation = models.BooleanField(
         default=True,
-        help_text="Require user to confirm extracted data before auto-approval"
+        help_text="Require user to confirm extracted data before auto-approval",
     )
-    
+
     # System Settings
     maintenanceMode = models.BooleanField(
-        default=False,
-        help_text="Enable maintenance mode (blocks user access)"
+        default=False, help_text="Enable maintenance mode (blocks user access)"
     )
     sessionTimeoutMinutes = models.IntegerField(
-        default=60,
-        help_text="Session timeout in minutes"
+        default=60, help_text="Session timeout in minutes"
     )
     maxUploadSizeMB = models.IntegerField(
-        default=10,
-        help_text="Maximum file upload size in MB"
+        default=10, help_text="Maximum file upload size in MB"
     )
-    
+
     # Metadata
     lastUpdated = models.DateTimeField(auto_now=True)
     updatedBy = models.ForeignKey(
@@ -794,92 +744,132 @@ class PlatformSettings(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='settings_updates',
-        help_text="Admin who last updated settings"
+        related_name="settings_updates",
+        help_text="Admin who last updated settings",
     )
-    
+
     class Meta:
         verbose_name = "Platform Settings"
         verbose_name_plural = "Platform Settings"
-    
+
     def save(self, *args, **kwargs):
         """Ensure only one instance exists (singleton pattern)."""
         if not self.pk and PlatformSettings.objects.exists():
             raise ValueError("Only one PlatformSettings instance allowed.")
         return super().save(*args, **kwargs)
-    
+
     @classmethod
     def get_settings(cls):
         """Get or create the singleton settings instance."""
         settings, created = cls.objects.get_or_create(pk=1)
         return settings
-    
+
     def __str__(self):
         return f"Platform Settings (Updated: {self.lastUpdated.strftime('%Y-%m-%d %H:%M')})"
+
+
+# =============================================================================
+# CONTENT MODERATION TERMS
+# =============================================================================
+
+
+class ContentModerationTerm(models.Model):
+    """Admin-managed profanity/moderation terms for job post validation."""
+
+    termID = models.BigAutoField(primary_key=True)
+    term = models.CharField(max_length=120)
+    normalizedTerm = models.CharField(max_length=120, unique=True)
+    isActive = models.BooleanField(default=True)
+    createdBy = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_content_moderation_terms",
+    )
+    updatedBy = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_content_moderation_terms",
+    )
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updatedAt"]
+        indexes = [
+            models.Index(fields=["isActive"]),
+            models.Index(fields=["normalizedTerm"]),
+        ]
+
+    @staticmethod
+    def normalize_term(value: str) -> str:
+        return " ".join((value or "").strip().lower().split())
+
+    def save(self, *args, **kwargs):
+        self.term = " ".join((self.term or "").strip().split())
+        self.normalizedTerm = self.normalize_term(self.term)
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        state = "active" if self.isActive else "inactive"
+        return f"{self.term} ({state})"
 
 
 # =============================================================================
 # ADMIN ROLES (Enhanced)
 # =============================================================================
 
+
 class AdminAccount(models.Model):
     """
     Extended admin account with roles and permissions.
     Links to the main Accounts model.
     """
+
     adminID = models.BigAutoField(primary_key=True)
-    
+
     accountFK = models.OneToOneField(
         Accounts,
         on_delete=models.CASCADE,
-        related_name='admin_profile',
-        help_text="Linked user account"
+        related_name="admin_profile",
+        help_text="Linked user account",
     )
-    
+
     class Role(models.TextChoices):
         SUPER_ADMIN = "super_admin", "Super Admin"
         ADMIN = "admin", "Admin"
         MODERATOR = "moderator", "Moderator"
-    
-    role = models.CharField(
-        max_length=15,
-        choices=Role.choices,
-        default=Role.MODERATOR
-    )
-    
+
+    role = models.CharField(max_length=15, choices=Role.choices, default=Role.MODERATOR)
+
     # JSON list of permission strings
-    permissions = models.JSONField(
-        default=list,
-        help_text="List of permission strings"
-    )
-    
+    permissions = models.JSONField(default=list, help_text="List of permission strings")
+
     isActive = models.BooleanField(
-        default=True,
-        help_text="Whether this admin account is active"
+        default=True, help_text="Whether this admin account is active"
     )
-    
-    lastLogin = models.DateTimeField(
-        null=True,
-        blank=True
-    )
-    
+
+    lastLogin = models.DateTimeField(null=True, blank=True)
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Admin Account"
         verbose_name_plural = "Admin Accounts"
         indexes = [
-            models.Index(fields=['role']),
-            models.Index(fields=['isActive']),
+            models.Index(fields=["role"]),
+            models.Index(fields=["isActive"]),
         ]
-    
+
     def has_permission(self, permission: str) -> bool:
         """Check if admin has a specific permission."""
         if self.role == self.Role.SUPER_ADMIN:
             return True
         return permission in self.permissions
-    
+
     def __str__(self):
         return f"{self.accountFK.email} ({self.role})"
-

@@ -1414,8 +1414,8 @@ class Job(models.Model):
     # ============================================================
     class ShiftType(models.TextChoices):
         ANY = "ANY", "Any shift (worker chooses)"
-        MORNING = "MORNING", "Morning shift (~6 AM – 2 PM)"
-        NIGHT = "NIGHT", "Night shift (~6 PM – 2 AM)"
+        MORNING = "MORNING", "Day Shift (8:00 AM - 5:00 PM)"
+        NIGHT = "NIGHT", "Night Shift (6:00 PM - 12:00 AM)"
 
     shift_type = models.CharField(
         max_length=10,

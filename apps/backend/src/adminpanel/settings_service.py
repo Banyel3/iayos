@@ -19,9 +19,15 @@ from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
-from adminpanel.models import PlatformSettings, AdminAccount, AuditLog
+from adminpanel.models import (
+    PlatformSettings,
+    AdminAccount,
+    AuditLog,
+    ContentModerationTerm,
+)
 from adminpanel.audit_service import log_action
 from accounts.models import Accounts
 
@@ -30,15 +36,16 @@ from accounts.models import Accounts
 # PLATFORM SETTINGS MANAGEMENT
 # =============================================================================
 
+
 def get_platform_settings() -> dict:
     """
     Get current platform settings.
-    
+
     Returns:
         Dictionary with platform settings
     """
     settings = PlatformSettings.get_settings()
-    
+
     return {
         "success": True,
         "settings": {
@@ -53,35 +60,39 @@ def get_platform_settings() -> dict:
             "session_timeout_minutes": settings.sessionTimeoutMinutes,
             "max_upload_size_mb": settings.maxUploadSizeMB,
             # New KYC auto-approval threshold fields
-            "kyc_auto_approve_min_confidence": float(getattr(settings, 'kycAutoApproveMinConfidence', 0.90)),
-            "kyc_face_match_min_similarity": float(getattr(settings, 'kycFaceMatchMinSimilarity', 0.85)),
-            "kyc_require_user_confirmation": getattr(settings, 'kycRequireUserConfirmation', True),
-            "last_updated": settings.lastUpdated.isoformat() if settings.lastUpdated else None,
+            "kyc_auto_approve_min_confidence": float(
+                getattr(settings, "kycAutoApproveMinConfidence", 0.90)
+            ),
+            "kyc_face_match_min_similarity": float(
+                getattr(settings, "kycFaceMatchMinSimilarity", 0.85)
+            ),
+            "kyc_require_user_confirmation": getattr(
+                settings, "kycRequireUserConfirmation", True
+            ),
+            "last_updated": settings.lastUpdated.isoformat()
+            if settings.lastUpdated
+            else None,
             "updated_by": settings.updatedBy.email if settings.updatedBy else None,
-        }
+        },
     }
 
 
-def update_platform_settings(
-    admin: Accounts,
-    data: dict,
-    request=None
-) -> dict:
+def update_platform_settings(admin: Accounts, data: dict, request=None) -> dict:
     """
     Update platform settings.
-    
+
     Args:
         admin: Admin account making the change
         data: Dictionary of settings to update
         request: HTTP request for audit logging
-    
+
     Returns:
         Dictionary with success status
     """
     try:
         with transaction.atomic():
             settings = PlatformSettings.get_settings()
-            
+
             # Store old values for audit log
             old_values = {
                 "platform_fee_percentage": float(settings.platformFeePercentage),
@@ -95,10 +106,12 @@ def update_platform_settings(
                 "session_timeout_minutes": settings.sessionTimeoutMinutes,
                 "max_upload_size_mb": settings.maxUploadSizeMB,
             }
-            
+
             # Update fields if provided
             if "platform_fee_percentage" in data:
-                settings.platformFeePercentage = Decimal(str(data["platform_fee_percentage"]))
+                settings.platformFeePercentage = Decimal(
+                    str(data["platform_fee_percentage"])
+                )
             if "escrow_holding_days" in data:
                 settings.escrowHoldingDays = int(data["escrow_holding_days"])
             if "max_job_budget" in data:
@@ -106,7 +119,9 @@ def update_platform_settings(
             if "min_job_budget" in data:
                 settings.minJobBudget = Decimal(str(data["min_job_budget"]))
             if "worker_verification_required" in data:
-                settings.workerVerificationRequired = bool(data["worker_verification_required"])
+                settings.workerVerificationRequired = bool(
+                    data["worker_verification_required"]
+                )
             if "auto_approve_kyc" in data:
                 settings.autoApproveKYC = bool(data["auto_approve_kyc"])
             if "kyc_document_expiry_days" in data:
@@ -119,15 +134,21 @@ def update_platform_settings(
                 settings.maxUploadSizeMB = int(data["max_upload_size_mb"])
             # New KYC auto-approval threshold fields
             if "kyc_auto_approve_min_confidence" in data:
-                settings.kycAutoApproveMinConfidence = Decimal(str(data["kyc_auto_approve_min_confidence"]))
+                settings.kycAutoApproveMinConfidence = Decimal(
+                    str(data["kyc_auto_approve_min_confidence"])
+                )
             if "kyc_face_match_min_similarity" in data:
-                settings.kycFaceMatchMinSimilarity = Decimal(str(data["kyc_face_match_min_similarity"]))
+                settings.kycFaceMatchMinSimilarity = Decimal(
+                    str(data["kyc_face_match_min_similarity"])
+                )
             if "kyc_require_user_confirmation" in data:
-                settings.kycRequireUserConfirmation = bool(data["kyc_require_user_confirmation"])
-            
+                settings.kycRequireUserConfirmation = bool(
+                    data["kyc_require_user_confirmation"]
+                )
+
             settings.updatedBy = admin
             settings.save()
-            
+
             # Store new values for audit log
             new_values = {
                 "platform_fee_percentage": float(settings.platformFeePercentage),
@@ -141,7 +162,7 @@ def update_platform_settings(
                 "session_timeout_minutes": settings.sessionTimeoutMinutes,
                 "max_upload_size_mb": settings.maxUploadSizeMB,
             }
-            
+
             # Log the action
             log_action(
                 admin=admin,
@@ -151,63 +172,271 @@ def update_platform_settings(
                 details={"changed_fields": list(data.keys())},
                 before_value=old_values,
                 after_value=new_values,
-                request=request
+                request=request,
             )
-            
+
             return {"success": True, "message": "Settings updated successfully"}
-    
+
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def list_content_moderation_terms(
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> dict:
+    qs = ContentModerationTerm.objects.select_related("createdBy", "updatedBy").all()
+
+    if search:
+        query = search.strip()
+        if query:
+            qs = qs.filter(
+                Q(term__icontains=query) | Q(normalizedTerm__icontains=query.lower())
+            )
+
+    if is_active is not None:
+        qs = qs.filter(isActive=is_active)
+
+    total = qs.count()
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 20
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    items = list(qs[start:end])
+
+    return {
+        "success": True,
+        "terms": [
+            {
+                "id": term.termID,
+                "term": term.term,
+                "normalized_term": term.normalizedTerm,
+                "is_active": term.isActive,
+                "created_at": term.createdAt.isoformat(),
+                "updated_at": term.updatedAt.isoformat(),
+                "created_by": term.createdBy.email if term.createdBy else None,
+                "updated_by": term.updatedBy.email if term.updatedBy else None,
+            }
+            for term in items
+        ],
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size,
+        },
+    }
+
+
+def create_content_moderation_term(
+    admin: Accounts, term_value: str, request=None
+) -> dict:
+    normalized = ContentModerationTerm.normalize_term(term_value)
+    if not normalized:
+        return {"success": False, "error": "Term is required"}
+
+    if ContentModerationTerm.objects.filter(normalizedTerm=normalized).exists():
+        return {"success": False, "error": "Term already exists"}
+
+    term = ContentModerationTerm.objects.create(
+        term=" ".join((term_value or "").strip().split()),
+        normalizedTerm=normalized,
+        createdBy=admin,
+        updatedBy=admin,
+        isActive=True,
+    )
+
+    log_action(
+        admin=admin,
+        action=AuditLog.ActionType.SETTINGS_CHANGE,
+        entity_type=AuditLog.EntityType.SETTINGS,
+        entity_id="content_moderation",
+        details={"operation": "create", "term_id": term.termID, "term": term.term},
+        after_value={"term": term.term, "is_active": term.isActive},
+        request=request,
+    )
+
+    return {
+        "success": True,
+        "message": "Term created successfully",
+        "term": {
+            "id": term.termID,
+            "term": term.term,
+            "normalized_term": term.normalizedTerm,
+            "is_active": term.isActive,
+        },
+    }
+
+
+def update_content_moderation_term(
+    admin: Accounts,
+    term_id: int,
+    term_value: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    request=None,
+) -> dict:
+    try:
+        term = ContentModerationTerm.objects.get(termID=term_id)
+    except ContentModerationTerm.DoesNotExist:
+        return {"success": False, "error": "Term not found"}
+
+    old_values = {"term": term.term, "is_active": term.isActive}
+
+    if term_value is not None:
+        normalized = ContentModerationTerm.normalize_term(term_value)
+        if not normalized:
+            return {"success": False, "error": "Term is required"}
+        duplicate = ContentModerationTerm.objects.filter(
+            normalizedTerm=normalized
+        ).exclude(termID=term.termID)
+        if duplicate.exists():
+            return {"success": False, "error": "Term already exists"}
+        term.term = " ".join((term_value or "").strip().split())
+        term.normalizedTerm = normalized
+
+    if is_active is not None:
+        term.isActive = bool(is_active)
+
+    term.updatedBy = admin
+    term.save()
+
+    new_values = {"term": term.term, "is_active": term.isActive}
+    log_action(
+        admin=admin,
+        action=AuditLog.ActionType.SETTINGS_CHANGE,
+        entity_type=AuditLog.EntityType.SETTINGS,
+        entity_id="content_moderation",
+        details={"operation": "update", "term_id": term.termID},
+        before_value=old_values,
+        after_value=new_values,
+        request=request,
+    )
+
+    return {
+        "success": True,
+        "message": "Term updated successfully",
+        "term": {
+            "id": term.termID,
+            "term": term.term,
+            "normalized_term": term.normalizedTerm,
+            "is_active": term.isActive,
+        },
+    }
+
+
+def delete_content_moderation_term(admin: Accounts, term_id: int, request=None) -> dict:
+    try:
+        term = ContentModerationTerm.objects.get(termID=term_id)
+    except ContentModerationTerm.DoesNotExist:
+        return {"success": False, "error": "Term not found"}
+
+    old_values = {"term": term.term, "is_active": term.isActive}
+    term.delete()
+
+    log_action(
+        admin=admin,
+        action=AuditLog.ActionType.SETTINGS_CHANGE,
+        entity_type=AuditLog.EntityType.SETTINGS,
+        entity_id="content_moderation",
+        details={"operation": "delete", "term_id": term_id},
+        before_value=old_values,
+        request=request,
+    )
+
+    return {"success": True, "message": "Term deleted successfully"}
+
+
+def toggle_content_moderation_term(admin: Accounts, term_id: int, request=None) -> dict:
+    try:
+        term = ContentModerationTerm.objects.get(termID=term_id)
+    except ContentModerationTerm.DoesNotExist:
+        return {"success": False, "error": "Term not found"}
+
+    old_values = {"term": term.term, "is_active": term.isActive}
+    term.isActive = not term.isActive
+    term.updatedBy = admin
+    term.save(update_fields=["isActive", "updatedBy", "updatedAt"])
+
+    new_values = {"term": term.term, "is_active": term.isActive}
+    log_action(
+        admin=admin,
+        action=AuditLog.ActionType.SETTINGS_CHANGE,
+        entity_type=AuditLog.EntityType.SETTINGS,
+        entity_id="content_moderation",
+        details={"operation": "toggle", "term_id": term.termID},
+        before_value=old_values,
+        after_value=new_values,
+        request=request,
+    )
+
+    return {
+        "success": True,
+        "message": "Term status updated successfully",
+        "term": {
+            "id": term.termID,
+            "term": term.term,
+            "normalized_term": term.normalizedTerm,
+            "is_active": term.isActive,
+        },
+    }
 
 
 # =============================================================================
 # ADMIN ACCOUNT MANAGEMENT
 # =============================================================================
 
+
 def get_admins(current_admin: Accounts) -> dict:
     """
     Get list of all admin accounts.
-    
+
     Args:
         current_admin: The currently logged in admin
-    
+
     Returns:
         Dictionary with admin list
     """
-    admin_accounts = AdminAccount.objects.select_related('accountFK').all()
-    
+    admin_accounts = AdminAccount.objects.select_related("accountFK").all()
+
     admins = []
     for admin in admin_accounts:
-        admins.append({
-            "id": str(admin.adminID),
-            "email": admin.accountFK.email,
-            "role": admin.role,
-            "permissions": admin.permissions,
-            "is_active": admin.isActive,
-            "created_at": admin.createdAt.isoformat(),
-            "last_login": admin.lastLogin.isoformat() if admin.lastLogin else None,
-        })
-    
+        admins.append(
+            {
+                "id": str(admin.adminID),
+                "email": admin.accountFK.email,
+                "role": admin.role,
+                "permissions": admin.permissions,
+                "is_active": admin.isActive,
+                "created_at": admin.createdAt.isoformat(),
+                "last_login": admin.lastLogin.isoformat() if admin.lastLogin else None,
+            }
+        )
+
     return {
         "success": True,
         "admins": admins,
-        "current_admin_id": str(current_admin.accountID)
+        "current_admin_id": str(current_admin.accountID),
     }
 
 
 def get_admin_detail(admin_id: int) -> dict:
     """
     Get details of a specific admin account.
-    
+
     Args:
         admin_id: ID of the admin account
-    
+
     Returns:
         Dictionary with admin details or error
     """
     try:
-        admin = AdminAccount.objects.select_related('accountFK').get(adminID=admin_id)
-        
+        admin = AdminAccount.objects.select_related("accountFK").get(adminID=admin_id)
+
         return {
             "success": True,
             "admin": {
@@ -218,7 +447,7 @@ def get_admin_detail(admin_id: int) -> dict:
                 "is_active": admin.isActive,
                 "created_at": admin.createdAt.isoformat(),
                 "last_login": admin.lastLogin.isoformat() if admin.lastLogin else None,
-            }
+            },
         }
     except AdminAccount.DoesNotExist:
         return {"success": False, "error": "Admin account not found"}
@@ -230,11 +459,11 @@ def create_admin(
     password: str,
     role: str = "moderator",
     permissions: list = None,
-    request=None
+    request=None,
 ) -> dict:
     """
     Create a new admin account.
-    
+
     Args:
         creator: Admin account creating the new admin
         email: Email for the new admin
@@ -242,7 +471,7 @@ def create_admin(
         role: Role (super_admin, admin, moderator)
         permissions: List of permission strings
         request: HTTP request for audit logging
-    
+
     Returns:
         Dictionary with success status and new admin ID
     """
@@ -251,23 +480,23 @@ def create_admin(
             # Check if email already exists
             if Accounts.objects.filter(email=email).exists():
                 return {"success": False, "error": "Email already in use"}
-            
+
             # Create the base account
             account = Accounts.objects.create(
                 email=email,
                 password=make_password(password),
                 isVerified=True,
-                isStaff=True
+                isStaff=True,
             )
-            
+
             # Create the admin profile
             admin = AdminAccount.objects.create(
                 accountFK=account,
                 role=role,
                 permissions=permissions or [],
-                isActive=True
+                isActive=True,
             )
-            
+
             # Log the action
             log_action(
                 admin=creator,
@@ -275,49 +504,50 @@ def create_admin(
                 entity_type=AuditLog.EntityType.ADMIN,
                 entity_id=str(admin.adminID),
                 details={"email": email, "role": role},
-                after_value={"email": email, "role": role, "permissions": permissions or []},
-                request=request
+                after_value={
+                    "email": email,
+                    "role": role,
+                    "permissions": permissions or [],
+                },
+                request=request,
             )
-            
+
             return {
                 "success": True,
                 "message": "Admin account created successfully",
-                "admin_id": str(admin.adminID)
+                "admin_id": str(admin.adminID),
             }
-    
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def update_admin(
-    updater: Accounts,
-    admin_id: int,
-    data: dict,
-    request=None
-) -> dict:
+def update_admin(updater: Accounts, admin_id: int, data: dict, request=None) -> dict:
     """
     Update an admin account.
-    
+
     Args:
         updater: Admin account making the update
         admin_id: ID of the admin to update
         data: Dictionary of fields to update
         request: HTTP request for audit logging
-    
+
     Returns:
         Dictionary with success status
     """
     try:
         with transaction.atomic():
-            admin = AdminAccount.objects.select_related('accountFK').get(adminID=admin_id)
-            
+            admin = AdminAccount.objects.select_related("accountFK").get(
+                adminID=admin_id
+            )
+
             # Store old values
             old_values = {
                 "role": admin.role,
                 "permissions": admin.permissions,
                 "is_active": admin.isActive,
             }
-            
+
             # Update fields
             if "role" in data:
                 admin.role = data["role"]
@@ -325,21 +555,21 @@ def update_admin(
                 admin.permissions = data["permissions"]
             if "is_active" in data:
                 admin.isActive = data["is_active"]
-            
+
             admin.save()
-            
+
             # Update password if provided
             if "password" in data and data["password"]:
                 admin.accountFK.password = make_password(data["password"])
                 admin.accountFK.save()
-            
+
             # Store new values
             new_values = {
                 "role": admin.role,
                 "permissions": admin.permissions,
                 "is_active": admin.isActive,
             }
-            
+
             # Log the action
             log_action(
                 admin=updater,
@@ -349,11 +579,11 @@ def update_admin(
                 details={"updated_fields": list(data.keys())},
                 before_value=old_values,
                 after_value=new_values,
-                request=request
+                request=request,
             )
-            
+
             return {"success": True, "message": "Admin account updated successfully"}
-    
+
     except AdminAccount.DoesNotExist:
         return {"success": False, "error": "Admin account not found"}
     except Exception as e:
@@ -361,47 +591,52 @@ def update_admin(
 
 
 def delete_admin(
-    deleter: Accounts,
-    admin_id: int,
-    reassign_to_id: Optional[int] = None,
-    request=None
+    deleter: Accounts, admin_id: int, reassign_to_id: Optional[int] = None, request=None
 ) -> dict:
     """
     Delete an admin account.
-    
+
     Args:
         deleter: Admin account performing the deletion
         admin_id: ID of the admin to delete
         reassign_to_id: ID of admin to reassign tickets/tasks to
         request: HTTP request for audit logging
-    
+
     Returns:
         Dictionary with success status
     """
     try:
         with transaction.atomic():
-            admin = AdminAccount.objects.select_related('accountFK').get(adminID=admin_id)
-            
+            admin = AdminAccount.objects.select_related("accountFK").get(
+                adminID=admin_id
+            )
+
             # Can't delete yourself
             if admin.accountFK_id == deleter.accountID:
                 return {"success": False, "error": "Cannot delete your own account"}
-            
+
             # Can't delete super_admin (unless you're also super_admin)
             if admin.role == AdminAccount.Role.SUPER_ADMIN:
                 try:
                     deleter_admin = AdminAccount.objects.get(accountFK=deleter)
                     if deleter_admin.role != AdminAccount.Role.SUPER_ADMIN:
-                        return {"success": False, "error": "Only super admins can delete super admin accounts"}
+                        return {
+                            "success": False,
+                            "error": "Only super admins can delete super admin accounts",
+                        }
                 except AdminAccount.DoesNotExist:
-                    return {"success": False, "error": "Only super admins can delete super admin accounts"}
-            
+                    return {
+                        "success": False,
+                        "error": "Only super admins can delete super admin accounts",
+                    }
+
             # Store info for audit log
             admin_email = admin.accountFK.email
             admin_role = admin.role
-            
+
             # Delete the admin account (this will also delete the base account due to CASCADE)
             admin.accountFK.delete()
-            
+
             # Log the action
             log_action(
                 admin=deleter,
@@ -410,11 +645,11 @@ def delete_admin(
                 entity_id=str(admin_id),
                 details={"email": admin_email, "role": admin_role},
                 before_value={"email": admin_email, "role": admin_role},
-                request=request
+                request=request,
             )
-            
+
             return {"success": True, "message": "Admin account deleted successfully"}
-    
+
     except AdminAccount.DoesNotExist:
         return {"success": False, "error": "Admin account not found"}
     except Exception as e:
@@ -424,7 +659,7 @@ def delete_admin(
 def update_admin_last_login(admin: Accounts, request=None) -> None:
     """
     Update admin's last login timestamp and log the login action.
-    
+
     Args:
         admin: The admin account that logged in
         request: HTTP request for audit logging
@@ -432,8 +667,8 @@ def update_admin_last_login(admin: Accounts, request=None) -> None:
     try:
         admin_account = AdminAccount.objects.get(accountFK=admin)
         admin_account.lastLogin = timezone.now()
-        admin_account.save(update_fields=['lastLogin'])
-        
+        admin_account.save(update_fields=["lastLogin"])
+
         # Log the login action
         log_action(
             admin=admin,
@@ -441,7 +676,7 @@ def update_admin_last_login(admin: Accounts, request=None) -> None:
             entity_type=AuditLog.EntityType.ADMIN,
             entity_id=str(admin_account.adminID),
             details={"success": True},
-            request=request
+            request=request,
         )
     except AdminAccount.DoesNotExist:
         # Admin profile doesn't exist - that's ok for regular users
@@ -451,29 +686,57 @@ def update_admin_last_login(admin: Accounts, request=None) -> None:
 def get_all_permissions() -> list:
     """
     Get list of all available permissions.
-    
+
     Returns:
         List of permission dictionaries
     """
     return [
-        {"id": "manage_users", "label": "Manage Users", "description": "Create, edit, suspend users"},
-        {"id": "approve_kyc", "label": "Approve KYC", "description": "Review and approve KYC submissions"},
-        {"id": "manage_jobs", "label": "Manage Jobs", "description": "Edit, cancel, monitor job listings"},
-        {"id": "handle_payments", "label": "Handle Payments", "description": "Process refunds, disputes"},
-        {"id": "view_reports", "label": "View Reports", "description": "Access analytics and reports"},
-        {"id": "manage_settings", "label": "Manage Settings", "description": "Configure platform settings"},
-        {"id": "manage_admins", "label": "Manage Admins", "description": "Create and manage admin accounts"},
+        {
+            "id": "manage_users",
+            "label": "Manage Users",
+            "description": "Create, edit, suspend users",
+        },
+        {
+            "id": "approve_kyc",
+            "label": "Approve KYC",
+            "description": "Review and approve KYC submissions",
+        },
+        {
+            "id": "manage_jobs",
+            "label": "Manage Jobs",
+            "description": "Edit, cancel, monitor job listings",
+        },
+        {
+            "id": "handle_payments",
+            "label": "Handle Payments",
+            "description": "Process refunds, disputes",
+        },
+        {
+            "id": "view_reports",
+            "label": "View Reports",
+            "description": "Access analytics and reports",
+        },
+        {
+            "id": "manage_settings",
+            "label": "Manage Settings",
+            "description": "Configure platform settings",
+        },
+        {
+            "id": "manage_admins",
+            "label": "Manage Admins",
+            "description": "Create and manage admin accounts",
+        },
     ]
 
 
 def check_admin_permission(admin: Accounts, permission: str) -> bool:
     """
     Check if an admin has a specific permission.
-    
+
     Args:
         admin: The admin account to check
         permission: The permission string to check
-    
+
     Returns:
         Boolean indicating if the admin has the permission
     """
