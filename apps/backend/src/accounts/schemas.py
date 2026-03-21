@@ -211,7 +211,7 @@ class CreateJobMobileSchema(Schema):
     expected_duration: str
     urgency_level: str  # 'LOW' | 'MEDIUM' | 'HIGH'
     preferred_start_date: str  # YYYY-MM-DD format (required)
-    scheduled_end_date: str  # YYYY-MM-DD format (required)
+    scheduled_end_date: Optional[str] = None  # YYYY-MM-DD format; derived server-side when number_of_working_days is provided
     number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date for duration
     materials_needed: Optional[list] = None  # List of strings
     downpayment_method: str  # 'WALLET' | 'GCASH'

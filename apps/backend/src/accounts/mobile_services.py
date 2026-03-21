@@ -1241,7 +1241,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             except (TypeError, ValueError):
                 pass
 
-        resolved_shift_type = (job_data.get("shift_type") or "ANY").upper()
+        raw_shift_type = job_data.get("shift_type") or "ANY"
+        resolved_shift_type = str(raw_shift_type).upper()
+        if resolved_shift_type not in {"ANY", "MORNING", "NIGHT"}:
+            return {"success": False, "error": f"Invalid shift_type: {resolved_shift_type}"}
 
         # Create job posting
         job = JobPosting.objects.create(
@@ -1752,7 +1755,7 @@ def create_mobile_invite_job(
                     except (TypeError, ValueError):
                         pass
 
-                invite_shift_type = (job_data.get("shift_type") or "ANY").upper() if invite_payment_model == "DAILY" else "ANY"
+                invite_shift_type = str(job_data.get("shift_type") or "ANY").upper()
 
                 job = Job.objects.create(
                     clientID=client_profile,
