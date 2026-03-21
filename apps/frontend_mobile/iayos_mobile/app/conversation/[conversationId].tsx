@@ -41,8 +41,6 @@ import {
 import { useImageUpload } from "../../lib/hooks/useImageUpload";
 import {
   useConfirmWorkStarted,
-  useMarkOnTheWay,
-  useMarkJobStarted,
   useCancelJob,
   useMarkComplete,
   useApproveCompletion,
@@ -203,7 +201,6 @@ export default function ChatScreen() {
     return d;
   });
   const [showAndroidDatePicker, setShowAndroidDatePicker] = useState(false);
-  const [isMarkOnTheWayLocked, setIsMarkOnTheWayLocked] = useState(false);
   const [localBackjobScheduleConfirmed, setLocalBackjobScheduleConfirmed] =
     useState(false);
 
@@ -794,8 +791,6 @@ export default function ChatScreen() {
 
   // Job action mutations
   const confirmWorkStartedMutation = useConfirmWorkStarted();
-  const markOnTheWayMutation = useMarkOnTheWay();
-  const markJobStartedMutation = useMarkJobStarted();
   const cancelJobMutation = useCancelJob();
   const markCompleteMutation = useMarkComplete();
   const approveCompletionMutation = useApproveCompletion();
@@ -1326,50 +1321,6 @@ export default function ChatScreen() {
     );
   };
 
-  // Handle worker self-status: on the way
-  const handleMarkOnTheWay = () => {
-    if (!conversation) return;
-    if (markOnTheWayMutation.isPending || isMarkOnTheWayLocked) return;
-
-    Alert.alert(
-      "Mark On The Way",
-      "Confirm that you're now heading to the job location.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: () => {
-            setIsMarkOnTheWayLocked(true);
-            markOnTheWayMutation.mutate(conversation.job.id, {
-              onError: () => {
-                setIsMarkOnTheWayLocked(false);
-              },
-            });
-          },
-        },
-      ],
-    );
-  };
-
-  // Handle worker self-status: job started
-  const handleMarkJobStarted = () => {
-    if (!conversation) return;
-
-    Alert.alert(
-      "Mark Job Started",
-      "Confirm that you have arrived and started work.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: () => {
-            markJobStartedMutation.mutate(conversation.job.id);
-          },
-        },
-      ],
-    );
-  };
-
   // Handle cancel project job (CLIENT only)
   const handleCancelJob = () => {
     if (!conversation) return;
@@ -1570,6 +1521,24 @@ export default function ChatScreen() {
   // Handle approve team job completion (CLIENT only, for team jobs)
   const handleApproveTeamJobCompletion = () => {
     if (!conversation) return;
+
+    const isDailyTeamJob =
+      conversation.is_team_job && conversation.job?.payment_model === "DAILY";
+
+    const allAssignmentsEarlyCompleted =
+      isDailyTeamJob &&
+      (conversation.team_worker_assignments?.length ?? 0) > 0 &&
+      (conversation.team_worker_assignments ?? []).every(
+        (assignment: any) => assignment.early_completed,
+      );
+
+    if (allAssignmentsEarlyCompleted) {
+      approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "WALLET",
+      });
+      return;
+    }
 
     // Calculate remaining amount from the backend-computed field
     const remainingAmount = Number(
@@ -6272,6 +6241,12 @@ export default function ChatScreen() {
                     conversation.team_worker_assignments.every(
                       (a) => a.client_confirmed_arrival,
                     );
+                  const allAssignmentsEarlyCompleted =
+                    conversation.job?.payment_model === "DAILY" &&
+                    conversation.team_worker_assignments.length > 0 &&
+                    conversation.team_worker_assignments.every(
+                      (a) => a.early_completed,
+                    );
                   const arrivedCount =
                     conversation.team_worker_assignments.filter(
                       (a) => a.client_confirmed_arrival,
@@ -6433,10 +6408,11 @@ export default function ChatScreen() {
                                 color={Colors.white}
                               />
                                <Text style={styles.actionButtonText}>
-                                 {conversation.job.remainingPaymentPaid
-                                   ? "Approve Team Completion"
-                                   : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
-                               </Text>
+                                  {conversation.job.remainingPaymentPaid ||
+                                  allAssignmentsEarlyCompleted
+                                    ? "Approve Team Completion"
+                                    : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                                </Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -6730,35 +6706,13 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* CLIENT: Waiting for worker to mark on the way (Regular Jobs Only) */}
+              {/* CLIENT: Confirm Worker Arrival (Regular Jobs Only, simplified flow) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                !conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
-                  <View style={[styles.actionButton, styles.waitingButton]}>
-                    <Ionicons
-                      name="time-outline"
-                      size={20}
-                      color={Colors.textSecondary}
-                    />
-                    <Text style={styles.waitingButtonText}>
-                      Waiting for worker to mark on the way...
-                    </Text>
-                  </View>
-                )}
-
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
-                conversation.my_role === "CLIENT" &&
-                canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
+                !conversation.job.clientConfirmedWorkStarted && (
                   <TouchableOpacity
                     style={[
                       styles.actionButton,
@@ -6804,47 +6758,13 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only) */}
+              {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only, simplified flow) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                !conversation.job.workerMarkedOnTheWay &&
-                !isMarkOnTheWayLocked && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.onTheWayButton]}
-                    onPress={handleMarkOnTheWay}
-                    disabled={
-                      markOnTheWayMutation.isPending || isMarkOnTheWayLocked
-                    }
-                  >
-                    {markOnTheWayMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="navigate"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>
-                          Mark On The Way
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
-                conversation.my_role === "WORKER" &&
-                canUseRegularProjectActions &&
-                !conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
+                !conversation.job.clientConfirmedWorkStarted && (
                   <View style={[styles.actionButton, styles.waitingButton]}>
                     <Ionicons
                       name="time-outline"
@@ -6863,36 +6783,6 @@ export default function ChatScreen() {
                   </View>
                 )}
 
-              {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
-                conversation.my_role === "WORKER" &&
-                canUseRegularProjectActions &&
-                conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedOnTheWay &&
-                !conversation.job.workerMarkedJobStarted && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.jobStartedButton]}
-                    onPress={handleMarkJobStarted}
-                    disabled={markJobStartedMutation.isPending}
-                  >
-                    {markJobStartedMutation.isPending ? (
-                      <ActivityIndicator size="small" color={Colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="play-circle"
-                          size={20}
-                          color={Colors.white}
-                        />
-                        <Text style={styles.actionButtonText}>
-                          Mark Job Started
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
               {/* WORKER: Mark Complete Button (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
@@ -6900,7 +6790,6 @@ export default function ChatScreen() {
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 conversation.job.clientConfirmedWorkStarted &&
-                conversation.job.workerMarkedJobStarted &&
                 !conversation.job.workerMarkedComplete && (
                   <TouchableOpacity
                     style={[styles.actionButton, styles.markCompleteButton]}
