@@ -18,7 +18,7 @@ from .models import (
     JobWorkerAssignment,
     JobLog,
 )
-from django.db.models import Q, Count, Avg, Prefetch, Sum
+from django.db.models import Q, Count, Avg, Prefetch, Sum, Exists, OuterRef
 from django.utils import timezone
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
@@ -259,19 +259,35 @@ def get_mobile_job_list(
             workerID__profileID__accountFK=user
         ).values_list("jobID", flat=True)
 
-        # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
+        # Base query - ACTIVE jobs excluding own posts and already-applied jobs.
+        # Visibility rules:
+        # - Non-team jobs: public LISTING only, unassigned.
+        # - Team jobs: visible if there is at least one non-agency slot still open.
+        open_worker_team_slot_qs = JobSkillSlot.objects.filter(
+            jobID_id=OuterRef("pk"),
+            invited_agency__isnull=True,
+            status__in=["OPEN", "PARTIALLY_FILLED"],
+        )
+
         queryset = (
             JobPosting.objects.filter(
                 status="ACTIVE",
-                jobType="LISTING",  # Only show public job listings, not direct invites
-                assignedWorkerID__isnull=True,  # Exclude jobs that already have a worker
-                assignedAgencyFK__isnull=True,  # Exclude jobs assigned to agencies
             )
+            .annotate(has_open_worker_team_slot=Exists(open_worker_team_slot_qs))
             .exclude(
                 clientID__profileID__accountFK=user  # Exclude jobs posted by the same user
             )
             .exclude(
                 jobID__in=applied_job_ids  # Exclude jobs the worker has already applied to
+            )
+            .filter(
+                Q(
+                    is_team_job=False,
+                    jobType="LISTING",
+                    assignedWorkerID__isnull=True,
+                    assignedAgencyFK__isnull=True,
+                )
+                | Q(is_team_job=True, has_open_worker_team_slot=True)
             )
         )
 

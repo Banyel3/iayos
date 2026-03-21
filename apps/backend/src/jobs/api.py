@@ -1954,20 +1954,25 @@ def get_available_jobs(request):
         if not profile:
             return Response({"error": "Profile not found"}, status=400)
 
-        # Get all ACTIVE job postings (exclude INVITE jobs with PENDING status)
-        # LISTING jobs: inviteStatus is null, show if ACTIVE
-        # INVITE jobs: only show if ACCEPTED (not PENDING or REJECTED)
-        from django.db.models import Q
+        # Worker-visible jobs:
+        # - Non-team jobs: public LISTING only
+        # - Team jobs: visible when at least one non-agency slot is open
+        from django.db.models import Q, Exists, OuterRef
+
+        open_worker_team_slot_qs = JobSkillSlot.objects.filter(
+            jobID_id=OuterRef("pk"),
+            invited_agency__isnull=True,
+            status__in=["OPEN", "PARTIALLY_FILLED"],
+        )
 
         job_postings = (
             JobPosting.objects.filter(
-                Q(status=JobPosting.JobStatus.ACTIVE)
-                & (
-                    Q(jobType="LISTING")  # LISTING jobs (open to all workers)
-                    | Q(
-                        jobType="INVITE", inviteStatus="ACCEPTED"
-                    )  # INVITE jobs only if accepted
-                )
+                status=JobPosting.JobStatus.ACTIVE,
+            )
+            .annotate(has_open_worker_team_slot=Exists(open_worker_team_slot_qs))
+            .filter(
+                Q(is_team_job=False, jobType="LISTING")
+                | Q(is_team_job=True, has_open_worker_team_slot=True)
             )
             .select_related("categoryID", "clientID__profileID__accountFK")
             .prefetch_related("photos")

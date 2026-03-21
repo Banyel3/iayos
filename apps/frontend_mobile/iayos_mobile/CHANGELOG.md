@@ -41,11 +41,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hybrid Team Job Visibility on Worker Home + Slot Guarding**
+  - Fixed worker mobile home listing visibility for hybrid team jobs (one agency-invited slot + one open worker slot).
+  - Worker feed now includes team jobs when at least one non-agency skill slot remains open.
+  - Prevented worker apply CTA from showing on agency-invited slots in team job detail.
+  - Added backend hard guard to reject worker applications on agency-reserved slots.
+  - Aligned worker-visible filtering for team project-rate and agency-hire hybrid scenarios via backend query-level slot-open checks.
+  - **Impact**: Hybrid team jobs now appear correctly in mobile home, and workers can only apply to worker-open slots.
+
+- **Team Job Agency Invite Guard (Duplicate Agency Across Slots)**
+  - Prevented inviting the same agency into multiple skill slots during team job creation.
+  - Added immediate client-side guard in team create flow with prompt to navigate to existing **Hire Agency** flow.
+  - Added submit-time duplicate validation safety check for slot-level agency invites.
+  - Added backend hard validation (`DUPLICATE_AGENCY_SLOT_INVITE`) so API-level bypass is also blocked.
+  - **Impact**: Multi-slot invites now enforce distinct agencies per slot, and users are redirected to the correct direct agency flow when they intend to hire one agency for multiple requirements.
+
 - **Single Project Conversation Arrival Flow (Client-First Simplified Path)**
   - Removed legacy worker-first action gates (`Mark On The Way` / `Mark Job Started`) from single non-team, non-agency project conversation actions.
   - Client now always gets the first actionable button: **Confirm Worker Has Arrived**.
   - Worker now waits for client arrival confirmation, then can directly **Mark Job Complete** (no intermediate worker arrival/start taps).
   - Prevented in-session deadlock risk from legacy on-the-way lock state in simplified flow.
+  - Cleaned single-job lifecycle timeline wording to avoid surfacing legacy worker-first step labels as current flow guidance.
   - **Impact**: Single project jobs now follow the same client-first simplified arrival behavior expected by QA.
 
 - **Team DAILY Early-Paid Completion Deadlock (Review/Backjob Ready)**

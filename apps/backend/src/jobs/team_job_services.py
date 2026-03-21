@@ -751,6 +751,28 @@ def create_team_job(
     # Validate agency IDs if provided per-slot
     agency_ids_per_slot = [slot.get("agency_id") for slot in skill_slots_data]
     unique_agency_ids = set(aid for aid in agency_ids_per_slot if aid is not None)
+
+    agency_invite_counts = {}
+    for agency_id in agency_ids_per_slot:
+        if agency_id is None:
+            continue
+        agency_invite_counts[agency_id] = agency_invite_counts.get(agency_id, 0) + 1
+
+    duplicate_agency_id = next(
+        (agency_id for agency_id, count in agency_invite_counts.items() if count > 1),
+        None,
+    )
+    if duplicate_agency_id is not None:
+        return {
+            "success": False,
+            "error": (
+                "The same agency cannot be invited to multiple slots in one team job. "
+                "Use the Invite Agency flow instead."
+            ),
+            "error_code": "DUPLICATE_AGENCY_SLOT_INVITE",
+            "agency_id": duplicate_agency_id,
+        }
+
     agencies_by_id = {}
     if unique_agency_ids:
         from accounts.models import Agency
@@ -1432,6 +1454,16 @@ def apply_to_skill_slot(
         return {
             "success": False,
             "error": f"Skill slot is not accepting applications (status: {skill_slot.status})",
+        }
+
+    # Slot-level ownership guard: agency-invited slots are reserved for agency
+    # employee assignment and must not accept freelance worker applications.
+    if skill_slot.invited_agency_id is not None:
+        return {
+            "success": False,
+            "error": "This slot is reserved for an invited agency and is not open for worker applications.",
+            "error_code": "SLOT_RESERVED_FOR_AGENCY",
+            "agency_id": skill_slot.invited_agency_id,
         }
 
     # Enforce required specialization for this slot

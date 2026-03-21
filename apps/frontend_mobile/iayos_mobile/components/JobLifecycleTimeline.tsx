@@ -27,28 +27,13 @@ export function JobLifecycleTimeline({
   clientConfirmedWorkStarted,
   clientConfirmedWorkStartedAt,
 }: JobLifecycleTimelineProps) {
-  const hasAnyStep =
-    workerMarkedOnTheWay ||
-    workerMarkedJobStarted ||
-    clientConfirmedWorkStarted;
+  const hasAnyStep = clientConfirmedWorkStarted;
 
   if (!hasAnyStep) return null;
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Work Timeline</Text>
-
-      {workerMarkedOnTheWay && (
-        <View style={styles.row}>
-          <Ionicons name="navigate" size={16} color={Colors.primary} />
-          <View style={styles.textWrap}>
-            <Text style={styles.rowTitle}>Worker marked on the way</Text>
-            <Text style={styles.rowMeta}>
-              {formatDateTime(workerMarkedOnTheWayAt)}
-            </Text>
-          </View>
-        </View>
-      )}
 
       {clientConfirmedWorkStarted && (
         <View style={styles.row}>
@@ -66,13 +51,13 @@ export function JobLifecycleTimeline({
         </View>
       )}
 
-      {workerMarkedJobStarted && (
+      {(workerMarkedOnTheWay || workerMarkedJobStarted) && (
         <View style={styles.row}>
-          <Ionicons name="play-circle" size={16} color={Colors.warning} />
+          <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
           <View style={styles.textWrap}>
-            <Text style={styles.rowTitle}>Worker marked job started</Text>
+            <Text style={styles.rowTitle}>Legacy worker arrival markers recorded</Text>
             <Text style={styles.rowMeta}>
-              {formatDateTime(workerMarkedJobStartedAt)}
+              {formatDateTime(workerMarkedOnTheWayAt || workerMarkedJobStartedAt)}
             </Text>
           </View>
         </View>
