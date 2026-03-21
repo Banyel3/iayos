@@ -2675,10 +2675,11 @@ def search_mobile_jobs(
         return {"success": False, "error": f"Search failed: {str(e)}"}
 
 
-def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]:
+def get_job_categories_mobile(worker_id: Optional[int] = None, agency_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Get job categories/specializations for mobile.
     If worker_id is provided, return only categories mapped to that worker's skills.
+    If agency_id is provided, return global categories plus that agency's custom skills.
     """
     try:
         # Keep category feed global by default. Custom worker/agency entries are private.
@@ -2687,6 +2688,23 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
             created_by_worker__isnull=True,
             is_custom=False,
         )
+
+        if agency_id:
+            from django.db.models import Q
+            from .models import Agency
+            try:
+                agency = Agency.objects.get(agencyId=agency_id)
+                # Return global specs + this agency's custom specs
+                categories_qs = Specializations.objects.filter(
+                    Q(
+                        created_by_agency__isnull=True,
+                        created_by_worker__isnull=True,
+                        is_custom=False,
+                    )
+                    | Q(created_by_agency=agency)
+                )
+            except Agency.DoesNotExist:
+                pass
 
         if worker_id:
             # Support multiple worker_id formats sent by mobile/web flows:
@@ -2728,6 +2746,7 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
                 "id": cat.specializationID,
                 "name": cat.specializationName,
                 "minimum_rate": float(cat.minimumRate),
+                "is_custom": cat.is_custom,
             }
             for cat in categories
         ]
