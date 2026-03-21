@@ -855,7 +855,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                     else None,
                     duration_days=_resolve_project_duration_days_from_payload(data),
-                    shift_type=(getattr(data, "shift_type", None) or "ANY").upper(),
+                    shift_type=str(getattr(data, "shift_type", None) or "ANY").upper(),
                 )
 
                 print(f"📋 Job created as {job_type} (Web endpoint)")
@@ -972,7 +972,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                 else None,
                 duration_days=_resolve_project_duration_days_from_payload(data),
-                shift_type=(getattr(data, "shift_type", None) or "ANY").upper(),
+                shift_type=str(getattr(data, "shift_type", None) or "ANY").upper(),
             )
 
             # Create pending transaction for escrow payment
@@ -1420,9 +1420,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         if payment_model == "DAILY"
                         else _resolve_project_duration_days_from_payload(data)
                     ),
-                    shift_type=(data.shift_type or "ANY")
-                    if payment_model == "DAILY"
-                    else "ANY",
+                    shift_type=str(data.shift_type or "ANY").upper(),
                     # ML Enhancement Fields
                     job_scope=data.job_scope if data.job_scope else "MODERATE_PROJECT",
                     skill_level_required=data.skill_level_required
@@ -1699,9 +1697,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         if payment_model == "DAILY"
                         else _resolve_project_duration_days_from_payload(data)
                     ),
-                    shift_type=(data.shift_type or "ANY")
-                    if payment_model == "DAILY"
-                    else "ANY",
+                    shift_type=str(data.shift_type or "ANY").upper(),
                 )
 
                 print(
