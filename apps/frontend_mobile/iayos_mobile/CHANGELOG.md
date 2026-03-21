@@ -49,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Hardened agency assign-modal fallback worker count to use agency accepted-slot headcount (not global team headcount), preventing incorrect "needs 2" prompts when the agency slot needs 1.
   - **Impact**: Existing hybrid jobs now show correct apply-state and applied-tab behavior for workers, and agency accepted cards/modals show correct slot-scoped worker expectations.
 
+- **Agency Accepted Tab Chat Lock Until Team Slots Are Filled**
+  - Disabled **View Chat** in Agency > Job Management > Accepted for team jobs whose slots are not fully assigned yet.
+  - Added locked button state and helper message: chat unlocks once all team slots are filled.
+  - Preserved existing chat behavior for non-team jobs and fully-filled team jobs.
+  - **Impact**: Prevents premature chat access that bypasses incomplete-slot gating and makes progression clearer for agencies.
+
 - **Hybrid Team Invite Card Misrouting (Worker Job Detail)**
   - Fixed worker invite action card visibility so team hybrid jobs no longer render direct `Accept/Decline Invitation` controls.
   - Worker invitation card is now limited to non-team direct worker invites assigned to the current worker.
