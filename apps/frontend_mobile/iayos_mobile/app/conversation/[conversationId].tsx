@@ -1571,6 +1571,24 @@ export default function ChatScreen() {
   const handleApproveTeamJobCompletion = () => {
     if (!conversation) return;
 
+    const isDailyTeamJob =
+      conversation.is_team_job && conversation.job?.payment_model === "DAILY";
+
+    const allAssignmentsEarlyCompleted =
+      isDailyTeamJob &&
+      (conversation.team_worker_assignments?.length ?? 0) > 0 &&
+      (conversation.team_worker_assignments ?? []).every(
+        (assignment: any) => assignment.early_completed,
+      );
+
+    if (allAssignmentsEarlyCompleted) {
+      approveTeamJobCompletionMutation.mutate({
+        jobId: conversation.job.id,
+        paymentMethod: "WALLET",
+      });
+      return;
+    }
+
     // Calculate remaining amount from the backend-computed field
     const remainingAmount = Number(
       conversation.job.remainingPayment ?? 0,
@@ -6272,6 +6290,12 @@ export default function ChatScreen() {
                     conversation.team_worker_assignments.every(
                       (a) => a.client_confirmed_arrival,
                     );
+                  const allAssignmentsEarlyCompleted =
+                    conversation.job?.payment_model === "DAILY" &&
+                    conversation.team_worker_assignments.length > 0 &&
+                    conversation.team_worker_assignments.every(
+                      (a) => a.early_completed,
+                    );
                   const arrivedCount =
                     conversation.team_worker_assignments.filter(
                       (a) => a.client_confirmed_arrival,
@@ -6433,10 +6457,11 @@ export default function ChatScreen() {
                                 color={Colors.white}
                               />
                                <Text style={styles.actionButtonText}>
-                                 {conversation.job.remainingPaymentPaid
-                                   ? "Approve Team Completion"
-                                   : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
-                               </Text>
+                                  {conversation.job.remainingPaymentPaid ||
+                                  allAssignmentsEarlyCompleted
+                                    ? "Approve Team Completion"
+                                    : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                                </Text>
                             </>
                           )}
                         </TouchableOpacity>
