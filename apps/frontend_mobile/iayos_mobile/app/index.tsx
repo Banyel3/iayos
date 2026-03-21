@@ -5,10 +5,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
 
 const HAS_SEEN_WELCOME_KEY = "hasSeenWelcome";
+const BOOT_WATCHDOG_MS = 8000;
 
 export default function Index() {
   const { user, isLoading } = useAuth();
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean | null>(null);
+  const [bootTimedOut, setBootTimedOut] = useState(false);
 
   // Check if user has seen the welcome screen before
   useEffect(() => {
@@ -19,17 +21,36 @@ export default function Index() {
 
   // Wait for BOTH auth and welcome-flag to resolve before hiding splash
   const isReady = !isLoading && hasSeenWelcome !== null;
+  const forceReady = bootTimedOut && hasSeenWelcome !== null;
 
   useEffect(() => {
-    if (isReady) {
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        console.warn("⚠️ [INDEX] Boot watchdog fired - forcing splash hide fallback");
+        setBootTimedOut(true);
+      }
+    }, BOOT_WATCHDOG_MS);
+
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (isReady || forceReady) {
       // Hide splash screen now that we know where to route
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [isReady]);
+  }, [isReady, forceReady]);
 
-  if (!isReady) {
+  if (!isReady && !forceReady) {
     // Keep splash screen visible — return nothing
     return null;
+  }
+
+  if (bootTimedOut) {
+    if (__DEV__) {
+      console.warn("⚠️ [INDEX] Forcing login route after bootstrap timeout");
+    }
+    return <Redirect href="/auth/login" />;
   }
 
   // If authenticated with profile type, go to tabs

@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Android Emulator Splash-Stuck Bootstrap Recovery (BlueStacks Windows)**
+  - Hardened token/cache bootstrap storage reads with timeout-protected SecureStore access and AsyncStorage fallback in mobile token storage utility.
+  - Added startup watchdog fallback on the app index route: if auth bootstrap stalls too long, splash is force-hidden and app routes to login instead of hanging indefinitely.
+  - Kept normal successful bootstrap behavior unchanged (splash still hides immediately once auth + welcome flags resolve).
+  - **Impact**: Prevents infinite splash-screen lock on emulator environments where SecureStore/keystore can stall (notably BlueStacks on Windows), while preserving existing behavior on working devices/emulators.
+
 - **Team DAILY Backjob Start Flow Parity (Single-Job Pattern)**
   - Updated team DAILY backjob client-start gate so `Confirm Started` unlocks after workers finish schedule confirmations (same progression pattern as single-job backjobs).
   - Disabled team arrival-confirmation step specifically for DAILY backjobs and kept arrival gating for non-DAILY team backjobs.
