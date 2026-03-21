@@ -209,13 +209,13 @@ export default function WorkerCalendarModal({
                   <View
                     style={[styles.legendDot, { backgroundColor: "#F59E0B" }]}
                   />
-                  <Text style={styles.legendText}>Morning</Text>
+                  <Text style={styles.legendText}>Day Shift</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View
                     style={[styles.legendDot, { backgroundColor: "#6366F1" }]}
                   />
-                  <Text style={styles.legendText}>Night</Text>
+                  <Text style={styles.legendText}>Night Shift</Text>
                 </View>
                 <View style={styles.legendItem}>
                   <View
@@ -325,7 +325,7 @@ export default function WorkerCalendarModal({
                                     fontWeight: "600",
                                     color: job.shift_type === "MORNING" ? "#F59E0B" : "#6366F1",
                                   }}>
-                                    {job.shift_type === "MORNING" ? "Morning" : "Night"}
+                                    {job.shift_type === "MORNING" ? "Day Shift" : "Night Shift"}
                                   </Text>
                                 </View>
                               )}

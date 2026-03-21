@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Shift Label + Time Window Update (Daily Jobs)**
+  - Updated DAILY shift display labels across mobile flows from "Morning" to "Day Shift".
+  - Updated Day Shift time display to `8:00 AM - 5:00 PM`.
+  - Updated Night Shift time display to `6:00 PM - 12:00 AM`.
+  - Applied in create-job forms, apply-job screens, fixed-shift banners, and worker calendar legend badges.
+  - **Impact**: Shift selection and schedule display now consistently reflect the new operational shift windows.
+
 - **Android Emulator Splash-Stuck Bootstrap Recovery (BlueStacks Windows)**
   - Hardened token/cache bootstrap storage reads with timeout-protected SecureStore access and AsyncStorage fallback in mobile token storage utility.
   - Added startup watchdog fallback on the app index route: if auth bootstrap stalls too long, splash is force-hidden and app routes to login instead of hanging indefinitely.

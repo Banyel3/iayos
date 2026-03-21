@@ -2423,13 +2423,13 @@ export default function CreateJobScreen() {
                           color: shiftType === s ? Colors.primary : Colors.textSecondary,
                         }}
                       >
-                        {s === "ANY" ? "Any" : s === "MORNING" ? "Morning" : "Night"}
+                        {s === "ANY" ? "Any" : s === "MORNING" ? "Day Shift" : "Night Shift"}
                       </Text>
                       {s !== "ANY" && (
                         <Text
                           style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}
                         >
-                          {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
+                          {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
                         </Text>
                       )}
                     </TouchableOpacity>
