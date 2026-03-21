@@ -2484,7 +2484,7 @@ def get_agency_conversations(request, filter: str = "all"):
                         assignment_status__in=["ACTIVE", "COMPLETED"],
                     )
                     .select_related(
-                        "workerID__profileID",
+                        "workerID__profileID__accountFK",
                         "skillSlotID__specializationID",
                     )
                     .order_by("createdAt")
@@ -2492,9 +2492,17 @@ def get_agency_conversations(request, filter: str = "all"):
 
                 for assignment in worker_assignments:
                     profile = assignment.workerID.profileID
+                    worker_account_id = (
+                        profile.accountFK.accountID
+                        if profile and profile.accountFK
+                        else None
+                    )
                     team_worker_assignments.append(
                         {
                             "workerId": assignment.workerID_id,
+                            "worker_id": assignment.workerID_id,
+                            "account_id": worker_account_id,
+                            "assignment_id": assignment.assignmentID,
                             "name": f"{profile.firstName} {profile.lastName}".strip(),
                             "avatar": profile.profileImg,
                             "skill": assignment.skillSlotID.specializationID.specializationName
@@ -2836,15 +2844,26 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     jobID=job,
                     assignment_status__in=["ACTIVE", "COMPLETED"],
                 )
-                .select_related("workerID__profileID", "skillSlotID__specializationID")
+                .select_related(
+                    "workerID__profileID__accountFK",
+                    "skillSlotID__specializationID",
+                )
                 .order_by("createdAt")
             )
 
             for assignment in worker_assignments:
                 profile = assignment.workerID.profileID
+                worker_account_id = (
+                    profile.accountFK.accountID
+                    if profile and profile.accountFK
+                    else None
+                )
                 team_worker_assignments.append(
                     {
                         "workerId": assignment.workerID_id,
+                        "worker_id": assignment.workerID_id,
+                        "account_id": worker_account_id,
+                        "assignment_id": assignment.assignmentID,
                         "name": f"{profile.firstName} {profile.lastName}".strip(),
                         "avatar": profile.profileImg,
                         "skill": assignment.skillSlotID.specializationID.specializationName
@@ -3594,7 +3613,7 @@ def toggle_agency_archive(request, conversation_id: int):
     """Toggle archive status for a conversation."""
     try:
         from profiles.models import Conversation
-        from accounts.models import Profile
+        from accounts.models import Profile, Agency
         from .models import AgencyKYC
 
         account = request.auth
@@ -3605,11 +3624,27 @@ def toggle_agency_archive(request, conversation_id: int):
             return Response({"error": "Agency account not found"}, status=400)
 
         agency_profile = Profile.objects.filter(accountFK=account).first()
+        agency = Agency.objects.filter(accountFK=account).first()
+        if not agency:
+            return Response({"error": "Agency profile not found"}, status=404)
 
         # Get conversation
         conv = Conversation.objects.filter(conversationID=conversation_id).first()
         if not conv:
             return Response({"error": "Conversation not found"}, status=404)
+
+        job = getattr(conv, "relatedJobPosting", None)
+        has_access = (
+            (conv.agency and conv.agency == agency)
+            or (conv.worker and agency_profile and conv.worker == agency_profile)
+            or (job and job.assignedAgencyFK and job.assignedAgencyFK == agency)
+        )
+
+        if not has_access:
+            return Response(
+                {"error": "You are not authorized to access this conversation"},
+                status=403,
+            )
 
         # Toggle archive (agency is worker side)
         conv.archivedByWorker = not conv.archivedByWorker

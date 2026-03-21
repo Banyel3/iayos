@@ -1103,6 +1103,17 @@ export default function ChatScreen() {
     );
   });
 
+  const pendingTeamAgencyArrivalEmployees =
+    conversation?.is_team_job && Array.isArray(conversation?.team_agency_employees)
+      ? conversation.team_agency_employees.filter(
+          (employee: any) =>
+            !isAgencyStatusInCurrentBackjobCycle(
+              employee.clientConfirmedArrival,
+              employee.clientConfirmedArrivalAt,
+            ),
+        )
+      : [];
+
   const hasTrackedWorkerStateForBackjob =
     agencyAssignedEmployees.length > 0 ||
     teamAssignedWorkers.length > 0 ||
@@ -1133,7 +1144,8 @@ export default function ChatScreen() {
     teamAssignedWorkers.length > 0 &&
     (isTeamDailyBackjobFlow
       ? effectiveWorkerScheduleConfirmed
-      : pendingTeamArrivalWorkers.length === 0);
+      : pendingTeamArrivalWorkers.length === 0 &&
+        pendingTeamAgencyArrivalEmployees.length === 0);
   const teamBackjobAllWorkersComplete =
     teamAssignedWorkers.length > 0 && pendingTeamCompletionWorkers.length === 0;
   const myTeamBackjobAssignment =
@@ -1193,8 +1205,9 @@ export default function ChatScreen() {
               ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
               : isTeamBackjobFlow &&
                   !isTeamDailyBackjobFlow &&
-                  pendingTeamArrivalWorkers.length > 0
-                ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length} pending).`
+                  (pendingTeamArrivalWorkers.length > 0 ||
+                    pendingTeamAgencyArrivalEmployees.length > 0)
+                ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length + pendingTeamAgencyArrivalEmployees.length} pending).`
                 : null;
 
   // Materials purchasing workflow mutations
