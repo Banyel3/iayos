@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team DAILY Early-Paid Completion Deadlock (Review/Backjob Ready)**
+  - Fixed team DAILY completion flow when all team workers were already paid via per-worker early completion.
+  - Client approval now proceeds without requiring a non-zero final payment and no longer fails with "No remaining payment is due for this team job."
+  - Updated team conversation CTA to show **Approve Team Completion** (instead of **Approve & Pay Team (₱0)**) when all assignments are already early-completed.
+  - Mixed-case behavior remains unchanged: if only some workers are early-paid, final approval/payment flow still applies for workers with remaining contracted payout.
+  - **Impact**: Team DAILY conversations no longer get stuck in "waiting for client approval" after all workers have already been paid early; flow proceeds to reviews/backjob eligibility correctly.
+
 - **Shift Label + Time Window Update (Daily Jobs)**
   - Updated DAILY shift display labels across mobile flows from "Morning" to "Day Shift".
   - Updated Day Shift time display to `8:00 AM - 5:00 PM`.

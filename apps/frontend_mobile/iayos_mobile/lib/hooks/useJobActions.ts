@@ -535,6 +535,10 @@ export function useApproveTeamJobCompletion() {
         status: "COMPLETED",
         clientMarkedComplete: true,
         clientMarkedCompleteAt: data?.approved_at || nowIso,
+        workerMarkedComplete: true,
+        workerMarkedCompleteAt: data?.approved_at || nowIso,
+        remainingPaymentPaid: true,
+        remainingPaymentPaidAt: data?.approved_at || nowIso,
       });
 
       Toast.show({

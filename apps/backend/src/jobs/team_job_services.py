@@ -2611,11 +2611,7 @@ def client_approve_team_job(
             "error": "Invalid payment method. Choose WALLET or CASH",
         }
 
-    if payment_method_upper == "CASH" and not cash_proof_url:
-        return {
-            "success": False,
-            "error": "Cash proof image is required for CASH payment",
-        }
+    zero_due_daily_completion = False
 
     # Remaining final payment:
     # - DAILY team jobs: pay remaining per-assignment contracted amounts.
@@ -2624,11 +2620,24 @@ def client_approve_team_job(
         pending_payouts = _calculate_team_daily_remaining_payouts(job)
         payouts_total = sum(pending_payouts.values(), Decimal("0.00"))
         remaining_amount = payouts_total + (job.materialsCost or Decimal("0.00"))
+        if remaining_amount <= Decimal("0.00"):
+            zero_due_daily_completion = True
     else:
         remaining_amount = (job.remainingPayment or Decimal("0.00")) + (
             job.materialsCost or Decimal("0.00")
         )
-    if remaining_amount <= 0:
+
+    if (
+        payment_method_upper == "CASH"
+        and not cash_proof_url
+        and not zero_due_daily_completion
+    ):
+        return {
+            "success": False,
+            "error": "Cash proof image is required for CASH payment",
+        }
+
+    if remaining_amount <= 0 and not zero_due_daily_completion:
         return {
             "success": False,
             "error": "No remaining payment is due for this team job",
@@ -2636,11 +2645,6 @@ def client_approve_team_job(
 
     # Team jobs must create pending earnings per assigned worker so both
     # auto-release and "Release Payment Now" work for multi-recipient payouts.
-    from jobs.payment_buffer_service import (
-        add_pending_earnings,
-        get_payment_buffer_days,
-    )
-
     if not is_daily_job:
         if payment_method_upper == "WALLET":
             pending_pool = (job.budget or Decimal("0.00")) + (
@@ -2652,18 +2656,23 @@ def client_approve_team_job(
 
         pending_payouts = _calculate_team_pending_payouts(job, pending_pool)
 
-    if not pending_payouts:
+    if not zero_due_daily_completion and not pending_payouts:
         return {
             "success": False,
             "error": "No assigned team members found to receive payout",
         }
 
-    buffer_days = get_payment_buffer_days()
+    from jobs.payment_buffer_service import (
+        add_pending_earnings,
+        get_payment_buffer_days,
+    )
+
+    buffer_days = get_payment_buffer_days() if not zero_due_daily_completion else 0
 
     # Pre-validate wallet balance BEFORE updating job flags.
     # Use available balance (balance - reserved) to avoid violating
     # wallet_balance_gte_reserved DB constraint on deduction.
-    if payment_method_upper == "WALLET":
+    if payment_method_upper == "WALLET" and remaining_amount > Decimal("0.00"):
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user, defaults={"balance": Decimal("0.00")}
         )
@@ -2688,7 +2697,7 @@ def client_approve_team_job(
             accountFK=client_user, defaults={"balance": Decimal("0.00")}
         )
 
-        if payment_method_upper == "WALLET":
+        if payment_method_upper == "WALLET" and remaining_amount > Decimal("0.00"):
             client_wallet = Wallet.objects.select_for_update().get(
                 accountFK=client_user
             )
@@ -2728,39 +2737,40 @@ def client_approve_team_job(
                     ),
                 }
 
-        Transaction.objects.create(
-            walletID=client_wallet,
-            amount=remaining_amount,
-            transactionType="PAYMENT",
-            status="COMPLETED",
-            description=f"Final payment for team job: {job.title}"
-            + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
-            balanceAfter=client_wallet.balance,
-            relatedJobPosting=job,
-            paymentMethod=payment_method_upper,
-        )
-
-        # Determine which accounts are agency accounts for correct recipient_type
-        from accounts.models import Agency
-
-        agency_account_ids = set(
-            Agency.objects.filter(
-                accountFK__in=[acct for acct in pending_payouts.keys()]
-            ).values_list("accountFK_id", flat=True)
-        )
-
-        for recipient_account, payout_amount in pending_payouts.items():
-            if payout_amount <= 0:
-                continue
-            is_agency = recipient_account.pk in agency_account_ids
-            pending_result = add_pending_earnings(
-                job=job,
-                recipient_account=recipient_account,
-                amount=payout_amount,
-                recipient_type="agency" if is_agency else "worker",
+        if remaining_amount > Decimal("0.00"):
+            Transaction.objects.create(
+                walletID=client_wallet,
+                amount=remaining_amount,
+                transactionType="PAYMENT",
+                status="COMPLETED",
+                description=f"Final payment for team job: {job.title}"
+                + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
+                balanceAfter=client_wallet.balance,
+                relatedJobPosting=job,
+                paymentMethod=payment_method_upper,
             )
-            if first_pending_result is None:
-                first_pending_result = pending_result
+
+            # Determine which accounts are agency accounts for correct recipient_type
+            from accounts.models import Agency
+
+            agency_account_ids = set(
+                Agency.objects.filter(
+                    accountFK__in=[acct for acct in pending_payouts.keys()]
+                ).values_list("accountFK_id", flat=True)
+            )
+
+            for recipient_account, payout_amount in pending_payouts.items():
+                if payout_amount <= 0:
+                    continue
+                is_agency = recipient_account.pk in agency_account_ids
+                pending_result = add_pending_earnings(
+                    job=job,
+                    recipient_account=recipient_account,
+                    amount=payout_amount,
+                    recipient_type="agency" if is_agency else "worker",
+                )
+                if first_pending_result is None:
+                    first_pending_result = pending_result
 
         job.status = "COMPLETED"
         job.clientMarkedComplete = True
@@ -2863,7 +2873,7 @@ def client_approve_team_job(
         "pending_payout_total": float(payouts_total if is_daily_job else pending_pool),
         "pending_recipients_count": len(pending_payouts),
         "payment_buffer_days": buffer_days,
-        "worker_payment_pending": True,
+        "worker_payment_pending": first_pending_result is not None,
         "worker_payment_release_date": first_pending_result["release_date"].isoformat()
         if first_pending_result
         else None,
@@ -2874,7 +2884,9 @@ def client_approve_team_job(
         else None,
         "workers_completed": total_team_members,
         "healed_assignments": healed_assignments,
-        "message": "Team job completed successfully",
+        "message": "Team job completed successfully"
+        if remaining_amount > Decimal("0.00")
+        else "Team job completed successfully (no remaining payment due)",
         "new_wallet_balance": float(client_wallet.balance)
         if payment_method_upper == "WALLET"
         else None,
