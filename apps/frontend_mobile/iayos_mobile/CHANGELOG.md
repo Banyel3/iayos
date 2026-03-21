@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Client now always gets the first actionable button: **Confirm Worker Has Arrived**.
   - Worker now waits for client arrival confirmation, then can directly **Mark Job Complete** (no intermediate worker arrival/start taps).
   - Prevented in-session deadlock risk from legacy on-the-way lock state in simplified flow.
+  - Cleaned single-job lifecycle timeline wording to avoid surfacing legacy worker-first step labels as current flow guidance.
   - **Impact**: Single project jobs now follow the same client-first simplified arrival behavior expected by QA.
 
 - **Team DAILY Early-Paid Completion Deadlock (Review/Backjob Ready)**
