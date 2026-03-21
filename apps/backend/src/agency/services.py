@@ -2966,13 +2966,6 @@ def assign_employees_to_slots(
         print(f"   ❌ Job {job_id} not found")
         return {"success": False, "error": f"Job {job_id} not found"}
 
-    # Verify job belongs to this agency
-    if job.assignedAgencyFK != agency:
-        print(
-            f"   ❌ Job not assigned to this agency (assigned to {job.assignedAgencyFK})"
-        )
-        return {"success": False, "error": "This job is not assigned to your agency"}
-
     # Verify it's a multi-employee job
     if not job.is_team_job:
         print(f"   ❌ Not a team job")
@@ -2981,21 +2974,29 @@ def assign_employees_to_slots(
             "error": "This is not a multi-employee job. Use regular employee assignment.",
         }
 
-    # Verify job is in correct status (ACTIVE with ACCEPTED invite)
-    if job.inviteStatus != "ACCEPTED":
-        print(f"   ❌ Job invite not accepted yet (current: {job.inviteStatus})")
+    # Verify this agency participates in the job via direct assignment OR invited slots
+    agency_slot_count = job.skill_slots.filter(invited_agency=agency).count()
+    if job.assignedAgencyFK != agency and agency_slot_count == 0:
+        print(
+            f"   ❌ Agency has no ownership on this job (assignedAgencyFK={job.assignedAgencyFK}, invited_slots={agency_slot_count})"
+        )
         return {
             "success": False,
-            "error": "Job invite must be accepted before assigning employees",
+            "error": "This job is not assigned or invited to your agency",
         }
 
-    # Get all skill slots for this job
-    skill_slots = {
-        slot.skillSlotID: slot
-        for slot in job.skill_slots.select_related("specializationID").all()
-    }
+    # Team-agency flow is governed by per-slot acceptance, not job.inviteStatus.
+    # Restrict assignment to slots where this agency has ACCEPTED invite.
+    accepted_slots_qs = job.skill_slots.select_related("specializationID").filter(
+        invited_agency=agency,
+        agency_invite_status="ACCEPTED",
+    )
+    skill_slots = {slot.skillSlotID: slot for slot in accepted_slots_qs}
     if not skill_slots:
-        return {"success": False, "error": "No skill slots found for this job"}
+        return {
+            "success": False,
+            "error": "No accepted slot invites found for your agency on this job",
+        }
 
     # Validate assignments
     if not assignments or len(assignments) == 0:
@@ -3111,10 +3112,16 @@ def assign_employees_to_slots(
             slot.status = "FILLED"
             slot.save()
 
-        # Update job status to IN_PROGRESS (all slots filled)
+        # Update job status to IN_PROGRESS only when all job slots are fully filled globally.
         old_status = job.status
-        job.status = "IN_PROGRESS"
-        job.employeeAssignedAt = timezone.now()
+        all_slots = list(job.skill_slots.all())
+        all_slots_filled = all(
+            slot.assigned_count >= slot.workers_needed for slot in all_slots
+        )
+
+        if all_slots_filled:
+            job.status = "IN_PROGRESS"
+            job.employeeAssignedAt = timezone.now()
 
         # Also set legacy assignedEmployeeID to primary contact for backward compatibility
         # (matches pattern from assign_employees_to_job)
@@ -3154,10 +3161,14 @@ def assign_employees_to_slots(
         # Create job log
         JobLog.objects.create(
             jobID=job,
-            notes=f"Multi-employee assignment complete: {len(created_assignments)} employees assigned to {len(skill_slots)} skill slots by agency '{agency.businessName}'",
+            notes=(
+                f"Multi-employee assignment update: {len(created_assignments)} employees assigned to "
+                f"{len(skill_slots)} accepted agency slot(s) by '{agency.businessName}'. "
+                f"Global slot fill complete: {'yes' if all_slots_filled else 'no'}."
+            ),
             changedBy=agency_account,
             oldStatus=old_status,
-            newStatus="IN_PROGRESS",
+            newStatus="IN_PROGRESS" if all_slots_filled else old_status,
         )
 
         # Send notification to client
@@ -3165,7 +3176,15 @@ def assign_employees_to_slots(
             accountFK=job.clientID.profileID.accountFK,
             notificationType="AGENCY_TEAM_ASSIGNED",
             title=f"Team Assigned to Your Job",
-            message=f'{agency.businessName} has assigned {len(created_assignments)} team members to "{job.title}". Work can now begin!',
+            message=(
+                f"{agency.businessName} has assigned {len(created_assignments)} team member(s) "
+                f'to "{job.title}".'
+                + (
+                    " Work can now begin!"
+                    if all_slots_filled
+                    else " Waiting for remaining slot assignments."
+                )
+            ),
             relatedJobID=job.jobID,
         )
 
@@ -3191,9 +3210,10 @@ def assign_employees_to_slots(
             "success": True,
             "message": f"Successfully assigned {len(created_assignments)} employees to {len(skill_slots)} skill slots",
             "job_id": job.jobID,
-            "job_status": "IN_PROGRESS",
+            "job_status": job.status,
             "conversation_id": conversation.conversationID,
             "assignments": created_assignments,
             "total_employees": len(created_assignments),
             "total_slots": len(skill_slots),
+            "all_slots_filled": all_slots_filled,
         }

@@ -2169,16 +2169,27 @@ def get_job_skill_slots_endpoint(request, job_id: int):
                 {"success": False, "error": f"Job {job_id} not found"}, status=404
             )
 
-        if job.assignedAgencyFK != agency:
+        has_invited_slots = JobSkillSlot.objects.filter(
+            jobID=job, invited_agency=agency
+        ).exists()
+
+        if job.assignedAgencyFK != agency and not has_invited_slots:
             return Response(
-                {"success": False, "error": "This job is not assigned to your agency"},
+                {
+                    "success": False,
+                    "error": "This job is not assigned or invited to your agency",
+                },
                 status=403,
             )
 
-        # Get skill slots with assignments
-        slots = JobSkillSlot.objects.filter(jobID=job).select_related(
-            "specializationID"
-        )
+        # Get skill slots with assignments. For team invite flows, only expose this
+        # agency's invited slots; keep legacy full-view behavior when directly assigned.
+        if has_invited_slots:
+            slots = JobSkillSlot.objects.filter(jobID=job, invited_agency=agency)
+        else:
+            slots = JobSkillSlot.objects.filter(jobID=job)
+
+        slots = slots.select_related("specializationID")
 
         result = []
         for slot in slots:
