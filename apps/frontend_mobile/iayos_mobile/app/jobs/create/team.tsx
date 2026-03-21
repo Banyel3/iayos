@@ -1912,12 +1912,6 @@ export default function CreateTeamJobScreen() {
                   </View>
                 }
                 renderItem={({ item }) => {
-                  // Check if this agency is already assigned to another slot
-                  const alreadyAssignedSlot = skillSlots.find(
-                    (s) =>
-                      s.agency_id === item.id &&
-                      s.id !== agencyPickerSlotId,
-                  );
                   return (
                     <TouchableOpacity
                       style={{
@@ -1926,14 +1920,11 @@ export default function CreateTeamJobScreen() {
                         padding: Spacing.md,
                         borderBottomWidth: 1,
                         borderBottomColor: Colors.border,
-                        opacity: alreadyAssignedSlot ? 0.5 : 1,
+                        opacity: 1,
                       }}
                       onPress={() => {
-                        if (!alreadyAssignedSlot) {
-                          selectAgencyForSlot(item);
-                        }
+                        selectAgencyForSlot(item);
                       }}
-                      disabled={!!alreadyAssignedSlot}
                     >
                       <View
                         style={{
@@ -2003,25 +1994,12 @@ export default function CreateTeamJobScreen() {
                             {item.completedJobs} jobs done
                           </Text>
                         </View>
-                        {alreadyAssignedSlot && (
-                          <Text
-                            style={{
-                              ...Typography.body.small,
-                              color: Colors.warning,
-                              marginTop: 2,
-                            }}
-                          >
-                            Already assigned to another slot
-                          </Text>
-                        )}
                       </View>
-                      {!alreadyAssignedSlot && (
-                        <Ionicons
-                          name="add-circle-outline"
-                          size={24}
-                          color={Colors.primary}
-                        />
-                      )}
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={24}
+                        color={Colors.primary}
+                      />
                     </TouchableOpacity>
                   );
                 }}

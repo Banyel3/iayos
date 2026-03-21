@@ -1348,10 +1348,9 @@ def accept_job_invite(request, job_id: int):
     - Client is notified of acceptance
     """
     try:
-        account_id = request.auth.accountID
-
-        # Verify agency exists
-        from accounts.models import Agency, Job, Notification
+        # Get the job — agency may be the assignedAgencyFK (legacy direct-invite)
+        # OR have slot invites on a team job (multi-slot scenario).
+        from accounts.models import Agency, Job, Notification, JobSkillSlot
 
         try:
             agency = Agency.objects.get(accountFK=request.auth)
@@ -1359,11 +1358,61 @@ def accept_job_invite(request, job_id: int):
             return Response({"error": "Agency profile not found"}, status=404)
 
         # Get the job
-        try:
-            job = Job.objects.get(jobID=job_id, assignedAgencyFK=agency)
-        except Job.DoesNotExist:
+        from django.db.models import Q as _Q
+
+        job = (
+            Job.objects.filter(
+                _Q(jobID=job_id)
+                & (_Q(assignedAgencyFK=agency) | _Q(skill_slots__invited_agency=agency))
+            )
+            .distinct()
+            .first()
+        )
+        if job is None:
             return Response(
                 {"error": "Job not found or not assigned to your agency"}, status=404
+            )
+
+        # --- Team-job slot fan-out ---
+        # If this is a team job and the agency has pending slot invites, process them
+        # via the per-slot service (which handles notifications + conversation).
+        if job.is_team_job:
+            pending_slots = list(
+                JobSkillSlot.objects.filter(
+                    jobID=job,
+                    invited_agency=agency,
+                    agency_invite_status="PENDING",
+                ).select_related("specializationID")
+            )
+            if pending_slots:
+                from jobs.team_job_services import agency_accept_team_slot_invite
+
+                results = []
+                for slot in pending_slots:
+                    res = agency_accept_team_slot_invite(
+                        job_id=job.jobID,
+                        slot_id=slot.skillSlotID,
+                        agency_user=request.auth,
+                    )
+                    results.append(res)
+                accepted = [r for r in results if r.get("success")]
+                failed = [r for r in results if not r.get("success")]
+                print(
+                    f"✅ Agency {agency.agencyId} accepted {len(accepted)} slot(s) on team job {job_id}"
+                )
+                return {
+                    "success": True,
+                    "message": f"Accepted {len(accepted)} slot invite(s) on this team job.",
+                    "job_id": job.jobID,
+                    "fan_out": True,
+                    "accepted_count": len(accepted),
+                    "failed_count": len(failed),
+                    "processed_slot_ids": [r.get("slot_id") for r in accepted],
+                }
+            # No PENDING slots for this agency — nothing to fan-out
+            return Response(
+                {"error": "No pending slot invites found for your agency on this job"},
+                status=400,
             )
 
         # Verify job is INVITE type
@@ -1499,21 +1548,70 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
     """
     try:
         # Verify agency exists
-        from accounts.models import Agency, Job, Notification
+        from accounts.models import Agency, Job, Notification, JobSkillSlot
 
         try:
             agency = Agency.objects.get(accountFK=request.auth)
         except Agency.DoesNotExist:
             return Response({"error": "Agency profile not found"}, status=404)
 
-        # Get the job
-        try:
-            job = Job.objects.get(jobID=job_id, assignedAgencyFK=agency)
-        except Job.DoesNotExist:
+        # Get the job — widen lookup to include slot-invited team jobs
+        from django.db.models import Q as _Q
+
+        job = (
+            Job.objects.filter(
+                _Q(jobID=job_id)
+                & (_Q(assignedAgencyFK=agency) | _Q(skill_slots__invited_agency=agency))
+            )
+            .distinct()
+            .first()
+        )
+        if job is None:
             return Response(
                 {"error": "Job not found or not assigned to your agency"}, status=404
             )
 
+        # --- Team-job slot fan-out (reject) ---
+        if job.is_team_job:
+            pending_slots = list(
+                JobSkillSlot.objects.filter(
+                    jobID=job,
+                    invited_agency=agency,
+                    agency_invite_status="PENDING",
+                ).select_related("specializationID")
+            )
+            if pending_slots:
+                from jobs.team_job_services import agency_reject_team_slot_invite
+
+                results = []
+                for slot in pending_slots:
+                    res = agency_reject_team_slot_invite(
+                        job_id=job.jobID,
+                        slot_id=slot.skillSlotID,
+                        agency_user=request.auth,
+                        reason=reason,
+                    )
+                    results.append(res)
+                rejected = [r for r in results if r.get("success")]
+                failed = [r for r in results if not r.get("success")]
+                print(
+                    f"✅ Agency {agency.agencyId} rejected {len(rejected)} slot(s) on team job {job_id}"
+                )
+                return {
+                    "success": True,
+                    "message": f"Rejected {len(rejected)} slot invite(s) on this team job.",
+                    "job_id": job.jobID,
+                    "fan_out": True,
+                    "rejected_count": len(rejected),
+                    "failed_count": len(failed),
+                    "processed_slot_ids": [r.get("slot_id") for r in rejected],
+                }
+            return Response(
+                {"error": "No pending slot invites found for your agency on this job"},
+                status=400,
+            )
+
+        # Legacy direct-invite path (non-team INVITE job)
         # Verify job is INVITE type
         if job.jobType != "INVITE":
             return Response({"error": "This is not an INVITE-type job"}, status=400)

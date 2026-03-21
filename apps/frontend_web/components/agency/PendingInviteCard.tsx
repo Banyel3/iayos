@@ -45,6 +45,14 @@ interface SkillSlot {
   status?: string;
 }
 
+interface AgencyInvitedSlot {
+  skill_slot_id: number;
+  specialization_name: string;
+  workers_needed?: number;
+  agency_invite_status: string;
+  agency_invite_responded_at?: string | null;
+}
+
 interface PendingInviteJob {
   jobID: number;
   title: string;
@@ -75,6 +83,8 @@ interface PendingInviteJob {
   total_workers_assigned?: number;
   team_fill_percentage?: number;
   skill_slots?: SkillSlot[];
+  // Slots that this agency was specifically invited to (multi-slot support)
+  agency_invited_slots?: AgencyInvitedSlot[];
 }
 
 const isProjectMultiDayJob = (job: PendingInviteJob): boolean => {
@@ -144,6 +154,31 @@ export default function PendingInviteCard({
       day: "numeric",
     });
   };
+
+  const slotStatusBadge = (status: string) => {
+    if (status === "ACCEPTED")
+      return (
+        <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+          Accepted
+        </span>
+      );
+    if (status === "REJECTED")
+      return (
+        <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+          Rejected
+        </span>
+      );
+    return (
+      <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">
+        Pending
+      </span>
+    );
+  };
+
+  // Prefer agency_invited_slots (filtered to this agency) over all skill_slots
+  const invitedSlots = job.agency_invited_slots && job.agency_invited_slots.length > 0
+    ? job.agency_invited_slots
+    : null;
 
   const simplifiedSkillSlots =
     usesTeamProjectWorkflow(job) && job.skill_slots && job.skill_slots.length > 0
@@ -267,9 +302,21 @@ export default function PendingInviteCard({
             {usesTeamProjectWorkflow(job) && (
               <div className="p-3 bg-transparent rounded-lg border border-gray-200">
                 <h4 className="font-semibold text-slate-900 mb-1 text-sm">
-                  Required Workers
+                  {invitedSlots ? "Your Invited Slots" : "Required Workers"}
                 </h4>
-                {simplifiedSkillSlots ? (
+                {invitedSlots ? (
+                  <ul className="space-y-1">
+                    {invitedSlots.map((slot) => (
+                      <li key={slot.skill_slot_id} className="flex items-center text-sm text-slate-700">
+                        <span className="font-medium">{slot.specialization_name}</span>
+                        {typeof slot.workers_needed === "number" && (
+                          <span className="text-slate-500 ml-1">({slot.workers_needed})</span>
+                        )}
+                        {slotStatusBadge(slot.agency_invite_status)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : simplifiedSkillSlots ? (
                   <p className="text-sm text-slate-700 leading-relaxed">
                     {simplifiedSkillSlots}
                   </p>
