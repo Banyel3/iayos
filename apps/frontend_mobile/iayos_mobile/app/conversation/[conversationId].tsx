@@ -7569,17 +7569,21 @@ export default function ChatScreen() {
                 (conversation.team_agency_employees?.length ?? 0) > 0 &&
                 !conversation.job.clientMarkedComplete &&
                 (conversation.team_agency_employees ?? []).some(
-                  (e: any) => e.can_early_finish && !e.early_completed,
+                  (e: any) =>
+                    e.can_early_finish && e.marked_complete && !e.early_completed,
                 ) &&
                 (() => {
                   const earlyFinishableEmployees = (
                     conversation.team_agency_employees ?? []
-                  ).filter((e: any) => e.can_early_finish && !e.early_completed);
+                  ).filter(
+                    (e: any) =>
+                      e.can_early_finish && e.marked_complete && !e.early_completed,
+                  );
 
                   return (
                     <View style={styles.employeeActionsSection}>
                       <Text style={styles.actionSectionTitle}>
-                        Finish Employee Early
+                        Complete Employee Early & Pay
                       </Text>
                       {earlyFinishableEmployees.map((employee: any) => (
                         <TouchableOpacity
@@ -7595,7 +7599,7 @@ export default function ChatScreen() {
                                 ? `₱${Number(employee.early_finish_quote).toLocaleString()}`
                                 : "full contracted amount";
                             Alert.alert(
-                              "Finish Employee Early & Pay",
+                              "Complete Employee Early & Pay",
                               `Release ${quote} to the agency for ${employee.name} now and mark them done?`,
                               [
                                 { text: "Cancel", style: "cancel" },
@@ -7626,7 +7630,7 @@ export default function ChatScreen() {
                                 color={Colors.white}
                               />
                               <Text style={styles.actionButtonText}>
-                                Finish {employee.name?.split(" ")[0]} Early (
+                                Complete {employee.name?.split(" ")[0]} Early & Pay (
                                 {employee.early_finish_quote != null
                                   ? `₱${Number(employee.early_finish_quote).toLocaleString()}`
                                   : "full amount"}
