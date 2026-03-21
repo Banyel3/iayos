@@ -468,23 +468,14 @@ def release_pending_payment(job: Job, force: bool = False) -> dict:
             recipient_wallet.balance += amount
             recipient_wallet.save(update_fields=['balance', 'pendingEarnings', 'updatedAt'])
 
+            # Convert the PENDING_EARNING into an EARNING (in-place) so only
+            # one transaction row appears in the worker's history instead of two.
+            pending_txn.transactionType = "EARNING"
             pending_txn.status = "COMPLETED"
             pending_txn.balanceAfter = recipient_wallet.balance
-            pending_txn.description = (pending_txn.description or "").replace("Pending payment", "Payment released")
+            pending_txn.description = f"Payment released for job: {job.title}"
             pending_txn.completedAt = timezone.now()
-            pending_txn.save(update_fields=['status', 'balanceAfter', 'description', 'completedAt'])
-
-            Transaction.objects.create(
-                walletID=recipient_wallet,
-                transactionType="EARNING",
-                amount=amount,
-                balanceAfter=recipient_wallet.balance,
-                status="COMPLETED",
-                description=f"Payment released for job: {job.title}",
-                referenceNumber=f"JOB-{job.jobID}-RELEASE-{timezone.now().strftime('%Y%m%d%H%M%S')}-{pending_txn.transactionID}",
-                relatedJobPosting=job,
-                completedAt=timezone.now()
-            )
+            pending_txn.save(update_fields=['transactionType', 'status', 'balanceAfter', 'description', 'completedAt'])
 
             Notification.objects.create(
                 accountFK=recipient_account,
