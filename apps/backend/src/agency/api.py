@@ -2630,6 +2630,7 @@ def get_agency_conversations(request, filter: str = "all"):
                     "job": {
                         "id": job.jobID,
                         "title": job.title,
+                        "is_team_job": bool(getattr(job, "is_team_job", False)),
                         "status": job.status,
                         "budget": float(job.budget),
                         "location": job.location,
@@ -3229,6 +3230,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "job": {
                     "id": job.jobID,
                     "title": job.title,
+                    "is_team_job": bool(getattr(job, "is_team_job", False)),
                     "status": job.status,
                     "budget": float(job.budget),
                     "location": job.location,
