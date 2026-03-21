@@ -334,8 +334,10 @@ export default function JobsScreen() {
   // Filter jobs based on active tab
   const filteredJobs = jobs.filter((job) => {
     if (activeTab === "open") {
-      // Open Jobs: LISTING type with no assigned worker yet (open for applications)
-      // EXCLUDE fully-filled team jobs (they should be in "pending" tab)
+      // Open Jobs:
+      // - Team jobs: show while not fully filled (regardless of job_type),
+      //   so clients can continue inviting agencies/workers per slot.
+      // - Non-team jobs: LISTING type with no assigned worker yet.
       if (isClient) {
         // For team jobs, check if fully filled - if so, exclude from "open"
         if (job.is_team_job) {
@@ -346,6 +348,7 @@ export default function JobsScreen() {
           if (isFullyFilled) {
             return false; // Fully filled team jobs go to "pending", not "open"
           }
+          return true;
         }
         return job.job_type === "LISTING" && !job.assigned_worker_id;
       }
@@ -447,6 +450,7 @@ export default function JobsScreen() {
               job.total_workers_assigned &&
               job.total_workers_assigned >= job.total_workers_needed;
             if (full) return false;
+            return true;
           }
           return job.job_type === "LISTING" && !job.assigned_worker_id;
         }
