@@ -1252,7 +1252,7 @@ export default function JobDetailScreen() {
 
     // Validate shift selection for ANY-shift DAILY jobs
     if (isDailyJob && (!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
-      Alert.alert("Error", "Please select a shift (Morning or Night)");
+      Alert.alert("Error", "Please select a shift (Day Shift or Night Shift)");
       return;
     }
 
@@ -1589,7 +1589,7 @@ export default function JobDetailScreen() {
 
     // Validate shift selection for ANY-shift DAILY jobs
     if (isDailyJob && (!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
-      Alert.alert("Error", "Please select a shift (Morning or Night)");
+      Alert.alert("Error", "Please select a shift (Day Shift or Night Shift)");
       return;
     }
 
@@ -4293,10 +4293,10 @@ export default function JobDetailScreen() {
                         fontWeight: appliedShift === s ? "700" : "400",
                         color: appliedShift === s ? Colors.primary : Colors.textSecondary,
                       }}>
-                        {s === "MORNING" ? "Morning" : "Night"}
+                        {s === "MORNING" ? "Day Shift" : "Night Shift"}
                       </Text>
                       <Text style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}>
-                        {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
+                        {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -4305,11 +4305,11 @@ export default function JobDetailScreen() {
             )}
             {/* Shift banner for fixed-shift DAILY jobs */}
             {job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY" && (
-              <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}>
+              <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}> 
                 <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
                   Shift:{" "}
                   <Text style={{ fontWeight: "700", color: job.shift_type === "MORNING" ? "#F59E0B" : "#6366F1" }}>
-                    {job.shift_type === "MORNING" ? "Morning (~6 AM–2 PM)" : "Night (~6 PM–2 AM)"}
+                    {job.shift_type === "MORNING" ? "Day Shift (8:00 AM - 5:00 PM)" : "Night Shift (6:00 PM - 12:00 AM)"}
                   </Text>
                 </Text>
               </View>
@@ -4633,10 +4633,10 @@ export default function JobDetailScreen() {
                         fontWeight: appliedShift === s ? "700" : "400",
                         color: appliedShift === s ? Colors.primary : Colors.textSecondary,
                       }}>
-                        {s === "MORNING" ? "Morning" : "Night"}
+                        {s === "MORNING" ? "Day Shift" : "Night Shift"}
                       </Text>
                       <Text style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}>
-                        {s === "MORNING" ? "~6 AM–2 PM" : "~6 PM–2 AM"}
+                        {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -4645,11 +4645,11 @@ export default function JobDetailScreen() {
             )}
             {/* Shift banner for fixed-shift DAILY jobs */}
             {job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY" && (
-              <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}>
+              <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}> 
                 <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
                   Shift:{" "}
                   <Text style={{ fontWeight: "700", color: job.shift_type === "MORNING" ? "#F59E0B" : "#6366F1" }}>
-                    {job.shift_type === "MORNING" ? "Morning (~6 AM–2 PM)" : "Night (~6 PM–2 AM)"}
+                    {job.shift_type === "MORNING" ? "Day Shift (8:00 AM - 5:00 PM)" : "Night Shift (6:00 PM - 12:00 AM)"}
                   </Text>
                 </Text>
               </View>
