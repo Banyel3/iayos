@@ -1511,6 +1511,8 @@ export default function CreateTeamJobScreen() {
                 />
               </View>
 
+              {/* One day or less toggle — hidden for DAILY (daily jobs set duration_days explicitly) */}
+              {paymentModel !== "DAILY" && (
               <View style={styles.inputGroup}>
                 <TouchableOpacity
                   style={styles.oneDayToggle}
@@ -1540,6 +1542,7 @@ export default function CreateTeamJobScreen() {
                   <Text style={styles.oneDayLabel}>This job is one day or less</Text>
                 </TouchableOpacity>
               </View>
+              )}
             </View>
 
             {/* Location Section */}

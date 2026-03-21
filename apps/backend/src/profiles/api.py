@@ -2473,7 +2473,7 @@ def get_conversation_messages(request, conversation_id: int):
                 _can_early_finish = (
                     not assignment.early_completed
                     and assignment.client_confirmed_arrival
-                    and not assignment.worker_marked_complete
+                    and assignment.worker_marked_complete
                 )
                 if _can_early_finish:
                     if (
