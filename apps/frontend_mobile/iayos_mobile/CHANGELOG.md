@@ -41,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hybrid Conversation Stability + Visibility (Agency/Web/Mobile)**
+  - Fixed agency conversations backend crash caused by queryset filtering on non-DB model properties (`total_workers_needed` / `total_workers_assigned`).
+  - Reworked agency conversation team-slot gating to run in Python per conversation/job, preserving lock behavior without invalid ORM lookups.
+  - Improved hybrid team conversation classification so team workflows/actions are not suppressed when an agency is also involved.
+  - Added fallback team-member synthesis for legacy conversations missing participant rows, preventing "Team Chat (0 workers)" for active hybrid jobs.
+  - Updated mobile hybrid chat header to show team/job context with combined freelancer + agency headcount badges.
+  - Extended agency conversation payloads to include freelancer team assignments, then updated web agency messages list/detail to display both agency employees and freelance workers.
+  - **Impact**: Agency conversations endpoint no longer crashes; hybrid chats show correct participants and action context across agency/client/worker surfaces.
+
 - **Worker Pending + In-Progress Visibility for Hybrid Team Jobs**
   - Updated worker `/jobs/my-jobs` backend filtering to include slot-level team assignments (`JobWorkerAssignment`) in addition to legacy direct assignment and applied-job linkage.
   - Added `.distinct()` to worker my-jobs query to avoid duplicate rows from assignment joins.

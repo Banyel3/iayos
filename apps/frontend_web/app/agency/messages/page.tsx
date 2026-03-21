@@ -284,38 +284,46 @@ export default function AgencyMessagesPage() {
                 </span>
               </div>
 
-              {/* Assigned Employees (Multi-employee support) - Relocated below budget */}
-              {conversation.assigned_employees &&
-                conversation.assigned_employees.length > 0 ? (
+              {/* Assigned Workers (agency employees + freelance team workers) */}
+              {(() => {
+                const assignedEmployees = conversation.assigned_employees || [];
+                const teamFreelancers = conversation.team_worker_assignments || [];
+
+                if (assignedEmployees.length === 0 && teamFreelancers.length === 0) {
+                  if (!conversation.assigned_employee) return null;
+                  return (
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                      <Users className="h-3 w-3 text-[#00BAF1]" />
+                      <span>
+                        Assigned to:{" "}
+                        <span className="font-medium text-gray-700">
+                          {conversation.assigned_employee.name}
+                        </span>
+                      </span>
+                      {conversation.assigned_employee.employeeOfTheMonth && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs ml-1">
+                          🏆 EOTM
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
                 <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
                   <Users className="h-3 w-3 text-[#00BAF1]" />
                   <span>
-                    Assigned ({conversation.assigned_employees.length}):{" "}
+                    Assigned ({assignedEmployees.length + teamFreelancers.length}):{" "}
                     <span className="font-medium text-gray-700">
-                      {conversation.assigned_employees
-                        .map((e) => e.name)
-                        .join(", ")}
+                      {[
+                        ...assignedEmployees.map((e) => `${e.name} (Agency)`),
+                        ...teamFreelancers.map((w) => `${w.name} (Freelance)`),
+                      ].join(", ")}
                     </span>
                   </span>
                 </div>
-              ) : (
-                conversation.assigned_employee && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
-                    <Users className="h-3 w-3 text-[#00BAF1]" />
-                    <span>
-                      Assigned to:{" "}
-                      <span className="font-medium text-gray-700">
-                        {conversation.assigned_employee.name}
-                      </span>
-                    </span>
-                    {conversation.assigned_employee.employeeOfTheMonth && (
-                      <Badge className="bg-yellow-100 text-yellow-800 text-xs ml-1">
-                        🏆 EOTM
-                      </Badge>
-                    )}
-                  </div>
-                )
-              )}
+                );
+              })()}
             </div>
           </div>
         </CardContent>

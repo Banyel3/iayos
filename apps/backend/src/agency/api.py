@@ -2276,7 +2276,7 @@ def get_agency_conversations(request, filter: str = "all"):
     try:
         from profiles.models import Conversation, Message
         from accounts.models import Job, Profile
-        from django.db.models import Q, Count, Max, F
+        from django.db.models import Q, Count, Max
 
         account = request.auth
 
@@ -2312,16 +2312,6 @@ def get_agency_conversations(request, filter: str = "all"):
                 | Q(
                     relatedJobPosting__assignedAgencyFK=agency
                 )  # Job is assigned to this agency
-            )
-            .filter(
-                # Team-job chat should only be visible after all required slots are filled.
-                Q(relatedJobPosting__is_team_job=False)
-                | Q(
-                    relatedJobPosting__is_team_job=True,
-                    relatedJobPosting__total_workers_assigned__gte=F(
-                        "relatedJobPosting__total_workers_needed"
-                    ),
-                )
             )
             .select_related(
                 "client__accountFK",
@@ -2378,6 +2368,15 @@ def get_agency_conversations(request, filter: str = "all"):
             job = conv.relatedJobPosting
             client_profile = conv.client
 
+            # Team-job chat should only be visible after all required slots are filled.
+            # NOTE: total_workers_* are model properties, not DB fields, so this
+            # must be evaluated in Python instead of queryset filters.
+            if job.is_team_job:
+                total_needed = int(job.total_workers_needed or 0)
+                total_assigned = int(job.total_workers_assigned or 0)
+                if total_assigned < total_needed:
+                    continue
+
             # Get assigned employee info if exists (legacy single employee)
             assigned_employee = None
             if job.assignedEmployeeID:
@@ -2398,7 +2397,7 @@ def get_agency_conversations(request, filter: str = "all"):
                 }
 
             # Get ALL assigned employees from M2M (multi-employee support)
-            from accounts.models import JobEmployeeAssignment
+            from accounts.models import JobEmployeeAssignment, JobWorkerAssignment
 
             assigned_employees = []
             assignments = (
@@ -2476,6 +2475,36 @@ def get_agency_conversations(request, filter: str = "all"):
                     }
                 )
 
+            # For hybrid/team jobs, include freelancer assignments too
+            team_worker_assignments = []
+            if job.is_team_job:
+                worker_assignments = (
+                    JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        assignment_status__in=["ACTIVE", "COMPLETED"],
+                    )
+                    .select_related(
+                        "workerID__profileID",
+                        "skillSlotID__specializationID",
+                    )
+                    .order_by("createdAt")
+                )
+
+                for assignment in worker_assignments:
+                    profile = assignment.workerID.profileID
+                    team_worker_assignments.append(
+                        {
+                            "workerId": assignment.workerID_id,
+                            "name": f"{profile.firstName} {profile.lastName}".strip(),
+                            "avatar": profile.profileImg,
+                            "skill": assignment.skillSlotID.specializationID.specializationName
+                            if assignment.skillSlotID
+                            and assignment.skillSlotID.specializationID
+                            else None,
+                            "status": assignment.assignment_status,
+                        }
+                    )
+
             # Get client info
             client_info = {
                 "name": f"{client_profile.firstName} {client_profile.lastName}".strip()
@@ -2548,6 +2577,7 @@ def get_agency_conversations(request, filter: str = "all"):
                     "client": client_info,
                     "assigned_employee": assigned_employee,
                     "assigned_employees": assigned_employees,  # Multi-employee support
+                    "team_worker_assignments": team_worker_assignments,
                     "last_message": conv.lastMessageText,
                     "last_message_time": conv.updatedAt.isoformat()
                     if conv.updatedAt
@@ -2720,7 +2750,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
             }
 
         # Get ALL assigned employees from M2M (multi-employee support)
-        from accounts.models import JobEmployeeAssignment
+        from accounts.models import JobEmployeeAssignment, JobWorkerAssignment
 
         assigned_employees = []
         assignments = (
@@ -2797,6 +2827,33 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     "marked_complete": False,
                 }
             )
+
+        # For hybrid/team jobs, include freelancer assignments too
+        team_worker_assignments = []
+        if job.is_team_job:
+            worker_assignments = (
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                )
+                .select_related("workerID__profileID", "skillSlotID__specializationID")
+                .order_by("createdAt")
+            )
+
+            for assignment in worker_assignments:
+                profile = assignment.workerID.profileID
+                team_worker_assignments.append(
+                    {
+                        "workerId": assignment.workerID_id,
+                        "name": f"{profile.firstName} {profile.lastName}".strip(),
+                        "avatar": profile.profileImg,
+                        "skill": assignment.skillSlotID.specializationID.specializationName
+                        if assignment.skillSlotID
+                        and assignment.skillSlotID.specializationID
+                        else None,
+                        "status": assignment.assignment_status,
+                    }
+                )
 
         # Check review status and include review payloads for agency chat details.
         from accounts.models import JobReview
@@ -3079,6 +3136,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "client": client_info,
                 "assigned_employee": assigned_employee,
                 "assigned_employees": assigned_employees,  # Multi-employee support
+                "team_worker_assignments": team_worker_assignments,
                 "daily_skip_requests_today": daily_skip_requests_today,
                 "effective_work_date": effective_work_date.isoformat(),
                 "qa_day_offset": qa_day_offset,

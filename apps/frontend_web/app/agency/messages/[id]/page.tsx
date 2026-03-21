@@ -14,6 +14,7 @@ import {
   useAgencyMarkComplete,
   useAgencySubmitReview,
   AssignedEmployee,
+  TeamWorkerAssignment,
 } from "@/lib/hooks/useAgencyConversations";
 import {
   useAgencyDailyAttendance,
@@ -703,8 +704,34 @@ export default function AgencyChatScreen() {
   }
 
   // Agency conversation uses client, assigned_employee(s), and job
-  const { client, assigned_employee, assigned_employees, job, messages } =
+  const {
+    client,
+    assigned_employee,
+    assigned_employees,
+    team_worker_assignments,
+    job,
+    messages,
+  } =
     conversation;
+
+  const workerRoster = [
+    ...(assigned_employees || []).map((emp: AssignedEmployee) => ({
+      key: `agency-${emp.employeeId}`,
+      name: emp.name,
+      avatar: emp.avatar,
+      rating: emp.rating,
+      isPrimaryContact: emp.isPrimaryContact,
+      source: "AGENCY",
+    })),
+    ...((team_worker_assignments || []).map((worker: TeamWorkerAssignment) => ({
+      key: `freelance-${worker.workerId}`,
+      name: worker.name,
+      avatar: worker.avatar || null,
+      rating: null,
+      isPrimaryContact: false,
+      source: "FREELANCE",
+    })) || []),
+  ];
 
   const myReview = reviewViewData.myReview;
   const clientReview = reviewViewData.clientReview;
@@ -1507,14 +1534,23 @@ export default function AgencyChatScreen() {
               Assigned Workers
             </h3>
             <div className="space-y-3">
-              {(assigned_employees?.length > 0
-                ? assigned_employees
+              {(workerRoster.length > 0
+                ? workerRoster
                 : assigned_employee
-                  ? [assigned_employee]
+                  ? [
+                      {
+                        key: "legacy-assigned",
+                        name: assigned_employee.name,
+                        avatar: null,
+                        rating: assigned_employee.rating,
+                        isPrimaryContact: true,
+                        source: "AGENCY",
+                      },
+                    ]
                   : []
               ).map((emp: any, i: number) => (
                 <div
-                  key={i}
+                  key={emp.key || i}
                   className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-gray-100 transition-colors"
                 >
                   <Avatar className="h-9 w-9 border-2 border-white ">
@@ -1525,6 +1561,9 @@ export default function AgencyChatScreen() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-gray-900 truncate">
                       {emp.name} {emp.isPrimaryContact && "★"}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {emp.source === "FREELANCE" ? "Freelance" : "Agency"}
                     </p>
                     {emp.rating && (
                       <div className="flex items-center gap-1 mt-0.5">
