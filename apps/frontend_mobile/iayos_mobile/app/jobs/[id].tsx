@@ -2275,7 +2275,7 @@ export default function JobDetailScreen() {
               )}
             </View>
           </View>
-          <View style={styles.verticalDivider} />
+          <View style={styles.horizontalDivider} />
           <View style={styles.detailCard}>
             <Ionicons
               name="location-outline"
@@ -2285,26 +2285,33 @@ export default function JobDetailScreen() {
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Location</Text>
               <Text style={styles.detailValue}>{locationDisplayText}</Text>
-              {isWorker && canWorkerViewFullAddress && (
-                <View style={styles.clientContactBlock}>
-                  <Text style={styles.clientContactLabel}>Client Contact</Text>
-                  <Text style={styles.clientContactValue}>
-                    {job.postedBy?.phone || "Not available"}
-                  </Text>
-                  {!!job.postedBy?.phone && (
-                    <TouchableOpacity
-                      style={styles.callClientButton}
-                      onPress={handleCallClient}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="call-outline" size={16} color={Colors.white} />
-                      <Text style={styles.callClientButtonText}>Call Client</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
             </View>
           </View>
+          {isWorker && canWorkerViewFullAddress && (
+            <View style={styles.detailCard}>
+              <Ionicons
+                name="call-outline"
+                size={24}
+                color={Colors.primary}
+              />
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Client Contact</Text>
+                <Text style={styles.detailValue}>
+                  {job.postedBy?.phone || "Not available"}
+                </Text>
+                {!!job.postedBy?.phone && (
+                  <TouchableOpacity
+                    style={styles.callClientButton}
+                    onPress={handleCallClient}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="call-outline" size={16} color={Colors.white} />
+                    <Text style={styles.callClientButtonText}>Call Client</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Expected Duration */}
@@ -4918,24 +4925,20 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   detailsSection: {
-    flexDirection: "row",
+    flexDirection: "column",
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
   detailCard: {
-    flex: 1,
-    flexBasis: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: Spacing.sm,
   },
-  verticalDivider: {
-    width: 1,
+  horizontalDivider: {
+    height: 1,
     backgroundColor: Colors.border,
-    marginHorizontal: Spacing.sm,
-    height: "100%",
   },
   detailContent: {
     marginLeft: Spacing.sm,
