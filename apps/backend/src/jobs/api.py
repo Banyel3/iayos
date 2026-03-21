@@ -494,6 +494,14 @@ def _get_required_project_days(job: JobPosting) -> int:
 
 def _resolve_project_duration_days_from_payload(data) -> int:
     """Resolve PROJECT duration days from explicit fields, schedule range, or expected duration text."""
+    # 0) number_of_working_days takes highest priority (mobile sends this for PROJECT jobs).
+    try:
+        working_days = int(getattr(data, "number_of_working_days", 0) or 0)
+        if working_days > 0:
+            return working_days
+    except (TypeError, ValueError):
+        pass
+
     # 1) Explicit numeric duration_days from client payload.
     try:
         explicit_days = int(getattr(data, "duration_days", 0) or 0)
@@ -838,9 +846,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                     else None,
                     duration_days=_resolve_project_duration_days_from_payload(data),
-                    shift_type=(getattr(data, "shift_type", None) or "ANY")
-                    if (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
-                    else "ANY",
+                    shift_type=(getattr(data, "shift_type", None) or "ANY").upper(),
                 )
 
                 print(f"📋 Job created as {job_type} (Web endpoint)")
@@ -957,9 +963,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                 else None,
                 duration_days=_resolve_project_duration_days_from_payload(data),
-                shift_type=(getattr(data, "shift_type", None) or "ANY")
-                if (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
-                else "ANY",
+                shift_type=(getattr(data, "shift_type", None) or "ANY").upper(),
             )
 
             # Create pending transaction for escrow payment

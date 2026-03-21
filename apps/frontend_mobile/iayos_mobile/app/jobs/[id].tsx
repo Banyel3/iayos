@@ -1840,13 +1840,11 @@ export default function JobDetailScreen() {
     : null;
   const durationDays = Math.max(dailyDuration, isDailyPayment ? 1 : 0);
   const shiftLabel =
-    isDailyPayment
-      ? (job.shift_type === "MORNING"
-          ? "Day Shift"
-          : job.shift_type === "NIGHT"
-            ? "Night Shift"
-            : "Anytime")
-      : null;
+    job.shift_type === "MORNING"
+      ? "Day Shift"
+      : job.shift_type === "NIGHT"
+        ? "Night Shift"
+        : "Anytime";
   const startDateLabel = job.preferred_start_date
     ? new Date(job.preferred_start_date).toLocaleDateString("en-US", {
         month: "short",
@@ -2317,6 +2315,11 @@ export default function JobDetailScreen() {
                   {durationDays > 0 && (
                     <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
                       Working Days: {durationDays} day{durationDays === 1 ? "" : "s"}
+                    </Text>
+                  )}
+                  {shiftLabel && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Shift: {shiftLabel}
                     </Text>
                   )}
                 </View>

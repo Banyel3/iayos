@@ -794,11 +794,9 @@ def create_team_job(
             "error": "Invalid payment_model. Choose PROJECT or DAILY",
         }
 
-    # Normalize shift_type; PROJECT jobs always use ANY
+    # Normalize shift_type
     shift_type_upper = str(shift_type or "ANY").upper()
-    if payment_model_upper == "PROJECT":
-        shift_type_upper = "ANY"
-    elif shift_type_upper not in ["ANY", "MORNING", "NIGHT"]:
+    if shift_type_upper not in ["ANY", "MORNING", "NIGHT"]:
         return {
             "success": False,
             "error": "Invalid shift_type. Choose ANY, MORNING, or NIGHT",

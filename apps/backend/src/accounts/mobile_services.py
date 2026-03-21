@@ -1188,14 +1188,22 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         if payment_model == "DAILY":
             resolved_duration_days = int(job_data.get("duration_days") or 0) or None
         else:
-            # For PROJECT, compute from explicit value, date range, or expected_duration
+            # For PROJECT, compute from number_of_working_days, explicit value, date range, or expected_duration
             resolved_duration_days = None
+            # number_of_working_days takes highest priority (mobile sends this for PROJECT jobs)
             try:
-                explicit = int(job_data.get("duration_days") or 0)
-                if explicit > 0:
-                    resolved_duration_days = explicit
+                working_days = int(job_data.get("number_of_working_days") or 0)
+                if working_days > 0:
+                    resolved_duration_days = working_days
             except (TypeError, ValueError):
                 pass
+            if not resolved_duration_days:
+                try:
+                    explicit = int(job_data.get("duration_days") or 0)
+                    if explicit > 0:
+                        resolved_duration_days = explicit
+                except (TypeError, ValueError):
+                    pass
             if not resolved_duration_days and job_data.get("preferred_start_date") and job_data.get("scheduled_end_date"):
                 try:
                     start_d = datetime.fromisoformat(job_data["preferred_start_date"]).date() if isinstance(job_data["preferred_start_date"], str) else job_data["preferred_start_date"]
@@ -1217,7 +1225,7 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             except (TypeError, ValueError):
                 pass
 
-        resolved_shift_type = (job_data.get("shift_type") or "ANY").upper() if payment_model == "DAILY" else "ANY"
+        resolved_shift_type = (job_data.get("shift_type") or "ANY").upper()
 
         # Create job posting
         job = JobPosting.objects.create(
