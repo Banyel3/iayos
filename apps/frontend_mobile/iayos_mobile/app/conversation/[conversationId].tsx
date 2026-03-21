@@ -5903,24 +5903,44 @@ export default function ChatScreen() {
                   (conversation.team_agency_employees?.length ?? 0) > 0) &&
                 !conversation.job.clientMarkedComplete &&
                 (() => {
+                  interface UnifiedTeamAssignment {
+                    type: "WORKER" | "AGENCY";
+                    assignment_id: number;
+                    name: string;
+                    skill?: string | null;
+                    avatar?: string | null;
+                    arrived: boolean;
+                    completed: boolean;
+                    can_early_finish: boolean;
+                    worker_marked_complete: boolean;
+                    early_completed: boolean;
+                    early_finish_quote?: number | null;
+                    early_completion_payout?: number | null;
+                  }
+
                   const workerAssignments =
                     conversation.team_worker_assignments ?? [];
                   const agencyAssignments =
                     conversation.team_agency_employees ?? [];
 
-                  const assignments = [
+                  const assignments: UnifiedTeamAssignment[] = [
                     ...workerAssignments.map((a) => ({
                       type: "WORKER" as const,
-                      assignment_id: a.assignment_id,
+                      assignment_id: Number(a.assignment_id),
                       name: a.name,
                       skill: a.skill,
                       avatar: a.avatar,
                       arrived: Boolean(a.client_confirmed_arrival),
                       completed: Boolean(a.worker_marked_complete),
+                      can_early_finish: Boolean(a.can_early_finish),
+                      worker_marked_complete: Boolean(a.worker_marked_complete),
+                      early_completed: Boolean(a.early_completed),
+                      early_finish_quote: a.early_finish_quote,
+                      early_completion_payout: a.early_completion_payout,
                     })),
                     ...agencyAssignments.map((a) => ({
                       type: "AGENCY" as const,
-                      assignment_id: a.assignment_id,
+                      assignment_id: Number(a.assignment_id),
                       name: a.name,
                       skill: a.skill,
                       avatar: a.avatar,
@@ -5931,8 +5951,13 @@ export default function ChatScreen() {
                           a.marked_complete ||
                           String(a.status || "").toUpperCase() === "COMPLETED",
                       ),
+                      can_early_finish: false,
+                      worker_marked_complete: false,
+                      early_completed: Boolean(a.early_completed),
+                      early_finish_quote: a.early_finish_quote,
+                      early_completion_payout: a.early_completion_payout,
                     })),
-                  ];
+                  ].filter((assignment) => Number.isFinite(assignment.assignment_id));
 
                   if (assignments.length === 0) {
                     return null;
@@ -6067,17 +6092,26 @@ export default function ChatScreen() {
                                 ) : (
                                   <TouchableOpacity
                                     style={styles.teamProjectConfirmArrivalButton}
-                                    onPress={() =>
-                                      assignment.type === "AGENCY"
-                                        ? handleConfirmTeamEmployeeArrival(
-                                            assignment.assignment_id,
-                                            assignment.name,
-                                          )
-                                        : handleConfirmTeamWorkerArrival(
-                                            assignment.assignment_id,
-                                            assignment.name,
-                                          )
-                                    }
+                                    onPress={() => {
+                                      const assignmentId = Number(
+                                        assignment.assignment_id,
+                                      );
+                                      if (!Number.isFinite(assignmentId)) {
+                                        return;
+                                      }
+
+                                      if (assignment.type === "AGENCY") {
+                                        handleConfirmTeamEmployeeArrival(
+                                          assignmentId,
+                                          assignment.name,
+                                        );
+                                      } else {
+                                        handleConfirmTeamWorkerArrival(
+                                          assignmentId,
+                                          assignment.name,
+                                        );
+                                      }
+                                    }}
                                     disabled={
                                       assignment.type === "AGENCY"
                                         ? confirmTeamEmployeeArrivalMutation.isPending
@@ -6131,8 +6165,14 @@ export default function ChatScreen() {
                                             onPress: () => {
                                               const jobId =
                                                 conversation.job.id;
-                                              const assignmentId =
-                                                assignment.assignment_id;
+                                              const assignmentId = Number(
+                                                assignment.assignment_id,
+                                              );
+                                              if (
+                                                !Number.isFinite(assignmentId)
+                                              ) {
+                                                return;
+                                              }
                                               if (
                                                 conversation.job
                                                   ?.payment_model === "DAILY"
@@ -7390,13 +7430,72 @@ export default function ChatScreen() {
                 (conversation.is_team_job &&
                   (conversation.team_agency_employees?.length ?? 0) > 0)) &&
                 conversation.my_role === "CLIENT" &&
-                conversation.job.payment_model === "PROJECT" &&
+                conversation.job.payment_model === "DAILY" &&
+                !conversation.job.clientMarkedComplete &&
+                agencyAssignedEmployees.length > 0 &&
+                (() => {
+                  const assignedEmployees = agencyAssignedEmployees;
+                  const allArrived = assignedEmployees.every((e) =>
+                    isAgencyStatusInCurrentBackjobCycle(
+                      e.clientConfirmedArrival,
+                      e.clientConfirmedArrivalAt,
+                    ),
+                  );
+                  const allComplete = assignedEmployees.every((e) =>
+                    isAgencyStatusInCurrentBackjobCycle(
+                      e.agencyMarkedComplete ||
+                        e.employeeMarkedComplete ||
+                        e.marked_complete ||
+                        e.status === "COMPLETED",
+                      e.agencyMarkedCompleteAt,
+                    ),
+                  );
+
+                  if (!allArrived || !allComplete) {
+                    return null;
+                  }
+
+                  return (
+                    <View style={styles.employeeActionsSection}>
+                      <Text style={styles.actionSectionTitle}>
+                        Approve & Pay Team + Agency (DAILY)
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.approveCompletionButton]}
+                        onPress={handleApproveTeamJobCompletion}
+                        disabled={approveTeamJobCompletionMutation.isPending}
+                      >
+                        {approveTeamJobCompletionMutation.isPending ? (
+                          <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                          <>
+                            <Ionicons name="wallet" size={20} color={Colors.white} />
+                            <Text style={styles.actionButtonText}>
+                              {`Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })()}
+
+              {(conversation.is_agency_job ||
+                (conversation.is_team_job &&
+                  (conversation.team_agency_employees?.length ?? 0) > 0)) &&
+                conversation.my_role === "CLIENT" &&
                 (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
                 agencyAssignedEmployees.length > 0 &&
                 (() => {
                   const assignedEmployees = agencyAssignedEmployees;
                   const isTeamAgencyJob =
                     conversation.is_team_job && !conversation.is_agency_job;
+                  const isDailyAgencyFlow =
+                    conversation.job.payment_model === "DAILY";
+
+                  if (isDailyAgencyFlow) {
+                    return null;
+                  }
                   const isEmployeeComplete = (employee: any) =>
                     employee.agencyMarkedComplete ||
                     employee.employeeMarkedComplete ||
@@ -7425,7 +7524,8 @@ export default function ChatScreen() {
                     ),
                   );
                   const allWorkflowComplete =
-                    allDispatched && allArrived && allComplete;
+                    (isDailyAgencyFlow ? allArrived : allDispatched && allArrived) &&
+                    allComplete;
 
                   return (
                     <>
