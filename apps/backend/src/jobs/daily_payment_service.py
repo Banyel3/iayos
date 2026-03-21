@@ -1422,6 +1422,8 @@ class DailyPaymentService:
         job.clientMarkedComplete = True
         job.workerMarkedCompleteAt = now
         job.clientMarkedCompleteAt = now
+        job.remainingPaymentPaid = True
+        job.remainingPaymentPaidAt = now
         job.finalPaymentMethod = payment_method_upper
         if payment_method_upper == "CASH" and cash_proof_url:
             job.cashPaymentProofUrl = cash_proof_url

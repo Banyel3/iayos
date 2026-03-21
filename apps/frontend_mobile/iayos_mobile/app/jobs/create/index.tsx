@@ -2711,7 +2711,8 @@ export default function CreateJobScreen() {
                 </View>
               </View>
 
-              {/* One day or less checkbox */}
+              {/* One day or less checkbox — hidden for DAILY (daily jobs set duration_days explicitly) */}
+              {effectivePaymentModel !== "DAILY" && (
               <TouchableOpacity
                 style={styles.checkboxRow}
                 onPress={() => {
@@ -2739,6 +2740,7 @@ export default function CreateJobScreen() {
                   This job is one day or less
                 </Text>
               </TouchableOpacity>
+              )}
 
               {/* Expected Duration - visible for one-day jobs */}
               {isOneDayJob && (

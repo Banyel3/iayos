@@ -1604,8 +1604,8 @@ export default function ChatScreen() {
 
     setCountdownConfig({
       visible: true,
-      title: "Approve Early Completion & Pay",
-      message: `Worker has completed the job early.\n\nRemaining escrow to release:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
+      title: "Complete Job Early & Pay Remaining",
+      message: `Worker has completed today's work.\n\nRemaining escrow to release:\n\n₱${remainingAmount}\n\nThis pays remaining contracted days and closes the job.\n\nPlease select your payment method.`,
       confirmLabel: "Continue",
       countdownSeconds: 7,
       onConfirm: () => {
@@ -4865,167 +4865,7 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                  {/* Worker View: Skip Day Request (DAILY-only) */}
-                  {conversation.my_role === "WORKER" &&
-                    conversation.job?.payment_model === "DAILY" &&
-                    !hasCheckedInToday && (
-                      <View style={styles.skipDayContainer}>
-                        {hasNoWorkMarkedToday ? (
-                          <View style={styles.skipDayStatusApproved}>
-                            <Text style={styles.skipDayStatusTitle}>
-                              No work already recorded
-                            </Text>
-                            <Text style={styles.skipDayStatusText}>
-                              Client already marked today as no-work/absent.
-                            </Text>
-                          </View>
-                        ) : (
-                          <>
-                            <View style={styles.skipDayWarningCard}>
-                              <Text style={styles.skipDayWarningText}>
-                                Client approval is not guaranteed. If your
-                                skip-day request is rejected, repeated abuse may
-                                lead to reports and possible admin action.
-                              </Text>
-                            </View>
-                            {(() => {
-                              const todaySkipRequest =
-                                conversation.daily_skip_requests_today?.[0];
-                              const requestToday =
-                                conversation.effective_work_date ||
-                                new Date().toISOString().split("T")[0];
-
-                              if (!todaySkipRequest) {
-                                return (
-                                  <TouchableOpacity
-                                    style={styles.skipDayButton}
-                                    onPress={() =>
-                                      Alert.alert(
-                                        "Request Skip Day",
-                                        "Send a skip-day request to the client for today?",
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          {
-                                            text: "Request",
-                                            onPress: () =>
-                                              requestDailySkipDayMutation.mutate(
-                                                {
-                                                  jobId: conversation.job.id,
-                                                  request_date: requestToday,
-                                                },
-                                              ),
-                                          },
-                                        ],
-                                      )
-                                    }
-                                    disabled={
-                                      requestDailySkipDayMutation.isPending
-                                    }
-                                  >
-                                    {requestDailySkipDayMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <>
-                                        <Ionicons
-                                          name="calendar-outline"
-                                          size={16}
-                                          color={Colors.white}
-                                        />
-                                        <Text style={styles.skipDayButtonText}>
-                                          Request Skip Day
-                                        </Text>
-                                      </>
-                                    )}
-                                  </TouchableOpacity>
-                                );
-                              }
-
-                              if (todaySkipRequest.status === "PENDING") {
-                                if (todaySkipRequest.my_worker_requested) {
-                                  return (
-                                    <View style={styles.skipDayStatusPending}>
-                                      <Text style={styles.skipDayStatusTitle}>
-                                        Skip request sent
-                                      </Text>
-                                      <Text style={styles.skipDayStatusText}>
-                                        {todaySkipRequest.requires_all_team_workers
-                                          ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} workers requested`
-                                          : "Waiting for client approval"}
-                                      </Text>
-                                    </View>
-                                  );
-                                }
-
-                                return (
-                                  <TouchableOpacity
-                                    style={styles.skipDayButton}
-                                    onPress={() =>
-                                      requestDailySkipDayMutation.mutate({
-                                        jobId: conversation.job.id,
-                                        request_date: requestToday,
-                                      })
-                                    }
-                                    disabled={
-                                      requestDailySkipDayMutation.isPending
-                                    }
-                                  >
-                                    {requestDailySkipDayMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <>
-                                        <Ionicons
-                                          name="people-outline"
-                                          size={16}
-                                          color={Colors.white}
-                                        />
-                                        <Text style={styles.skipDayButtonText}>
-                                          Join Skip Request
-                                        </Text>
-                                      </>
-                                    )}
-                                  </TouchableOpacity>
-                                );
-                              }
-
-                              if (todaySkipRequest.status === "APPROVED") {
-                                return (
-                                  <View style={styles.skipDayStatusApproved}>
-                                    <Text style={styles.skipDayStatusTitle}>
-                                      Skip day approved
-                                    </Text>
-                                    <Text style={styles.skipDayStatusText}>
-                                      Client approved today's skip request.
-                                    </Text>
-                                  </View>
-                                );
-                              }
-
-                              if (todaySkipRequest.status === "REJECTED") {
-                                return (
-                                  <View style={styles.skipDayStatusRejected}>
-                                    <Text style={styles.skipDayStatusTitle}>
-                                      Skip day rejected
-                                    </Text>
-                                    <Text style={styles.skipDayStatusText}>
-                                      {todaySkipRequest.client_rejection_reason ||
-                                        "Client declined the skip request."}
-                                    </Text>
-                                  </View>
-                                );
-                              }
-
-                              return null;
-                            })()}
-                          </>
-                        )}
-                      </View>
-                    )}
+                  {/* Worker View: Skip Day Request — removed; workers use attendance/no-work flow instead */}
 
                   {/* Client View: Skip Day Request Review (DAILY-only) */}
                   {conversation.my_role === "CLIENT" &&
@@ -5965,15 +5805,14 @@ export default function ChatScreen() {
                       </View>
                     )}
 
-                  {/* Single DAILY job: Client — Approve Early Completion & Pay Remaining */}
-                  {/* Shown when worker marks themselves complete early (before duration ends). */}
-                  {/* Client approves and the worker receives pay for all remaining unworked days. */}
+                  {/* Single DAILY job: Client — Complete Job Early & Pay Remaining */}
+                  {/* Shown only after worker marks today complete. */}
+                  {/* Client pays remaining contracted days and closes the job. */}
                   {conversation.my_role === "CLIENT" &&
                     !conversation.is_team_job &&
                     !conversation.is_agency_job &&
                     conversation.job?.payment_model === "DAILY" &&
-                    (conversation.job?.workerMarkedComplete ||
-                      conversation.job?.is_early_completed) &&
+                    conversation.job?.workerMarkedComplete &&
                     !conversation.job?.clientMarkedComplete && (
                       <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
                         {conversation.job?.is_early_completed ? (
@@ -6002,45 +5841,57 @@ export default function ChatScreen() {
                             </Text>
                           </View>
                         ) : (
-                          <TouchableOpacity
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              backgroundColor: Colors.warning,
-                              borderRadius: 8,
-                              padding: 12,
-                              gap: 8,
-                            }}
-                            onPress={handleApproveSoloDailyCompletion}
-                            disabled={
-                              earlyCompleteSingleDailyMutation.isPending
-                            }
-                          >
-                            {earlyCompleteSingleDailyMutation.isPending ? (
-                              <ActivityIndicator
-                                size="small"
-                                color={Colors.white}
-                              />
-                            ) : (
-                              <>
-                                <Ionicons
-                                  name="wallet"
-                                  size={18}
+                          <View>
+                            <TouchableOpacity
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: Colors.warning,
+                                borderRadius: 8,
+                                padding: 12,
+                                gap: 8,
+                              }}
+                              onPress={handleApproveSoloDailyCompletion}
+                              disabled={
+                                earlyCompleteSingleDailyMutation.isPending
+                              }
+                            >
+                              {earlyCompleteSingleDailyMutation.isPending ? (
+                                <ActivityIndicator
+                                  size="small"
                                   color={Colors.white}
                                 />
-                                <Text
-                                  style={{
-                                    color: Colors.white,
-                                    fontWeight: "600",
-                                    fontSize: 14,
-                                  }}
-                                >
-                                  {`Approve Early Completion & Pay (₱${Number(conversation.job?.remainingPayment ?? 0).toLocaleString()})`}
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
+                              ) : (
+                                <>
+                                  <Ionicons
+                                    name="wallet"
+                                    size={18}
+                                    color={Colors.white}
+                                  />
+                                  <Text
+                                    style={{
+                                      color: Colors.white,
+                                      fontWeight: "600",
+                                      fontSize: 14,
+                                    }}
+                                  >
+                                    {`Complete Job Early & Pay Remaining (₱${Number(conversation.job?.remainingPayment ?? 0).toLocaleString()})`}
+                                  </Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: Colors.textSecondary,
+                                marginTop: 6,
+                                textAlign: "center",
+                              }}
+                            >
+                              Worker marked today complete. This pays remaining contracted days and closes the job.
+                            </Text>
+                          </View>
                         )}
                       </View>
                     )}
@@ -6216,8 +6067,10 @@ export default function ChatScreen() {
                                 )}
                               </View>
 
-                              {/* Per-worker Finish Early & Pay button */}
+                              {/* Per-worker Complete Job Early & Pay button */}
+                              {/* Backend can_early_finish requires worker_marked_complete + not early_completed */}
                               {assignment.can_early_finish &&
+                                assignment.worker_marked_complete &&
                                 !assignment.early_completed && (
                                   <TouchableOpacity
                                     style={[
@@ -6231,7 +6084,7 @@ export default function ChatScreen() {
                                           ? `₱${Number(assignment.early_finish_quote).toLocaleString()}`
                                           : "full contracted amount";
                                       Alert.alert(
-                                        "Finish Early & Pay",
+                                        "Complete Job Early & Pay",
                                         `Release ${quote} to ${assignment.name?.split(" ")[0] || "this worker"} now and mark them done?`,
                                         [
                                           { text: "Cancel", style: "cancel" },
@@ -6279,7 +6132,7 @@ export default function ChatScreen() {
                                           color={Colors.white}
                                         />
                                         <Text style={styles.actionButtonText}>
-                                          Finish Early & Pay (
+                                          Complete Job Early & Pay (
                                           {assignment.early_finish_quote != null
                                             ? `₱${Number(assignment.early_finish_quote).toLocaleString()}`
                                             : "full amount"}
@@ -6496,7 +6349,9 @@ export default function ChatScreen() {
                             workers marked complete...
                           </Text>
                         </View>
-                        {!conversation.job.remainingPaymentPaid &&
+                        {/* Pay Now (Optional) — PROJECT team jobs only; not applicable for DAILY */}
+                        {conversation.job?.payment_model !== "DAILY" &&
+                          !conversation.job.remainingPaymentPaid &&
                           !conversation.job.clientMarkedComplete && (
                             <TouchableOpacity
                               style={[
@@ -7810,6 +7665,7 @@ export default function ChatScreen() {
           {/* Request Backjob Banner - CLIENT ONLY - requires completed reviews */}
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
+            !!conversation.job.remainingPaymentPaid &&
             !isJobCancelled &&
             !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
@@ -7884,6 +7740,7 @@ export default function ChatScreen() {
           {/* Review Reminder Banner - CLIENT ONLY - show when reviews are required before backjob */}
           {conversation.my_role === "CLIENT" &&
             (isJobCompleted || !!conversation.job.clientMarkedComplete) &&
+            !!conversation.job.remainingPaymentPaid &&
             !isJobCancelled &&
             !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
