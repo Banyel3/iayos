@@ -49,6 +49,7 @@ from .schemas import (
 )
 from .cancellation_service import cancel_job_with_scenarios
 from .backjob_service import auto_start_agency_backjob_if_ready, get_business_local_date
+from .text_moderation import validate_job_post_content
 from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
@@ -62,6 +63,17 @@ import re
 from django.conf import settings
 
 router = Router()
+
+
+def _content_policy_violation_response(field_errors: dict):
+    return Response(
+        {
+            "error": "Please remove inappropriate language and try again.",
+            "error_code": "CONTENT_POLICY_VIOLATION",
+            "field_errors": field_errors,
+        },
+        status=400,
+    )
 
 
 def get_user_profile(request):
@@ -635,6 +647,14 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         except Specializations.DoesNotExist:
             return Response({"error": "Invalid category selected"}, status=400)
 
+        content_violations = validate_job_post_content(
+            title=data.title,
+            description=data.description,
+            location=data.location,
+        )
+        if content_violations:
+            return _content_policy_violation_response(content_violations)
+
         # Parse preferred start date if provided
         preferred_start_date = None
         if data.preferred_start_date:
@@ -1093,6 +1113,15 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
             category = Specializations.objects.get(specializationID=data.category_id)
         except Specializations.DoesNotExist:
             return Response({"error": "Invalid category selected"}, status=400)
+
+        content_violations = validate_job_post_content(
+            title=data.title,
+            description=data.description,
+            location=data.location,
+            skill_slots=data.skill_slots,
+        )
+        if content_violations:
+            return _content_policy_violation_response(content_violations)
 
         assigned_agency = None
 
@@ -9775,6 +9804,15 @@ def create_team_job_endpoint(request, payload: CreateTeamJobSchema):
             }
             for slot in payload.skill_slots
         ]
+
+        content_violations = validate_job_post_content(
+            title=payload.title,
+            description=payload.description,
+            location=payload.location,
+            skill_slots=payload.skill_slots,
+        )
+        if content_violations:
+            return _content_policy_violation_response(content_violations)
 
         result = create_team_job(
             client_profile=profile,

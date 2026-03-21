@@ -473,6 +473,8 @@ export default function CreateTeamJobScreen() {
     requires_agency_fallback?: boolean;
     fallback_slots?: TeamCreateFallbackSlot[];
     error?: string;
+    error_code?: string;
+    field_errors?: Record<string, { message: string }>;
   }
 
   // Create mutation
@@ -511,6 +513,8 @@ export default function CreateTeamJobScreen() {
       const result = (await response.json()) as {
         success?: boolean;
         error?: string;
+        error_code?: string;
+        field_errors?: Record<string, { message: string }>;
         job_id?: number;
         skill_slots_created?: number;
         total_workers_needed?: number;
@@ -521,6 +525,9 @@ export default function CreateTeamJobScreen() {
       };
       if (!response.ok || !result.success) {
         if (result.requires_agency_fallback) {
+          throw result;
+        }
+        if (result.error_code === "CONTENT_POLICY_VIOLATION") {
           throw result;
         }
         throw new Error(result.error || "Failed to create team job");
@@ -577,6 +584,21 @@ export default function CreateTeamJobScreen() {
             },
             { text: "OK" },
           ],
+        );
+        return;
+      }
+
+      if (
+        fallbackData?.error_code === "CONTENT_POLICY_VIOLATION" &&
+        fallbackData.field_errors
+      ) {
+        const fieldNames = Object.keys(fallbackData.field_errors);
+        const firstFields = fieldNames.slice(0, 3).join(", ");
+        const moreCount = Math.max(0, fieldNames.length - 3);
+        const suffix = moreCount > 0 ? ` (+${moreCount} more)` : "";
+        Alert.alert(
+          "Please Revise Your Job Post",
+          `We found inappropriate language in: ${firstFields}${suffix}. Please update those fields and submit again.`,
         );
         return;
       }
