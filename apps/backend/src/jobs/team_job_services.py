@@ -1888,15 +1888,17 @@ def accept_team_application(
 
     # AUTO-CREATE CONVERSATION when all slots are filled
     if can_start:
+        # CRITICAL: Team jobs must transition out of ACTIVE once staffing
+        # threshold is met, even if a conversation already exists.
+        if job.status == "ACTIVE":
+            job.status = "IN_PROGRESS"
+            job.save(update_fields=["status", "updatedAt"])
+
         # Check if conversation already exists
         existing_conversation = Conversation.objects.filter(
             relatedJobPosting=job
         ).first()
         if not existing_conversation:
-            # CRITICAL: Change job status to IN_PROGRESS (like regular jobs)
-            job.status = "IN_PROGRESS"
-            job.save()
-
             # Create team conversation
             conversation = Conversation.objects.create(
                 client=job.clientID.profileID if job.clientID else None,

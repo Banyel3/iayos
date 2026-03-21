@@ -11,7 +11,7 @@ from .schemas import (
     ConversationParticipantSchema,
     MarkAsReadSchema,
 )
-from .models import Conversation, Message, MessageAttachment
+from .models import Conversation, Message, MessageAttachment, ConversationParticipant
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction as db_transaction
@@ -1516,6 +1516,20 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 {"error": "You are not a participant of this job"}, status=403
             )
 
+        # Auto-heal legacy team jobs that are fully staffed but still marked ACTIVE.
+        # This keeps job/chat workflow gates consistent for existing hybrid jobs.
+        if job.is_team_job and job.status == "ACTIVE" and job.can_start_team_job:
+            try:
+                job.status = "IN_PROGRESS"
+                job.save(update_fields=["status", "updatedAt"])
+                print(
+                    f"[get_conversation_by_job] Auto-transitioned team job {job.jobID} to IN_PROGRESS"
+                )
+            except Exception as status_err:
+                print(
+                    f"[get_conversation_by_job] Team status auto-transition skipped: {status_err}"
+                )
+
         # Try to find existing conversation
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
 
@@ -1640,6 +1654,55 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             }
 
         if conversation:
+            # Auto-heal legacy team conversations that were created as ONE_ON_ONE.
+            if job.is_team_job:
+                conversation_fields_to_update = []
+                if (
+                    conversation.conversation_type
+                    != Conversation.ConversationType.TEAM_GROUP
+                ):
+                    conversation.conversation_type = (
+                        Conversation.ConversationType.TEAM_GROUP
+                    )
+                    conversation_fields_to_update.append("conversation_type")
+
+                if conversation.worker_id is not None:
+                    conversation.worker = None
+                    conversation_fields_to_update.append("worker")
+
+                if conversation.client_id is None and client_profile:
+                    conversation.client = client_profile
+                    conversation_fields_to_update.append("client")
+
+                if conversation_fields_to_update:
+                    conversation_fields_to_update.append("updatedAt")
+                    conversation.save(update_fields=conversation_fields_to_update)
+                    print(
+                        f"[get_conversation_by_job] Auto-healed team conversation shape for job {job.jobID}"
+                    )
+
+                if client_profile:
+                    ConversationParticipant.objects.get_or_create(
+                        conversation=conversation,
+                        profile=client_profile,
+                        defaults={"participant_type": "CLIENT"},
+                    )
+
+                team_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                ).select_related("workerID__profileID", "skillSlotID")
+
+                for assignment in team_assignments:
+                    ConversationParticipant.objects.get_or_create(
+                        conversation=conversation,
+                        profile=assignment.workerID.profileID,
+                        defaults={
+                            "participant_type": "WORKER",
+                            "skill_slot": assignment.skillSlotID,
+                        },
+                    )
+
             reopened = False
             system_message_added = False
 
@@ -1703,18 +1766,40 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         if not client_profile:
             return Response({"error": "Job has no client"}, status=400)
 
-        if not worker_profile and not agency:
+        if not worker_profile and not agency and not job.is_team_job:
             return Response(
                 {"error": "Job has no assigned worker or agency"}, status=400
             )
 
-        conversation = Conversation.objects.create(
-            client=client_profile,
-            worker=worker_profile,
-            agency=agency,
-            relatedJobPosting=job,
-            status=ConversationStatus.ACTIVE,
-        )
+        if job.is_team_job:
+            conversation, created = Conversation.create_team_conversation(
+                job_posting=job,
+                client_profile=client_profile,
+            )
+
+            # Ensure existing team assignments are represented in participants.
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+            ).select_related("workerID__profileID", "skillSlotID")
+
+            for assignment in team_assignments:
+                conversation.add_team_worker(
+                    assignment.workerID.profileID,
+                    assignment.skillSlotID,
+                )
+
+            print(
+                f"[get_conversation_by_job] {'Created' if created else 'Resolved'} TEAM_GROUP conversation {conversation.conversationID} for team job {job_id}"
+            )
+        else:
+            conversation = Conversation.objects.create(
+                client=client_profile,
+                worker=worker_profile,
+                agency=agency,
+                relatedJobPosting=job,
+                status=ConversationStatus.ACTIVE,
+            )
 
         print(
             f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}"

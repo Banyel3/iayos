@@ -2343,6 +2343,23 @@ def get_agency_conversations(request, filter: str = "all"):
                     relatedJobPosting__status="ACTIVE",
                     relatedJobPosting__assignedEmployeeID__isnull=False,
                 )
+                | Q(  # Team/hybrid jobs with any accepted assignment should remain visible
+                    relatedJobPosting__status="ACTIVE",
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__employee_assignments__status__in=[
+                        "ASSIGNED",
+                        "IN_PROGRESS",
+                        "COMPLETED",
+                    ],
+                )
+                | Q(  # Team/hybrid jobs with freelancer team assignments should remain visible
+                    relatedJobPosting__status="ACTIVE",
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__worker_assignments__assignment_status__in=[
+                        "ACTIVE",
+                        "COMPLETED",
+                    ],
+                )
                 | Q(  # Backjob pipeline - keep conversation visible in active tab
                     relatedJobPosting__disputes__status__in=[
                         "OPEN",
@@ -2367,15 +2384,6 @@ def get_agency_conversations(request, filter: str = "all"):
         for conv in conversations:
             job = conv.relatedJobPosting
             client_profile = conv.client
-
-            # Team-job chat should only be visible after all required slots are filled.
-            # NOTE: total_workers_* are model properties, not DB fields, so this
-            # must be evaluated in Python instead of queryset filters.
-            if job.is_team_job:
-                total_needed = int(job.total_workers_needed or 0)
-                total_assigned = int(job.total_workers_assigned or 0)
-                if total_assigned < total_needed:
-                    continue
 
             # Get assigned employee info if exists (legacy single employee)
             assigned_employee = None
