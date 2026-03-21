@@ -1143,6 +1143,14 @@ export default function AgencyChatScreen() {
                 }
 
                 if (!allDispatched) {
+                  if (job.is_team_job) {
+                    return (
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-800 font-medium">
+                        Team hybrid flow is arrival-first. Waiting for client to confirm team member arrivals.
+                      </div>
+                    );
+                  }
+
                   const pendingDispatchEmployees = assigned_employees.filter(
                     (e: AssignedEmployee) =>
                       isProjectMultiDayAttendanceFlow
