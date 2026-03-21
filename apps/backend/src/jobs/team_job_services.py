@@ -24,6 +24,7 @@ from accounts.models import (
     Wallet,
     workerSpecialization,
     JobDispute,
+    PriceNegotiation,
 )
 from profiles.models import Conversation, ConversationParticipant
 
@@ -1508,42 +1509,98 @@ def apply_to_skill_slot(
             "category": skill_slot.specializationID.specializationName,
         }
 
-    # Check if worker already has an active application for this slot
-    # (allow re-apply when previous application was REJECTED or WITHDRAWN)
-    existing = JobApplication.objects.filter(
-        jobID=job,
-        workerID=worker_profile,
-        applied_skill_slot=skill_slot,
-        status__in=[
-            JobApplication.ApplicationStatus.PENDING,
-            JobApplication.ApplicationStatus.ACCEPTED,
-        ],
-    ).exists()
+    # Single-row policy per (job, worker, skill_slot): reuse rejected/withdrawn
+    # row, block active row, and avoid unique-constraint crashes.
+    existing_application = (
+        JobApplication.objects.filter(
+            jobID=job,
+            workerID=worker_profile,
+            applied_skill_slot=skill_slot,
+        )
+        .order_by("-updatedAt", "-createdAt")
+        .first()
+    )
 
-    if existing:
+    if existing_application and existing_application.status in [
+        JobApplication.ApplicationStatus.PENDING,
+        JobApplication.ApplicationStatus.ACCEPTED,
+    ]:
         return {
             "success": False,
             "error": "You have already applied to this skill slot",
         }
 
-    # Create application
-    application = JobApplication.objects.create(
-        jobID=job,
-        workerID=worker_profile,
-        applied_skill_slot=skill_slot,
-        proposalMessage=proposal_message,
-        proposedBudget=proposed_budget,
-        budgetOption=budget_option,
-        estimatedDuration=estimated_duration,
-        proposed_daily_rate=proposed_daily_rate,
-        proposed_days=proposed_days,
-        status="PENDING",
-        applied_shift=(
-            job.shift_type
-            if job.shift_type in ("MORNING", "NIGHT")
-            else (applied_shift or None)
-        ),
+    normalized_applied_shift = (
+        job.shift_type
+        if job.shift_type in ("MORNING", "NIGHT")
+        else (applied_shift or None)
     )
+    new_negotiation_count = 1 if budget_option == "NEGOTIATE" else 0
+
+    try:
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.REJECTED,
+            JobApplication.ApplicationStatus.WITHDRAWN,
+        ]:
+            application = existing_application
+            application.proposalMessage = proposal_message
+            application.proposedBudget = proposed_budget
+            application.budgetOption = budget_option
+            application.estimatedDuration = estimated_duration
+            application.proposed_daily_rate = proposed_daily_rate
+            application.proposed_days = proposed_days
+            application.applied_shift = normalized_applied_shift
+            application.status = JobApplication.ApplicationStatus.PENDING
+            application.negotiation_count = new_negotiation_count
+            application.save(
+                update_fields=[
+                    "proposalMessage",
+                    "proposedBudget",
+                    "budgetOption",
+                    "estimatedDuration",
+                    "proposed_daily_rate",
+                    "proposed_days",
+                    "applied_shift",
+                    "status",
+                    "negotiation_count",
+                    "updatedAt",
+                ]
+            )
+
+            # Fresh re-application starts a fresh negotiation cycle.
+            PriceNegotiation.objects.filter(application=application).delete()
+        else:
+            application = JobApplication.objects.create(
+                jobID=job,
+                workerID=worker_profile,
+                applied_skill_slot=skill_slot,
+                proposalMessage=proposal_message,
+                proposedBudget=proposed_budget,
+                budgetOption=budget_option,
+                estimatedDuration=estimated_duration,
+                proposed_daily_rate=proposed_daily_rate,
+                proposed_days=proposed_days,
+                status=JobApplication.ApplicationStatus.PENDING,
+                applied_shift=normalized_applied_shift,
+                negotiation_count=new_negotiation_count,
+            )
+
+        if budget_option == "NEGOTIATE":
+            PriceNegotiation.objects.create(
+                application=application,
+                actor=PriceNegotiation.Actor.WORKER,
+                round_number=1,
+                proposed_budget=proposed_budget,
+                proposed_daily_rate=proposed_daily_rate,
+                proposed_days=proposed_days,
+                message=proposal_message,
+                status=PriceNegotiation.NegotiationStatus.PENDING,
+            )
+    except IntegrityError:
+        return {
+            "success": False,
+            "error": "You already have an application for this skill slot. Please wait for the client response or withdraw first.",
+        }
 
     # Notify client
     client_account = job.clientID.profileID.accountFK if job.clientID else None
