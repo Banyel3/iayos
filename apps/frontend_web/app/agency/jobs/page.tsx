@@ -31,6 +31,7 @@ import {
   Clock,
   Sun,
   Moon,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/generic_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -1220,6 +1221,11 @@ export default function AgencyJobsPage() {
                   agencyProgress.needed > 0
                     ? (agencyProgress.assigned / agencyProgress.needed) * 100
                     : 0;
+                const totalWorkersNeeded = Number(job.total_workers_needed || 0);
+                const totalWorkersAssigned = Number(job.total_workers_assigned || 0);
+                const areAllTeamSlotsFilled =
+                  totalWorkersNeeded > 0 && totalWorkersAssigned >= totalWorkersNeeded;
+                const isAcceptedChatLocked = Boolean(job.is_team_job) && !areAllTeamSlotsFilled;
                 return (
                 <Card
                   key={job.jobID}
@@ -1366,17 +1372,39 @@ export default function AgencyJobsPage() {
                           View Details
                         </Button>
                         {job.conversation_id && (
-                          <Button
-                            variant="outline"
-                            className="flex-1 h-10 border-2 border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50 transition-all text-sm font-semibold"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/agency/messages/${job.conversation_id}`);
-                            }}
-                          >
-                            <MessageCircle className="h-4 w-4 mr-2" />
-                            View Chat
-                          </Button>
+                          <div className="space-y-1">
+                            <Button
+                              variant="outline"
+                              className={`flex-1 h-10 border-2 text-sm font-semibold transition-all ${
+                                isAcceptedChatLocked
+                                  ? "border-gray-300 text-gray-400 bg-gray-50 cursor-not-allowed"
+                                  : "border-[#00BAF1] text-[#00BAF1] hover:bg-sky-50"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isAcceptedChatLocked) return;
+                                router.push(`/agency/messages/${job.conversation_id}`);
+                              }}
+                              disabled={isAcceptedChatLocked}
+                              title={
+                                isAcceptedChatLocked
+                                  ? "Chat unlocks after all team slots are filled"
+                                  : undefined
+                              }
+                            >
+                              {isAcceptedChatLocked ? (
+                                <Lock className="h-4 w-4 mr-2" />
+                              ) : (
+                                <MessageCircle className="h-4 w-4 mr-2" />
+                              )}
+                              View Chat
+                            </Button>
+                            {isAcceptedChatLocked && (
+                              <p className="text-[11px] text-amber-700 font-medium">
+                                Waiting for all team slots to be filled before chat opens.
+                              </p>
+                            )}
+                          </div>
                         )}
                         {!job.assignedEmployee && job.status === "ACTIVE" && (
                           <KycActionGate>
