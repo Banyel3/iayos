@@ -2485,6 +2485,7 @@ def get_agency_conversations(request, filter: str = "all"):
 
             # For hybrid/team jobs, include freelancer assignments too
             team_worker_assignments = []
+            team_agency_employees = []
             if job.is_team_job:
                 worker_assignments = (
                     JobWorkerAssignment.objects.filter(
@@ -2518,6 +2519,59 @@ def get_agency_conversations(request, filter: str = "all"):
                             and assignment.skillSlotID.specializationID
                             else None,
                             "status": assignment.assignment_status,
+                        }
+                    )
+
+                slot_employee_assignments = (
+                    JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                        skill_slot__isnull=False,
+                    )
+                    .select_related("employee", "skill_slot__specializationID")
+                    .order_by("-isPrimaryContact", "assignedAt")
+                )
+
+                for sea in slot_employee_assignments:
+                    emp = sea.employee
+                    slot_name = None
+                    if sea.skill_slot and sea.skill_slot.specializationID:
+                        slot_name = sea.skill_slot.specializationID.specializationName
+
+                    team_agency_employees.append(
+                        {
+                            "id": emp.employeeID,
+                            "assignment_id": sea.assignmentID,
+                            "name": emp.name,
+                            "avatar": emp.avatar,
+                            "status": sea.status,
+                            "skill": slot_name,
+                            "dispatched": getattr(sea, "dispatched", False),
+                            "dispatchedAt": sea.dispatchedAt.isoformat()
+                            if getattr(sea, "dispatchedAt", None)
+                            else None,
+                            "clientConfirmedArrival": getattr(
+                                sea, "clientConfirmedArrival", False
+                            ),
+                            "clientConfirmedArrivalAt": sea.clientConfirmedArrivalAt.isoformat()
+                            if getattr(sea, "clientConfirmedArrivalAt", None)
+                            else None,
+                            "agencyMarkedComplete": getattr(
+                                sea, "agencyMarkedComplete", False
+                            ),
+                            "agencyMarkedCompleteAt": sea.agencyMarkedCompleteAt.isoformat()
+                            if getattr(sea, "agencyMarkedCompleteAt", None)
+                            else None,
+                            "employeeMarkedComplete": getattr(
+                                sea, "employeeMarkedComplete", False
+                            ),
+                            "employeeMarkedCompleteAt": sea.employeeMarkedCompleteAt.isoformat()
+                            if getattr(sea, "employeeMarkedCompleteAt", None)
+                            else None,
+                            "marked_complete": getattr(
+                                sea, "agencyMarkedComplete", False
+                            )
+                            or getattr(sea, "employeeMarkedComplete", False),
                         }
                     )
 
@@ -2594,6 +2648,7 @@ def get_agency_conversations(request, filter: str = "all"):
                     "assigned_employee": assigned_employee,
                     "assigned_employees": assigned_employees,  # Multi-employee support
                     "team_worker_assignments": team_worker_assignments,
+                    "team_agency_employees": team_agency_employees,
                     "last_message": conv.lastMessageText,
                     "last_message_time": conv.updatedAt.isoformat()
                     if conv.updatedAt
@@ -2846,6 +2901,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
         # For hybrid/team jobs, include freelancer assignments too
         team_worker_assignments = []
+        team_agency_employees = []
         if job.is_team_job:
             worker_assignments = (
                 JobWorkerAssignment.objects.filter(
@@ -2879,6 +2935,57 @@ def get_agency_conversation_messages(request, conversation_id: int):
                         and assignment.skillSlotID.specializationID
                         else None,
                         "status": assignment.assignment_status,
+                    }
+                )
+
+            slot_employee_assignments = (
+                JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    skill_slot__isnull=False,
+                )
+                .select_related("employee", "skill_slot__specializationID")
+                .order_by("-isPrimaryContact", "assignedAt")
+            )
+
+            for sea in slot_employee_assignments:
+                emp = sea.employee
+                slot_name = None
+                if sea.skill_slot and sea.skill_slot.specializationID:
+                    slot_name = sea.skill_slot.specializationID.specializationName
+
+                team_agency_employees.append(
+                    {
+                        "id": emp.employeeID,
+                        "assignment_id": sea.assignmentID,
+                        "name": emp.name,
+                        "avatar": emp.avatar,
+                        "status": sea.status,
+                        "skill": slot_name,
+                        "dispatched": getattr(sea, "dispatched", False),
+                        "dispatchedAt": sea.dispatchedAt.isoformat()
+                        if getattr(sea, "dispatchedAt", None)
+                        else None,
+                        "clientConfirmedArrival": getattr(
+                            sea, "clientConfirmedArrival", False
+                        ),
+                        "clientConfirmedArrivalAt": sea.clientConfirmedArrivalAt.isoformat()
+                        if getattr(sea, "clientConfirmedArrivalAt", None)
+                        else None,
+                        "agencyMarkedComplete": getattr(
+                            sea, "agencyMarkedComplete", False
+                        ),
+                        "agencyMarkedCompleteAt": sea.agencyMarkedCompleteAt.isoformat()
+                        if getattr(sea, "agencyMarkedCompleteAt", None)
+                        else None,
+                        "employeeMarkedComplete": getattr(
+                            sea, "employeeMarkedComplete", False
+                        ),
+                        "employeeMarkedCompleteAt": sea.employeeMarkedCompleteAt.isoformat()
+                        if getattr(sea, "employeeMarkedCompleteAt", None)
+                        else None,
+                        "marked_complete": getattr(sea, "agencyMarkedComplete", False)
+                        or getattr(sea, "employeeMarkedComplete", False),
                     }
                 )
 
@@ -3164,6 +3271,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "assigned_employee": assigned_employee,
                 "assigned_employees": assigned_employees,  # Multi-employee support
                 "team_worker_assignments": team_worker_assignments,
+                "team_agency_employees": team_agency_employees,
                 "daily_skip_requests_today": daily_skip_requests_today,
                 "effective_work_date": effective_work_date.isoformat(),
                 "qa_day_offset": qa_day_offset,
