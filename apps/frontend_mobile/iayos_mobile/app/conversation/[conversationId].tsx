@@ -1550,7 +1550,7 @@ export default function ChatScreen() {
       title: "Approve Team Job & Pay",
       message: `All workers have completed their assignments.\n\nYou will need to pay the remaining balance:\n\n₱${remainingAmount}\n\nPlease select your payment method.`,
       confirmLabel: "Continue",
-      countdownSeconds: 7,
+      countdownSeconds: 3,
       onConfirm: () => {
         setCountdownConfig(null);
         setPaymentActionMode("APPROVE_COMPLETION");
@@ -1576,7 +1576,7 @@ export default function ChatScreen() {
       title: "Complete Job Early & Pay Remaining",
       message: `Worker has completed today's work.\n\nRemaining escrow to release:\n\n₱${remainingAmount}\n\nThis pays remaining contracted days and closes the job.\n\nPlease select your payment method.`,
       confirmLabel: "Continue",
-      countdownSeconds: 7,
+      countdownSeconds: 3,
       onConfirm: () => {
         setCountdownConfig(null);
         setPaymentActionMode("APPROVE_SOLO_DAILY_COMPLETION");
@@ -1613,7 +1613,7 @@ export default function ChatScreen() {
         "- This does NOT mark the job complete.\n" +
         "- You must still approve completion later.",
       confirmLabel: "Continue",
-      countdownSeconds: 7,
+      countdownSeconds: 3,
       onConfirm: () => {
         setCountdownConfig(null);
         setPaymentActionMode("PAY_NOW");
@@ -1717,7 +1717,7 @@ export default function ChatScreen() {
       title: "Approve Completion & Pay",
       message: `You will need to pay the remaining 50% of the job budget:\n\n₱${remainingAmount}${materialsNote}\n\nPlease select your payment method.`,
       confirmLabel: "Continue",
-      countdownSeconds: 7,
+      countdownSeconds: 3,
       onConfirm: () => {
         setCountdownConfig(null);
         setShowPaymentModal(true);
@@ -3099,7 +3099,7 @@ export default function ChatScreen() {
                 title: "Confirm Attendance",
                 message: `Confirm attendance and process wallet payout of ₱${Number(attendance.amount_earned || 0).toLocaleString()}?`,
                 confirmLabel: "Confirm Wallet",
-                countdownSeconds: 7,
+                countdownSeconds: 3,
                 onConfirm: () => {
                   setCountdownConfig(null);
                   clientConfirmAttendanceMutation.mutate({
@@ -3125,7 +3125,7 @@ export default function ChatScreen() {
                 message:
                   "Confirm attendance and release payout immediately with attached cash proof?",
                 confirmLabel: "Confirm Cash",
-                countdownSeconds: 7,
+                countdownSeconds: 3,
                 onConfirm: () => {
                   setCountdownConfig(null);
                   clientConfirmAttendanceMutation.mutate({
@@ -5518,7 +5518,7 @@ export default function ChatScreen() {
                                                         message: `Confirm ${attendance.worker_name || "worker"}'s attendance for today? Final payout is processed when the job is finished.`,
                                                         confirmLabel:
                                                           "Confirm Day",
-                                                        countdownSeconds: 7,
+                                                        countdownSeconds: 3,
                                                         onConfirm: () => {
                                                           setCountdownConfig(
                                                             null,

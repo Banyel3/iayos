@@ -554,8 +554,17 @@ export default function JobDetailScreen() {
         skill_level_required: jobData.skill_level_required,
         work_environment: jobData.work_environment,
         // Payment model fields
-        payment_model: jobData.payment_model || "PROJECT",
+        payment_model:
+          jobData.payment_model ||
+          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
         daily_rate_agreed: jobData.daily_rate_agreed ?? null,
+        daily_rate:
+          jobData.daily_rate_agreed ??
+          (jobData.payment_model === "DAILY" &&
+          jobData.budget &&
+          jobData.duration_days
+            ? jobData.budget / jobData.duration_days
+            : undefined),
         duration_days: jobData.duration_days ?? null,
         shift_type: jobData.shift_type ?? "ANY",
         // Team Job fields
@@ -573,20 +582,9 @@ export default function JobDetailScreen() {
         team_fill_percentage: jobData.team_fill_percentage,
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
-        // Missing fields mapping
+        // Additional fields
         preferred_start_date: jobData.preferred_start_date,
         scheduled_end_date: jobData.scheduled_end_date,
-        payment_model:
-          jobData.payment_model ||
-          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
-        daily_rate:
-          jobData.daily_rate_agreed ??
-          (jobData.payment_model === "DAILY" &&
-          jobData.budget &&
-          jobData.duration_days
-            ? jobData.budget / jobData.duration_days
-            : undefined),
-        duration_days: jobData.duration_days,
         workerMarkedOnTheWay: Boolean(jobData.worker_marked_on_the_way),
         workerMarkedOnTheWayAt: jobData.worker_marked_on_the_way_at || null,
         workerMarkedJobStarted: Boolean(jobData.worker_marked_job_started),
@@ -1048,7 +1046,7 @@ export default function JobDetailScreen() {
       message: `Are you sure you want to accept ${workerName}'s application? This will assign them to the job and reject all other applications.`,
       confirmLabel: "Accept",
       confirmStyle: "default",
-      countdownSeconds: 5,
+      countdownSeconds: 3,
       onConfirm: () => acceptApplicationMutation.mutate(applicationId),
       icon: "checkmark-circle",
       iconColor: Colors.success,
@@ -1065,7 +1063,7 @@ export default function JobDetailScreen() {
       message: `Are you sure you want to reject ${workerName}'s application?`,
       confirmLabel: "Reject",
       confirmStyle: "destructive",
-      countdownSeconds: 5,
+      countdownSeconds: 3,
       onConfirm: () => rejectApplicationMutation.mutate(applicationId),
       icon: "close-circle",
       iconColor: Colors.error,
@@ -1235,7 +1233,7 @@ export default function JobDetailScreen() {
           "Cancelling this job may incur losses. If work has already started, worker compensation may be deducted from your refund. Do you want to continue?",
         confirmLabel: "Cancel Job",
         confirmStyle: "destructive",
-        countdownSeconds: 5,
+        countdownSeconds: 3,
         onConfirm: () => cancelJobMutation.mutate(reason),
         icon: "close-circle",
         iconColor: Colors.error,
@@ -1368,7 +1366,7 @@ export default function JobDetailScreen() {
         "Are you sure you want to accept this job invitation? Once accepted, you'll be expected to complete the work.",
       confirmLabel: "Accept",
       confirmStyle: "default",
-      countdownSeconds: 5,
+      countdownSeconds: 3,
       onConfirm: () => acceptInviteMutation.mutate(),
       icon: "briefcase",
       iconColor: Colors.primary,
@@ -1708,7 +1706,7 @@ export default function JobDetailScreen() {
       message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
       confirmLabel: "Accept",
       confirmStyle: "default",
-      countdownSeconds: 6,
+      countdownSeconds: 3,
       onConfirm: () =>
         acceptTeamApplication.mutate({
           jobId: parseInt(id),
@@ -1835,17 +1833,20 @@ export default function JobDetailScreen() {
 
   const urgencyColors = getUrgencyColor(job.urgency);
 
+  const isDailyPayment = job.payment_model === "DAILY";
   const dailyDuration = Number(job.duration_days || 0);
   const dailyStartDate = job.preferred_start_date
     ? new Date(job.preferred_start_date)
     : null;
-  const durationDays = Math.max(dailyDuration, job.payment_model === "DAILY" ? 1 : 0);
+  const durationDays = Math.max(dailyDuration, isDailyPayment ? 1 : 0);
   const shiftLabel =
-    job.shift_type === "MORNING"
-      ? "Day Shift"
-      : job.shift_type === "NIGHT"
-        ? "Night Shift"
-        : "Anytime";
+    isDailyPayment
+      ? (job.shift_type === "MORNING"
+          ? "Day Shift"
+          : job.shift_type === "NIGHT"
+            ? "Night Shift"
+            : "Anytime")
+      : null;
   const startDateLabel = job.preferred_start_date
     ? new Date(job.preferred_start_date).toLocaleDateString("en-US", {
         month: "short",
@@ -2297,20 +2298,28 @@ export default function JobDetailScreen() {
                         : ""}
                     </Text>
                   )}
-                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
-                    Shift: {shiftLabel}
-                  </Text>
+                  {shiftLabel && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Shift: {shiftLabel}
+                    </Text>
+                  )}
                 </View>
               ) : (
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: Colors.textSecondary,
-                    marginTop: 2,
-                  }}
-                >
-                  Project Based
-                </Text>
+                <View style={{ marginTop: 2 }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: Colors.textSecondary,
+                    }}
+                  >
+                    Project Based
+                  </Text>
+                  {durationDays > 0 && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Working Days: {durationDays} day{durationDays === 1 ? "" : "s"}
+                    </Text>
+                  )}
+                </View>
               )}
             </View>
           </View>

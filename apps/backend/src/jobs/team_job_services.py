@@ -1005,7 +1005,11 @@ def create_team_job(
         else None,
         duration_days=effective_duration_days
         if payment_model_upper == "DAILY"
-        else None,
+        else (
+            max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
+            if preferred_start_date_obj and scheduled_end_date_obj and scheduled_end_date_obj >= preferred_start_date_obj
+            else (int(duration_days) if duration_days and int(duration_days) > 0 else None)
+        ),
         shift_type=shift_type_upper,
         budget_allocation_type=allocation_type,
         team_job_start_threshold=Decimal(str(team_start_threshold)),
@@ -1108,7 +1112,7 @@ def create_team_job(
         Transaction.objects.create(
             walletID=wallet,
             relatedJobPosting=job,
-            transactionType="ESCROW",
+            transactionType="PAYMENT",
             amount=escrow_amount,
             balanceAfter=wallet.balance,
             status="COMPLETED",
@@ -2702,20 +2706,22 @@ def client_approve_team_job(
     buffer_days = get_payment_buffer_days() if not zero_due_daily_completion else 0
 
     # Pre-validate wallet balance BEFORE updating job flags.
-    # Use available balance (balance - reserved) to avoid violating
-    # wallet_balance_gte_reserved DB constraint on deduction.
-    if payment_method_upper == "WALLET" and remaining_amount > Decimal("0.00"):
+    # Escrow was already deducted at job creation; only the additional
+    # amount beyond escrow requires new funds from the client.
+    escrow_held_precheck = job.escrowAmount or Decimal("0.00")
+    additional_needed = max(Decimal("0.00"), remaining_amount - escrow_held_precheck)
+    if payment_method_upper == "WALLET" and additional_needed > Decimal("0.00"):
         wallet, _ = Wallet.objects.get_or_create(
             accountFK=client_user, defaults={"balance": Decimal("0.00")}
         )
         available_balance = wallet.availableBalance
-        if available_balance < remaining_amount:
+        if available_balance < additional_needed:
             return {
                 "success": False,
                 "error": (
-                    f"Insufficient wallet balance. You need ₱{remaining_amount:,.2f} "
-                    f"but only have ₱{available_balance:,.2f} available "
-                    f"(₱{wallet.balance:,.2f} balance, ₱{wallet.reservedBalance:,.2f} reserved). "
+                    f"Insufficient wallet balance. You need ₱{additional_needed:,.2f} additional "
+                    f"(₱{remaining_amount:,.2f} total minus ₱{escrow_held_precheck:,.2f} escrowed) "
+                    f"but only have ₱{available_balance:,.2f} available. "
                     "Please deposit more funds or choose CASH payment."
                 ),
             }
@@ -2729,37 +2735,41 @@ def client_approve_team_job(
             accountFK=client_user, defaults={"balance": Decimal("0.00")}
         )
 
-        if payment_method_upper == "WALLET" and remaining_amount > Decimal("0.00"):
+        # ----------------------------------------------------------------
+        # Escrow accounting: funds were already deducted from client balance
+        # and held in reservedBalance at job creation. Release the escrow
+        # first and only charge the client for any amount exceeding it.
+        # ----------------------------------------------------------------
+        escrow_held = job.escrowAmount or Decimal("0.00")
+
+        if payment_method_upper == "WALLET":
             client_wallet = Wallet.objects.select_for_update().get(
                 accountFK=client_user
             )
-            # Re-validate available balance after acquiring row lock to prevent races.
-            available_balance = client_wallet.availableBalance
-            if available_balance < remaining_amount:
-                return {
-                    "success": False,
-                    "error": (
-                        f"Insufficient wallet balance. Need ₱{remaining_amount:,.2f} "
-                        f"but only have ₱{available_balance:,.2f} available "
-                        f"(₱{client_wallet.balance:,.2f} balance, "
-                        f"₱{client_wallet.reservedBalance:,.2f} reserved). "
-                        "Please deposit more funds or choose CASH payment."
-                    ),
-                }
 
-            new_balance = client_wallet.balance - remaining_amount
-            if new_balance < client_wallet.reservedBalance:
-                return {
-                    "success": False,
-                    "error": (
-                        "Insufficient available wallet funds after considering reserved balance. "
-                        f"Available: ₱{available_balance:,.2f}, required: ₱{remaining_amount:,.2f}."
-                    ),
-                }
+            # Release escrow from reservedBalance (funds already deducted at creation)
+            escrow_release = min(client_wallet.reservedBalance, escrow_held)
+            additional_charge = max(Decimal("0.00"), remaining_amount - escrow_release)
 
-            client_wallet.balance -= remaining_amount
+            if additional_charge > Decimal("0.00"):
+                available_balance = client_wallet.availableBalance
+                if available_balance < additional_charge:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Insufficient wallet balance. Need ₱{additional_charge:,.2f} additional "
+                            f"(₱{remaining_amount:,.2f} total minus ₱{escrow_release:,.2f} escrowed) "
+                            f"but only have ₱{available_balance:,.2f} available. "
+                            "Please deposit more funds or choose CASH payment."
+                        ),
+                    }
+
+            # Release escrow hold and charge only the additional amount
+            client_wallet.reservedBalance -= escrow_release
+            if additional_charge > Decimal("0.00"):
+                client_wallet.balance -= additional_charge
             try:
-                client_wallet.save(update_fields=["balance"])
+                client_wallet.save(update_fields=["balance", "reservedBalance", "updatedAt"])
             except IntegrityError:
                 return {
                     "success": False,
@@ -2770,17 +2780,20 @@ def client_approve_team_job(
                 }
 
         if remaining_amount > Decimal("0.00"):
-            Transaction.objects.create(
-                walletID=client_wallet,
-                amount=remaining_amount,
-                transactionType="PAYMENT",
-                status="COMPLETED",
-                description=f"Final payment for team job: {job.title}"
-                + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
-                balanceAfter=client_wallet.balance,
-                relatedJobPosting=job,
-                paymentMethod=payment_method_upper,
-            )
+            # Only create a transaction for the additional charge beyond escrow
+            additional_charge = max(Decimal("0.00"), remaining_amount - escrow_held)
+            if additional_charge > Decimal("0.00"):
+                Transaction.objects.create(
+                    walletID=client_wallet,
+                    amount=additional_charge,
+                    transactionType="PAYMENT",
+                    status="COMPLETED",
+                    description=f"Final payment for team job: {job.title}"
+                    + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
+                    balanceAfter=client_wallet.balance,
+                    relatedJobPosting=job,
+                    paymentMethod=payment_method_upper,
+                )
 
             # Determine which accounts are agency accounts for correct recipient_type
             from accounts.models import Agency

@@ -925,7 +925,7 @@ export default function ApplicationDetailScreen() {
         message="Are you sure you want to withdraw this application? This action cannot be undone."
         confirmLabel="Withdraw"
         confirmStyle="destructive"
-        countdownSeconds={5}
+        countdownSeconds={3}
         onConfirm={() => {
           setShowWithdrawConfirm(false);
           withdrawMutation.mutate();

@@ -1430,6 +1430,7 @@ def get_agency_jobs(
                     "duration_days": job.duration_days
                     if hasattr(job, "duration_days")
                     else None,
+                    "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
                     "actual_start_date": job.actual_start_date.isoformat()
                     if hasattr(job, "actual_start_date") and job.actual_start_date
                     else None,
@@ -1631,6 +1632,7 @@ def get_agency_job_detail(account_id, job_id):
             "duration_days": job.duration_days
             if hasattr(job, "duration_days")
             else None,
+            "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
             "actual_start_date": job.actual_start_date.isoformat()
             if hasattr(job, "actual_start_date") and job.actual_start_date
             else None,

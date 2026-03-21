@@ -414,6 +414,7 @@ def get_mobile_job_list(
                 "duration_days": job.duration_days
                 if hasattr(job, "duration_days")
                 else None,
+                "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
                 "actual_start_date": job.actual_start_date.isoformat()
                 if hasattr(job, "actual_start_date") and job.actual_start_date
                 else None,
@@ -1018,6 +1019,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             "duration_days": job.duration_days
             if hasattr(job, "duration_days")
             else None,
+            "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
             "actual_start_date": job.actual_start_date.isoformat()
             if hasattr(job, "actual_start_date") and job.actual_start_date
             else None,
@@ -1177,6 +1179,46 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         if job_data.get("materials_needed"):
             materials_json = json.dumps(job_data["materials_needed"])
 
+        # Resolve payment model and duration
+        payment_model = (job_data.get("payment_model") or "PROJECT").upper()
+        if payment_model not in ("PROJECT", "DAILY"):
+            payment_model = "PROJECT"
+
+        # Compute duration_days
+        if payment_model == "DAILY":
+            resolved_duration_days = int(job_data.get("duration_days") or 0) or None
+        else:
+            # For PROJECT, compute from explicit value, date range, or expected_duration
+            resolved_duration_days = None
+            try:
+                explicit = int(job_data.get("duration_days") or 0)
+                if explicit > 0:
+                    resolved_duration_days = explicit
+            except (TypeError, ValueError):
+                pass
+            if not resolved_duration_days and job_data.get("preferred_start_date") and job_data.get("scheduled_end_date"):
+                try:
+                    start_d = datetime.fromisoformat(job_data["preferred_start_date"]).date() if isinstance(job_data["preferred_start_date"], str) else job_data["preferred_start_date"]
+                    end_d = datetime.strptime(job_data["scheduled_end_date"], "%Y-%m-%d").date() if isinstance(job_data["scheduled_end_date"], str) else job_data["scheduled_end_date"]
+                    if end_d >= start_d:
+                        resolved_duration_days = max(1, (end_d - start_d).days + 1)
+                except (TypeError, ValueError):
+                    pass
+            if not resolved_duration_days:
+                resolved_duration_days = _parse_expected_duration_days(
+                    job_data.get("expected_duration")
+                )
+
+        # Resolve daily rate and shift type
+        daily_rate_agreed = None
+        if payment_model == "DAILY" and job_data.get("daily_rate"):
+            try:
+                daily_rate_agreed = float(job_data["daily_rate"])
+            except (TypeError, ValueError):
+                pass
+
+        resolved_shift_type = (job_data.get("shift_type") or "ANY").upper() if payment_model == "DAILY" else "ANY"
+
         # Create job posting
         job = JobPosting.objects.create(
             clientID=client_profile,
@@ -1199,7 +1241,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             status="PENDING_PAYMENT",  # Will change to ACTIVE after payment
             escrowAmount=escrow_amount,  # 50% held in escrow
             remainingPayment=escrow_amount,  # 50% remaining payment (no commission on final)
-            shift_type=job_data.get("shift_type") or "ANY",
+            payment_model=payment_model,
+            daily_rate_agreed=daily_rate_agreed,
+            duration_days=resolved_duration_days,
+            shift_type=resolved_shift_type,
             # Universal job fields for ML accuracy - use values from request (model has defaults if None)
             job_scope=job_data.get("job_scope"),
             skill_level_required=job_data.get("skill_level_required"),
@@ -1671,7 +1716,20 @@ def create_mobile_invite_job(
                 wallet.balance -= downpayment_amount
                 wallet.save()
 
-                # Create INVITE job
+                # Resolve payment model for invite jobs
+                invite_payment_model = (job_data.get("payment_model") or "PROJECT").upper()
+                if invite_payment_model not in ("PROJECT", "DAILY"):
+                    invite_payment_model = "PROJECT"
+
+                invite_daily_rate = None
+                if invite_payment_model == "DAILY" and job_data.get("daily_rate"):
+                    try:
+                        invite_daily_rate = float(job_data["daily_rate"])
+                    except (TypeError, ValueError):
+                        pass
+
+                invite_shift_type = (job_data.get("shift_type") or "ANY").upper() if invite_payment_model == "DAILY" else "ANY"
+
                 job = Job.objects.create(
                     clientID=client_profile,
                     title=job_data.get("title"),
@@ -1694,9 +1752,10 @@ def create_mobile_invite_job(
                     assignedAgencyFK=assigned_agency,
                     assignedWorkerID=assigned_worker,
                     is_team_job=is_multi_employee,  # True if multi-employee mode
-                    payment_model="PROJECT",
+                    payment_model=invite_payment_model,
+                    daily_rate_agreed=invite_daily_rate,
                     duration_days=project_duration_days,
-                    shift_type=job_data.get("shift_type") or "ANY",
+                    shift_type=invite_shift_type,
                     # Universal job fields for ML accuracy - use values from request (model has defaults if None)
                     job_scope=job_data.get("job_scope"),
                     skill_level_required=job_data.get("skill_level_required"),

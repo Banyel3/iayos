@@ -833,7 +833,14 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     else [],
                     jobType=job_type,
                     status=JobPosting.JobStatus.ACTIVE,
-                    shift_type=getattr(data, "shift_type", None) or "ANY",
+                    payment_model=getattr(data, "payment_model", None) or "PROJECT",
+                    daily_rate_agreed=float(data.daily_rate)
+                    if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                    else None,
+                    duration_days=_resolve_project_duration_days_from_payload(data),
+                    shift_type=(getattr(data, "shift_type", None) or "ANY")
+                    if (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                    else "ANY",
                 )
 
                 print(f"📋 Job created as {job_type} (Web endpoint)")
@@ -945,7 +952,14 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 scheduled_end_date=scheduled_end_date,
                 materialsNeeded=data.materials_needed if data.materials_needed else [],
                 status=JobPosting.JobStatus.ACTIVE,
-                shift_type=getattr(data, "shift_type", None) or "ANY",
+                payment_model=getattr(data, "payment_model", None) or "PROJECT",
+                daily_rate_agreed=float(data.daily_rate)
+                if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                else None,
+                duration_days=_resolve_project_duration_days_from_payload(data),
+                shift_type=(getattr(data, "shift_type", None) or "ANY")
+                if (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                else "ANY",
             )
 
             # Create pending transaction for escrow payment
@@ -2899,6 +2913,15 @@ def get_job_posting(request, job_id: int):
                 else 0,
             },
             "assigned_worker": assigned_worker,
+            # Daily payment model fields
+            "payment_model": getattr(job, "payment_model", "PROJECT"),
+            "daily_rate_agreed": float(job.daily_rate_agreed)
+            if hasattr(job, "daily_rate_agreed") and job.daily_rate_agreed
+            else None,
+            "duration_days": job.duration_days
+            if hasattr(job, "duration_days")
+            else None,
+            "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
         }
 
         print(

@@ -130,6 +130,8 @@ export default function CreateTeamJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isOneDayJob, setIsOneDayJob] = useState(false);
+  // Urgency level
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [pendingTeamJobData, setPendingTeamJobData] = useState<any | null>(
     null,
@@ -274,6 +276,22 @@ export default function CreateTeamJobScreen() {
       setDurationDays("1");
     }
   }, [paymentModel, startDate, isOneDayJob]);
+
+  // When urgency is HIGH, auto-set start date to today and working days to 1
+  useEffect(() => {
+    if (urgency === "HIGH") {
+      setStartDate(new Date());
+      setDurationDays("1");
+    }
+  }, [urgency]);
+
+  // When working days is 1, force PROJECT payment model (daily rate not applicable)
+  const isDurationOneDay = (parseInt(durationDays) || 0) === 1;
+  useEffect(() => {
+    if (isDurationOneDay && paymentModel === "DAILY") {
+      setPaymentModel("PROJECT");
+    }
+  }, [isDurationOneDay, paymentModel]);
 
   // Calculate budget allocation preview
   const budgetAllocation = useMemo(() => {
@@ -844,6 +862,7 @@ export default function CreateTeamJobScreen() {
       description: description.trim(),
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
+      urgency,
       preferred_start_date: startDate
         ? formatLocalDateYYYYMMDD(startDate)
         : undefined,
@@ -1299,6 +1318,329 @@ export default function CreateTeamJobScreen() {
               )}
             </View>
 
+            {/* Location Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="location" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Location <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Barangay</Text>
+                <TouchableOpacity
+                  style={styles.selectButton}
+                  onPress={() => setBarangayModalVisible(true)}
+                >
+                  <Text
+                    style={
+                      barangay
+                        ? styles.selectButtonText
+                        : styles.selectButtonPlaceholder
+                    }
+                  >
+                    {barangay || "Select barangay"}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Street / House No.</Text>
+                <TextInput
+                  style={styles.input}
+                  value={street}
+                  onChangeText={setStreet}
+                  placeholder="e.g., 123 Main Street"
+                />
+              </View>
+            </View>
+
+            {/* Timing Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionTitle}>
+                <Ionicons name="time" size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitleText}>
+                  Timing <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+              </View>
+
+              {/* Urgency Level */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Urgency Level</Text>
+                <View style={styles.urgencyOptions}>
+                  {(
+                    [
+                      { value: "LOW", label: "Low" },
+                      { value: "MEDIUM", label: "Medium" },
+                      { value: "HIGH", label: "Urgent" },
+                    ] as const
+                  ).map((level) => (
+                    <TouchableOpacity
+                      key={level.value}
+                      style={[
+                        styles.urgencyOption,
+                        urgency === level.value && {
+                          borderColor: level.value === "HIGH" ? Colors.error : Colors.primary,
+                          backgroundColor: level.value === "HIGH" ? "#FEE2E2" : `${Colors.primary}10`,
+                        },
+                      ]}
+                      onPress={() => setUrgency(level.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          urgency === level.value && {
+                            color: level.value === "HIGH" ? Colors.error : Colors.primary,
+                          },
+                        ]}
+                      >
+                        {level.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Preferred Start Date</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.dateButton,
+                    urgency === "HIGH" && { opacity: 0.7, backgroundColor: Colors.backgroundSecondary },
+                  ]}
+                  onPress={() => { if (urgency !== "HIGH") setShowDatePicker(true); }}
+                  disabled={urgency === "HIGH"}
+                >
+                  <Ionicons
+                    name="calendar"
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                  <Text
+                    style={startDate ? styles.dateText : styles.datePlaceholder}
+                  >
+                    {startDate ? startDate.toLocaleDateString() : "Select date"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Working Days <Text style={{ color: Colors.error }}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 5"
+                  value={durationDays}
+                  onChangeText={setDurationDays}
+                  keyboardType="number-pad"
+                  placeholderTextColor={Colors.textHint}
+                />
+              </View>
+
+              {/* One day or less toggle — hidden for DAILY (daily jobs set duration_days explicitly) */}
+              {paymentModel !== "DAILY" && (
+              <View style={styles.inputGroup}>
+                <TouchableOpacity
+                  style={styles.oneDayToggle}
+                  onPress={() => {
+                    const next = !isOneDayJob;
+                    setIsOneDayJob(next);
+                    if (next) {
+                      setDurationDays("1");
+                      setPaymentModel("PROJECT");
+                    }
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      isOneDayJob && styles.checkboxChecked,
+                    ]}
+                  >
+                    {isOneDayJob && (
+                      <Ionicons
+                        name="checkmark"
+                        size={14}
+                        color={Colors.white}
+                      />
+                    )}
+                  </View>
+                  <Text style={styles.oneDayLabel}>This job is one day or less</Text>
+                </TouchableOpacity>
+              </View>
+              )}
+            </View>
+
+            {/* Job Options Section */}
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={[
+                  styles.sectionTitle,
+                  { justifyContent: "space-between" },
+                ]}
+                onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <Ionicons name="settings" size={20} color={Colors.primary} />
+                  <Text style={styles.sectionTitleText}>
+                    Job Options (Optional)
+                  </Text>
+                </View>
+                <Ionicons
+                  name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={Colors.primary}
+                />
+              </TouchableOpacity>
+
+              {isJobOptionsExpanded && (
+                <View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Job Scope</Text>
+                    <View style={styles.urgencyOptions}>
+                      {[
+                        { value: "MINOR_REPAIR", label: "Minor" },
+                        { value: "MODERATE_PROJECT", label: "Moderate" },
+                        { value: "MAJOR_RENOVATION", label: "Major" },
+                      ].map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[
+                            styles.urgencyOption,
+                            jobScope === opt.value && {
+                              borderColor: Colors.primary,
+                              backgroundColor: `${Colors.primary}10`,
+                            },
+                          ]}
+                          onPress={() =>
+                            setJobScope(
+                              jobScope === opt.value
+                                ? null
+                                : (opt.value as any),
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.urgencyText,
+                              jobScope === opt.value && {
+                                color: Colors.primary,
+                              },
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Work Environment</Text>
+                    <View style={styles.urgencyOptions}>
+                      {[
+                        { value: "INDOOR", label: "Indoor" },
+                        { value: "OUTDOOR", label: "Outdoor" },
+                        { value: "BOTH", label: "Both" },
+                      ].map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[
+                            styles.urgencyOption,
+                            workEnvironment === opt.value && {
+                              borderColor: Colors.primary,
+                              backgroundColor: `${Colors.primary}10`,
+                            },
+                          ]}
+                          onPress={() =>
+                            setWorkEnvironment(
+                              workEnvironment === opt.value
+                                ? null
+                                : (opt.value as any),
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.urgencyText,
+                              workEnvironment === opt.value && {
+                                color: Colors.primary,
+                              },
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Materials */}
+                  <View style={{ marginTop: 16 }}>
+                    <View style={styles.sectionTitle}>
+                      <Ionicons
+                        name="construct"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.sectionTitleText}>
+                        Materials Needed (Optional)
+                      </Text>
+                    </View>
+
+                    <View style={styles.materialInputRow}>
+                      <TextInput
+                        style={[styles.input, styles.materialInput]}
+                        value={materialInput}
+                        onChangeText={setMaterialInput}
+                        placeholder="Add material"
+                        onSubmitEditing={handleAddMaterial}
+                      />
+                      <TouchableOpacity
+                        style={styles.addMaterialButton}
+                        onPress={handleAddMaterial}
+                      >
+                        <Ionicons name="add" size={24} color={Colors.white} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {materials.length > 0 && (
+                      <View style={styles.materialsList}>
+                        {materials.map((m, i) => (
+                          <View key={i} style={styles.materialTag}>
+                            <Text style={styles.materialTagText}>{m}</Text>
+                            <TouchableOpacity
+                              onPress={() =>
+                                setMaterials(
+                                  materials.filter((_, idx) => idx !== i),
+                                )
+                              }
+                            >
+                              <Ionicons
+                                name="close"
+                                size={16}
+                                color={Colors.textSecondary}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
+
             {/* Budget Section */}
             <View style={styles.section}>
               <View style={styles.sectionTitle}>
@@ -1338,8 +1680,10 @@ export default function CreateTeamJobScreen() {
                         borderColor: Colors.primary,
                         backgroundColor: `${Colors.primary}10`,
                       },
+                      isDurationOneDay && { opacity: 0.5 },
                     ]}
-                    onPress={() => setPaymentModel("DAILY")}
+                    onPress={() => !isDurationOneDay && setPaymentModel("DAILY")}
+                    disabled={isDurationOneDay}
                   >
                     <Text
                       style={[
@@ -1400,12 +1744,14 @@ export default function CreateTeamJobScreen() {
                       style={[
                         {
                           flex: 1,
+                          minHeight: 58,
                           paddingVertical: 10,
                           paddingHorizontal: 6,
                           borderRadius: 8,
                           borderWidth: 1.5,
                           borderColor: shiftType === s ? Colors.primary : Colors.border,
                           backgroundColor: shiftType === s ? Colors.primary + "15" : Colors.background,
+                          justifyContent: s === "ANY" ? "center" : "flex-start",
                           alignItems: "center",
                         },
                       ]}
@@ -1416,9 +1762,10 @@ export default function CreateTeamJobScreen() {
                           fontSize: 12,
                           fontWeight: shiftType === s ? "700" : "400",
                           color: shiftType === s ? Colors.primary : Colors.textSecondary,
+                          textAlign: "center",
                         }}
                       >
-                        {s === "ANY" ? "Any" : s === "MORNING" ? "Day Shift" : "Night Shift"}
+                        {s === "ANY" ? "Anytime" : s === "MORNING" ? "Day Shift" : "Night Shift"}
                       </Text>
                       {s !== "ANY" && (
                         <Text
@@ -1600,288 +1947,6 @@ export default function CreateTeamJobScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
-                </View>
-              )}
-            </View>
-
-            {/* Timing Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="time" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Timing <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Preferred Start Date</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Ionicons
-                    name="calendar"
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                  <Text
-                    style={startDate ? styles.dateText : styles.datePlaceholder}
-                  >
-                    {startDate ? startDate.toLocaleDateString() : "Select date"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Working Days <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g., 5"
-                  value={durationDays}
-                  onChangeText={setDurationDays}
-                  keyboardType="number-pad"
-                  placeholderTextColor={Colors.textHint}
-                />
-              </View>
-
-              {/* One day or less toggle — hidden for DAILY (daily jobs set duration_days explicitly) */}
-              {paymentModel !== "DAILY" && (
-              <View style={styles.inputGroup}>
-                <TouchableOpacity
-                  style={styles.oneDayToggle}
-                  onPress={() => {
-                    const next = !isOneDayJob;
-                    setIsOneDayJob(next);
-                    if (next) {
-                      setDurationDays("1");
-                      setPaymentModel("PROJECT");
-                    }
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      isOneDayJob && styles.checkboxChecked,
-                    ]}
-                  >
-                    {isOneDayJob && (
-                      <Ionicons
-                        name="checkmark"
-                        size={14}
-                        color={Colors.white}
-                      />
-                    )}
-                  </View>
-                  <Text style={styles.oneDayLabel}>This job is one day or less</Text>
-                </TouchableOpacity>
-              </View>
-              )}
-            </View>
-
-            {/* Location Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionTitle}>
-                <Ionicons name="location" size={20} color={Colors.primary} />
-                <Text style={styles.sectionTitleText}>
-                  Location <Text style={{ color: Colors.error }}>*</Text>
-                </Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Barangay</Text>
-                <TouchableOpacity
-                  style={styles.selectButton}
-                  onPress={() => setBarangayModalVisible(true)}
-                >
-                  <Text
-                    style={
-                      barangay
-                        ? styles.selectButtonText
-                        : styles.selectButtonPlaceholder
-                    }
-                  >
-                    {barangay || "Select barangay"}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={20}
-                    color={Colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Street / House No.</Text>
-                <TextInput
-                  style={styles.input}
-                  value={street}
-                  onChangeText={setStreet}
-                  placeholder="e.g., 123 Main Street"
-                />
-              </View>
-            </View>
-
-            {/* Job Options Section */}
-            <View style={styles.section}>
-              <TouchableOpacity
-                style={[
-                  styles.sectionTitle,
-                  { justifyContent: "space-between" },
-                ]}
-                onPress={() => setIsJobOptionsExpanded(!isJobOptionsExpanded)}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                >
-                  <Ionicons name="settings" size={20} color={Colors.primary} />
-                  <Text style={styles.sectionTitleText}>
-                    Job Options (Optional)
-                  </Text>
-                </View>
-                <Ionicons
-                  name={isJobOptionsExpanded ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={Colors.primary}
-                />
-              </TouchableOpacity>
-
-              {isJobOptionsExpanded && (
-                <View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Job Scope</Text>
-                    <View style={styles.urgencyOptions}>
-                      {[
-                        { value: "MINOR_REPAIR", label: "Minor" },
-                        { value: "MODERATE_PROJECT", label: "Moderate" },
-                        { value: "MAJOR_RENOVATION", label: "Major" },
-                      ].map((opt) => (
-                        <TouchableOpacity
-                          key={opt.value}
-                          style={[
-                            styles.urgencyOption,
-                            jobScope === opt.value && {
-                              borderColor: Colors.primary,
-                              backgroundColor: `${Colors.primary}10`,
-                            },
-                          ]}
-                          onPress={() =>
-                            setJobScope(
-                              jobScope === opt.value
-                                ? null
-                                : (opt.value as any),
-                            )
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.urgencyText,
-                              jobScope === opt.value && {
-                                color: Colors.primary,
-                              },
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Work Environment</Text>
-                    <View style={styles.urgencyOptions}>
-                      {[
-                        { value: "INDOOR", label: "Indoor" },
-                        { value: "OUTDOOR", label: "Outdoor" },
-                        { value: "BOTH", label: "Both" },
-                      ].map((opt) => (
-                        <TouchableOpacity
-                          key={opt.value}
-                          style={[
-                            styles.urgencyOption,
-                            workEnvironment === opt.value && {
-                              borderColor: Colors.primary,
-                              backgroundColor: `${Colors.primary}10`,
-                            },
-                          ]}
-                          onPress={() =>
-                            setWorkEnvironment(
-                              workEnvironment === opt.value
-                                ? null
-                                : (opt.value as any),
-                            )
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.urgencyText,
-                              workEnvironment === opt.value && {
-                                color: Colors.primary,
-                              },
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Materials */}
-                  <View style={{ marginTop: 16 }}>
-                    <View style={styles.sectionTitle}>
-                      <Ionicons
-                        name="construct"
-                        size={20}
-                        color={Colors.primary}
-                      />
-                      <Text style={styles.sectionTitleText}>
-                        Materials Needed (Optional)
-                      </Text>
-                    </View>
-
-                    <View style={styles.materialInputRow}>
-                      <TextInput
-                        style={[styles.input, styles.materialInput]}
-                        value={materialInput}
-                        onChangeText={setMaterialInput}
-                        placeholder="Add material"
-                        onSubmitEditing={handleAddMaterial}
-                      />
-                      <TouchableOpacity
-                        style={styles.addMaterialButton}
-                        onPress={handleAddMaterial}
-                      >
-                        <Ionicons name="add" size={24} color={Colors.white} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {materials.length > 0 && (
-                      <View style={styles.materialsList}>
-                        {materials.map((m, i) => (
-                          <View key={i} style={styles.materialTag}>
-                            <Text style={styles.materialTagText}>{m}</Text>
-                            <TouchableOpacity
-                              onPress={() =>
-                                setMaterials(
-                                  materials.filter((_, idx) => idx !== i),
-                                )
-                              }
-                            >
-                              <Ionicons
-                                name="close"
-                                size={16}
-                                color={Colors.textSecondary}
-                              />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
                 </View>
               )}
             </View>
@@ -2166,7 +2231,7 @@ export default function CreateTeamJobScreen() {
           title="Confirm Submission"
           message="Are you sure you want to submit this team job post?"
           confirmLabel="Submit"
-          countdownSeconds={5}
+          countdownSeconds={3}
           onConfirm={() => {
             if (pendingTeamJobData) {
               createJobMutation.mutate(pendingTeamJobData);

@@ -28,6 +28,9 @@ import {
   MapPin,
   Calendar,
   Eye,
+  Clock,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Button } from "@/components/ui/generic_button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -90,6 +93,7 @@ interface Job {
   payment_model?: "PROJECT" | "DAILY";
   daily_rate_agreed?: number;
   duration_days?: number | null;
+  shift_type?: "ANY" | "MORNING" | "NIGHT";
   actual_start_date?: string;
   total_days_worked?: number;
   daily_escrow_total?: number;
@@ -141,6 +145,32 @@ const isProjectMultiDayJob = (job?: Job | null): boolean => {
 const usesTeamProjectWorkflow = (job?: Job | null): boolean => {
   if (!job) return false;
   return Boolean(job.is_team_job) || isProjectMultiDayJob(job);
+};
+
+const DailyJobInfoRow = ({ job }: { job: Job }) => {
+  const hasDays = typeof job.duration_days === "number" && job.duration_days > 0;
+  const hasShift = job.payment_model === "DAILY" && job.shift_type;
+  if (!hasDays && !hasShift) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 mt-2">
+      {hasDays && (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+          <Clock className="h-3 w-3" />
+          {job.duration_days} day{job.duration_days === 1 ? "" : "s"}
+        </span>
+      )}
+      {hasShift && (
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
+          job.shift_type === "MORNING" ? "bg-amber-50 text-amber-700 border-amber-100"
+            : job.shift_type === "NIGHT" ? "bg-indigo-50 text-indigo-700 border-indigo-100"
+            : "bg-gray-50 text-gray-600 border-gray-200"
+        }`}>
+          {job.shift_type === "MORNING" ? <Sun className="h-3 w-3" /> : job.shift_type === "NIGHT" ? <Moon className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+          {job.shift_type === "MORNING" ? "Day Shift" : job.shift_type === "NIGHT" ? "Night Shift" : "Any Shift"}
+        </span>
+      )}
+    </div>
+  );
 };
 
 type TabType =
@@ -1249,6 +1279,8 @@ export default function AgencyJobsPage() {
                           </div>
                         </div>
 
+                        <DailyJobInfoRow job={job} />
+
                         {/* Footer Info */}
                         <div className="flex items-center gap-6 pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-2">
@@ -1449,6 +1481,8 @@ export default function AgencyJobsPage() {
                           </div>
                         </div>
 
+                        <DailyJobInfoRow job={job} />
+
                         {/* Footer Info */}
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-6">
@@ -1601,6 +1635,8 @@ export default function AgencyJobsPage() {
                             </div>
                           </div>
                         </div>
+
+                        <DailyJobInfoRow job={job} />
 
                         {/* Footer Info */}
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
@@ -1755,6 +1791,8 @@ export default function AgencyJobsPage() {
                             </div>
                           </div>
                         </div>
+
+                        <DailyJobInfoRow job={job} />
 
                         {/* Footer Info */}
                         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
