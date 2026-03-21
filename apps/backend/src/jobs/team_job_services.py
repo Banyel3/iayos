@@ -76,6 +76,127 @@ def _post_team_arrival_system_update(job: Job):
         )
 
 
+def _count_active_team_members(job: Job) -> int:
+    worker_count = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status__in=["ACTIVE", "COMPLETED"],
+    ).count()
+    employee_count = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).count()
+    return int(worker_count + employee_count)
+
+
+def _are_all_team_assignments_early_completed(job: Job) -> bool:
+    total_members = _count_active_team_members(job)
+    if total_members <= 0:
+        return False
+
+    pending_worker_early = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status__in=["ACTIVE", "COMPLETED"],
+    ).exclude(early_completed=True)
+
+    pending_employee_early = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).exclude(early_completed=True)
+
+    return (not pending_worker_early.exists()) and (not pending_employee_early.exists())
+
+
+@transaction.atomic
+def autoheal_hybrid_daily_all_early_completed(job: Job, changed_by=None) -> dict:
+    """Auto-heal mixed DAILY team jobs that are fully early-completed but stuck.
+
+    This finalizes job state and review/payment flags so existing records can
+    proceed to post-completion flow without manual intervention.
+    """
+    if not job or not job.is_team_job:
+        return {"success": False, "reason": "not_team_job"}
+
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "DAILY":
+        return {"success": False, "reason": "not_daily"}
+
+    if str(getattr(job, "status", "")).upper() == "COMPLETED":
+        return {"success": True, "already_done": True, "job_id": job.jobID}
+
+    if not _are_all_team_assignments_early_completed(job):
+        return {"success": False, "reason": "not_all_early_completed"}
+
+    now = timezone.now()
+    old_status = job.status
+
+    job.status = "COMPLETED"
+    job.clientMarkedComplete = True
+    job.clientMarkedCompleteAt = job.clientMarkedCompleteAt or now
+    job.workerMarkedComplete = True
+    job.workerMarkedCompleteAt = job.workerMarkedCompleteAt or now
+    job.remainingPaymentPaid = True
+    job.remainingPaymentPaidAt = job.remainingPaymentPaidAt or now
+    job.is_early_completed = True
+    job.early_completed_at = job.early_completed_at or now
+    job.save(
+        update_fields=[
+            "status",
+            "clientMarkedComplete",
+            "clientMarkedCompleteAt",
+            "workerMarkedComplete",
+            "workerMarkedCompleteAt",
+            "remainingPaymentPaid",
+            "remainingPaymentPaidAt",
+            "is_early_completed",
+            "early_completed_at",
+            "updatedAt",
+        ]
+    )
+
+    JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status="ACTIVE",
+    ).update(
+        assignment_status="COMPLETED",
+        worker_marked_complete=True,
+        worker_marked_complete_at=now,
+    )
+
+    JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS"],
+    ).update(
+        status="COMPLETED",
+        agencyMarkedComplete=True,
+        agencyMarkedCompleteAt=now,
+        clientApproved=True,
+        clientApprovedAt=now,
+    )
+
+    try:
+        from accounts.models import JobLog
+
+        JobLog.objects.create(
+            jobID=job,
+            notes=(
+                f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Auto-healed DAILY hybrid/team job "
+                "to COMPLETED after all assignments were early-completed."
+            ),
+            changedBy=changed_by
+            if changed_by is not None
+            else job.clientID.profileID.accountFK,
+            oldStatus=old_status,
+            newStatus="COMPLETED",
+        )
+    except Exception:
+        pass
+
+    return {"success": True, "job_id": job.jobID, "healed": True}
+
+
 def _build_agency_fallback_slots(skill_slots_data: list, payment_model: str) -> list:
     """Return slots with no qualified freelancers and no agency invite."""
     fallback_slots = []

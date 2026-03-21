@@ -1518,6 +1518,27 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 {"error": "You are not a participant of this job"}, status=403
             )
 
+        # Auto-heal edge case: mixed/team DAILY jobs where all assignments were
+        # early-completed but lifecycle flags remained stuck pre-completion.
+        if is_client and job.is_team_job:
+            try:
+                from jobs.team_job_services import (
+                    autoheal_hybrid_daily_all_early_completed,
+                )
+
+                heal_result = autoheal_hybrid_daily_all_early_completed(
+                    job, request.user
+                )
+                if heal_result.get("success") and heal_result.get("healed"):
+                    print(
+                        f"[get_conversation_by_job] Auto-healed fully early-completed team DAILY job {job.jobID}"
+                    )
+                    job.refresh_from_db()
+            except Exception as heal_err:
+                print(
+                    f"[get_conversation_by_job] Early-completion auto-heal skipped: {heal_err}"
+                )
+
         # Auto-heal legacy team jobs that are fully staffed but still marked ACTIVE.
         # This keeps job/chat workflow gates consistent for existing hybrid jobs.
         if job.is_team_job and job.status == "ACTIVE" and job.can_start_team_job:
@@ -1887,6 +1908,26 @@ def get_conversation_messages(request, conversation_id: int):
         # Hybrid/team conversations should follow team workflow payloads.
         if job_ref and getattr(job_ref, "is_team_job", False):
             is_agency_conversation = False
+
+            # Auto-heal edge case: DAILY team/hybrid jobs that are fully
+            # early-completed but remained in-progress should be finalized.
+            try:
+                from jobs.team_job_services import (
+                    autoheal_hybrid_daily_all_early_completed,
+                )
+
+                heal_result = autoheal_hybrid_daily_all_early_completed(
+                    job_ref, request.auth
+                )
+                if heal_result.get("success") and heal_result.get("healed"):
+                    print(
+                        f"[get_conversation_messages] Auto-healed fully early-completed DAILY team job {job_ref.jobID}"
+                    )
+                    job_ref.refresh_from_db()
+            except Exception as heal_err:
+                print(
+                    f"[get_conversation_messages] Early-completion auto-heal skipped: {heal_err}"
+                )
 
         # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
