@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from accounts.models import Job
-from profiles.models import Conversation
+from profiles.models import Conversation, ConversationParticipant
 
 
 class Command(BaseCommand):
@@ -75,13 +75,39 @@ class Command(BaseCommand):
                             client_profile=client_profile,
                         )
 
+                        # Normalize legacy team conversations that may still be
+                        # ONE_ON_ONE from older flows.
+                        conv_fields = []
+                        if conversation.conversation_type != "TEAM_GROUP":
+                            conversation.conversation_type = "TEAM_GROUP"
+                            conv_fields.append("conversation_type")
+                        if conversation.worker_id is not None:
+                            conversation.worker = None
+                            conv_fields.append("worker")
+                        if conversation.client_id is None:
+                            conversation.client = client_profile
+                            conv_fields.append("client")
+                        if conv_fields:
+                            conv_fields.append("updatedAt")
+                            conversation.save(update_fields=conv_fields)
+
                         if conversation.conversation_type == "TEAM_GROUP":
                             conversation_normalized += 1
 
+                        ConversationParticipant.objects.get_or_create(
+                            conversation=conversation,
+                            profile=client_profile,
+                            defaults={"participant_type": "CLIENT"},
+                        )
+
                         for assignment in assignments:
-                            _, created = conversation.add_team_worker(
-                                assignment.workerID.profileID,
-                                assignment.skillSlotID,
+                            _, created = ConversationParticipant.objects.get_or_create(
+                                conversation=conversation,
+                                profile=assignment.workerID.profileID,
+                                defaults={
+                                    "participant_type": "WORKER",
+                                    "skill_slot": assignment.skillSlotID,
+                                },
                             )
                             if created:
                                 participant_synced += 1

@@ -1490,6 +1490,8 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
+        client_profile = job.clientID.profileID if job.clientID else None
+
         # Check if user is a participant of this job
         is_client = bool(
             user_profile and job.clientID and job.clientID.profileID == user_profile
@@ -1757,7 +1759,6 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             }
 
         # If no conversation exists and user is a valid participant, create one
-        client_profile = job.clientID.profileID if job.clientID else None
         worker_profile = (
             job.assignedWorkerID.profileID if job.assignedWorkerID else None
         )
