@@ -59,6 +59,7 @@ import {
 import {
   useEarlyCompleteWorker,
   useEarlyCompleteProjectWorker,
+  useConfirmTeamEmployeeArrival,
   useEarlyCompleteTeamEmployee,
 } from "../../lib/hooks/useTeamJob";
 import { useAuth } from "../../context/AuthContext";
@@ -799,6 +800,7 @@ export default function ChatScreen() {
   const isReviewMutationPending =
     submitReviewMutation.isPending || editReviewMutation.isPending;
   const confirmTeamWorkerArrivalMutation = useConfirmTeamWorkerArrival();
+  const confirmTeamEmployeeArrivalMutation = useConfirmTeamEmployeeArrival();
   const markTeamAssignmentCompleteMutation = useMarkTeamAssignmentComplete();
   const approveTeamJobCompletionMutation = useApproveTeamJobCompletion();
   const projectExtendOneDayMutation = useProjectExtendOneDay();
@@ -1499,6 +1501,30 @@ export default function ChatScreen() {
             confirmTeamWorkerArrivalMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const handleConfirmTeamEmployeeArrival = (
+    assignmentId: number,
+    employeeName: string,
+  ) => {
+    if (!conversation) return;
+
+    Alert.alert(
+      "Confirm Employee Arrival",
+      `Has ${employeeName} arrived at the job site?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm Arrival",
+          onPress: () => {
+            confirmTeamEmployeeArrivalMutation.mutate({
+              jobId: conversation.job.id,
+              assignmentId: String(assignmentId),
             });
           },
         },
@@ -9384,16 +9410,22 @@ export default function ChatScreen() {
                       isTeamBackjobFlow &&
                       !isTeamDailyBackjobFlow &&
                       !conversation.backjob?.backjob_started &&
-                      pendingTeamArrivalWorkers.length > 0 && (
+                      (pendingTeamArrivalWorkers.length > 0 ||
+                        pendingTeamAgencyArrivalEmployees.length > 0) && (
                         <View style={styles.teamProjectArrivalSection}>
                           <View style={styles.teamArrivalHeader}>
                             <Text style={styles.teamArrivalTitle}>
                               Confirm Team Arrivals
                             </Text>
                             <Text style={styles.teamArrivalProgress}>
-                              {teamAssignedWorkers.length -
-                                pendingTeamArrivalWorkers.length}
-                              /{teamAssignedWorkers.length} arrived
+                              {teamAssignedWorkers.length +
+                                (conversation.team_agency_employees?.length ?? 0) -
+                                pendingTeamArrivalWorkers.length -
+                                pendingTeamAgencyArrivalEmployees.length}
+                              /
+                              {teamAssignedWorkers.length +
+                                (conversation.team_agency_employees?.length ?? 0)}{" "}
+                              arrived
                             </Text>
                           </View>
 
@@ -9485,6 +9517,87 @@ export default function ChatScreen() {
                                           style={
                                             styles.teamProjectConfirmArrivalText
                                           }
+                                        >
+                                          Confirm Arrival
+                                        </Text>
+                                      )}
+                                    </TouchableOpacity>
+                                  </View>
+                                );
+                              },
+                            )}
+
+                            {pendingTeamAgencyArrivalEmployees.map(
+                              (employee: any) => {
+                                const employeeName = employee?.name || "Agency Employee";
+                                const assignmentId = Number(employee?.assignment_id);
+
+                                if (!Number.isFinite(assignmentId)) {
+                                  return null;
+                                }
+
+                                return (
+                                  <View
+                                    key={`backjob-agency-arrival-${assignmentId}`}
+                                    style={styles.teamProjectArrivalRow}
+                                  >
+                                    <View style={styles.teamProjectArrivalWorkerInfo}>
+                                      {employee?.avatar ? (
+                                        <Image
+                                          source={{ uri: employee.avatar }}
+                                          style={styles.teamWorkerAvatarCompact}
+                                        />
+                                      ) : (
+                                        <View
+                                          style={[
+                                            styles.teamWorkerAvatarCompact,
+                                            styles.teamWorkerAvatarPlaceholder,
+                                          ]}
+                                        >
+                                          <Ionicons
+                                            name="business"
+                                            size={16}
+                                            color={Colors.textSecondary}
+                                          />
+                                        </View>
+                                      )}
+
+                                      <View
+                                        style={styles.teamProjectArrivalWorkerTextBlock}
+                                      >
+                                        <Text
+                                          style={styles.teamProjectArrivalWorkerName}
+                                        >
+                                          {employeeName}
+                                        </Text>
+                                        <Text
+                                          style={styles.teamProjectArrivalWorkerSkill}
+                                        >
+                                          {employee?.skill || "Agency Team"}
+                                        </Text>
+                                      </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                      style={styles.teamProjectConfirmArrivalButton}
+                                      onPress={() =>
+                                        handleConfirmTeamEmployeeArrival(
+                                          assignmentId,
+                                          employeeName,
+                                        )
+                                      }
+                                      disabled={
+                                        confirmTeamEmployeeArrivalMutation.isPending
+                                      }
+                                    >
+                                      {confirmTeamEmployeeArrivalMutation.isPending ? (
+                                        <ActivityIndicator
+                                          size="small"
+                                          color={Colors.white}
+                                        />
+                                      ) : (
+                                        <Text
+                                          style={styles.teamProjectConfirmArrivalText}
                                         >
                                           Confirm Arrival
                                         </Text>

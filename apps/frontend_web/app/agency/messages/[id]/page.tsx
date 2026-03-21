@@ -734,7 +734,7 @@ export default function AgencyChatScreen() {
   ];
   const hasFreelanceAssignments = (team_worker_assignments?.length ?? 0) > 0;
   const supportsAgencyDispatchWorkflow =
-    !job.is_team_job || !hasFreelanceAssignments;
+    !job.is_team_job || (assigned_employees?.length ?? 0) > 0;
 
   const myReview = reviewViewData.myReview;
   const clientReview = reviewViewData.clientReview;

@@ -26,7 +26,54 @@ from accounts.models import (
     JobDispute,
     PriceNegotiation,
 )
-from profiles.models import Conversation, ConversationParticipant
+from profiles.models import Conversation, ConversationParticipant, Message
+
+
+def _post_team_arrival_system_update(job: Job):
+    """Post a conversation system update when team arrival status changes."""
+    conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+    if not conversation:
+        return
+
+    total_workers = JobWorkerAssignment.objects.filter(
+        jobID=job, assignment_status="ACTIVE"
+    ).count()
+    arrived_workers = JobWorkerAssignment.objects.filter(
+        jobID=job, assignment_status="ACTIVE", client_confirmed_arrival=True
+    ).count()
+
+    total_employees = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).count()
+    arrived_employees = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        clientConfirmedArrival=True,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).count()
+
+    total_count = total_workers + total_employees
+    arrived_count = arrived_workers + arrived_employees
+
+    if total_count <= 0:
+        return
+
+    if arrived_count >= total_count:
+        Message.create_system_message(
+            conversation=conversation,
+            message_text=f"✅ All {total_count} team members on site! Work can begin.",
+        )
+    else:
+        remaining = total_count - arrived_count
+        Message.create_system_message(
+            conversation=conversation,
+            message_text=(
+                f"✅ Team arrival confirmed ({arrived_count}/{total_count}). "
+                f"Waiting for {remaining} more member(s)."
+            ),
+        )
 
 
 def _build_agency_fallback_slots(skill_slots_data: list, payment_model: str) -> list:
@@ -2576,6 +2623,8 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
 
     all_arrived = arrived_workers == total_workers
 
+    _post_team_arrival_system_update(job)
+
     return {
         "success": True,
         "assignment_id": assignment.assignmentID,
@@ -3578,6 +3627,8 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     all_arrived = (arrived_workers == total_workers) and (
         arrived_employees == total_employees
     )
+
+    _post_team_arrival_system_update(job)
 
     return {
         "success": True,
