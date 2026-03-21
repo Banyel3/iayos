@@ -3681,20 +3681,28 @@ def send_message(request, data: SendMessageSchema):
         is_client = sender_profile and conversation.client == sender_profile
         is_worker = sender_profile and conversation.worker == sender_profile
 
-        # For team conversations, also check ConversationParticipant table
+        # For team/hybrid conversations, also check ConversationParticipant table.
+        # Do not rely solely on conversation_type because some legacy rows can be
+        # mis-typed while still having valid participant records.
         is_team_participant = False
-        if sender_profile and conversation.conversation_type == "TEAM_GROUP":
+        if sender_profile:
             from profiles.models import ConversationParticipant
 
             is_team_participant = ConversationParticipant.objects.filter(
                 conversation=conversation, profile=sender_profile
             ).exists()
 
-        # Check agency-based access (conversation.agency field)
-        is_agency = (
-            sender_agency is not None
-            and conversation.agency is not None
-            and conversation.agency.agencyId == sender_agency.agencyId
+        # Check agency-based access.
+        is_agency = sender_agency is not None and (
+            (
+                conversation.agency is not None
+                and conversation.agency.agencyId == sender_agency.agencyId
+            )
+            or (
+                conversation.relatedJobPosting is not None
+                and getattr(conversation.relatedJobPosting, "assignedAgencyFK_id", None)
+                == sender_agency.agencyId
+            )
         )
 
         if not (is_client or is_worker or is_team_participant or is_agency):
@@ -3792,31 +3800,44 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         # Verify user is a participant
         is_client = user_profile and conversation.client == user_profile
         is_worker = user_profile and conversation.worker == user_profile
-        is_agency = (
-            user_agency is not None
-            and conversation.agency is not None
-            and conversation.agency.agencyId == user_agency.agencyId
+        is_team_participant = False
+        participant = None
+        if user_profile:
+            from profiles.models import ConversationParticipant
+
+            participant = ConversationParticipant.objects.filter(
+                conversation=conversation, profile=user_profile
+            ).first()
+            is_team_participant = participant is not None
+        is_agency = user_agency is not None and (
+            (
+                conversation.agency is not None
+                and conversation.agency.agencyId == user_agency.agencyId
+            )
+            or (
+                conversation.relatedJobPosting is not None
+                and getattr(conversation.relatedJobPosting, "assignedAgencyFK_id", None)
+                == user_agency.agencyId
+            )
         )
 
-        if not (is_client or is_worker or is_agency):
+        if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"}, status=403
             )
 
-        # Mark messages as read - for agency users, mark all messages not sent by agency
+        # Mark messages as read.
         if is_agency:
-            # Agency user: mark all messages from non-agency senders as read
+            # Agency user: mark all messages from non-agency senders as read.
             query = Message.objects.filter(
                 conversationID=conversation, senderAgency__isnull=True, isRead=False
             )
         else:
-            # Profile user: mark messages from the other participant
-            other_participant = (
-                conversation.worker if is_client else conversation.client
-            )
+            # Profile user (client/worker/team participant): mark all unread
+            # messages not authored by the current profile.
             query = Message.objects.filter(
-                conversationID=conversation, sender=other_participant, isRead=False
-            )
+                conversationID=conversation, isRead=False
+            ).exclude(sender=user_profile)
 
         if data.message_id:
             # Mark up to specific message
@@ -3825,16 +3846,21 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         updated_count = query.update(isRead=True, readAt=timezone.now())
 
         # Reset unread count
-        if is_client:
+        if participant is not None:
+            participant.mark_as_read()
+        elif is_client:
             conversation.unreadCountClient = 0
         elif is_worker:
             conversation.unreadCountWorker = 0
         # Agency users - reset client unread (agency acts as the service provider side)
         elif is_agency:
             conversation.unreadCountWorker = 0
-        conversation.save(
-            update_fields=["unreadCountClient" if is_client else "unreadCountWorker"]
-        )
+        if participant is None:
+            conversation.save(
+                update_fields=[
+                    "unreadCountClient" if is_client else "unreadCountWorker"
+                ]
+            )
 
         return {"success": True, "marked_count": updated_count}
 
@@ -3902,14 +3928,27 @@ def toggle_conversation_archive(request, conversation_id: int):
         # Verify user is a participant
         is_client = conversation.client == user_profile
         is_worker = conversation.worker == user_profile
+        participant = None
+        if user_profile:
+            from profiles.models import ConversationParticipant
 
-        if not (is_client or is_worker):
+            participant = ConversationParticipant.objects.filter(
+                conversation=conversation, profile=user_profile
+            ).first()
+        is_team_participant = participant is not None
+
+        if not (is_client or is_worker or is_team_participant):
             return Response(
                 {"error": "You are not a participant in this conversation"}, status=403
             )
 
-        # Toggle archive status based on user role
-        if is_client:
+        # Toggle archive status based on user role.
+        # Team conversation participants use participant-level archive state.
+        if participant is not None:
+            participant.is_archived = not participant.is_archived
+            participant.save(update_fields=["is_archived"])
+            is_archived = participant.is_archived
+        elif is_client:
             conversation.archivedByClient = not conversation.archivedByClient
             is_archived = conversation.archivedByClient
             conversation.save(update_fields=["archivedByClient"])
@@ -3977,9 +4016,9 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         is_client = conversation.client == sender_profile
         is_worker = conversation.worker == sender_profile
 
-        # For team conversations, also check ConversationParticipant table
+        # For team/hybrid conversations, also check ConversationParticipant table.
         is_team_participant = False
-        if sender_profile and conversation.conversation_type == "TEAM_GROUP":
+        if sender_profile:
             from profiles.models import ConversationParticipant
 
             is_team_participant = ConversationParticipant.objects.filter(

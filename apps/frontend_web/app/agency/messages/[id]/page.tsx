@@ -732,6 +732,9 @@ export default function AgencyChatScreen() {
       source: "FREELANCE",
     })) || []),
   ];
+  const hasFreelanceAssignments = (team_worker_assignments?.length ?? 0) > 0;
+  const supportsAgencyDispatchWorkflow =
+    !job.is_team_job || !hasFreelanceAssignments;
 
   const myReview = reviewViewData.myReview;
   const clientReview = reviewViewData.clientReview;
@@ -795,12 +798,15 @@ export default function AgencyChatScreen() {
   const shouldShowProjectWorkflow =
     (hasProjectWorkflowProgressState || hasReadyBackjobProjectCycle) &&
     job.payment_model === "PROJECT" &&
-    assigned_employees?.length > 0;
+    assigned_employees?.length > 0 &&
+    supportsAgencyDispatchWorkflow;
 
   // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
   const shouldShowDispatchWorkflow =
     shouldShowProjectWorkflow ||
-    (hasReadyBackjobDispatchCycle && (assigned_employees?.length ?? 0) > 0);
+    (hasReadyBackjobDispatchCycle &&
+      (assigned_employees?.length ?? 0) > 0 &&
+      supportsAgencyDispatchWorkflow);
 
   const configuredDurationDays = Number(job.duration_days || 0);
   const fallbackDurationDays = parseExpectedDurationDays(job.expectedDuration);
@@ -866,7 +872,8 @@ export default function AgencyChatScreen() {
       job.clientMarkedComplete ||
       job.workerMarkedComplete) &&
     job.payment_model === "DAILY" &&
-    assigned_employees?.length > 0;
+    assigned_employees?.length > 0 &&
+    supportsAgencyDispatchWorkflow;
 
   const isProjectMultiDayAttendanceFlow =
     shouldShowProjectWorkflow && isProjectMultiDayFlow;
