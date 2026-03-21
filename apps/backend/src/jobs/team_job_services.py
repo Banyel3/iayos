@@ -3840,7 +3840,7 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
             "message": "Job already completed",
         }
 
-    if not job.clientConfirmedWorkerStarted:
+    if not job.clientConfirmedWorkStarted:
         return {"success": False, "error": "Client must confirm worker arrival first"}
 
     # Payout = budget + materialsCost (full contracted amount, same as approve-completion)

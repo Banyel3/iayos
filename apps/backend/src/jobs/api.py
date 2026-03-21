@@ -4303,7 +4303,7 @@ def accept_job_invite_worker(request, job_id: int):
             "message": "Job invitation accepted successfully!",
             "job_id": job.jobID,
             "invite_status": "ACCEPTED",
-            "job_status": "ACTIVE",
+            "job_status": "IN_PROGRESS",
         }
 
     except Exception as e:
@@ -5996,9 +5996,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         # Require final payment before any reviews can be submitted (both sides)
         if not job.remainingPaymentPaid:
             return Response(
-                {
-                    "error": "Final payment must be completed before submitting reviews"
-                },
+                {"error": "Final payment must be completed before submitting reviews"},
                 status=400,
             )
 
