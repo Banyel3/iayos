@@ -2,6 +2,7 @@ import json
 from django.http import HttpRequest
 from typing import List, Optional
 from ninja import Router, Schema, Query
+
 # from .schemas import createAccountSchema, logInSchema, createAgencySchema, forgotPasswordSchema, resetPasswordSchema
 # from .services import create_account_individ, create_account_agency, login_account, _verify_account, forgot_password_request, reset_password_verify, logout_account, refresh_token, fetch_currentUser, generateCookie
 from ninja.responses import Response
@@ -11,14 +12,32 @@ from asgiref.sync import async_to_sync
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
-from .service import fetchAll_kyc, review_kyc_items, approve_kyc, reject_kyc, fetch_kyc_logs
+from .service import (
+    fetchAll_kyc,
+    review_kyc_items,
+    approve_kyc,
+    reject_kyc,
+    fetch_kyc_logs,
+)
 from .service import approve_agency_kyc, reject_agency_kyc, get_admin_dashboard_stats
 from .service import get_agency_kyc_list, review_agency_kyc
 from .service import get_clients_list, get_workers_list, get_agencies_list
 from .service import get_worker_detail, get_client_detail, get_agency_detail
 from .service import get_jobs_list, get_job_applications_list, get_jobs_dashboard_stats
-from .service import get_job_categories_list, create_job_category, update_job_category, delete_job_category, get_job_disputes_list, get_disputes_dashboard_stats
-from .service import get_all_reviews_list, get_job_reviews_list, get_reviews_dashboard_stats, get_flagged_reviews_list
+from .service import (
+    get_job_categories_list,
+    create_job_category,
+    update_job_category,
+    delete_job_category,
+    get_job_disputes_list,
+    get_disputes_dashboard_stats,
+)
+from .service import (
+    get_all_reviews_list,
+    get_job_reviews_list,
+    get_reviews_dashboard_stats,
+    get_flagged_reviews_list,
+)
 
 # Import optimized query functions for high-traffic endpoints
 from .optimized_queries import (
@@ -33,33 +52,88 @@ from .optimized_queries import (
     get_reviews_list_optimized,
     get_withdrawals_list_optimized,
 )
-from .account_actions import suspend_account, ban_account, activate_account, delete_account, get_account_status
+from .account_actions import (
+    suspend_account,
+    ban_account,
+    activate_account,
+    delete_account,
+    get_account_status,
+)
 from .payment_service import (
-    get_transactions_list, get_transaction_statistics, get_transaction_detail,
-    release_escrow, process_refund, get_escrow_payments, get_escrow_statistics,
-    bulk_release_escrow, get_worker_earnings, get_worker_earnings_statistics,
-    process_payout, get_disputes_list, get_dispute_detail, resolve_dispute,
-    get_disputes_statistics, get_revenue_trends, get_payment_methods_breakdown,
-    get_top_performers, get_withdrawals_list, get_withdrawals_statistics,
-    process_withdrawal_approval
+    get_transactions_list,
+    get_transaction_statistics,
+    get_transaction_detail,
+    release_escrow,
+    process_refund,
+    get_escrow_payments,
+    get_escrow_statistics,
+    bulk_release_escrow,
+    get_worker_earnings,
+    get_worker_earnings_statistics,
+    process_payout,
+    get_disputes_list,
+    get_dispute_detail,
+    resolve_dispute,
+    get_disputes_statistics,
+    get_revenue_trends,
+    get_payment_methods_breakdown,
+    get_top_performers,
+    get_withdrawals_list,
+    get_withdrawals_statistics,
+    process_withdrawal_approval,
 )
 from .support_service import (
-    get_tickets, get_ticket_detail, create_ticket, reply_to_ticket,
-    update_ticket_status, update_ticket_priority, close_ticket, assign_ticket, get_ticket_stats,
-    get_canned_responses, create_canned_response, update_canned_response,
-    delete_canned_response, increment_canned_response_usage,
-    get_faqs, create_faq, update_faq, delete_faq, increment_faq_view,
-    get_reports, get_report_detail, create_report, review_report, get_report_stats
+    get_tickets,
+    get_ticket_detail,
+    create_ticket,
+    reply_to_ticket,
+    update_ticket_status,
+    update_ticket_priority,
+    close_ticket,
+    assign_ticket,
+    get_ticket_stats,
+    get_canned_responses,
+    create_canned_response,
+    update_canned_response,
+    delete_canned_response,
+    increment_canned_response_usage,
+    get_faqs,
+    create_faq,
+    update_faq,
+    delete_faq,
+    increment_faq_view,
+    get_reports,
+    get_report_detail,
+    create_report,
+    review_report,
+    get_report_stats,
 )
 from .audit_service import (
-    log_action, get_audit_logs, get_audit_log_detail, export_audit_logs,
-    get_admin_activity, get_audit_statistics
+    log_action,
+    get_audit_logs,
+    get_audit_log_detail,
+    export_audit_logs,
+    get_admin_activity,
+    get_audit_statistics,
 )
 from .settings_service import (
-    get_platform_settings, update_platform_settings,
-    get_admins, get_admin_detail, create_admin, update_admin, delete_admin,
-    update_admin_last_login, get_all_permissions, check_admin_permission
+    get_platform_settings,
+    update_platform_settings,
+    get_admins,
+    get_admin_detail,
+    create_admin,
+    update_admin,
+    delete_admin,
+    update_admin_last_login,
+    get_all_permissions,
+    check_admin_permission,
+    list_content_moderation_terms,
+    create_content_moderation_term,
+    update_content_moderation_term,
+    delete_content_moderation_term,
+    toggle_content_moderation_term,
 )
+
 router = Router(tags=["adminpanel"])
 
 
@@ -77,6 +151,7 @@ def get_all_kyc(request: HttpRequest):
     except Exception as e:
         print(f"❌ Error in get_all_kyc: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -88,11 +163,14 @@ def get_pending_kyc_optimized(request: HttpRequest, page: int = 1, page_size: in
     Loads faster than /kyc/all for large datasets.
     """
     try:
-        result = get_kyc_list_optimized(status_filter='PENDING', page=page, page_size=page_size)
+        result = get_kyc_list_optimized(
+            status_filter="PENDING", page=page, page_size=page_size
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error in get_pending_kyc_optimized: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -103,14 +181,13 @@ def get_kyc_logs(request: HttpRequest, action: str | None = None, limit: int = 1
     Get KYC audit logs with optional filtering.
     """
     try:
-        if limit > 500: limit = 500
+        if limit > 500:
+            limit = 500
         result = fetch_kyc_logs(action_filter=action, limit=limit)
         return {"success": True, "logs": result, "count": len(result)}
     except Exception as e:
         print(f"❌ Error fetching KYC logs: {str(e)}")
         return {"success": False, "error": str(e)}
-
-
 
 
 def broadcast_admin_job_status_update(job_id: int, update_data: dict):
@@ -124,27 +201,28 @@ def broadcast_admin_job_status_update(job_id: int, update_data: dict):
             return
 
         async_to_sync(channel_layer.group_send)(
-            f'job_{job_id}',
+            f"job_{job_id}",
             {
-                'type': 'job_status_update',
-                'data': update_data,
-            }
+                "type": "job_status_update",
+                "data": update_data,
+            },
         )
 
         from profiles.models import Conversation
 
         conv_ids = list(
-            Conversation.objects.filter(relatedJobPosting_id=job_id)
-            .values_list('pk', flat=True)
+            Conversation.objects.filter(relatedJobPosting_id=job_id).values_list(
+                "pk", flat=True
+            )
         )
 
         for conv_id in conv_ids:
             async_to_sync(channel_layer.group_send)(
-                f'chat_{conv_id}',
+                f"chat_{conv_id}",
                 {
-                    'type': 'job_status_update',
-                    'data': update_data,
-                }
+                    "type": "job_status_update",
+                    "data": update_data,
+                },
             )
     except Exception as e:
         print(f"❌ Error broadcasting admin job status for job {job_id}: {str(e)}")
@@ -160,16 +238,11 @@ def get_dashboard_stats(request):
     except Exception as e:
         print(f"❌ Error in get_dashboard_stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
-
-
-
-
-
-    
 @router.post("/kyc/review", auth=cookie_auth)
 def review_kyc(request):
     try:
@@ -179,9 +252,11 @@ def review_kyc(request):
     except Exception as e:
         print(f"❌ Error in review_kyc: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"error": str(e)}
-    
+
+
 @router.post("/kyc/approve", auth=cookie_auth)
 def approve_kyc_verification(request):
     try:
@@ -194,6 +269,7 @@ def approve_kyc_verification(request):
     except Exception as e:
         print(f"❌ Error approving KYC Verification: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -210,8 +286,10 @@ def approve_agency_kyc_verification(request):
     except Exception as e:
         print(f"❌ Error approving Agency KYC Verification: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
+
 
 @router.post("/kyc/reject", auth=cookie_auth)
 def reject_kyc_verification(request):
@@ -225,6 +303,7 @@ def reject_kyc_verification(request):
     except Exception as e:
         print(f"❌ Error rejecting KYC Verification: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -241,6 +320,7 @@ def reject_agency_kyc_verification(request):
     except Exception as e:
         print(f"❌ Error rejecting Agency KYC Verification: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -251,11 +331,11 @@ def delete_kyc_record(request, kyc_id: int, kyc_type: str = "USER"):
     Delete a rejected KYC record and its associated files.
     Only allows deletion if status is 'Rejected'.
     Preserves KYCLogs for audit trail.
-    
+
     Args:
         kyc_id: KYC record ID
         kyc_type: "USER" or "AGENCY" (default: "USER")
-    
+
     Returns:
         Success status and deletion details
     """
@@ -264,85 +344,96 @@ def delete_kyc_record(request, kyc_id: int, kyc_type: str = "USER"):
     from iayos_project.utils import delete_storage_file
     from django.db import transaction
     import re
-    
+
     try:
         print(f"[ADMIN] Deleting KYC: ID={kyc_id}, Type={kyc_type}")
-        
+
         if kyc_type.upper() == "AGENCY":
             # Delete agency KYC
             agency_kyc = AgencyKYC.objects.filter(agencyKycID=kyc_id).first()
-            
+
             if not agency_kyc:
                 return Response({"error": "Agency KYC not found"}, status=404)
-            
+
             # Safety check: only delete if rejected
             if agency_kyc.status != "Rejected":
-                return Response({
-                    "error": f"Cannot delete KYC with status '{agency_kyc.status}'. Only 'Rejected' KYC can be deleted."
-                }, status=400)
-            
+                return Response(
+                    {
+                        "error": f"Cannot delete KYC with status '{agency_kyc.status}'. Only 'Rejected' KYC can be deleted."
+                    },
+                    status=400,
+                )
+
             # Get files before deletion
-            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values_list('fileURL', flat=True)
-            
+            files = AgencyKycFile.objects.filter(agencyKycID=agency_kyc).values_list(
+                "fileURL", flat=True
+            )
+
             with transaction.atomic():
                 # Delete files from Supabase storage
                 for file_url in files:
-                    path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                    path_match = re.search(r"(agency_\d+/kyc/[^?]+)", file_url)
                     if path_match:
                         path = path_match.group(1)
-                        delete_storage_file('agency', path)
+                        delete_storage_file("agency", path)
                         print(f"✅ Deleted file: {path}")
-                
+
                 # Delete database records (files will cascade)
                 deleted_count = agency_kyc.delete()[0]
                 print(f"✅ Deleted {deleted_count} database records")
-            
+
             return {
                 "success": True,
                 "message": f"Successfully deleted agency KYC {kyc_id}",
                 "filesDeleted": len(files),
-                "kycType": "AGENCY"
+                "kycType": "AGENCY",
             }
-        
+
         else:
             # Delete user KYC
             user_kyc = kyc.objects.filter(kycID=kyc_id).first()
-            
+
             if not user_kyc:
                 return Response({"error": "KYC not found"}, status=404)
-            
+
             # Safety check: only delete if rejected
             if user_kyc.kyc_status != "Rejected":
-                return Response({
-                    "error": f"Cannot delete KYC with status '{user_kyc.kyc_status}'. Only 'Rejected' KYC can be deleted."
-                }, status=400)
-            
+                return Response(
+                    {
+                        "error": f"Cannot delete KYC with status '{user_kyc.kyc_status}'. Only 'Rejected' KYC can be deleted."
+                    },
+                    status=400,
+                )
+
             # Get files before deletion
-            files = kycFiles.objects.filter(kycID=user_kyc).values_list('fileURL', flat=True)
-            
+            files = kycFiles.objects.filter(kycID=user_kyc).values_list(
+                "fileURL", flat=True
+            )
+
             with transaction.atomic():
                 # Delete files from Supabase storage
                 for file_url in files:
-                    path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                    path_match = re.search(r"(user_\d+/kyc/[^?]+)", file_url)
                     if path_match:
                         path = path_match.group(1)
-                        delete_storage_file('kyc-docs', path)
+                        delete_storage_file("kyc-docs", path)
                         print(f"✅ Deleted file: {path}")
-                
+
                 # Delete database records (files will cascade)
                 deleted_count = user_kyc.delete()[0]
                 print(f"✅ Deleted {deleted_count} database records")
-            
+
             return {
                 "success": True,
                 "message": f"Successfully deleted user KYC {kyc_id}",
                 "filesDeleted": len(files),
-                "kycType": "USER"
+                "kycType": "USER",
             }
-    
+
     except Exception as e:
         print(f"❌ Error deleting KYC: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
 
@@ -355,16 +446,18 @@ def create_agency_kyc_from_paths(request):
     FILE_TYPE values: BUSINESS_PERMIT, REP_ID_FRONT, REP_ID_BACK, ADDRESS_PROOF, AUTH_LETTER
     """
     import json
+
     try:
-        body = json.loads(request.body.decode('utf-8'))
-        account_id = body.get('accountID')
-        businessDesc = body.get('businessDesc')
-        files = body.get('files', {})
+        body = json.loads(request.body.decode("utf-8"))
+        account_id = body.get("accountID")
+        businessDesc = body.get("businessDesc")
+        files = body.get("files", {})
 
         if not account_id:
             return {"success": False, "error": "accountID is required"}
 
         from agency.services import create_agency_kyc_from_paths as svc
+
         result = svc(account_id, files, businessDesc=businessDesc)
         return {"success": True, **result}
     except ValueError as e:
@@ -372,6 +465,7 @@ def create_agency_kyc_from_paths(request):
     except Exception as e:
         print(f"❌ Error in create_agency_kyc_from_paths: {e}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -380,20 +474,17 @@ def create_agency_kyc_from_paths(request):
 def get_agency_kyc_submissions(request, status: Optional[str] = None):
     """
     Get list of agency KYC submissions with optional status filtering.
-    
+
     Query params:
     - status: Optional filter (PENDING, APPROVED, REJECTED)
     """
     try:
         submissions = get_agency_kyc_list(status_filter=status)
-        return {
-            "success": True,
-            "submissions": submissions,
-            "count": len(submissions)
-        }
+        return {"success": True, "submissions": submissions, "count": len(submissions)}
     except Exception as e:
         print(f"❌ Error in get_agency_kyc_submissions: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -402,58 +493,64 @@ def get_agency_kyc_submissions(request, status: Optional[str] = None):
 def review_agency_kyc_submission(request, agency_kyc_id: int):
     """
     Review (approve or reject) an agency KYC submission.
-    
+
     Expects JSON body with:
     - status: 'APPROVED' or 'REJECTED'
     - notes: Optional review notes (required for rejection)
     """
     import json
-    
+
     try:
-        body = json.loads(request.body.decode('utf-8'))
-        status = body.get('status')
-        notes = body.get('notes', '')
-        
+        body = json.loads(request.body.decode("utf-8"))
+        status = body.get("status")
+        notes = body.get("notes", "")
+
         if not status:
             return {"success": False, "error": "status is required"}
-        
-        if status.upper() not in ['APPROVED', 'REJECTED']:
-            return {"success": False, "error": "status must be 'APPROVED' or 'REJECTED'"}
-        
-        if status.upper() == 'REJECTED' and not notes:
+
+        if status.upper() not in ["APPROVED", "REJECTED"]:
+            return {
+                "success": False,
+                "error": "status must be 'APPROVED' or 'REJECTED'",
+            }
+
+        if status.upper() == "REJECTED" and not notes:
             return {"success": False, "error": "notes are required when rejecting"}
-        
+
         # Get reviewer from auth
         reviewer = request.auth
         if not reviewer:
             return {"success": False, "error": "authentication required"}
-        
+
         result = review_agency_kyc(
             agency_kyc_id=agency_kyc_id,
             status=status.upper(),
             notes=notes,
-            reviewer=reviewer
+            reviewer=reviewer,
         )
-        
+
         return result
     except ValueError as e:
         return {"success": False, "error": str(e)}
     except Exception as e:
         print(f"❌ Error in review_agency_kyc_submission: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
-
-
-
-
 @router.get("/users/clients", auth=cookie_auth)
-def get_clients(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
+def get_clients(
+    request,
+    page: int = 1,
+    page_size: int = 50,
+    search: str | None = None,
+    status: str | None = None,
+):
     """
     Get paginated list of client accounts using optimized queries.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 50)
@@ -462,11 +559,14 @@ def get_clients(request, page: int = 1, page_size: int = 50, search: str | None 
     """
     try:
         # Use optimized query with subqueries to avoid N+1
-        result = get_clients_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
+        result = get_clients_list_optimized(
+            page=page, page_size=page_size, search=search, status_filter=status
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching clients: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -475,7 +575,7 @@ def get_clients(request, page: int = 1, page_size: int = 50, search: str | None 
 def get_client_by_id(request, account_id: str):
     """
     Get detailed information about a specific client.
-    
+
     Path params:
     - account_id: The account ID of the client
     """
@@ -487,15 +587,23 @@ def get_client_by_id(request, account_id: str):
     except Exception as e:
         print(f"❌ Error fetching client detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/users/workers", auth=cookie_auth)
-def get_workers(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None, category_id: int | None = None):
+def get_workers(
+    request,
+    page: int = 1,
+    page_size: int = 50,
+    search: str | None = None,
+    status: str | None = None,
+    category_id: int | None = None,
+):
     """
     Get paginated list of worker accounts using optimized queries.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 50)
@@ -505,11 +613,18 @@ def get_workers(request, page: int = 1, page_size: int = 50, search: str | None 
     """
     try:
         # Use optimized query with subqueries to avoid N+1
-        result = get_workers_list_optimized(page=page, page_size=page_size, search=search, status_filter=status, category_id=category_id)
+        result = get_workers_list_optimized(
+            page=page,
+            page_size=page_size,
+            search=search,
+            status_filter=status,
+            category_id=category_id,
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching workers: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -518,7 +633,7 @@ def get_workers(request, page: int = 1, page_size: int = 50, search: str | None 
 def get_worker_by_id(request, account_id: str):
     """
     Get detailed information about a specific worker.
-    
+
     Path params:
     - account_id: The account ID of the worker
     """
@@ -530,15 +645,22 @@ def get_worker_by_id(request, account_id: str):
     except Exception as e:
         print(f"❌ Error fetching worker detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/users/agencies", auth=cookie_auth)
-def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None = None, status: str | None = None):
+def get_agencies(
+    request,
+    page: int = 1,
+    page_size: int = 50,
+    search: str | None = None,
+    status: str | None = None,
+):
     """
     Get paginated list of agency accounts using optimized queries.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 50)
@@ -547,11 +669,14 @@ def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None
     """
     try:
         # Use optimized query with subqueries to avoid N+1
-        result = get_agencies_list_optimized(page=page, page_size=page_size, search=search, status_filter=status)
+        result = get_agencies_list_optimized(
+            page=page, page_size=page_size, search=search, status_filter=status
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching agencies: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -560,7 +685,7 @@ def get_agencies(request, page: int = 1, page_size: int = 50, search: str | None
 def get_agency_by_id(request, account_id: str):
     """
     Get detailed information about a specific agency.
-    
+
     Path params:
     - account_id: The account ID of the agency
     """
@@ -572,6 +697,7 @@ def get_agency_by_id(request, account_id: str):
     except Exception as e:
         print(f"❌ Error fetching agency detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -580,21 +706,21 @@ def get_agency_by_id(request, account_id: str):
 def get_agency_employees_admin(request, account_id: str):
     """
     Get all employees for a specific agency (admin access).
-    
+
     This endpoint allows admins to view agency employees without requiring
     agency authentication. It reuses the agency service function but is
     accessible via admin authentication.
-    
+
     Path params:
     - account_id: The account ID of the agency
     """
     try:
         # Import agency service function
         from agency.services import get_agency_employees
-        
+
         # Fetch employees using agency service (reuse existing logic)
         employees = get_agency_employees(account_id)
-        
+
         return {"success": True, "employees": employees}
     except ValueError as e:
         # User/agency not found
@@ -602,6 +728,7 @@ def get_agency_employees_admin(request, account_id: str):
     except Exception as e:
         print(f"❌ Error fetching agency employees (admin): {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": "Failed to fetch agency employees"}
 
@@ -609,6 +736,7 @@ def get_agency_employees_admin(request, account_id: str):
 # ==========================================
 # JOBS MANAGEMENT ENDPOINTS
 # ==========================================
+
 
 @router.get("/jobs/dashboard-stats", auth=cookie_auth)
 def get_jobs_dashboard_statistics(request):
@@ -621,15 +749,23 @@ def get_jobs_dashboard_statistics(request):
     except Exception as e:
         print(f"❌ Error fetching jobs dashboard stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/jobs/listings", auth=cookie_auth)
-def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | None = None, category_id: int | None = None, search: str | None = None):
+def get_job_listings(
+    request,
+    page: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    category_id: int | None = None,
+    search: str | None = None,
+):
     """
     Get paginated list of all job listings using optimized queries.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
@@ -639,11 +775,18 @@ def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | 
     """
     try:
         # Use optimized query with select_related and annotations
-        result = get_jobs_list_optimized(page=page, page_size=page_size, status=status, category_id=category_id, search=search)
+        result = get_jobs_list_optimized(
+            page=page,
+            page_size=page_size,
+            status=status,
+            category_id=category_id,
+            search=search,
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching jobs listings: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -652,17 +795,19 @@ def get_job_listings(request, page: int = 1, page_size: int = 20, status: str | 
 def get_job_detail_endpoint(request, job_id: str):
     """
     Get detailed job information including timeline data.
-    
+
     Path params:
     - job_id: Job ID
     """
     try:
         from adminpanel.service import get_job_detail
+
         job_detail = get_job_detail(job_id)
         return {"success": True, "data": job_detail}
     except Exception as e:
         print(f"❌ Error fetching job detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -671,37 +816,44 @@ def get_job_detail_endpoint(request, job_id: str):
 def delete_job_endpoint(request, job_id: str):
     """
     Delete a job listing.
-    
+
     Path params:
     - job_id: Job ID to delete
     """
     try:
         from adminpanel.service import delete_job
+
         result = delete_job(job_id)
         return result
     except Exception as e:
         print(f"❌ Error deleting job: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/jobs/applications", auth=cookie_auth)
-def get_job_applications(request, page: int = 1, page_size: int = 20, status: str | None = None):
+def get_job_applications(
+    request, page: int = 1, page_size: int = 20, status: str | None = None
+):
     """
     Get paginated list of all job applications.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
     - status: Filter by status (PENDING, ACCEPTED, REJECTED, WITHDRAWN)
     """
     try:
-        result = get_job_applications_list(page=page, page_size=page_size, status=status)
+        result = get_job_applications_list(
+            page=page, page_size=page_size, status=status
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching job applications: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -710,16 +862,18 @@ def get_job_applications(request, page: int = 1, page_size: int = 20, status: st
 def get_job_invoice_endpoint(request, job_id: int):
     """
     Get invoice data for a completed job.
-    Returns detailed invoice information including client, worker, 
+    Returns detailed invoice information including client, worker,
     payment breakdown, and transaction details.
     """
     try:
         from adminpanel.service import get_job_invoice
+
         result = get_job_invoice(job_id)
         return result
     except Exception as e:
         print(f"❌ Error fetching job invoice: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -735,6 +889,7 @@ def get_job_categories(request):
     except Exception as e:
         print(f"❌ Error fetching job categories: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -747,8 +902,9 @@ def create_job_category_endpoint(request):
             average_project_cost_min, average_project_cost_max }
     """
     import json
+
     try:
-        data = json.loads(request.body.decode('utf-8'))
+        data = json.loads(request.body.decode("utf-8"))
         category = create_job_category(data)
         return {"success": True, "category": category}
     except ValueError as e:
@@ -756,6 +912,7 @@ def create_job_category_endpoint(request):
     except Exception as e:
         print(f"❌ Error creating job category: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -768,8 +925,9 @@ def update_job_category_endpoint(request, category_id: int):
             average_project_cost_min, average_project_cost_max }
     """
     import json
+
     try:
-        data = json.loads(request.body.decode('utf-8'))
+        data = json.loads(request.body.decode("utf-8"))
         category = update_job_category(category_id, data)
         return {"success": True, "category": category}
     except ValueError as e:
@@ -777,6 +935,7 @@ def update_job_category_endpoint(request, category_id: int):
     except Exception as e:
         print(f"❌ Error updating job category {category_id}: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -789,12 +948,16 @@ def delete_job_category_endpoint(request, category_id: int):
     """
     try:
         result = delete_job_category(category_id)
-        return {"success": True, "message": f"Category '{result['deleted_name']}' deleted successfully"}
+        return {
+            "success": True,
+            "message": f"Category '{result['deleted_name']}' deleted successfully",
+        }
     except ValueError as e:
         return {"success": False, "error": str(e)}
     except Exception as e:
         print(f"❌ Error deleting job category {category_id}: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -810,15 +973,22 @@ def get_disputes_stats(request):
     except Exception as e:
         print(f"❌ Error fetching dispute stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/jobs/disputes", auth=cookie_auth)
-def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None = None, priority: str | None = None):
+def get_disputes(
+    request,
+    page: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    priority: str | None = None,
+):
     """
     Get paginated list of job disputes.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
@@ -826,11 +996,14 @@ def get_disputes(request, page: int = 1, page_size: int = 20, status: str | None
     - priority: Filter by priority (LOW, MEDIUM, HIGH, CRITICAL)
     """
     try:
-        result = get_job_disputes_list(page=page, page_size=page_size, status=status, priority=priority)
+        result = get_job_disputes_list(
+            page=page, page_size=page_size, status=status, priority=priority
+        )
         return {"success": True, **result}
     except Exception as e:
         print(f"❌ Error fetching disputes: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -844,115 +1017,137 @@ def get_dispute_detail_endpoint(request, dispute_id: int):
     from accounts.models import JobDispute
     from django.db.models import Count
     from profiles.models import Conversation
+
     try:
-        dispute = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__clientID',
-            'jobID__clientID__profileID',
-            'jobID__clientID__profileID__accountFK',
-            'jobID__assignedWorkerID',
-            'jobID__assignedWorkerID__profileID',
-            'jobID__assignedWorkerID__profileID__accountFK',
-            'jobID__assignedAgencyFK',
-            'jobID__categoryID',
-        ).prefetch_related('evidence').get(disputeID=dispute_id)
+        dispute = (
+            JobDispute.objects.select_related(
+                "jobID",
+                "jobID__clientID",
+                "jobID__clientID__profileID",
+                "jobID__clientID__profileID__accountFK",
+                "jobID__assignedWorkerID",
+                "jobID__assignedWorkerID__profileID",
+                "jobID__assignedWorkerID__profileID__accountFK",
+                "jobID__assignedAgencyFK",
+                "jobID__categoryID",
+            )
+            .prefetch_related("evidence")
+            .get(disputeID=dispute_id)
+        )
 
         job = dispute.jobID
         client = job.clientID
         worker = job.assignedWorkerID
-        agency = getattr(job, 'assignedAgencyFK', None)
+        agency = getattr(job, "assignedAgencyFK", None)
 
         # For team jobs with skill slots, gather all assigned workers
         from accounts.models import JobWorkerAssignment
+
         team_workers = []
         if not worker:
             assignments = JobWorkerAssignment.objects.filter(
-                jobID=job,
-                assignment_status__in=['ACTIVE', 'COMPLETED']
-            ).select_related(
-                'workerID__profileID__accountFK'
-            )
+                jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
+            ).select_related("workerID__profileID__accountFK")
             for a in assignments:
                 w = a.workerID
-                team_workers.append({
-                    'id': str(w.profileID.accountFK.accountID),
-                    'name': f"{w.profileID.firstName} {w.profileID.lastName}",
-                    'email': w.profileID.accountFK.email,
-                })
+                team_workers.append(
+                    {
+                        "id": str(w.profileID.accountFK.accountID),
+                        "name": f"{w.profileID.firstName} {w.profileID.lastName}",
+                        "email": w.profileID.accountFK.email,
+                    }
+                )
 
         # Admin can always audit conversation history for this job dispute.
         # Some legacy data can contain more than one conversation row for a job;
         # prefer the thread that actually has chat history.
         conversation = (
             Conversation.objects.filter(relatedJobPosting=job)
-            .annotate(message_count=Count('messages'))
-            .order_by('-message_count', '-updatedAt', '-conversationID')
+            .annotate(message_count=Count("messages"))
+            .order_by("-message_count", "-updatedAt", "-conversationID")
             .first()
         )
-        negotiation_conversation_id = conversation.conversationID if conversation else None
+        negotiation_conversation_id = (
+            conversation.conversationID if conversation else None
+        )
 
         # Evidence images
         evidence = [
             {
-                'id': e.evidenceID,
-                'image_url': e.imageURL,
-                'description': e.description,
-                'uploaded_at': e.createdAt.isoformat(),
+                "id": e.evidenceID,
+                "image_url": e.imageURL,
+                "description": e.description,
+                "uploaded_at": e.createdAt.isoformat(),
             }
             for e in dispute.evidence.all()
         ]
 
         return {
-            'success': True,
-            'dispute': {
-                'id': f"DISP-{str(dispute.disputeID).zfill(3)}",
-                'dispute_id': dispute.disputeID,
-                'job_id': f"JOB-{str(job.jobID).zfill(3)}",
-                'job_title': job.title,
-                'category': job.categoryID.specializationName if job.categoryID else None,
-                'disputed_by': dispute.disputedBy.lower(),
-                'client': {
-                    'id': str(client.profileID.accountFK.accountID),
-                    'name': f"{client.profileID.firstName} {client.profileID.lastName}",
-                    'email': client.profileID.accountFK.email,
+            "success": True,
+            "dispute": {
+                "id": f"DISP-{str(dispute.disputeID).zfill(3)}",
+                "dispute_id": dispute.disputeID,
+                "job_id": f"JOB-{str(job.jobID).zfill(3)}",
+                "job_title": job.title,
+                "category": job.categoryID.specializationName
+                if job.categoryID
+                else None,
+                "disputed_by": dispute.disputedBy.lower(),
+                "client": {
+                    "id": str(client.profileID.accountFK.accountID),
+                    "name": f"{client.profileID.firstName} {client.profileID.lastName}",
+                    "email": client.profileID.accountFK.email,
                 },
-                'worker': {
-                    'id': str(worker.profileID.accountFK.accountID),
-                    'name': f"{worker.profileID.firstName} {worker.profileID.lastName}",
-                    'email': worker.profileID.accountFK.email,
-                } if worker else None,
-                'workers': team_workers if team_workers else None,
-                'agency': {
-                    'id': str(agency.agencyId) if agency else None,
-                    'name': agency.businessName if agency else None,
-                } if agency else None,
-                'reason': dispute.reason,
-                'description': dispute.description,
-                'opened_date': dispute.openedDate.isoformat(),
-                'updated_at': dispute.updatedAt.isoformat(),
-                'status': dispute.status.lower(),
-                'priority': dispute.priority.lower(),
-                'job_amount': float(dispute.jobAmount),
-                'disputed_amount': float(dispute.disputedAmount),
-                'resolution': dispute.resolution,
-                'resolved_date': dispute.resolvedDate.isoformat() if dispute.resolvedDate else None,
-                'in_negotiation_at': dispute.in_negotiation_at.isoformat() if dispute.in_negotiation_at else None,
-                'admin_rejection_reason': dispute.adminRejectionReason,
-                'conversation_id': negotiation_conversation_id,
-                'can_admin_chat': False,
-                'evidence': evidence,
-                'backjob_started': dispute.backjobStarted,
-                'worker_marked_complete': dispute.workerMarkedBackjobComplete,
-                'client_confirmed': dispute.clientConfirmedBackjob,
-                'scheduled_date': dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
-                'worker_schedule_confirmed': dispute.workerScheduleConfirmed,
-                'worker_schedule_confirmed_at': dispute.workerScheduleConfirmedAt.isoformat() if dispute.workerScheduleConfirmedAt else None,
-            }
+                "worker": {
+                    "id": str(worker.profileID.accountFK.accountID),
+                    "name": f"{worker.profileID.firstName} {worker.profileID.lastName}",
+                    "email": worker.profileID.accountFK.email,
+                }
+                if worker
+                else None,
+                "workers": team_workers if team_workers else None,
+                "agency": {
+                    "id": str(agency.agencyId) if agency else None,
+                    "name": agency.businessName if agency else None,
+                }
+                if agency
+                else None,
+                "reason": dispute.reason,
+                "description": dispute.description,
+                "opened_date": dispute.openedDate.isoformat(),
+                "updated_at": dispute.updatedAt.isoformat(),
+                "status": dispute.status.lower(),
+                "priority": dispute.priority.lower(),
+                "job_amount": float(dispute.jobAmount),
+                "disputed_amount": float(dispute.disputedAmount),
+                "resolution": dispute.resolution,
+                "resolved_date": dispute.resolvedDate.isoformat()
+                if dispute.resolvedDate
+                else None,
+                "in_negotiation_at": dispute.in_negotiation_at.isoformat()
+                if dispute.in_negotiation_at
+                else None,
+                "admin_rejection_reason": dispute.adminRejectionReason,
+                "conversation_id": negotiation_conversation_id,
+                "can_admin_chat": False,
+                "evidence": evidence,
+                "backjob_started": dispute.backjobStarted,
+                "worker_marked_complete": dispute.workerMarkedBackjobComplete,
+                "client_confirmed": dispute.clientConfirmedBackjob,
+                "scheduled_date": dispute.scheduled_date.isoformat()
+                if dispute.scheduled_date
+                else None,
+                "worker_schedule_confirmed": dispute.workerScheduleConfirmed,
+                "worker_schedule_confirmed_at": dispute.workerScheduleConfirmedAt.isoformat()
+                if dispute.workerScheduleConfirmedAt
+                else None,
+            },
         }
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -972,20 +1167,23 @@ def accept_negotiation(request, dispute_id: int):
 
     try:
         dispute = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__assignedWorkerID__profileID__accountFK',
-            'jobID__assignedAgencyFK__accountFK',
-            'jobID__clientID__profileID__accountFK'
+            "jobID",
+            "jobID__assignedWorkerID__profileID__accountFK",
+            "jobID__assignedAgencyFK__accountFK",
+            "jobID__clientID__profileID__accountFK",
         ).get(disputeID=dispute_id)
 
-        if dispute.status != 'OPEN':
-            return {"success": False, "error": "Dispute must be OPEN to accept into negotiation"}
+        if dispute.status != "OPEN":
+            return {
+                "success": False,
+                "error": "Dispute must be OPEN to accept into negotiation",
+            }
 
         job = dispute.jobID
 
         with transaction.atomic():
             # Transition status to IN_NEGOTIATION
-            dispute.status = 'IN_NEGOTIATION'
+            dispute.status = "IN_NEGOTIATION"
             dispute.in_negotiation_at = timezone.now()
             dispute.save()
 
@@ -994,7 +1192,7 @@ def accept_negotiation(request, dispute_id: int):
                 oldStatus=job.status,
                 newStatus="BACKJOB_NEGO",
                 changedBy=request.auth,
-                notes="Admin accepted backjob into negotiation"
+                notes="Admin accepted backjob into negotiation",
             )
 
             log_action(
@@ -1005,7 +1203,7 @@ def accept_negotiation(request, dispute_id: int):
                 details={"job_id": job.jobID, "job_title": job.title},
                 before_value={"status": "OPEN"},
                 after_value={"status": "IN_NEGOTIATION"},
-                request=request
+                request=request,
             )
 
             # Reopen or create participant conversation
@@ -1014,10 +1212,19 @@ def accept_negotiation(request, dispute_id: int):
                 conversation.status = Conversation.ConversationStatus.ACTIVE
                 conversation.archivedByClient = False
                 conversation.archivedByWorker = False
-                conversation.save(update_fields=['status', 'archivedByClient', 'archivedByWorker', 'updatedAt'])
+                conversation.save(
+                    update_fields=[
+                        "status",
+                        "archivedByClient",
+                        "archivedByWorker",
+                        "updatedAt",
+                    ]
+                )
             else:
                 client_profile = job.clientID.profileID
-                worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                worker_profile = (
+                    job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                )
                 conversation = Conversation.objects.create(
                     client=client_profile,
                     worker=worker_profile,
@@ -1028,12 +1235,13 @@ def accept_negotiation(request, dispute_id: int):
 
             # Unarchive so it appears in active tab
             from profiles.conversation_service import unarchive_conversation
+
             unarchive_conversation(conversation)
 
             # System message to announce negotiation state
             Message.create_system_message(
                 conversation,
-                "Negotiation started. Client and worker/agency should agree on a backjob schedule date."
+                "Negotiation started. Client and worker/agency should agree on a backjob schedule date.",
             )
 
             # Notify client + worker
@@ -1043,7 +1251,7 @@ def accept_negotiation(request, dispute_id: int):
                     notificationType="BACKJOB_NEGOTIATION",
                     title="Backjob Negotiation Started",
                     message=f"Backjob negotiation has started for '{job.title}'. Please coordinate schedule with the worker/agency.",
-                    relatedJobID=job.jobID
+                    relatedJobID=job.jobID,
                 )
             worker_account = None
             if job.assignedWorkerID:
@@ -1056,7 +1264,7 @@ def accept_negotiation(request, dispute_id: int):
                     notificationType="BACKJOB_NEGOTIATION",
                     title="Backjob Negotiation Started",
                     message=f"Backjob negotiation has started for '{job.title}'. Please coordinate schedule with the client.",
-                    relatedJobID=job.jobID
+                    relatedJobID=job.jobID,
                 )
 
             transaction.on_commit(
@@ -1076,7 +1284,7 @@ def accept_negotiation(request, dispute_id: int):
             "message": "Backjob accepted into negotiation.",
             "dispute_id": dispute.disputeID,
             "status": dispute.status,
-            "conversation_id": conversation.conversationID
+            "conversation_id": conversation.conversationID,
         }
 
     except JobDispute.DoesNotExist:
@@ -1084,12 +1292,15 @@ def accept_negotiation(request, dispute_id: int):
     except Exception as e:
         print(f"Error accepting negotiation: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/conversations/{conv_id}/messages", auth=cookie_auth)
-def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_size: int = 50):
+def get_admin_conversation_messages(
+    request, conv_id: int, page: int = 1, page_size: int = 50
+):
     """
     Admin: fetch paginated message history for conversation audit.
     This is read-only and not limited to IN_NEGOTIATION status.
@@ -1102,30 +1313,34 @@ def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_s
         return {"success": False, "error": "Conversation not found"}
 
     try:
-        messages_qs = Message.objects.filter(conversationID=conversation).select_related(
-            'sender', 'senderAgency', 'sender_admin'
-        ).order_by('createdAt')
+        messages_qs = (
+            Message.objects.filter(conversationID=conversation)
+            .select_related("sender", "senderAgency", "sender_admin")
+            .order_by("createdAt")
+        )
 
         total = messages_qs.count()
         offset = (page - 1) * page_size
-        messages_page = messages_qs[offset: offset + page_size]
+        messages_page = messages_qs[offset : offset + page_size]
 
         def _serialize(msg):
-            sender_type = 'system'
+            sender_type = "system"
             sender_name = None
             sender_id = None
 
             # Use *_id fields first so malformed legacy relations don't crash serialization.
             if msg.sender_id:
-                sender_type = 'profile'
+                sender_type = "profile"
                 sender_id = msg.sender_id
                 try:
                     if msg.sender:
-                        sender_name = f"{msg.sender.firstName} {msg.sender.lastName}".strip()
+                        sender_name = (
+                            f"{msg.sender.firstName} {msg.sender.lastName}".strip()
+                        )
                 except Exception:
                     sender_name = None
             elif msg.senderAgency_id:
-                sender_type = 'agency'
+                sender_type = "agency"
                 sender_id = msg.senderAgency_id
                 try:
                     if msg.senderAgency:
@@ -1133,7 +1348,7 @@ def get_admin_conversation_messages(request, conv_id: int, page: int = 1, page_s
                 except Exception:
                     sender_name = None
             elif msg.sender_admin_id:
-                sender_type = 'admin'
+                sender_type = "admin"
                 sender_id = msg.sender_admin_id
                 try:
                     if msg.sender_admin:
@@ -1191,7 +1406,7 @@ def finish_negotiation(request, dispute_id: int):
     from accounts.models import JobDispute
 
     try:
-        dispute = JobDispute.objects.select_related('jobID').get(disputeID=dispute_id)
+        dispute = JobDispute.objects.select_related("jobID").get(disputeID=dispute_id)
 
         return {
             "success": True,
@@ -1206,6 +1421,7 @@ def finish_negotiation(request, dispute_id: int):
     except Exception as e:
         print(f"Error finishing negotiation: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1218,25 +1434,29 @@ def approve_backjob(request, dispute_id: int):
     If coming from IN_NEGOTIATION, removes the admin ConversationParticipant and posts a sign-off message.
     """
     from accounts.models import JobDispute, Notification, Agency, JobLog
-    
+
     try:
         import datetime
-        body = json.loads(request.body.decode('utf-8')) if request.body else {}
-        admin_notes = body.get('notes', '')
-        priority = body.get('priority', 'MEDIUM')
-        scheduled_date_raw = (body.get('scheduled_date') or '').strip()
-        
-        dispute = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__assignedWorkerID__profileID__accountFK',
-            'jobID__assignedAgencyFK__accountFK',
-            'jobID__clientID__profileID__accountFK'
-        ).get(disputeID=dispute_id)
-        
-        if dispute.status not in ('OPEN', 'IN_NEGOTIATION'):
-            return {"success": False, "error": "This backjob has already been processed"}
 
-        if dispute.status == 'OPEN':
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+        admin_notes = body.get("notes", "")
+        priority = body.get("priority", "MEDIUM")
+        scheduled_date_raw = (body.get("scheduled_date") or "").strip()
+
+        dispute = JobDispute.objects.select_related(
+            "jobID",
+            "jobID__assignedWorkerID__profileID__accountFK",
+            "jobID__assignedAgencyFK__accountFK",
+            "jobID__clientID__profileID__accountFK",
+        ).get(disputeID=dispute_id)
+
+        if dispute.status not in ("OPEN", "IN_NEGOTIATION"):
+            return {
+                "success": False,
+                "error": "This backjob has already been processed",
+            }
+
+        if dispute.status == "OPEN":
             if not scheduled_date_raw:
                 return {
                     "success": False,
@@ -1245,10 +1465,16 @@ def approve_backjob(request, dispute_id: int):
             try:
                 scheduled_date = datetime.date.fromisoformat(scheduled_date_raw)
             except ValueError:
-                return {"success": False, "error": "Invalid scheduled_date format. Use YYYY-MM-DD"}
+                return {
+                    "success": False,
+                    "error": "Invalid scheduled_date format. Use YYYY-MM-DD",
+                }
 
             if scheduled_date < timezone.now().date():
-                return {"success": False, "error": "scheduled_date cannot be in the past"}
+                return {
+                    "success": False,
+                    "error": "scheduled_date cannot be in the past",
+                }
         else:
             scheduled_date = dispute.scheduled_date
             if not scheduled_date:
@@ -1256,64 +1482,69 @@ def approve_backjob(request, dispute_id: int):
                     "success": False,
                     "error": "Set a scheduled date first before approving from IN_NEGOTIATION",
                 }
-        
+
         # Store before state for audit
         before_state = {"status": dispute.status, "priority": dispute.priority}
-        
+
         # Update dispute
         # Use atomic transaction to ensure consistency for entire approve-backjob workflow
         from profiles.models import Conversation, Message
         from django.db import transaction
-        
+
         try:
             with transaction.atomic():
                 # Update dispute status and priority
-                dispute.status = 'UNDER_REVIEW'
+                dispute.status = "UNDER_REVIEW"
                 dispute.priority = priority
                 dispute.scheduled_date = scheduled_date
                 if admin_notes:
                     dispute.resolution = f"Admin notes: {admin_notes}"
                 dispute.save()
-                
+
                 job = dispute.jobID
-                
+
                 # Create job log
                 JobLog.objects.create(
                     jobID=job,
                     oldStatus=job.status,
                     newStatus="BACKJOB_APPROVED",
                     changedBy=request.auth,
-                    notes=f"Admin approved backjob request. Priority: {priority}"
+                    notes=f"Admin approved backjob request. Priority: {priority}",
                 )
-                
+
                 # Log audit trail
                 log_action(
                     admin=request.auth,
                     action="backjob_approve",
                     entity_type="job",
                     entity_id=str(dispute_id),
-                    details={"job_id": job.jobID, "job_title": job.title, "priority": priority, "notes": admin_notes},
+                    details={
+                        "job_id": job.jobID,
+                        "job_title": job.title,
+                        "priority": priority,
+                        "notes": admin_notes,
+                    },
                     before_value=before_state,
                     after_value={"status": "UNDER_REVIEW", "priority": priority},
-                    request=request
+                    request=request,
                 )
-                
+
                 # Notify the worker or agency
                 notify_account = None
                 if job.assignedAgencyFK:
                     notify_account = job.assignedAgencyFK.accountFK
                 elif job.assignedWorkerID:
                     notify_account = job.assignedWorkerID.profileID.accountFK
-                
+
                 if notify_account:
                     Notification.objects.create(
                         accountFK=notify_account,
                         notificationType="BACKJOB_APPROVED",
                         title="New Backjob Assigned",
                         message=f"You have a new backjob for '{job.title}'. The client has requested rework. Please review and complete.",
-                        relatedJobID=job.jobID
+                        relatedJobID=job.jobID,
                     )
-                
+
                 # Also notify the client that their backjob was approved
                 if job.clientID:
                     Notification.objects.create(
@@ -1321,41 +1552,51 @@ def approve_backjob(request, dispute_id: int):
                         notificationType="BACKJOB_APPROVED",
                         title="Backjob Request Approved",
                         message=f"Your backjob request for '{job.title}' has been approved. The worker/agency has been notified.",
-                        relatedJobID=job.jobID
+                        relatedJobID=job.jobID,
                     )
-                
+
                 # ============================================
                 # REOPEN CONVERSATION FOR BACKJOB DISCUSSION
                 # ============================================
                 # Find existing conversation for this job
-                conversation = Conversation.objects.filter(relatedJobPosting=job).first()
-                
+                conversation = Conversation.objects.filter(
+                    relatedJobPosting=job
+                ).first()
+
                 if conversation:
                     # Reopen the existing conversation
                     old_status = conversation.status
                     conversation.status = Conversation.ConversationStatus.ACTIVE
                     conversation.archivedByClient = False  # Clear archive flags
                     conversation.archivedByWorker = False
-                    conversation.save(update_fields=[
-                        'status',
-                        'archivedByClient',
-                        'archivedByWorker',
-                        'updatedAt'
-                    ])
-                    print(f"Reopened conversation {conversation.conversationID} (was {old_status})")
-                    
+                    conversation.save(
+                        update_fields=[
+                            "status",
+                            "archivedByClient",
+                            "archivedByWorker",
+                            "updatedAt",
+                        ]
+                    )
+                    print(
+                        f"Reopened conversation {conversation.conversationID} (was {old_status})"
+                    )
+
                     # Add system message (no sender - renders as centered system bubble)
                     Message.create_system_message(
                         conversation,
-                        "Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
+                        "Backjob Approved - A backjob has been approved for this job. Please discuss the details here.",
                     )
-                    print(f"Added backjob approval message to conversation {conversation.conversationID}")
+                    print(
+                        f"Added backjob approval message to conversation {conversation.conversationID}"
+                    )
                 else:
                     # Create a new conversation if none exists
                     client_profile = job.clientID.profileID
-                    worker_profile = job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                    worker_profile = (
+                        job.assignedWorkerID.profileID if job.assignedWorkerID else None
+                    )
                     agency = job.assignedAgencyFK
-                    
+
                     conversation = Conversation.objects.create(
                         client=client_profile,
                         worker=worker_profile,
@@ -1363,34 +1604,44 @@ def approve_backjob(request, dispute_id: int):
                         relatedJobPosting=job,
                         status=Conversation.ConversationStatus.ACTIVE,
                         archivedByClient=False,
-                        archivedByWorker=False
+                        archivedByWorker=False,
                     )
-                    print(f"Created new conversation {conversation.conversationID} for backjob")
-                    
+                    print(
+                        f"Created new conversation {conversation.conversationID} for backjob"
+                    )
+
                     # Add system message (no sender - renders as centered system bubble)
                     Message.create_system_message(
                         conversation,
-                        "Backjob Approved - A backjob has been approved for this job. Please discuss the details here."
+                        "Backjob Approved - A backjob has been approved for this job. Please discuss the details here.",
                     )
-                    print(f"Added backjob approval message to conversation {conversation.conversationID}")
-                
+                    print(
+                        f"Added backjob approval message to conversation {conversation.conversationID}"
+                    )
+
                 # Unarchive conversation so it appears in Active tab (inside transaction)
                 from profiles.conversation_service import unarchive_conversation
+
                 unarchive_result = unarchive_conversation(conversation)
-                print(f"{unarchive_result.get('message', 'Conversation unarchived after backjob approval')}")
+                print(
+                    f"{unarchive_result.get('message', 'Conversation unarchived after backjob approval')}"
+                )
 
                 # If transitioning from IN_NEGOTIATION, remove admin participant and post sign-off
                 if before_state["status"] == "IN_NEGOTIATION":
                     from profiles.models import ConversationParticipant
+
                     deleted_count, _ = ConversationParticipant.objects.filter(
                         conversation=conversation,
                         admin_account=request.auth,
-                        participant_type='ADMIN'
+                        participant_type="ADMIN",
                     ).delete()
-                    print(f"Removed {deleted_count} admin participant(s) from conversation {conversation.conversationID}")
+                    print(
+                        f"Removed {deleted_count} admin participant(s) from conversation {conversation.conversationID}"
+                    )
                     Message.create_system_message(
                         conversation,
-                        "Negotiation complete — admin has left the conversation. Backjob is now approved and in progress."
+                        "Negotiation complete — admin has left the conversation. Backjob is now approved and in progress.",
                     )
 
                 transaction.on_commit(
@@ -1401,29 +1652,33 @@ def approve_backjob(request, dispute_id: int):
                             "job_id": job.jobID,
                             "dispute_id": dispute.disputeID,
                             "status": "UNDER_REVIEW",
-                            "scheduled_date": dispute.scheduled_date.isoformat() if dispute.scheduled_date else None,
+                            "scheduled_date": dispute.scheduled_date.isoformat()
+                            if dispute.scheduled_date
+                            else None,
                         },
                     )
                 )
-        
+
         except Exception as e:
             print(f"Error managing conversation for backjob: {str(e)}")
             import traceback
+
             traceback.print_exc()
             # Don't return error - conversation issue shouldn't block backjob approval
-        
+
         return {
             "success": True,
             "message": "Backjob approved and assigned to worker/agency",
             "dispute_id": dispute.disputeID,
-            "status": dispute.status
+            "status": dispute.status,
         }
-        
+
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
         print(f"Error approving backjob: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1449,118 +1704,145 @@ def reject_backjob(request, dispute_id: int):
     """
     from accounts.models import JobDispute, Notification, JobLog
     from jobs.payment_buffer_service import resume_payment_after_backjob_rejection
-    
+
     try:
-        body = json.loads(request.body.decode('utf-8')) if request.body else {}
-        rejection_reason = body.get('reason', 'Backjob request was not approved')
-        
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+        rejection_reason = body.get("reason", "Backjob request was not approved")
+
         if not rejection_reason or len(rejection_reason) < 10:
-            return {"success": False, "error": "Please provide a valid rejection reason (at least 10 characters)"}
-        
+            return {
+                "success": False,
+                "error": "Please provide a valid rejection reason (at least 10 characters)",
+            }
+
         dispute = JobDispute.objects.select_related(
-            'jobID',
-            'jobID__clientID__profileID__accountFK'
+            "jobID", "jobID__clientID__profileID__accountFK"
         ).get(disputeID=dispute_id)
-        
-        if dispute.status not in ('OPEN', 'IN_NEGOTIATION'):
-            return {"success": False, "error": "This backjob has already been processed"}
-        
+
+        if dispute.status not in ("OPEN", "IN_NEGOTIATION"):
+            return {
+                "success": False,
+                "error": "This backjob has already been processed",
+            }
+
         # Store before state for audit
         before_state = {"status": dispute.status}
-        
+
         # Update dispute with rejection info and cooldown timestamp
-        dispute.status = 'CLOSED'
+        dispute.status = "CLOSED"
         dispute.resolution = f"Rejected: {rejection_reason}"
         dispute.resolvedDate = timezone.now()
         dispute.adminRejectedAt = timezone.now()  # For cooldown tracking
         dispute.adminRejectionReason = rejection_reason
         dispute.save()
-        
+
         job = dispute.jobID
-        
+
         # ============================================================
         # RESUME PAYMENT BUFFER: Continue countdown after rejection
         # If release date has passed, payment will be released immediately
         # ============================================================
         payment_result = resume_payment_after_backjob_rejection(job)
-        payment_released = payment_result.get('success', False) and payment_result.get('amount')
-        print(f"Payment buffer resumed for job #{job.jobID}. Released: {payment_released}")
+        payment_released = payment_result.get("success", False) and payment_result.get(
+            "amount"
+        )
+        print(
+            f"Payment buffer resumed for job #{job.jobID}. Released: {payment_released}"
+        )
         # ============================================================
-        
+
         # Create job log
         JobLog.objects.create(
             jobID=job,
             oldStatus=job.status,
             newStatus="BACKJOB_REJECTED",
             changedBy=request.auth,
-            notes=f"Admin rejected backjob request. Reason: {rejection_reason}. Payment buffer resumed."
+            notes=f"Admin rejected backjob request. Reason: {rejection_reason}. Payment buffer resumed.",
         )
-        
+
         # Log audit trail
         log_action(
             admin=request.auth,
             action="backjob_reject",
             entity_type="job",
             entity_id=str(dispute_id),
-            details={"job_id": job.jobID, "job_title": job.title, "reason": rejection_reason, "payment_released": payment_released},
+            details={
+                "job_id": job.jobID,
+                "job_title": job.title,
+                "reason": rejection_reason,
+                "payment_released": payment_released,
+            },
             before_value=before_state,
             after_value={"status": "CLOSED", "reason": rejection_reason},
-            request=request
+            request=request,
         )
-        
+
         # Notify the client (with cooldown info)
         if job.clientID:
-            cooldown_message = " You may submit a new backjob request after 24 hours." if not payment_released else ""
+            cooldown_message = (
+                " You may submit a new backjob request after 24 hours."
+                if not payment_released
+                else ""
+            )
             Notification.objects.create(
                 accountFK=job.clientID.profileID.accountFK,
                 notificationType="BACKJOB_REJECTED",
                 title="Backjob Request Rejected",
                 message=f"Your backjob request for '{job.title}' was not approved. Reason: {rejection_reason}{cooldown_message}",
-                relatedJobID=job.jobID
+                relatedJobID=job.jobID,
             )
-        
+
         # Notify worker that payment is resuming (if not already released)
         if not payment_released and (job.assignedWorkerID or job.assignedAgencyFK):
-            recipient_account = job.assignedWorkerID.profileID.accountFK if job.assignedWorkerID else job.assignedAgencyFK.accountFK
+            recipient_account = (
+                job.assignedWorkerID.profileID.accountFK
+                if job.assignedWorkerID
+                else job.assignedAgencyFK.accountFK
+            )
             Notification.objects.create(
                 accountFK=recipient_account,
                 notificationType="PAYMENT_RESUMED",
                 title="Payment Buffer Resumed",
                 message=f"The backjob request for '{job.title}' was rejected. Your payment buffer has resumed and will be released as scheduled.",
-                relatedJobID=job.jobID
+                relatedJobID=job.jobID,
             )
-        
+
         # Add a system message to the conversation about the rejection
         from profiles.models import Conversation, Message
-        
+
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
         if conversation:
             if conversation.status != Conversation.ConversationStatus.COMPLETED:
                 conversation.status = Conversation.ConversationStatus.COMPLETED
-                conversation.save(update_fields=['status'])
+                conversation.save(update_fields=["status"])
             if before_state["status"] == "IN_NEGOTIATION":
                 from profiles.models import ConversationParticipant
+
                 ConversationParticipant.objects.filter(
-                    conversation=conversation,
-                    participant_type='ADMIN'
+                    conversation=conversation, participant_type="ADMIN"
                 ).delete()
                 Message.create_system_message(
                     conversation,
-                    "Negotiation mediation ended — admin has left the chat."
+                    "Negotiation mediation ended — admin has left the chat.",
                 )
             Message.objects.create(
                 conversationID=conversation,
                 sender=None,  # System message has no sender
                 senderAgency=None,
                 messageText=f"Backjob Request Denied - Your backjob request was not approved. Reason: {rejection_reason}",
-                messageType=Message.MessageType.SYSTEM
+                messageType=Message.MessageType.SYSTEM,
             )
-            print(f"Added backjob rejection message to conversation {conversation.conversationID}")
-            
+            print(
+                f"Added backjob rejection message to conversation {conversation.conversationID}"
+            )
+
             # Auto-archive conversation since backjob was denied
             from profiles.conversation_service import archive_conversation
+
             archive_result = archive_conversation(conversation)
-            print(f"{archive_result.get('message', 'Conversation archived after backjob denial')}")
+            print(
+                f"{archive_result.get('message', 'Conversation archived after backjob denial')}"
+            )
 
         broadcast_admin_job_status_update(
             job.jobID,
@@ -1571,21 +1853,22 @@ def reject_backjob(request, dispute_id: int):
                 "status": "CLOSED",
             },
         )
-        
+
         return {
             "success": True,
             "message": "Backjob request rejected. Payment buffer resumed.",
             "dispute_id": dispute.disputeID,
             "status": dispute.status,
             "payment_released": payment_released,
-            "cooldown_hours": 24
+            "cooldown_hours": 24,
         }
-        
+
     except JobDispute.DoesNotExist:
         return {"success": False, "error": "Dispute not found"}
     except Exception as e:
         print(f"Error rejecting backjob: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1601,22 +1884,25 @@ def get_reviews_stats(request):
     except Exception as e:
         print(f"Error fetching review stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/reviews/all", auth=cookie_auth)
-def get_all_reviews(request, 
-    page: int = 1, 
-    page_size: int = 20, 
-    status: Optional[str] = Query(None), 
-    reviewer_type: Optional[str] = Query(None), 
-    min_rating: Optional[float] = Query(None), 
-    reviewee_id: Optional[str] = Query(None), 
-    reviewer_id: Optional[str] = Query(None)):
+def get_all_reviews(
+    request,
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = Query(None),
+    reviewer_type: Optional[str] = Query(None),
+    min_rating: Optional[float] = Query(None),
+    reviewee_id: Optional[str] = Query(None),
+    reviewer_id: Optional[str] = Query(None),
+):
     """
     Get paginated list of all general user reviews.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
@@ -1628,28 +1914,31 @@ def get_all_reviews(request,
     """
     try:
         result = get_reviews_list_optimized(
-            page=page, 
-            page_size=page_size, 
-            status=status, 
-            reviewer_type=reviewer_type, 
+            page=page,
+            page_size=page_size,
+            status=status,
+            reviewer_type=reviewer_type,
             min_rating=min_rating,
             reviewee_id=reviewee_id,
-            reviewer_id=reviewer_id
+            reviewer_id=reviewer_id,
         )
         return {"success": True, **result}
     except Exception as e:
         print(f"Error fetching all reviews: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/reviews/by-job", auth=cookie_auth)
-def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str | None = None):
+def get_reviews_by_job(
+    request, page: int = 1, page_size: int = 20, status: str | None = None
+):
     """
     Get paginated list of reviews grouped by job.
     Shows both client and worker reviews for each completed job.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
@@ -1661,6 +1950,7 @@ def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str 
     except Exception as e:
         print(f"Error fetching job reviews: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1669,7 +1959,7 @@ def get_reviews_by_job(request, page: int = 1, page_size: int = 20, status: str 
 def get_flagged_reviews(request, page: int = 1, page_size: int = 20):
     """
     Get paginated list of flagged reviews.
-    
+
     Query params:
     - page: Page number (default 1)
     - page_size: Items per page (default 20)
@@ -1680,6 +1970,7 @@ def get_flagged_reviews(request, page: int = 1, page_size: int = 20):
     except Exception as e:
         print(f"Error fetching flagged reviews: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1688,31 +1979,34 @@ def get_flagged_reviews(request, page: int = 1, page_size: int = 20):
 # ACCOUNT MANAGEMENT ACTIONS
 # =====================================================
 
+
 @router.post("/users/{account_id}/suspend", auth=cookie_auth)
 def suspend_user_account(request, account_id: str):
     """
     Suspend a user account temporarily.
-    
+
     Body params:
     - reason: Reason for suspension
     """
     try:
-        data = request.body if hasattr(request, 'body') else {}
+        data = request.body if hasattr(request, "body") else {}
         if isinstance(request.body, bytes):
             import json
-            data = json.loads(request.body.decode('utf-8'))
-        
-        reason = data.get('reason', 'No reason provided')
-        
+
+            data = json.loads(request.body.decode("utf-8"))
+
+        reason = data.get("reason", "No reason provided")
+
         if not reason or not reason.strip():
             return {"success": False, "error": "Reason is required"}
-        
+
         result = suspend_account(account_id, reason, request.auth, request)
         return result
-        
+
     except Exception as e:
         print(f"Error suspending account: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1721,27 +2015,29 @@ def suspend_user_account(request, account_id: str):
 def ban_user_account(request, account_id: str):
     """
     Ban a user account permanently.
-    
+
     Body params:
     - reason: Reason for ban
     """
     try:
-        data = request.body if hasattr(request, 'body') else {}
+        data = request.body if hasattr(request, "body") else {}
         if isinstance(request.body, bytes):
             import json
-            data = json.loads(request.body.decode('utf-8'))
-        
-        reason = data.get('reason', 'No reason provided')
-        
+
+            data = json.loads(request.body.decode("utf-8"))
+
+        reason = data.get("reason", "No reason provided")
+
         if not reason or not reason.strip():
             return {"success": False, "error": "Reason is required"}
-        
+
         result = ban_account(account_id, reason, request.auth, request)
         return result
-        
+
     except Exception as e:
         print(f"Error banning account: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1754,10 +2050,11 @@ def activate_user_account(request, account_id: str):
     try:
         result = activate_account(account_id, request.auth, request)
         return result
-        
+
     except Exception as e:
         print(f"❌ Error activating account: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1770,10 +2067,11 @@ def delete_user_account(request, account_id: str):
     try:
         result = delete_account(account_id, request.auth, request)
         return result
-        
+
     except Exception as e:
         print(f"❌ Error deleting account: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1786,10 +2084,11 @@ def get_user_account_status(request, account_id: str):
     try:
         result = get_account_status(account_id)
         return result
-        
+
     except Exception as e:
         print(f"❌ Error getting account status: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1797,6 +2096,7 @@ def get_user_account_status(request, account_id: str):
 # ===============================
 # Payment & Transaction Management
 # ===============================
+
 
 @router.get("/transactions/all", auth=cookie_auth)
 def get_all_transactions(
@@ -1807,7 +2107,7 @@ def get_all_transactions(
     payment_method: str = None,
     date_from: str = None,
     date_to: str = None,
-    search: str = None
+    search: str = None,
 ):
     """
     Get paginated list of all transactions with filtering.
@@ -1820,12 +2120,13 @@ def get_all_transactions(
             payment_method=payment_method,
             date_from=date_from,
             date_to=date_to,
-            search=search
+            search=search,
         )
         return result
     except Exception as e:
         print(f"❌ Error in get_all_transactions: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1842,6 +2143,7 @@ def get_transactions_statistics(request):
     except Exception as e:
         print(f"❌ Error in get_transactions_statistics: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1857,6 +2159,7 @@ def get_transaction_details(request, transaction_id: int):
     except Exception as e:
         print(f"❌ Error in get_transaction_details: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1867,13 +2170,16 @@ def release_escrow_payment(request, transaction_id: int):
     Release escrow payment to worker.
     """
     try:
-        body = json.loads(request.body.decode('utf-8')) if request.body else {}
-        reason = body.get('reason', None)
-        result = release_escrow(transaction_id, reason, admin=request.auth, request=request)
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+        reason = body.get("reason", None)
+        result = release_escrow(
+            transaction_id, reason, admin=request.auth, request=request
+        )
         return result
     except Exception as e:
         print(f"❌ Error in release_escrow_payment: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1887,36 +2193,38 @@ def admin_release_pending_payment(request, job_id: int):
     try:
         from accounts.models import Job
         from jobs.payment_buffer_service import release_pending_payment
-        
+
         # Get the job
         job = Job.objects.select_related(
-            'assignedWorkerID__profileID__accountFK',
-            'assignedAgencyFK'
+            "assignedWorkerID__profileID__accountFK", "assignedAgencyFK"
         ).get(jobID=job_id)
-        
+
         # Check if already released
         if job.paymentReleasedToWorker:
             return {"success": False, "error": "Payment already released for this job"}
-        
+
         # Force release (bypasses date check and backjob check)
         result = release_pending_payment(job, force=True)
-        
-        if result['success']:
-            print(f"✅ Admin {request.auth.email} force-released payment for job #{job_id}: ₱{result.get('amount', 0)}")
+
+        if result["success"]:
+            print(
+                f"✅ Admin {request.auth.email} force-released payment for job #{job_id}: ₱{result.get('amount', 0)}"
+            )
             return {
                 "success": True,
                 "message": f"Payment released successfully",
-                "amount": float(result.get('amount', 0)),
-                "job_id": job_id
+                "amount": float(result.get("amount", 0)),
+                "job_id": job_id,
             }
         else:
-            return {"success": False, "error": result.get('error', 'Unknown error')}
-            
+            return {"success": False, "error": result.get("error", "Unknown error")}
+
     except Job.DoesNotExist:
         return {"success": False, "error": f"Job #{job_id} not found"}
     except Exception as e:
         print(f"❌ Error in admin_release_pending_payment: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1927,19 +2235,27 @@ def refund_transaction(request, transaction_id: int):
     Process refund for a transaction.
     """
     try:
-        body = json.loads(request.body.decode('utf-8')) if request.body else {}
-        amount = body.get('amount')
-        reason = body.get('reason')
-        refund_to = body.get('refund_to', 'WALLET')
-        
+        body = json.loads(request.body.decode("utf-8")) if request.body else {}
+        amount = body.get("amount")
+        reason = body.get("reason")
+        refund_to = body.get("refund_to", "WALLET")
+
         if not amount or not reason:
             return {"success": False, "error": "Amount and reason are required"}
-        
-        result = process_refund(transaction_id, amount, reason, refund_to, admin=request.auth, request=request)
+
+        result = process_refund(
+            transaction_id,
+            amount,
+            reason,
+            refund_to,
+            admin=request.auth,
+            request=request,
+        )
         return result
     except Exception as e:
         print(f"❌ Error in refund_transaction: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1948,6 +2264,7 @@ def refund_transaction(request, transaction_id: int):
 # Withdrawal Management (Admin)
 # ===============================
 
+
 @router.get("/withdrawals", auth=cookie_auth)
 def get_all_withdrawals(
     request,
@@ -1955,7 +2272,7 @@ def get_all_withdrawals(
     limit: int = 50,
     status: str = None,
     payment_method: str = None,
-    search: str = None
+    search: str = None,
 ):
     """
     Get paginated list of all withdrawal requests with filtering.
@@ -1967,12 +2284,13 @@ def get_all_withdrawals(
             page_size=limit,
             status=status,
             payment_method_filter=payment_method,
-            search=search
+            search=search,
         )
         return result
     except Exception as e:
         print(f"❌ Error in get_all_withdrawals: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -1989,6 +2307,7 @@ def get_withdrawal_stats(request):
     except Exception as e:
         print(f"❌ Error in get_withdrawal_stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2001,22 +2320,23 @@ def approve_withdrawal(request, transaction_id: int):
     Accepts an optional reference_number for audit trail.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
-        admin_notes = body.get('notes', '')
-        reference_number = body.get('reference_number', '')
-        
+        body = request.data if hasattr(request, "data") else {}
+        admin_notes = body.get("notes", "")
+        reference_number = body.get("reference_number", "")
+
         result = process_withdrawal_approval(
             transaction_id=transaction_id,
-            action='approve',
+            action="approve",
             admin_notes=admin_notes,
             admin=request.auth,
             request=request,
-            reference_number=reference_number
+            reference_number=reference_number,
         )
         return result
     except Exception as e:
         print(f"❌ Error in approve_withdrawal: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2028,20 +2348,21 @@ def reject_withdrawal(request, transaction_id: int):
     The amount will be refunded back to the user's wallet.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
-        reason = body.get('reason', 'Rejected by admin')
-        
+        body = request.data if hasattr(request, "data") else {}
+        reason = body.get("reason", "Rejected by admin")
+
         result = process_withdrawal_approval(
             transaction_id=transaction_id,
-            action='reject',
+            action="reject",
             admin_notes=reason,
             admin=request.auth,
-            request=request
+            request=request,
         )
         return result
     except Exception as e:
         print(f"❌ Error in reject_withdrawal: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2050,13 +2371,10 @@ def reject_withdrawal(request, transaction_id: int):
 # Escrow Management
 # ===============================
 
+
 @router.get("/transactions/escrow", auth=cookie_auth)
 def get_escrow_payments_list(
-    request,
-    status: str = None,
-    search: str = None,
-    page: int = 1,
-    limit: int = 50
+    request, status: str = None, search: str = None, page: int = 1, limit: int = 50
 ):
     """
     Get list of escrow payments (50% downpayments).
@@ -2067,6 +2385,7 @@ def get_escrow_payments_list(
     except Exception as e:
         print(f"❌ Error in get_escrow_payments_list: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2082,6 +2401,7 @@ def get_escrow_stats(request):
     except Exception as e:
         print(f"❌ Error in get_escrow_stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2092,18 +2412,19 @@ def bulk_release_escrow_payments(request):
     Release multiple escrow payments at once.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
-        escrow_ids = body.get('escrow_ids', [])
-        reason = body.get('reason', None)
-        
+        body = request.data if hasattr(request, "data") else {}
+        escrow_ids = body.get("escrow_ids", [])
+        reason = body.get("reason", None)
+
         if not escrow_ids:
             return {"success": False, "error": "No escrow IDs provided"}
-        
+
         result = bulk_release_escrow(escrow_ids, reason)
         return result
     except Exception as e:
         print(f"❌ Error in bulk_release_escrow_payments: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2112,12 +2433,10 @@ def bulk_release_escrow_payments(request):
 # Worker Earnings & Payouts
 # ===============================
 
+
 @router.get("/transactions/worker-earnings", auth=cookie_auth)
 def get_worker_earnings_list(
-    request,
-    search: str = None,
-    page: int = 1,
-    limit: int = 50
+    request, search: str = None, page: int = 1, limit: int = 50
 ):
     """
     Get worker earnings aggregated by worker.
@@ -2128,6 +2447,7 @@ def get_worker_earnings_list(
     except Exception as e:
         print(f"❌ Error in get_worker_earnings_list: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2143,6 +2463,7 @@ def get_worker_earnings_stats(request):
     except Exception as e:
         print(f"❌ Error in get_worker_earnings_stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2153,21 +2474,27 @@ def process_worker_payout(request):
     Process payout to worker.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
-        worker_id = body.get('worker_id')
-        amount = body.get('amount')
-        payout_method = body.get('payout_method')
-        gcash_number = body.get('gcash_number', None)
-        bank_details = body.get('bank_details', None)
-        
+        body = request.data if hasattr(request, "data") else {}
+        worker_id = body.get("worker_id")
+        amount = body.get("amount")
+        payout_method = body.get("payout_method")
+        gcash_number = body.get("gcash_number", None)
+        bank_details = body.get("bank_details", None)
+
         if not all([worker_id, amount, payout_method]):
-            return {"success": False, "error": "Worker ID, amount, and payout method are required"}
-        
-        result = process_payout(worker_id, amount, payout_method, gcash_number, bank_details)
+            return {
+                "success": False,
+                "error": "Worker ID, amount, and payout method are required",
+            }
+
+        result = process_payout(
+            worker_id, amount, payout_method, gcash_number, bank_details
+        )
         return result
     except Exception as e:
         print(f"❌ Error in process_worker_payout: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2176,6 +2503,7 @@ def process_worker_payout(request):
 # Dispute Management
 # ===============================
 
+
 @router.get("/transactions/disputes", auth=cookie_auth)
 def get_disputes(
     request,
@@ -2183,7 +2511,7 @@ def get_disputes(
     priority: str = None,
     search: str = None,
     page: int = 1,
-    limit: int = 50
+    limit: int = 50,
 ):
     """
     Get list of job disputes.
@@ -2194,6 +2522,7 @@ def get_disputes(
     except Exception as e:
         print(f"❌ Error in get_disputes: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2209,6 +2538,7 @@ def get_disputes_stats(request):
     except Exception as e:
         print(f"❌ Error in get_disputes_stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2224,6 +2554,7 @@ def get_dispute_details(request, dispute_id: int):
     except Exception as e:
         print(f"❌ Error in get_dispute_details: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2234,19 +2565,27 @@ def resolve_job_dispute(request, dispute_id: int):
     Resolve a job dispute.
     """
     try:
-        body = request.data if hasattr(request, 'data') else {}
-        resolution = body.get('resolution')
-        decision = body.get('decision')
-        refund_amount = body.get('refund_amount', None)
-        
+        body = request.data if hasattr(request, "data") else {}
+        resolution = body.get("resolution")
+        decision = body.get("decision")
+        refund_amount = body.get("refund_amount", None)
+
         if not all([resolution, decision]):
             return {"success": False, "error": "Resolution and decision are required"}
-        
-        result = resolve_dispute(dispute_id, resolution, decision, refund_amount, admin=request.auth, request=request)
+
+        result = resolve_dispute(
+            dispute_id,
+            resolution,
+            decision,
+            refund_amount,
+            admin=request.auth,
+            request=request,
+        )
         return result
     except Exception as e:
         print(f"❌ Error in resolve_job_dispute: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2255,8 +2594,9 @@ def resolve_job_dispute(request, dispute_id: int):
 # Analytics
 # ===============================
 
+
 @router.get("/transactions/revenue-trends", auth=cookie_auth)
-def get_revenue_trends_data(request, period: str = 'last_30_days'):
+def get_revenue_trends_data(request, period: str = "last_30_days"):
     """
     Get revenue trends over time.
     """
@@ -2266,12 +2606,13 @@ def get_revenue_trends_data(request, period: str = 'last_30_days'):
     except Exception as e:
         print(f"❌ Error in get_revenue_trends_data: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/transactions/payment-methods-breakdown", auth=cookie_auth)
-def get_payment_methods_data(request, period: str = 'last_30_days'):
+def get_payment_methods_data(request, period: str = "last_30_days"):
     """
     Get payment methods breakdown by percentage.
     """
@@ -2281,12 +2622,13 @@ def get_payment_methods_data(request, period: str = 'last_30_days'):
     except Exception as e:
         print(f"❌ Error in get_payment_methods_data: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 @router.get("/transactions/top-performers", auth=cookie_auth)
-def get_top_performers_data(request, period: str = 'last_30_days'):
+def get_top_performers_data(request, period: str = "last_30_days"):
     """
     Get top performing clients, workers, and categories.
     """
@@ -2296,6 +2638,7 @@ def get_top_performers_data(request, period: str = 'last_30_days'):
     except Exception as e:
         print(f"❌ Error in get_top_performers_data: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2303,6 +2646,7 @@ def get_top_performers_data(request, period: str = 'last_30_days'):
 # ============================================================
 # MODULE 6: SETTINGS, AUDIT LOGS & ADMIN MANAGEMENT
 # ============================================================
+
 
 @router.get("/settings/audit-logs", auth=cookie_auth)
 def get_audit_logs_endpoint(
@@ -2314,11 +2658,11 @@ def get_audit_logs_endpoint(
     entity_type: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    search: str | None = None
+    search: str | None = None,
 ):
     """
     Get audit logs with filtering and pagination.
-    
+
     Tracks all admin actions including:
     - Login/logout events
     - KYC approvals/rejections
@@ -2336,12 +2680,13 @@ def get_audit_logs_endpoint(
             entity_type=entity_type,
             date_from=date_from,
             date_to=date_to,
-            search=search
+            search=search,
         )
         return result
     except Exception as e:
         print(f"❌ Error in get_audit_logs_endpoint: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2363,21 +2708,21 @@ def export_audit_logs_endpoint(
     admin_id: str | None = None,
     action_type: str | None = None,
     date_from: str | None = None,
-    date_to: str | None = None
+    date_to: str | None = None,
 ):
     """Export audit logs to CSV format."""
     try:
         from django.http import HttpResponse
-        
+
         csv_content = export_audit_logs(
             admin_id=admin_id,
             action_type=action_type,
             date_from=date_from,
-            date_to=date_to
+            date_to=date_to,
         )
-        
-        response = HttpResponse(csv_content, content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="audit-logs.csv"'
+
+        response = HttpResponse(csv_content, content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="audit-logs.csv"'
         return response
     except Exception as e:
         print(f"❌ Error in export_audit_logs_endpoint: {str(e)}")
@@ -2441,11 +2786,9 @@ def update_platform_settings_endpoint(request, data: PlatformSettingsSchema):
     try:
         # Convert Schema to dict, excluding None values
         settings_data = {k: v for k, v in data.dict().items() if v is not None}
-        
+
         result = update_platform_settings(
-            admin=request.auth,
-            data=settings_data,
-            request=request
+            admin=request.auth, data=settings_data, request=request
         )
         return result
     except Exception as e:
@@ -2494,7 +2837,7 @@ def create_admin_endpoint(request, data: CreateAdminSchema):
             password=data.password,
             role=data.role,
             permissions=data.permissions,
-            request=request
+            request=request,
         )
         return result
     except Exception as e:
@@ -2515,12 +2858,9 @@ def update_admin_endpoint(request, admin_id: int, data: UpdateAdminSchema):
     try:
         # Convert Schema to dict, excluding None values
         update_data = {k: v for k, v in data.dict().items() if v is not None}
-        
+
         result = update_admin(
-            updater=request.auth,
-            admin_id=admin_id,
-            data=update_data,
-            request=request
+            updater=request.auth, admin_id=admin_id, data=update_data, request=request
         )
         return result
     except Exception as e:
@@ -2536,7 +2876,7 @@ def delete_admin_endpoint(request, admin_id: int, reassign_to: int | None = None
             deleter=request.auth,
             admin_id=admin_id,
             reassign_to_id=reassign_to,
-            request=request
+            request=request,
         )
         return result
     except Exception as e:
@@ -2551,12 +2891,9 @@ def update_admin_permissions_endpoint(request, admin_id: int, data: UpdateAdminS
     try:
         # Convert Schema to dict, excluding None values
         update_data = {k: v for k, v in data.dict().items() if v is not None}
-        
+
         result = update_admin(
-            updater=request.auth,
-            admin_id=admin_id,
-            data=update_data,
-            request=request
+            updater=request.auth, admin_id=admin_id, data=update_data, request=request
         )
         return result
     except Exception as e:
@@ -2575,6 +2912,89 @@ def get_permissions_endpoint(request):
         return {"success": False, "error": str(e)}
 
 
+class ContentModerationTermSchema(Schema):
+    term: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/settings/content-moderation", auth=cookie_auth)
+def list_content_moderation_terms_endpoint(
+    request,
+    page: int = 1,
+    page_size: int = 20,
+    search: Optional[str] = None,
+    is_active: Optional[bool] = None,
+):
+    try:
+        return list_content_moderation_terms(
+            page=page,
+            page_size=page_size,
+            search=search,
+            is_active=is_active,
+        )
+    except Exception as e:
+        print(f"❌ Error in list_content_moderation_terms_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/settings/content-moderation", auth=cookie_auth)
+def create_content_moderation_term_endpoint(request, data: ContentModerationTermSchema):
+    try:
+        if not data.term:
+            return {"success": False, "error": "Term is required"}
+        return create_content_moderation_term(
+            admin=request.auth,
+            term_value=data.term,
+            request=request,
+        )
+    except Exception as e:
+        print(f"❌ Error in create_content_moderation_term_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/settings/content-moderation/{term_id}", auth=cookie_auth)
+def update_content_moderation_term_endpoint(
+    request, term_id: int, data: ContentModerationTermSchema
+):
+    try:
+        return update_content_moderation_term(
+            admin=request.auth,
+            term_id=term_id,
+            term_value=data.term,
+            is_active=data.is_active,
+            request=request,
+        )
+    except Exception as e:
+        print(f"❌ Error in update_content_moderation_term_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.delete("/settings/content-moderation/{term_id}", auth=cookie_auth)
+def delete_content_moderation_term_endpoint(request, term_id: int):
+    try:
+        return delete_content_moderation_term(
+            admin=request.auth,
+            term_id=term_id,
+            request=request,
+        )
+    except Exception as e:
+        print(f"❌ Error in delete_content_moderation_term_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+@router.put("/settings/content-moderation/{term_id}/toggle", auth=cookie_auth)
+def toggle_content_moderation_term_endpoint(request, term_id: int):
+    try:
+        return toggle_content_moderation_term(
+            admin=request.auth,
+            term_id=term_id,
+            request=request,
+        )
+    except Exception as e:
+        print(f"❌ Error in toggle_content_moderation_term_endpoint: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
 # ============================================================
 # NOTE: MODULE 7 MOCK ENDPOINTS REMOVED
 # Real Support & Help Center endpoints are defined below in
@@ -2586,6 +3006,7 @@ def get_permissions_endpoint(request):
 # MODULE 8: ANALYTICS & REPORTS ENDPOINTS
 # ============================================================================
 
+
 # Analytics Overview Endpoint
 @router.get("/analytics/overview", auth=cookie_auth)
 def get_analytics_overview(request, period: str = "last_30_days"):
@@ -2593,10 +3014,10 @@ def get_analytics_overview(request, period: str = "last_30_days"):
     try:
         overview = get_overview_data(period=period)
         # Transform 'overview' key to 'stats' for frontend compatibility
-        if overview.get('success') and 'overview' in overview:
+        if overview.get("success") and "overview" in overview:
             return {
                 "success": True,
-                "stats": overview['overview'],
+                "stats": overview["overview"],
                 "revenue_timeline": [],  # TODO: implement timeline data
                 "user_timeline": [],  # TODO: implement timeline data
             }
@@ -2604,6 +3025,7 @@ def get_analytics_overview(request, period: str = "last_30_days"):
     except Exception as e:
         print(f"Error in get_analytics_overview: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
@@ -2611,6 +3033,7 @@ def get_analytics_overview(request, period: str = "last_30_days"):
 # =============================================================================
 # SUPPORT TICKETS API
 # =============================================================================
+
 
 @router.get("/support/tickets", auth=cookie_auth)
 def get_support_tickets(
@@ -2701,7 +3124,7 @@ def reply_to_support_ticket(request, ticket_id: int, data: ReplyTicketSchema):
         actual_content = data.content or data.message or ""
         if not actual_content:
             return {"success": False, "error": "Content or message is required"}
-        
+
         return reply_to_ticket(
             ticket_id=ticket_id,
             sender=request.auth,
@@ -2718,7 +3141,9 @@ class UpdateTicketStatusSchema(Schema):
 
 
 @router.put("/support/tickets/{ticket_id}/status", auth=cookie_auth)
-def update_support_ticket_status(request, ticket_id: int, data: UpdateTicketStatusSchema):
+def update_support_ticket_status(
+    request, ticket_id: int, data: UpdateTicketStatusSchema
+):
     """Update ticket status."""
     try:
         return update_ticket_status(
@@ -2754,7 +3179,9 @@ def assign_support_ticket(request, ticket_id: int, data: AssignTicketSchema):
 
 
 @router.put("/support/tickets/{ticket_id}/priority", auth=cookie_auth)
-def update_support_ticket_priority(request, ticket_id: int, data: UpdateTicketPrioritySchema):
+def update_support_ticket_priority(
+    request, ticket_id: int, data: UpdateTicketPrioritySchema
+):
     """Update support ticket priority."""
     try:
         return update_ticket_priority(
@@ -2773,7 +3200,10 @@ def close_support_ticket(request, ticket_id: int, data: CloseTicketSchema):
     try:
         note = (data.resolution_note or "").strip()
         if len(note) < 10:
-            return {"success": False, "error": "Resolution note must be at least 10 characters"}
+            return {
+                "success": False,
+                "error": "Resolution note must be at least 10 characters",
+            }
 
         return close_ticket(
             ticket_id=ticket_id,
@@ -2789,8 +3219,11 @@ def close_support_ticket(request, ticket_id: int, data: CloseTicketSchema):
 # CANNED RESPONSES API
 # =============================================================================
 
+
 @router.get("/support/canned-responses", auth=cookie_auth)
-def get_all_canned_responses(request, category: Optional[str] = None, search: Optional[str] = None):
+def get_all_canned_responses(
+    request, category: Optional[str] = None, search: Optional[str] = None
+):
     """Get list of canned responses."""
     try:
         return get_canned_responses(category=category, search=search)
@@ -2823,7 +3256,9 @@ def create_new_canned_response(request, data: CannedResponseSchema):
 
 
 @router.put("/support/canned-responses/{response_id}", auth=cookie_auth)
-def update_existing_canned_response(request, response_id: int, data: CannedResponseSchema):
+def update_existing_canned_response(
+    request, response_id: int, data: CannedResponseSchema
+):
     """Update an existing canned response."""
     try:
         return update_canned_response(
@@ -2861,6 +3296,7 @@ def use_canned_response(request, response_id: int):
 # =============================================================================
 # FAQs API
 # =============================================================================
+
 
 @router.get("/support/faqs", auth=cookie_auth)
 def get_all_faqs(request, category: Optional[str] = None, published_only: bool = False):
@@ -2937,6 +3373,7 @@ def record_faq_view(request, faq_id: int):
 # USER REPORTS API
 # =============================================================================
 
+
 @router.get("/support/reports", auth=cookie_auth)
 def get_user_reports(
     request,
@@ -2989,6 +3426,7 @@ class ReviewReportSchema(Schema):
 
 class ReviewReportActionSchema(Schema):
     """Schema for frontend action-based review."""
+
     action: str  # warning, suspend, ban, dismiss, resolve
     notes: str = ""
     duration: Optional[int] = None  # For suspend action
@@ -3023,9 +3461,11 @@ def review_user_report_action(request, report_id: int, data: ReviewReportActionS
             "resolve": {"status": "resolved", "action_taken": "none"},
             "investigate": {"status": "investigating", "action_taken": "none"},
         }
-        
-        mapping = action_mapping.get(data.action, {"status": "pending", "action_taken": "none"})
-        
+
+        mapping = action_mapping.get(
+            data.action, {"status": "pending", "action_taken": "none"}
+        )
+
         return review_report(
             report_id=report_id,
             admin=request.auth,
@@ -3043,14 +3483,20 @@ def review_user_report_action(request, report_id: int, data: ReviewReportActionS
 # =============================================================================
 
 from .analytics_service import (
-    get_user_analytics, get_job_analytics, get_financial_analytics,
-    get_geographic_analytics, get_engagement_analytics, get_support_statistics,
-    get_analytics_overview as get_overview_data
+    get_user_analytics,
+    get_job_analytics,
+    get_financial_analytics,
+    get_geographic_analytics,
+    get_engagement_analytics,
+    get_support_statistics,
+    get_analytics_overview as get_overview_data,
 )
 
 
 @router.get("/analytics/users", auth=cookie_auth)
-def get_user_analytics_endpoint(request, period: str = "last_30_days", segment: str = "all"):
+def get_user_analytics_endpoint(
+    request, period: str = "last_30_days", segment: str = "all"
+):
     """Get comprehensive user analytics: DAU, WAU, MAU, demographics, growth trends."""
     try:
         analytics = get_user_analytics(period=period, segment=segment)
@@ -3115,15 +3561,8 @@ def get_support_statistics_endpoint(request, range: str = "last_30_days"):
         return {"success": False, "error": str(e)}
 
 
-
-
-
-
-
-
-
-
 # ==================== CERTIFICATION VERIFICATION ENDPOINTS ====================
+
 
 @router.get("/certifications/pending", auth=cookie_auth)
 def get_pending_certifications_endpoint(
@@ -3132,36 +3571,37 @@ def get_pending_certifications_endpoint(
     page_size: int = 20,
     skill: Optional[str] = None,
     worker: Optional[str] = None,
-    expiring_soon: bool = False
+    expiring_soon: bool = False,
 ):
     """
     Get list of pending (unverified) worker certifications.
-    
+
     Query Parameters:
         - page: Page number (default 1)
         - page_size: Items per page (default 20)
         - skill: Filter by skill/specialization name
         - worker: Search by worker name or email
         - expiring_soon: Filter certifications expiring in 30 days
-    
+
     Returns:
         Paginated list of pending certifications
     """
     from .service import get_pending_certifications
     from .schemas import PendingCertificationsResponseSchema
-    
+
     try:
         result = get_pending_certifications(
             page=page,
             page_size=page_size,
             skill_filter=skill,
             worker_search=worker,
-            expiring_soon=expiring_soon
+            expiring_soon=expiring_soon,
         )
         return {"success": True, "data": result}
     except Exception as e:
         print(f"❌ Error fetching pending certifications: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3180,6 +3620,7 @@ def get_certification_stats_endpoint(request):
     except Exception as e:
         print(f"❌ Error fetching certification stats: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
 
@@ -3217,6 +3658,7 @@ def get_all_certification_history_endpoint(
     except Exception as e:
         print(f"❌ Error fetching certification history list: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3225,16 +3667,16 @@ def get_all_certification_history_endpoint(
 def get_certification_detail_endpoint(request, cert_id: int):
     """
     Get full details of a specific certification with worker context.
-    
+
     Path Parameters:
         - cert_id: Certification ID
-    
+
     Returns:
         Complete certification details with worker profile and verification history
     """
     from .service import get_certification_detail
     from .schemas import CertificationDetailSchema
-    
+
     try:
         result = get_certification_detail(cert_id)
         return {"success": True, "data": result}
@@ -3244,6 +3686,7 @@ def get_certification_detail_endpoint(request, cert_id: int):
     except Exception as e:
         print(f"❌ Error fetching certification detail: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3252,33 +3695,33 @@ def get_certification_detail_endpoint(request, cert_id: int):
 def approve_certification_endpoint(request, cert_id: int, notes: Optional[str] = None):
     """
     Approve a worker certification (admin action).
-    
+
     Path Parameters:
         - cert_id: Certification ID to approve
-    
+
     Request Body:
         - notes: Optional approval notes (string)
-    
+
     Returns:
         Success message with certification details
     """
     from .service import approve_certification
     from .schemas import CertificationActionResponseSchema
     import json
-    
+
     try:
         # Parse request body for notes
         body_notes = None
         if request.body:
             try:
-                body = json.loads(request.body.decode('utf-8'))
-                body_notes = body.get('notes')
+                body = json.loads(request.body.decode("utf-8"))
+                body_notes = body.get("notes")
             except:
                 pass
-        
+
         # Use body notes if provided, otherwise use query param
         final_notes = body_notes or notes or ""
-        
+
         result = approve_certification(request, cert_id, final_notes)
         return result
     except ValueError as e:
@@ -3287,6 +3730,7 @@ def approve_certification_endpoint(request, cert_id: int, notes: Optional[str] =
     except Exception as e:
         print(f"❌ Error approving certification: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3295,28 +3739,30 @@ def approve_certification_endpoint(request, cert_id: int, notes: Optional[str] =
 def reject_certification_endpoint(request, cert_id: int):
     """
     Reject a worker certification (admin action).
-    
+
     Path Parameters:
         - cert_id: Certification ID to reject
-    
+
     Request Body:
         - reason: Rejection reason (required, minimum 10 characters)
-    
+
     Returns:
         Success message with rejection details
     """
     from .service import reject_certification
     from .schemas import CertificationActionResponseSchema
     import json
-    
+
     try:
         # Parse request body
-        body = json.loads(request.body.decode('utf-8'))
-        reason = body.get('reason')
-        
+        body = json.loads(request.body.decode("utf-8"))
+        reason = body.get("reason")
+
         if not reason:
-            return Response({"success": False, "error": "Rejection reason is required"}, status=400)
-        
+            return Response(
+                {"success": False, "error": "Rejection reason is required"}, status=400
+            )
+
         result = reject_certification(request, cert_id, reason)
         return result
     except ValueError as e:
@@ -3325,6 +3771,7 @@ def reject_certification_endpoint(request, cert_id: int):
     except Exception as e:
         print(f"❌ Error rejecting certification: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3333,22 +3780,23 @@ def reject_certification_endpoint(request, cert_id: int):
 def get_certification_history_endpoint(request, cert_id: int):
     """
     Get verification audit trail for a specific certification.
-    
+
     Path Parameters:
         - cert_id: Certification ID
-    
+
     Returns:
         List of verification log entries
     """
     from .service import get_verification_history
     from .schemas import VerificationHistoryListSchema
-    
+
     try:
         history = get_verification_history(cert_id)
         return {"success": True, "data": {"history": history}}
     except Exception as e:
         print(f"❌ Error fetching certification history: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3357,24 +3805,28 @@ def get_certification_history_endpoint(request, cert_id: int):
 # RATE LIMIT MANAGEMENT
 # ============================================================
 
+
 @router.post("/rate-limits/clear", auth=cookie_auth)
-def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_address: Optional[str] = None):
+def clear_rate_limits_endpoint(
+    request, category: Optional[str] = None, ip_address: Optional[str] = None
+):
     """
     Clear rate limit caches (admin only).
-    
+
     Parameters:
     - category: Specific category to clear (auth, api_read, api_write, upload, payment)
     - ip_address: Specific IP to clear (hashed format)
     - If both None: clears ALL rate limits
     """
     from django.core.cache import cache
-    
+
     cleared_count = 0
-    
+
     try:
         if category and ip_address:
             # Clear specific category for specific IP
             from iayos_project.rate_limiting import get_rate_limit_key
+
             key = get_rate_limit_key(category, ip_address)
             if cache.delete(key):
                 cleared_count = 1
@@ -3382,20 +3834,30 @@ def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_addre
         elif category:
             # Clear all IPs for specific category
             pattern = f"rl:{category}:*"
-            if hasattr(cache, 'delete_pattern'):
+            if hasattr(cache, "delete_pattern"):
                 cleared_count = cache.delete_pattern(pattern)
             else:
                 # Fallback for non-Redis cache backends
-                keys = cache.keys(pattern) if hasattr(cache, 'keys') else []
+                keys = cache.keys(pattern) if hasattr(cache, "keys") else []
                 for key in keys:
                     cache.delete(key)
                 cleared_count = len(keys)
-            print(f"✅ Cleared {cleared_count} rate limit keys for category: {category}")
+            print(
+                f"✅ Cleared {cleared_count} rate limit keys for category: {category}"
+            )
         elif ip_address:
             # Clear all categories for specific IP
-            categories = ['auth', 'password_reset', 'api_write', 'api_read', 'upload', 'payment']
+            categories = [
+                "auth",
+                "password_reset",
+                "api_write",
+                "api_read",
+                "upload",
+                "payment",
+            ]
             for cat in categories:
                 from iayos_project.rate_limiting import get_rate_limit_key
+
                 key = get_rate_limit_key(cat, ip_address)
                 if cache.delete(key):
                     cleared_count += 1
@@ -3403,25 +3865,26 @@ def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_addre
         else:
             # Clear ALL rate limits
             pattern = "rl:*"
-            if hasattr(cache, 'delete_pattern'):
+            if hasattr(cache, "delete_pattern"):
                 cleared_count = cache.delete_pattern(pattern)
             else:
                 # Fallback for non-Redis cache backends
-                keys = cache.keys(pattern) if hasattr(cache, 'keys') else []
+                keys = cache.keys(pattern) if hasattr(cache, "keys") else []
                 for key in keys:
                     cache.delete(key)
                 cleared_count = len(keys)
             print(f"✅ Cleared ALL rate limits ({cleared_count} keys)")
-        
+
         return {
             "success": True,
             "message": f"Cleared {cleared_count} rate limit cache entries",
-            "cleared_count": cleared_count
+            "cleared_count": cleared_count,
         }
-    
+
     except Exception as e:
         print(f"❌ Error clearing rate limits: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return Response({"success": False, "error": str(e)}, status=500)
 
@@ -3429,6 +3892,7 @@ def clear_rate_limits_endpoint(request, category: Optional[str] = None, ip_addre
 # ============================================================
 # KYC DETAILED VIEWS (Moved to end to avoid route shadowing)
 # ============================================================
+
 
 @router.get("/kyc/{kyc_id}", auth=cookie_auth)
 def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
@@ -3441,40 +3905,62 @@ def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
     from adminpanel.models import KYCLogs
     from iayos_project.utils import get_signed_url
     import re
-    
+
     try:
         if kyc_type.upper() == "AGENCY":
-            agency_kyc = AgencyKYC.objects.select_related('accountFK').filter(agencyKycID=kyc_id).first()
+            agency_kyc = (
+                AgencyKYC.objects.select_related("accountFK")
+                .filter(agencyKycID=kyc_id)
+                .first()
+            )
             if not agency_kyc:
                 return Response({"error": "Agency KYC not found"}, status=404)
-            
+
             agency = Agency.objects.filter(accountFK=agency_kyc.accountFK).first()
-            files = AgencyKycFile.objects.filter(agencyKyc=agency_kyc).values('fileID', 'fileURL', 'fileType', 'uploadedAt')
-            
+            files = AgencyKycFile.objects.filter(agencyKyc=agency_kyc).values(
+                "fileID", "fileURL", "fileType", "uploadedAt"
+            )
+
             files_with_urls = []
             for file in files:
-                file_url = file['fileURL']
-                path_match = re.search(r'(agency_\d+/kyc/[^?]+)', file_url)
+                file_url = file["fileURL"]
+                path_match = re.search(r"(agency_\d+/kyc/[^?]+)", file_url)
                 if path_match:
                     path = path_match.group(1)
-                    signed_url = get_signed_url('agency', path, expires_in=3600)
-                    files_with_urls.append({
-                        'id': file['fileID'],
-                        'url': signed_url or file_url,
-                        'type': file['fileType'],
-                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
-                    })
-            
-            logs = KYCLogs.objects.filter(kycID=kyc_id, kycType="AGENCY", action__in=['APPROVED', 'REJECTED', 'Rejected']).order_by('-reviewedAt').values('action', 'reason', 'reviewedBy__email', 'reviewedAt')
+                    signed_url = get_signed_url("agency", path, expires_in=3600)
+                    files_with_urls.append(
+                        {
+                            "id": file["fileID"],
+                            "url": signed_url or file_url,
+                            "type": file["fileType"],
+                            "uploadedAt": file["uploadedAt"].isoformat()
+                            if file["uploadedAt"]
+                            else None,
+                        }
+                    )
+
+            logs = (
+                KYCLogs.objects.filter(
+                    kycID=kyc_id,
+                    kycType="AGENCY",
+                    action__in=["APPROVED", "REJECTED", "Rejected"],
+                )
+                .order_by("-reviewedAt")
+                .values("action", "reason", "reviewedBy__email", "reviewedAt")
+            )
             history = []
             for log in logs:
-                history.append({
-                    'action': log['action'],
-                    'reason': log['reason'],
-                    'reviewedBy': log['reviewedBy__email'] or "System",
-                    'reviewedAt': log['reviewedAt'].isoformat() if log['reviewedAt'] else None
-                })
-            
+                history.append(
+                    {
+                        "action": log["action"],
+                        "reason": log["reason"],
+                        "reviewedBy": log["reviewedBy__email"] or "System",
+                        "reviewedAt": log["reviewedAt"].isoformat()
+                        if log["reviewedAt"]
+                        else None,
+                    }
+                )
+
             return {
                 "success": True,
                 "kycType": "AGENCY",
@@ -3483,65 +3969,93 @@ def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
                     "status": agency_kyc.status,
                     "businessName": agency.businessName if agency else "N/A",
                     "businessDescription": agency.businessDesc if agency else "N/A",
-                    "submittedAt": agency_kyc.createdAt.isoformat() if agency_kyc.createdAt else None,
-                    "reviewedAt": agency_kyc.reviewedAt.isoformat() if agency_kyc.reviewedAt else None,
+                    "submittedAt": agency_kyc.createdAt.isoformat()
+                    if agency_kyc.createdAt
+                    else None,
+                    "reviewedAt": agency_kyc.reviewedAt.isoformat()
+                    if agency_kyc.reviewedAt
+                    else None,
                 },
                 "user": {
                     "id": agency_kyc.accountFK.accountID,
                     "email": agency_kyc.accountFK.email,
                     "name": agency.businessName if agency else "N/A",
-                    "type": "AGENCY"
+                    "type": "AGENCY",
                 },
                 "files": files_with_urls,
-                "history": history
+                "history": history,
             }
         else:
-            user_kyc = kyc.objects.select_related('accountFK').filter(kycID=kyc_id).first()
+            user_kyc = (
+                kyc.objects.select_related("accountFK").filter(kycID=kyc_id).first()
+            )
             if not user_kyc:
                 return Response({"error": "KYC not found"}, status=404)
-            
-            files = kycFiles.objects.filter(kycID=user_kyc).values('kycFileID', 'fileURL', 'idType', 'uploadedAt')
+
+            files = kycFiles.objects.filter(kycID=user_kyc).values(
+                "kycFileID", "fileURL", "idType", "uploadedAt"
+            )
             files_with_urls = []
             for file in files:
-                file_url = file['fileURL']
-                path_match = re.search(r'(user_\d+/kyc/[^?]+)', file_url)
+                file_url = file["fileURL"]
+                path_match = re.search(r"(user_\d+/kyc/[^?]+)", file_url)
                 if path_match:
                     path = path_match.group(1)
-                    signed_url = get_signed_url('kyc-docs', path, expires_in=3600)
-                    files_with_urls.append({
-                        'id': file['kycFileID'],
-                        'url': signed_url or file_url,
-                        'type': file['idType'],
-                        'uploadedAt': file['uploadedAt'].isoformat() if file['uploadedAt'] else None
-                    })
-            
-            logs = KYCLogs.objects.filter(kycID=kyc_id, kycType="USER", action__in=['APPROVED', 'REJECTED', 'Rejected']).order_by('-reviewedAt').values('action', 'reason', 'reviewedBy__email', 'reviewedAt')
+                    signed_url = get_signed_url("kyc-docs", path, expires_in=3600)
+                    files_with_urls.append(
+                        {
+                            "id": file["kycFileID"],
+                            "url": signed_url or file_url,
+                            "type": file["idType"],
+                            "uploadedAt": file["uploadedAt"].isoformat()
+                            if file["uploadedAt"]
+                            else None,
+                        }
+                    )
+
+            logs = (
+                KYCLogs.objects.filter(
+                    kycID=kyc_id,
+                    kycType="USER",
+                    action__in=["APPROVED", "REJECTED", "Rejected"],
+                )
+                .order_by("-reviewedAt")
+                .values("action", "reason", "reviewedBy__email", "reviewedAt")
+            )
             history = []
             for log in logs:
-                history.append({
-                    'action': log['action'],
-                    'reason': log['reason'],
-                    'reviewedBy': log['reviewedBy__email'] or "System",
-                    'reviewedAt': log['reviewedAt'].isoformat() if log['reviewedAt'] else None
-                })
-            
+                history.append(
+                    {
+                        "action": log["action"],
+                        "reason": log["reason"],
+                        "reviewedBy": log["reviewedBy__email"] or "System",
+                        "reviewedAt": log["reviewedAt"].isoformat()
+                        if log["reviewedAt"]
+                        else None,
+                    }
+                )
+
             return {
                 "success": True,
                 "kycType": "USER",
                 "kyc": {
                     "id": user_kyc.kycID,
                     "status": user_kyc.kyc_status,
-                    "submittedAt": user_kyc.createdAt.isoformat() if user_kyc.createdAt else None,
-                    "reviewedAt": user_kyc.updatedAt.isoformat() if user_kyc.updatedAt else None,
+                    "submittedAt": user_kyc.createdAt.isoformat()
+                    if user_kyc.createdAt
+                    else None,
+                    "reviewedAt": user_kyc.updatedAt.isoformat()
+                    if user_kyc.updatedAt
+                    else None,
                 },
                 "user": {
                     "id": user_kyc.accountFK.accountID,
                     "email": user_kyc.accountFK.email,
                     "name": f"{user_kyc.accountFK.email}",
-                    "type": "USER"
+                    "type": "USER",
                 },
                 "files": files_with_urls,
-                "history": history
+                "history": history,
             }
     except Exception as e:
         print(f"❌ Error in get_kyc_detail: {str(e)}")
@@ -3552,6 +4066,7 @@ def get_kyc_detail(request, kyc_id: int, kyc_type: str = "USER"):
 def get_kyc_extracted_data(request, kyc_id: int):
     """AI-extracted data for user KYC review."""
     from accounts.models import kyc as KYCModel, KYCExtractedData
+
     try:
         kyc_record = KYCModel.objects.get(kycID=kyc_id)
         extracted = KYCExtractedData.objects.get(kycID=kyc_record)
@@ -3559,7 +4074,7 @@ def get_kyc_extracted_data(request, kyc_id: int):
             "success": True,
             "has_extracted_data": True,
             "comparison": extracted.get_comparison_data(),
-            "overall_confidence": extracted.overall_confidence
+            "overall_confidence": extracted.overall_confidence,
         }
     except (KYCModel.DoesNotExist, KYCExtractedData.DoesNotExist):
         return {"success": True, "has_extracted_data": False}
@@ -3571,6 +4086,7 @@ def get_kyc_extracted_data(request, kyc_id: int):
 def get_agency_kyc_extracted_data(request, kyc_id: int):
     """AI-extracted data for agency KYC review."""
     from agency.models import AgencyKYC, AgencyKYCExtractedData
+
     try:
         kyc_record = AgencyKYC.objects.get(agencyKycID=kyc_id)
         extracted = AgencyKYCExtractedData.objects.get(agencyKyc=kyc_record)
@@ -3579,19 +4095,36 @@ def get_agency_kyc_extracted_data(request, kyc_id: int):
             return val.isoformat() if val else ""
 
         confirmed = {
-            "business_name": extracted.confirmed_business_name or extracted.extracted_business_name,
-            "business_type": extracted.confirmed_business_type or extracted.extracted_business_type,
-            "business_address": extracted.confirmed_business_address or extracted.extracted_business_address,
-            "permit_number": extracted.confirmed_permit_number or extracted.extracted_permit_number,
-            "permit_issue_date": _date_to_iso_str(extracted.confirmed_permit_issue_date or extracted.extracted_permit_issue_date),
-            "permit_expiry_date": _date_to_iso_str(extracted.confirmed_permit_expiry_date or extracted.extracted_permit_expiry_date),
-            "dti_number": extracted.confirmed_dti_number or extracted.extracted_dti_number,
-            "sec_number": extracted.confirmed_sec_number or extracted.extracted_sec_number,
+            "business_name": extracted.confirmed_business_name
+            or extracted.extracted_business_name,
+            "business_type": extracted.confirmed_business_type
+            or extracted.extracted_business_type,
+            "business_address": extracted.confirmed_business_address
+            or extracted.extracted_business_address,
+            "permit_number": extracted.confirmed_permit_number
+            or extracted.extracted_permit_number,
+            "permit_issue_date": _date_to_iso_str(
+                extracted.confirmed_permit_issue_date
+                or extracted.extracted_permit_issue_date
+            ),
+            "permit_expiry_date": _date_to_iso_str(
+                extracted.confirmed_permit_expiry_date
+                or extracted.extracted_permit_expiry_date
+            ),
+            "dti_number": extracted.confirmed_dti_number
+            or extracted.extracted_dti_number,
+            "sec_number": extracted.confirmed_sec_number
+            or extracted.extracted_sec_number,
             "tin": extracted.confirmed_tin or extracted.extracted_tin,
-            "rep_full_name": extracted.confirmed_rep_full_name or extracted.extracted_rep_full_name,
-            "rep_id_number": extracted.confirmed_rep_id_number or extracted.extracted_rep_id_number,
-            "rep_birth_date": _date_to_iso_str(extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date),
-            "rep_address": extracted.confirmed_rep_address or extracted.extracted_rep_address,
+            "rep_full_name": extracted.confirmed_rep_full_name
+            or extracted.extracted_rep_full_name,
+            "rep_id_number": extracted.confirmed_rep_id_number
+            or extracted.extracted_rep_id_number,
+            "rep_birth_date": _date_to_iso_str(
+                extracted.confirmed_rep_birth_date or extracted.extracted_rep_birth_date
+            ),
+            "rep_address": extracted.confirmed_rep_address
+            or extracted.extracted_rep_address,
         }
 
         return {
@@ -3606,15 +4139,3 @@ def get_agency_kyc_extracted_data(request, kyc_id: int):
         return {"success": True, "has_extracted_data": False}
     except Exception as e:
         return {"success": False, "error": str(e)}
-
-
-
-
-
-
-
-
-
-
-
-

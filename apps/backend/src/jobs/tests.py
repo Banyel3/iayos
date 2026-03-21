@@ -13,9 +13,11 @@ from accounts.models import (
     WorkerProfile,
     workerSpecialization,
 )
+from adminpanel.models import ContentModerationTerm
 from jobs.team_job_services import create_team_job, early_complete_single_project_job
 from jobs.api import accept_job_invite_worker
 from jobs.text_moderation import validate_job_post_content
+import jobs.text_moderation as text_moderation
 
 
 class TeamJobCreationFallbackTests(TestCase):
@@ -296,3 +298,18 @@ class JobContentModerationTests(TestCase):
             skill_slots=[{"notes": "gago workers only"}],
         )
         self.assertIn("skill_slots[0].notes", violations)
+
+    def test_admin_managed_term_is_used(self):
+        ContentModerationTerm.objects.create(
+            term="verybadword",
+            normalizedTerm="verybadword",
+            isActive=True,
+        )
+        text_moderation._cached_patterns = {}
+        text_moderation._cached_terms_expiry = 0
+        violations = validate_job_post_content(
+            title="Need verybadword electrician",
+            description="Safe description",
+            location="Tetuan",
+        )
+        self.assertIn("title", violations)
