@@ -1,6 +1,7 @@
 # mobile_services.py
 # Mobile-specific service layer for optimized API responses
 
+import logging
 from django.conf import settings
 from .models import (
     Accounts,
@@ -27,6 +28,8 @@ from decimal import Decimal
 import math
 import re
 from adminpanel.audit_service import log_action
+
+logger = logging.getLogger(__name__)
 
 
 def get_reviewer_info(
@@ -1196,14 +1199,22 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                 if working_days > 0:
                     resolved_duration_days = working_days
             except (TypeError, ValueError):
-                pass
+                # Ignore parsing errors here; fall back to other duration sources.
+                logger.debug(
+                    "Unable to parse number_of_working_days from job_data: %r",
+                    job_data.get("number_of_working_days"),
+                )
             if not resolved_duration_days:
                 try:
                     explicit = int(job_data.get("duration_days") or 0)
                     if explicit > 0:
                         resolved_duration_days = explicit
                 except (TypeError, ValueError):
-                    pass
+                    # Ignore parsing errors here; fall back to other duration sources.
+                    logger.debug(
+                        "Unable to parse duration_days from job_data: %r",
+                        job_data.get("duration_days"),
+                    )
             if not resolved_duration_days and job_data.get("preferred_start_date") and job_data.get("scheduled_end_date"):
                 try:
                     start_d = datetime.fromisoformat(job_data["preferred_start_date"]).date() if isinstance(job_data["preferred_start_date"], str) else job_data["preferred_start_date"]
@@ -1211,7 +1222,12 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                     if end_d >= start_d:
                         resolved_duration_days = max(1, (end_d - start_d).days + 1)
                 except (TypeError, ValueError):
-                    pass
+                    # If dates cannot be parsed, leave duration unresolved and rely on other fields.
+                    logger.debug(
+                        "Unable to parse date range from job_data: preferred_start_date=%r, scheduled_end_date=%r",
+                        job_data.get("preferred_start_date"),
+                        job_data.get("scheduled_end_date"),
+                    )
             if not resolved_duration_days:
                 resolved_duration_days = _parse_expected_duration_days(
                     job_data.get("expected_duration")
