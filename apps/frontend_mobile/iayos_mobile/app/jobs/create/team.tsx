@@ -462,6 +462,19 @@ export default function CreateTeamJobScreen() {
     escrow_amount: number;
   }
 
+  interface TeamCreateFallbackSlot {
+    specialization_id: number;
+    specialization_name: string;
+    workers_needed: number;
+    available_freelancers: number;
+  }
+
+  interface TeamCreateFallbackError {
+    requires_agency_fallback?: boolean;
+    fallback_slots?: TeamCreateFallbackSlot[];
+    error?: string;
+  }
+
   // Create mutation
   const uploadJobPhotosAsync = async (jobId: number): Promise<number> => {
     let failedCount = 0;
@@ -503,8 +516,13 @@ export default function CreateTeamJobScreen() {
         total_workers_needed?: number;
         total_budget?: number;
         escrow_amount?: number;
+        requires_agency_fallback?: boolean;
+        fallback_slots?: TeamCreateFallbackSlot[];
       };
       if (!response.ok || !result.success) {
+        if (result.requires_agency_fallback) {
+          throw result;
+        }
         throw new Error(result.error || "Failed to create team job");
       }
       return result as CreateTeamJobResponse;
@@ -528,6 +546,41 @@ export default function CreateTeamJobScreen() {
       );
     },
     onError: (error: any) => {
+      const fallbackData = error as TeamCreateFallbackError;
+      if (
+        fallbackData?.requires_agency_fallback === true &&
+        Array.isArray(fallbackData.fallback_slots) &&
+        fallbackData.fallback_slots.length > 0
+      ) {
+        const fallbackLines = fallbackData.fallback_slots.map(
+          (slot) =>
+            `- ${slot.specialization_name} (${slot.workers_needed} needed)`,
+        );
+        const fallbackSpecIds = new Set(
+          fallbackData.fallback_slots.map((slot) => slot.specialization_id),
+        );
+        const firstSlotNeedingAgency = skillSlots.find((slot) =>
+          fallbackSpecIds.has(slot.specialization_id),
+        );
+
+        Alert.alert(
+          "Invite Agency Teams Required",
+          `No qualified freelancers are currently available for:\n${fallbackLines.join("\n")}\n\nPlease invite agencies for these slots to continue.`,
+          [
+            {
+              text: "Open Agency Picker",
+              onPress: () => {
+                if (firstSlotNeedingAgency) {
+                  openAgencyPicker(firstSlotNeedingAgency.id);
+                }
+              },
+            },
+            { text: "OK" },
+          ],
+        );
+        return;
+      }
+
       Alert.alert("Error", error.message || "Failed to create team job");
     },
   });
