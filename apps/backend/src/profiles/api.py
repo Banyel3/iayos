@@ -1149,6 +1149,78 @@ def get_conversations(request, filter: str = "all"):
                             }
                         )
 
+                # Fallback for legacy/misaligned team conversations where
+                # participant rows may be missing despite active assignments.
+                if len(team_members) == 0:
+                    from accounts.models import (
+                        JobWorkerAssignment,
+                        JobEmployeeAssignment,
+                    )
+
+                    fallback_members = []
+
+                    worker_assignments = JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        assignment_status__in=["ACTIVE", "COMPLETED"],
+                    ).select_related(
+                        "workerID__profileID", "skillSlotID__specializationID"
+                    )
+
+                    for assignment in worker_assignments:
+                        profile = assignment.workerID.profileID
+                        if user_profile and profile.profileID == user_profile.profileID:
+                            continue
+
+                        fallback_members.append(
+                            {
+                                "profile_id": profile.profileID,
+                                "name": f"{profile.firstName} {profile.lastName}".strip(),
+                                "avatar": profile.profileImg or None,
+                                "role": "WORKER",
+                                "skill": assignment.skillSlotID.specializationID.specializationName
+                                if assignment.skillSlotID
+                                and assignment.skillSlotID.specializationID
+                                else None,
+                            }
+                        )
+
+                    employee_assignments = JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                        skill_slot__isnull=False,
+                    ).select_related("employee", "skill_slot__specializationID")
+
+                    for assignment in employee_assignments:
+                        employee = assignment.employee
+                        fallback_members.append(
+                            {
+                                "profile_id": -int(employee.employeeID),
+                                "name": employee.name,
+                                "avatar": employee.avatar or None,
+                                "role": "AGENCY_EMPLOYEE",
+                                "skill": assignment.skill_slot.specializationID.specializationName
+                                if assignment.skill_slot
+                                and assignment.skill_slot.specializationID
+                                else None,
+                            }
+                        )
+
+                    # Deduplicate by (name, role, skill) for safety.
+                    seen_member_keys = set()
+                    deduped_members = []
+                    for member in fallback_members:
+                        member_key = (
+                            (member.get("name") or "").strip().lower(),
+                            member.get("role"),
+                            member.get("skill"),
+                        )
+                        if member_key in seen_member_keys:
+                            continue
+                        seen_member_keys.add(member_key)
+                        deduped_members.append(member)
+
+                    team_members = deduped_members
+
                 unread_count = participant.unread_count if participant else 0
                 is_archived = participant.is_archived if participant else False
                 cancellation_snapshot = _get_job_cancellation_snapshot(job)
@@ -1705,6 +1777,7 @@ def get_conversation_messages(request, conversation_id: int):
         if (
             not is_agency_conversation
             and job_ref
+            and not getattr(job_ref, "is_team_job", False)
             and getattr(job_ref, "assignedAgencyFK_id", None)
         ):
             print(
@@ -1724,6 +1797,10 @@ def get_conversation_messages(request, conversation_id: int):
                 print(f"❌ [AGENCY FIX] Failed to repair conversation: {repair_err}")
                 # Still set is_agency_conversation based on job, even if DB repair fails
                 is_agency_conversation = True
+
+        # Hybrid/team conversations should follow team workflow payloads.
+        if job_ref and getattr(job_ref, "is_team_job", False):
+            is_agency_conversation = False
 
         # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile

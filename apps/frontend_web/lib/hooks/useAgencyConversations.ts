@@ -72,6 +72,14 @@ export type AssignedEmployee = {
   agencyMarkedCompleteAt?: string | null;
 };
 
+export type TeamWorkerAssignment = {
+  workerId: number;
+  name: string;
+  avatar: string | null;
+  skill?: string | null;
+  status?: string;
+};
+
 // Backjob info returned from conversations API
 export type BackjobInfo = {
   has_backjob: boolean;
@@ -98,6 +106,7 @@ export type AgencyConversation = {
   client: AgencyConversationParticipant;
   assigned_employee: AgencyEmployee | null;
   assigned_employees: AssignedEmployee[]; // Multi-employee support
+  team_worker_assignments?: TeamWorkerAssignment[];
   last_message: string | null;
   last_message_time: string | null;
   unread_count: number;
@@ -145,6 +154,7 @@ export type AgencyConversationDetail = {
   client: AgencyConversationParticipant;
   assigned_employee: AgencyEmployee | null;
   assigned_employees: AssignedEmployee[]; // Multi-employee support
+  team_worker_assignments?: TeamWorkerAssignment[];
   messages: AgencyMessage[];
   total_messages: number;
   status: string;

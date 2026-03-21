@@ -1141,13 +1141,11 @@ export default function ChatScreen() {
       ? teamAssignedWorkers.find((assignment: any) => {
           const assignmentWorkerId = Number(assignment?.worker_id);
           const assignmentAccountId = Number(assignment?.account_id);
-          const meWorkerId = Number(user?.workerProfile?.workerID);
           const meAccountId = Number(user?.accountID);
 
-          const workerIdMatch =
-            Number.isFinite(assignmentWorkerId) &&
-            Number.isFinite(meWorkerId) &&
-            assignmentWorkerId === meWorkerId;
+          // Some auth payloads do not include workerProfile. Account-level
+          // matching is the stable identity fallback for team assignments.
+          const workerIdMatch = false;
           const accountIdMatch =
             Number.isFinite(assignmentAccountId) &&
             Number.isFinite(meAccountId) &&
@@ -3797,6 +3795,10 @@ export default function ChatScreen() {
           .map((employee: any) => employee?.name || "Worker")
       : [];
 
+  const teamFreelancerCount = conversation.team_worker_assignments?.length ?? 0;
+  const teamAgencyEmployeeCount = conversation.team_agency_employees?.length ?? 0;
+  const totalTeamVisibleWorkers = teamFreelancerCount + teamAgencyEmployeeCount;
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Custom Header */}
@@ -3811,10 +3813,20 @@ export default function ChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {conversation.other_participant?.name ||
-              conversation.job?.title ||
-              "Chat"}
+            {conversation.is_team_job
+              ? (conversation.job?.title ?? "Team Chat")
+              : (conversation.other_participant?.name ||
+                conversation.job?.title ||
+                "Chat")}
           </Text>
+          {conversation.is_team_job && (
+            <View style={styles.assignedWorkerBadge}>
+              <Ionicons name="people" size={12} color={Colors.primary} />
+              <Text style={styles.assignedWorkerText} numberOfLines={1}>
+                {`Team (${totalTeamVisibleWorkers})${teamFreelancerCount > 0 ? ` • Freelance ${teamFreelancerCount}` : ""}${teamAgencyEmployeeCount > 0 ? ` • Agency ${teamAgencyEmployeeCount}` : ""}`}
+              </Text>
+            </View>
+          )}
           {/* Show assigned workers for agency jobs (client view) - Multi-employee support */}
           {conversation.is_agency_job &&
             conversation.my_role === "CLIENT" &&
