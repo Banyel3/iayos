@@ -28,6 +28,54 @@ from accounts.models import (
 from profiles.models import Conversation, ConversationParticipant
 
 
+def _build_agency_fallback_slots(skill_slots_data: list, payment_model: str) -> list:
+    """Return slots with no qualified freelancers and no agency invite."""
+    fallback_slots = []
+
+    for slot_data in skill_slots_data:
+        if slot_data.get("agency_id"):
+            continue
+
+        spec_id = slot_data["specialization_id"]
+        workers_needed = int(slot_data.get("workers_needed", 1) or 1)
+
+        freelance_qs = workerSpecialization.objects.filter(
+            specializationID_id=spec_id,
+            workerID__availability_status="AVAILABLE",
+            workerID__profileID__accountFK__is_active=True,
+            workerID__profileID__accountFK__is_suspended=False,
+            workerID__profileID__accountFK__is_banned=False,
+        )
+
+        if payment_model == "DAILY":
+            freelance_qs = freelance_qs.filter(workerID__is_available_daily_jobs=True)
+
+        available_freelancers = freelance_qs.values("workerID_id").distinct().count()
+        if available_freelancers > 0:
+            continue
+
+        specialization_name = "Unknown"
+        try:
+            specialization_name = (
+                Specializations.objects.only("specializationName")
+                .get(specializationID=spec_id)
+                .specializationName
+            )
+        except Specializations.DoesNotExist:
+            pass
+
+        fallback_slots.append(
+            {
+                "specialization_id": spec_id,
+                "specialization_name": specialization_name,
+                "workers_needed": workers_needed,
+                "available_freelancers": available_freelancers,
+            }
+        )
+
+    return fallback_slots
+
+
 def _calculate_team_pending_payouts(job: Job, total_pending_pool: Decimal) -> dict:
     """
     Split pending payout pool across assigned team members (freelance workers
@@ -766,6 +814,21 @@ def create_team_job(
             * Decimal(str(effective_duration_days))
             * Decimal(str(total_workers))
         )
+
+    fallback_slots = _build_agency_fallback_slots(
+        skill_slots_data=skill_slots_data,
+        payment_model=payment_model_upper,
+    )
+    if fallback_slots:
+        return {
+            "success": False,
+            "error": (
+                "No qualified freelance workers are currently available for one or "
+                "more required slots. Please invite agency teams for those slots."
+            ),
+            "requires_agency_fallback": True,
+            "fallback_slots": fallback_slots,
+        }
 
     # Calculate budget allocation
     budget_allocations = calculate_budget_allocation(
