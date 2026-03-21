@@ -2641,7 +2641,11 @@ def get_conversation_messages(request, conversation_id: int):
         # Populate team_worker_assignments for BOTH clients AND workers
         # Workers need this to see their own assignment status (Phase 2 banners)
         if is_team_job:
-            from accounts.models import JobWorkerAssignment, JobReview
+            from accounts.models import (
+                JobWorkerAssignment,
+                JobEmployeeAssignment,
+                JobReview,
+            )
 
             # Get all assigned workers for this team job
             assignments = JobWorkerAssignment.objects.filter(
@@ -2650,7 +2654,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "workerID__profileID__accountFK", "skillSlotID__specializationID"
             )
 
-            # Get list of worker accounts already reviewed by the client (needed for both client and worker views)
+            # Get list of freelancer worker accounts already reviewed by the client.
             reviewed_worker_accounts = set(
                 JobReview.objects.filter(
                     jobID=job,
@@ -2658,6 +2662,16 @@ def get_conversation_messages(request, conversation_id: int):
                     reviewerType="CLIENT",
                     revieweeID__isnull=False,
                 ).values_list("revieweeID", flat=True)
+            )
+
+            # Get list of team agency employees already reviewed by the client.
+            reviewed_employee_ids = set(
+                JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT",
+                    revieweeEmployeeID__isnull=False,
+                ).values_list("revieweeEmployeeID", flat=True)
             )
 
             for assignment in assignments:
@@ -2734,15 +2748,16 @@ def get_conversation_messages(request, conversation_id: int):
 
                 # Pending list remains client-facing, but aggregate completion must be role-agnostic.
                 if is_client and worker_account_id not in reviewed_worker_accounts:
-                    team_workers_pending_review.append(worker_info)
+                    team_workers_pending_review.append(
+                        {
+                            **worker_info,
+                            "target_type": "WORKER",
+                        }
+                    )
 
-            total_team_workers = len(team_worker_assignments)
-            reviewed_by_client_count = sum(
+            total_freelancer_workers = len(team_worker_assignments)
+            reviewed_freelancers_count = sum(
                 1 for worker in team_worker_assignments if worker["is_reviewed"]
-            )
-            all_team_workers_reviewed = (
-                total_team_workers > 0
-                and reviewed_by_client_count >= total_team_workers
             )
 
             # Also populate agency employees filling skill slots in this team job
@@ -2832,6 +2847,31 @@ def get_conversation_messages(request, conversation_id: int):
                         else None,
                     }
                 )
+
+                if is_client and emp.employeeID not in reviewed_employee_ids:
+                    team_workers_pending_review.append(
+                        {
+                            "target_type": "EMPLOYEE",
+                            "employee_id": emp.employeeID,
+                            "assignment_id": sea.assignmentID,
+                            "worker_id": None,
+                            "account_id": None,
+                            "name": emp.name,
+                            "avatar": emp.avatar or "/worker-default.jpg",
+                            "skill": slot_name,
+                        }
+                    )
+
+            total_team_workers = total_freelancer_workers + len(team_agency_employees)
+            reviewed_by_client_count = reviewed_freelancers_count + sum(
+                1
+                for employee in team_agency_employees
+                if employee["id"] in reviewed_employee_ids
+            )
+            all_team_workers_reviewed = (
+                total_team_workers > 0
+                and reviewed_by_client_count >= total_team_workers
+            )
 
         # Check for active backjob/dispute
         from accounts.models import JobDispute

@@ -2624,21 +2624,30 @@ export default function ChatScreen() {
         );
       }
     } else if (conversation.is_team_job && conversation.my_role === "CLIENT") {
-      // Team job client review - must specify which worker to review
+      // Team/hybrid client review queue - supports both freelancers and
+      // agency employees as review targets.
       const pendingWorkers = conversation.pending_team_worker_reviews || [];
-      const allWorkers = conversation.team_worker_assignments || [];
+      const allWorkers = [
+        ...(conversation.team_worker_assignments || []),
+        ...(conversation.team_agency_employees || []),
+      ];
 
       if (pendingWorkers.length === 0) {
         Alert.alert("All Done!", "You have already reviewed all team workers.");
         return;
       }
 
-      // Get the current worker to review (first pending)
+      // Get the current target to review (first pending)
       const currentWorker = pendingWorkers[0];
       if (!currentWorker) {
         Alert.alert("Error", "No worker to review");
         return;
       }
+
+      const isEmployeeTarget =
+        String(currentWorker.target_type || "WORKER").toUpperCase() ===
+          "EMPLOYEE" ||
+        Boolean(currentWorker.employee_id);
 
       const overallRating =
         (ratingQuality +
@@ -2650,14 +2659,17 @@ export default function ChatScreen() {
       submitReviewMutation.mutate(
         {
           job_id: conversation.job.id,
-          reviewee_id: currentWorker.account_id,
+          reviewee_id: Number(
+            currentWorker.account_id ?? conversation.job.clientId ?? 0,
+          ),
           rating_quality: ratingQuality,
           rating_communication: ratingCommunication,
           rating_punctuality: ratingPunctuality,
           rating_professionalism: ratingProfessionalism,
           comment: reviewComment,
           reviewer_type: "CLIENT",
-          worker_id: currentWorker.worker_id, // For team jobs
+          worker_id: isEmployeeTarget ? undefined : currentWorker.worker_id,
+          employee_id: isEmployeeTarget ? currentWorker.employee_id : undefined,
         },
         {
           onSuccess: (data: any) => {
@@ -2706,13 +2718,26 @@ export default function ChatScreen() {
               setRatingPunctuality(0);
               setRatingProfessionalism(0);
               setReviewComment("");
-              setReviewStatusSyncing(true);
-              setShowReviewModal(false);
-              refetch();
-              Alert.alert(
-                "Already Rated",
-                "You've already rated this worker. Refreshing...",
-              );
+              refetch().then((result: any) => {
+                const refreshedPendingWorkers =
+                  result?.data?.pending_team_worker_reviews || [];
+                const nextTarget = refreshedPendingWorkers[0];
+
+                if (nextTarget) {
+                  Alert.alert(
+                    "Already Rated",
+                    `That person is already reviewed. Moving to ${nextTarget.name}.`,
+                  );
+                  return;
+                }
+
+                setReviewStatusSyncing(true);
+                setShowReviewModal(false);
+                Alert.alert(
+                  "All Done!",
+                  "All required worker reviews are already recorded.",
+                );
+              });
             } else {
               Alert.alert("Error", errorMessage);
             }
@@ -8753,8 +8778,23 @@ export default function ChatScreen() {
                         {(() => {
                           const pendingWorkers =
                             conversation.pending_team_worker_reviews || [];
-                          const allWorkers =
-                            conversation.team_worker_assignments || [];
+                          const allWorkers = [
+                            ...(conversation.team_worker_assignments || []).map(
+                              (worker: any) => ({
+                                ...worker,
+                                target_type: "WORKER",
+                              }),
+                            ),
+                            ...(conversation.team_agency_employees || []).map(
+                              (employee: any) => ({
+                                ...employee,
+                                target_type: "EMPLOYEE",
+                                worker_id: null,
+                                employee_id:
+                                  employee.employee_id || employee.id || null,
+                              }),
+                            ),
+                          ];
                           const totalWorkers = allWorkers.length || 1;
                           const reviewedCount =
                             totalWorkers - pendingWorkers.length;
@@ -8783,9 +8823,7 @@ export default function ChatScreen() {
                                   <View
                                     style={styles.teamReviewProgressContainer}
                                   >
-                                    <View
-                                      style={styles.teamReviewProgressBarBg}
-                                    >
+                                    <View style={styles.teamReviewProgressBarBg}>
                                       <View
                                         style={[
                                           styles.teamReviewProgressBarFill,
@@ -8802,8 +8840,7 @@ export default function ChatScreen() {
                                         color={Colors.primary}
                                       />
                                       <Text style={styles.stepIndicatorText}>
-                                        Worker {reviewedCount + 1} of{" "}
-                                        {totalWorkers}
+                                        Worker {reviewedCount + 1} of {totalWorkers}
                                       </Text>
                                     </View>
                                   </View>
@@ -8811,18 +8848,20 @@ export default function ChatScreen() {
                                   {/* Mini worker checklist in modal */}
                                   <View style={styles.teamReviewModalChecklist}>
                                     {allWorkers.map((w: any, i: number) => {
-                                      const isWorkerPending =
-                                        pendingWorkers.some(
-                                          (pw: any) =>
-                                            pw.worker_id === w.worker_id,
-                                        );
+                                      const workerKey = `${String(w?.target_type || w?.employee_id ? "EMPLOYEE" : "WORKER").toUpperCase()}-${w?.worker_id ?? w?.employee_id ?? w?.assignment_id ?? i}`;
+                                      const isWorkerPending = pendingWorkers.some(
+                                        (pw: any) =>
+                                          `${String(pw?.target_type || pw?.employee_id ? "EMPLOYEE" : "WORKER").toUpperCase()}-${pw?.worker_id ?? pw?.employee_id ?? pw?.assignment_id ?? "x"}` ===
+                                          workerKey,
+                                      );
                                       const isCurrent =
-                                        pendingWorkers[0]?.worker_id ===
-                                        w.worker_id;
+                                        `${String(pendingWorkers[0]?.target_type || pendingWorkers[0]?.employee_id ? "EMPLOYEE" : "WORKER").toUpperCase()}-${pendingWorkers[0]?.worker_id ?? pendingWorkers[0]?.employee_id ?? pendingWorkers[0]?.assignment_id ?? "x"}` ===
+                                        workerKey;
                                       const isReviewed = !isWorkerPending;
+
                                       return (
                                         <View
-                                          key={w.worker_id || i}
+                                          key={workerKey}
                                           style={[
                                             styles.teamReviewModalChecklistDot,
                                             isReviewed &&
