@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Single Project Conversation Arrival Flow (Client-First Simplified Path)**
+  - Removed legacy worker-first action gates (`Mark On The Way` / `Mark Job Started`) from single non-team, non-agency project conversation actions.
+  - Client now always gets the first actionable button: **Confirm Worker Has Arrived**.
+  - Worker now waits for client arrival confirmation, then can directly **Mark Job Complete** (no intermediate worker arrival/start taps).
+  - Prevented in-session deadlock risk from legacy on-the-way lock state in simplified flow.
+  - **Impact**: Single project jobs now follow the same client-first simplified arrival behavior expected by QA.
+
 - **Team DAILY Early-Paid Completion Deadlock (Review/Backjob Ready)**
   - Fixed team DAILY completion flow when all team workers were already paid via per-worker early completion.
   - Client approval now proceeds without requiring a non-zero final payment and no longer fails with "No remaining payment is due for this team job."
