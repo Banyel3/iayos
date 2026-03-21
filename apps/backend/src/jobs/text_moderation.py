@@ -1,4 +1,5 @@
 import re
+import time
 from typing import Any
 
 
@@ -31,6 +32,10 @@ BAD_WORDS = [
     "hindot",
 ]
 
+TERMS_CACHE_TTL_SECONDS = 300
+_cached_patterns: dict[str, re.Pattern[str]] = {}
+_cached_terms_expiry = 0.0
+
 
 def _build_obfuscated_pattern(word: str) -> re.Pattern[str]:
     pieces = []
@@ -42,7 +47,34 @@ def _build_obfuscated_pattern(word: str) -> re.Pattern[str]:
     return re.compile(pattern, re.IGNORECASE)
 
 
-BAD_WORD_PATTERNS = {word: _build_obfuscated_pattern(word) for word in BAD_WORDS}
+def _get_active_moderation_terms() -> list[str]:
+    terms = []
+    try:
+        from adminpanel.models import ContentModerationTerm
+
+        terms = list(
+            ContentModerationTerm.objects.filter(isActive=True).values_list(
+                "normalizedTerm", flat=True
+            )
+        )
+    except Exception:
+        terms = []
+
+    combined = list(dict.fromkeys(BAD_WORDS + [term for term in terms if term]))
+    return combined
+
+
+def _get_compiled_patterns() -> dict[str, re.Pattern[str]]:
+    global _cached_patterns, _cached_terms_expiry
+
+    now = time.time()
+    if _cached_patterns and now < _cached_terms_expiry:
+        return _cached_patterns
+
+    active_terms = _get_active_moderation_terms()
+    _cached_patterns = {word: _build_obfuscated_pattern(word) for word in active_terms}
+    _cached_terms_expiry = now + TERMS_CACHE_TTL_SECONDS
+    return _cached_patterns
 
 
 def _scan_text(text: str) -> list[dict[str, Any]]:
@@ -52,7 +84,7 @@ def _scan_text(text: str) -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
     seen_spans: set[tuple[int, int]] = set()
 
-    for pattern in BAD_WORD_PATTERNS.values():
+    for pattern in _get_compiled_patterns().values():
         for match in pattern.finditer(text):
             span = (match.start(), match.end())
             if span in seen_spans:

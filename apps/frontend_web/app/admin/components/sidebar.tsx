@@ -44,6 +44,7 @@ import {
   Menu,
   X,
   Globe,
+  ShieldAlert,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -285,6 +286,12 @@ const navigation: NavItem[] = [
         description: "Reported content & flagged users",
       },
     ],
+  },
+  {
+    name: "Content Moderation",
+    href: "/admin/settings/content-moderation",
+    icon: ShieldAlert,
+    count: null,
   },
   {
     name: "Settings",
