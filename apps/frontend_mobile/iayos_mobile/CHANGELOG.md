@@ -41,6 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Worker Pending + In-Progress Visibility for Hybrid Team Jobs**
+  - Updated worker `/jobs/my-jobs` backend filtering to include slot-level team assignments (`JobWorkerAssignment`) in addition to legacy direct assignment and applied-job linkage.
+  - Added `.distinct()` to worker my-jobs query to avoid duplicate rows from assignment joins.
+  - Normalized worker-side per-job `application_status` selection to prioritize active records (`ACCEPTED`, `PENDING`) over historical states when multiple application records exist.
+  - Enabled **Pending** tab on worker jobs screen and added worker-specific pending filter for accepted hybrid team jobs that are still `ACTIVE` (not started yet).
+  - Kept worker invite Requests isolated to Requests tab (excluded from worker Pending tab).
+  - **Impact**: Hybrid team jobs now surface correctly for workers while waiting to start (Pending) and after start (In Progress), without tab overlap confusion.
+
 - **Hybrid Application Visibility + Agency Slot Count Accuracy**
   - Fixed worker hybrid slot apply-state detection on job detail to robustly map application/job/slot IDs across payload shapes.
   - Team slot badges/actions now rely on active applications only (`PENDING`/`ACCEPTED`) for "Already Applied" state, preventing stale rejected/withdrawn states from blocking re-apply UX.
