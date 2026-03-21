@@ -1408,6 +1408,86 @@ export default function AgencyChatScreen() {
                   return null;
                 }
 
+                if (job.is_team_job) {
+                  const arrivedTeamEmployees = (team_agency_employees || []).filter(
+                    (employee: TeamAgencyEmployeeAssignment) =>
+                      Boolean(employee.clientConfirmedArrival),
+                  );
+
+                  const pendingTeamCompletions = arrivedTeamEmployees.filter(
+                    (employee: TeamAgencyEmployeeAssignment) =>
+                      !(
+                        employee.agencyMarkedComplete ||
+                        employee.employeeMarkedComplete ||
+                        employee.marked_complete
+                      ),
+                  );
+
+                  if (pendingTeamCompletions.length > 0) {
+                    return (
+                      <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                        <CardContent className="py-2 px-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-black">
+                              Mark Work Complete ({pendingTeamCompletions.length} on site)
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {pendingTeamCompletions.map((employee: TeamAgencyEmployeeAssignment) => (
+                              <div
+                                key={`daily-team-complete-${employee.assignment_id}`}
+                                className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                              >
+                                <span>{employee.name}</span>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      await markTeamEmployeeCompleteMutation.mutateAsync({
+                                        jobId: job.id,
+                                        assignmentId: employee.assignment_id,
+                                        conversationId,
+                                      });
+                                      toast.success(`${employee.name} marked complete`);
+                                      refetch();
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Failed to mark team employee complete",
+                                      );
+                                    }
+                                  }}
+                                  disabled={markTeamEmployeeCompleteMutation.isPending}
+                                >
+                                  Mark Complete
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
+                  if (arrivedTeamEmployees.length < (team_agency_employees || []).length) {
+                    return (
+                      <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
+                        Client is still confirming team arrivals ({arrivedTeamEmployees.length}/
+                        {(team_agency_employees || []).length})
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-medium">
+                      Waiting for client approval and payment.
+                    </div>
+                  );
+                }
+
                 if (pendingDispatch.length === 0) {
                   return (
                     <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-700 font-medium">
