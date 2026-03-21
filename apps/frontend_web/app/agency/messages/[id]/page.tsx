@@ -12,8 +12,10 @@ import {
   useAgencyMessages,
   useAgencySendMessage,
   useAgencyMarkComplete,
+  useAgencyMarkTeamEmployeeComplete,
   useAgencySubmitReview,
   AssignedEmployee,
+  TeamAgencyEmployeeAssignment,
   TeamWorkerAssignment,
 } from "@/lib/hooks/useAgencyConversations";
 import {
@@ -139,6 +141,7 @@ export default function AgencyChatScreen() {
 
   // Job action mutations
   const markCompleteMutation = useAgencyMarkComplete();
+  const markTeamEmployeeCompleteMutation = useAgencyMarkTeamEmployeeComplete();
   const submitReviewMutation = useAgencySubmitReview();
 
   // Backjob action mutations
@@ -709,13 +712,41 @@ export default function AgencyChatScreen() {
     assigned_employee,
     assigned_employees,
     team_worker_assignments,
+    team_agency_employees,
     job,
     messages,
   } =
     conversation;
 
+  const effectiveAgencyAssignments: AssignedEmployee[] = job.is_team_job
+    ? (team_agency_employees || []).map(
+        (employee: TeamAgencyEmployeeAssignment) => ({
+          employeeId: employee.id,
+          name: employee.name,
+          email: "",
+          role: "",
+          avatar: employee.avatar,
+          rating: null,
+          isPrimaryContact: false,
+          status: employee.status || "ASSIGNED",
+          dispatched: true,
+          dispatchedAt: employee.clientConfirmedArrivalAt || null,
+          clientConfirmedArrival: employee.clientConfirmedArrival,
+          clientConfirmedArrivalAt: employee.clientConfirmedArrivalAt,
+          agencyMarkedComplete:
+            employee.agencyMarkedComplete ||
+            employee.employeeMarkedComplete ||
+            employee.marked_complete,
+          agencyMarkedCompleteAt:
+            employee.agencyMarkedCompleteAt ||
+            employee.employeeMarkedCompleteAt ||
+            null,
+        }),
+      )
+    : assigned_employees;
+
   const workerRoster = [
-    ...(assigned_employees || []).map((emp: AssignedEmployee) => ({
+    ...(effectiveAgencyAssignments || []).map((emp: AssignedEmployee) => ({
       key: `agency-${emp.employeeId}`,
       name: emp.name,
       avatar: emp.avatar,
@@ -734,7 +765,7 @@ export default function AgencyChatScreen() {
   ];
   const hasFreelanceAssignments = (team_worker_assignments?.length ?? 0) > 0;
   const supportsAgencyDispatchWorkflow =
-    !job.is_team_job || (assigned_employees?.length ?? 0) > 0;
+    !job.is_team_job || (effectiveAgencyAssignments?.length ?? 0) > 0;
 
   const myReview = reviewViewData.myReview;
   const clientReview = reviewViewData.clientReview;
@@ -798,14 +829,14 @@ export default function AgencyChatScreen() {
   const shouldShowProjectWorkflow =
     (hasProjectWorkflowProgressState || hasReadyBackjobProjectCycle) &&
     job.payment_model === "PROJECT" &&
-    assigned_employees?.length > 0 &&
+    effectiveAgencyAssignments?.length > 0 &&
     supportsAgencyDispatchWorkflow;
 
   // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
   const shouldShowDispatchWorkflow =
     shouldShowProjectWorkflow ||
     (hasReadyBackjobDispatchCycle &&
-      (assigned_employees?.length ?? 0) > 0 &&
+      (effectiveAgencyAssignments?.length ?? 0) > 0 &&
       supportsAgencyDispatchWorkflow);
 
   const configuredDurationDays = Number(job.duration_days || 0);
@@ -852,13 +883,13 @@ export default function AgencyChatScreen() {
   };
 
   const allEmployeesDispatched = shouldShowDispatchWorkflow
-    ? assigned_employees.every((e: AssignedEmployee) =>
+    ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
         isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
       )
     : false;
 
   const allEmployeesArrived = shouldShowDispatchWorkflow
-    ? assigned_employees.every((e: AssignedEmployee) =>
+    ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
         isStatusInActiveBackjobCycle(
           e.clientConfirmedArrival,
           e.clientConfirmedArrivalAt,
@@ -872,7 +903,7 @@ export default function AgencyChatScreen() {
       job.clientMarkedComplete ||
       job.workerMarkedComplete) &&
     job.payment_model === "DAILY" &&
-    assigned_employees?.length > 0 &&
+    effectiveAgencyAssignments?.length > 0 &&
     supportsAgencyDispatchWorkflow;
 
   const isProjectMultiDayAttendanceFlow =
@@ -888,7 +919,7 @@ export default function AgencyChatScreen() {
   );
 
   const dailyDispatchedCount = shouldShowDailyWorkflow
-    ? assigned_employees.filter((e: AssignedEmployee) =>
+    ? effectiveAgencyAssignments.filter((e: AssignedEmployee) =>
         dailyAttendanceDispatchedIds.has(e.employeeId),
       ).length
     : 0;
@@ -1083,7 +1114,7 @@ export default function AgencyChatScreen() {
             {shouldShowDispatchWorkflow &&
               (() => {
                 const allDispatched = isProjectMultiDayAttendanceFlow
-                  ? assigned_employees.every((e: AssignedEmployee) =>
+                  ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
                       projectAttendanceDispatchedIds.has(e.employeeId),
                     )
                   : allEmployeesDispatched;
@@ -1091,11 +1122,11 @@ export default function AgencyChatScreen() {
                 const allArrived = isBackjobProjectFlow
                   ? true
                   : isProjectMultiDayAttendanceFlow
-                    ? assigned_employees.every((e: AssignedEmployee) =>
+                    ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
                         projectAttendanceArrivedIds.has(e.employeeId),
                       )
                     : allEmployeesArrived;
-                const allComplete = assigned_employees.every(
+                const allComplete = effectiveAgencyAssignments.every(
                   (e: AssignedEmployee) =>
                     isStatusInActiveBackjobCycle(
                       e.agencyMarkedComplete,
@@ -1105,13 +1136,13 @@ export default function AgencyChatScreen() {
                 const agencyMarkedComplete =
                   allComplete ||
                   (job.workerMarkedComplete && !hasActiveBackjobCycle);
-                const dispatchedCount = assigned_employees.filter(
+                const dispatchedCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
                     isProjectMultiDayAttendanceFlow
                       ? projectAttendanceDispatchedIds.has(e.employeeId)
                       : isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
                 ).length;
-                const arrivedCount = assigned_employees.filter(
+                const arrivedCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
                     isProjectMultiDayAttendanceFlow
                       ? projectAttendanceArrivedIds.has(e.employeeId)
@@ -1120,7 +1151,7 @@ export default function AgencyChatScreen() {
                           e.clientConfirmedArrivalAt,
                         ),
                 ).length;
-                const totalCount = assigned_employees.length;
+                const totalCount = effectiveAgencyAssignments.length;
 
                 if (job.clientMarkedComplete && !hasActiveBackjobCycle) {
                   return null;
@@ -1151,7 +1182,7 @@ export default function AgencyChatScreen() {
                     );
                   }
 
-                  const pendingDispatchEmployees = assigned_employees.filter(
+                  const pendingDispatchEmployees = effectiveAgencyAssignments.filter(
                     (e: AssignedEmployee) =>
                       isProjectMultiDayAttendanceFlow
                         ? !projectAttendanceDispatchedIds.has(e.employeeId)
@@ -1280,6 +1311,73 @@ export default function AgencyChatScreen() {
                     );
                   }
 
+                  if (job.is_team_job) {
+                    const pendingTeamCompletions = (team_agency_employees || []).filter(
+                      (employee: TeamAgencyEmployeeAssignment) =>
+                        Boolean(employee.clientConfirmedArrival) &&
+                        !(
+                          employee.agencyMarkedComplete ||
+                          employee.employeeMarkedComplete ||
+                          employee.marked_complete
+                        ),
+                    );
+
+                    if (pendingTeamCompletions.length === 0) {
+                      return (
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-medium">
+                          Waiting for team completion updates.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                        <CardContent className="py-2 px-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-black">
+                              Mark Work Complete ({pendingTeamCompletions.length} on site)
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {pendingTeamCompletions.map((employee: TeamAgencyEmployeeAssignment) => (
+                              <div
+                                key={`team-complete-${employee.assignment_id}`}
+                                className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                              >
+                                <span>{employee.name}</span>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      await markTeamEmployeeCompleteMutation.mutateAsync({
+                                        jobId: job.id,
+                                        assignmentId: employee.assignment_id,
+                                        conversationId,
+                                      });
+                                      toast.success(`${employee.name} marked complete`);
+                                      refetch();
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Failed to mark team employee complete",
+                                      );
+                                    }
+                                  }}
+                                  disabled={markTeamEmployeeCompleteMutation.isPending}
+                                >
+                                  Mark Complete
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
                   return (
                     <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                       <span className="text-xs font-bold text-black">
@@ -1300,8 +1398,8 @@ export default function AgencyChatScreen() {
 
             {shouldShowDailyWorkflow &&
               (() => {
-                const totalCount = assigned_employees.length;
-                const pendingDispatch = assigned_employees.filter(
+                const totalCount = effectiveAgencyAssignments.length;
+                const pendingDispatch = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
                     !dailyAttendanceDispatchedIds.has(e.employeeId),
                 );
