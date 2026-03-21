@@ -47,7 +47,7 @@ export default function CountdownConfirmModal({
   message,
   confirmLabel = "Confirm",
   confirmStyle = "default",
-  countdownSeconds = 5,
+  countdownSeconds = 3,
   onConfirm,
   onCancel,
   isLoading = false,

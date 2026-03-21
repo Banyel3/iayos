@@ -3018,7 +3018,7 @@ export default function CreateJobScreen() {
         title="Confirm Submission"
         message="Are you sure you want to submit this job post?"
         confirmLabel="Submit"
-        countdownSeconds={5}
+        countdownSeconds={3}
         onConfirm={() => {
           if (pendingJobData) createJobMutation.mutate(pendingJobData);
           setShowSubmitConfirm(false);

@@ -2231,7 +2231,7 @@ export default function CreateTeamJobScreen() {
           title="Confirm Submission"
           message="Are you sure you want to submit this team job post?"
           confirmLabel="Submit"
-          countdownSeconds={5}
+          countdownSeconds={3}
           onConfirm={() => {
             if (pendingTeamJobData) {
               createJobMutation.mutate(pendingTeamJobData);

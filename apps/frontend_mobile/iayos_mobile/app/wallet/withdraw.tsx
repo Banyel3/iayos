@@ -602,7 +602,7 @@ export default function WithdrawScreen() {
         title="Confirm Withdrawal"
         message={withdrawConfirmMessage}
         confirmLabel="Withdraw"
-        countdownSeconds={7}
+        countdownSeconds={3}
         onConfirm={executeWithdrawal}
         onCancel={() => setShowWithdrawConfirm(false)}
         isLoading={withdrawMutation.isPending}
