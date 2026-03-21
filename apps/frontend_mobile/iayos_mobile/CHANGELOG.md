@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hybrid Team Job Visibility on Worker Home + Slot Guarding**
+  - Fixed worker mobile home listing visibility for hybrid team jobs (one agency-invited slot + one open worker slot).
+  - Worker feed now includes team jobs when at least one non-agency skill slot remains open.
+  - Prevented worker apply CTA from showing on agency-invited slots in team job detail.
+  - Added backend hard guard to reject worker applications on agency-reserved slots.
+  - **Impact**: Hybrid team jobs now appear correctly in mobile home, and workers can only apply to worker-open slots.
+
 - **Team Job Agency Invite Guard (Duplicate Agency Across Slots)**
   - Prevented inviting the same agency into multiple skill slots during team job creation.
   - Added immediate client-side guard in team create flow with prompt to navigate to existing **Hire Agency** flow.

@@ -2728,6 +2728,7 @@ export default function JobDetailScreen() {
                   {isWorker &&
                     slot.openings_remaining > 0 &&
                     job.status === "ACTIVE" &&
+                    !slot.agency_invite &&
                     !assignedSlotIds.has(slot.skill_slot_id) &&
                     !appliedSlotIds.includes(slot.skill_slot_id) && (
                       <TouchableOpacity

@@ -1456,6 +1456,16 @@ def apply_to_skill_slot(
             "error": f"Skill slot is not accepting applications (status: {skill_slot.status})",
         }
 
+    # Slot-level ownership guard: agency-invited slots are reserved for agency
+    # employee assignment and must not accept freelance worker applications.
+    if skill_slot.invited_agency_id is not None:
+        return {
+            "success": False,
+            "error": "This slot is reserved for an invited agency and is not open for worker applications.",
+            "error_code": "SLOT_RESERVED_FOR_AGENCY",
+            "agency_id": skill_slot.invited_agency_id,
+        }
+
     # Enforce required specialization for this slot
     has_required_skill = workerSpecialization.objects.filter(
         workerID=worker_profile, specializationID=skill_slot.specializationID
