@@ -4405,7 +4405,9 @@ export default function ChatScreen() {
                             e.agencyMarkedComplete ||
                             e.employeeMarkedComplete ||
                             e.marked_complete ||
-                            String(e.status || "").toUpperCase() === "COMPLETED"
+                            ("status" in e &&
+                              String((e as any).status || "").toUpperCase() ===
+                                "COMPLETED")
                           ),
                       ).length;
 
@@ -5913,6 +5915,7 @@ export default function ChatScreen() {
                     completed: boolean;
                     can_early_finish: boolean;
                     worker_marked_complete: boolean;
+                    marked_complete: boolean;
                     early_completed: boolean;
                     early_finish_quote?: number | null;
                     early_completion_payout?: number | null;
@@ -5934,6 +5937,7 @@ export default function ChatScreen() {
                       completed: Boolean(a.worker_marked_complete),
                       can_early_finish: Boolean(a.can_early_finish),
                       worker_marked_complete: Boolean(a.worker_marked_complete),
+                      marked_complete: Boolean(a.worker_marked_complete),
                       early_completed: Boolean(a.early_completed),
                       early_finish_quote: a.early_finish_quote,
                       early_completion_payout: a.early_completion_payout,
@@ -5951,8 +5955,17 @@ export default function ChatScreen() {
                           a.marked_complete ||
                           String(a.status || "").toUpperCase() === "COMPLETED",
                       ),
-                      can_early_finish: false,
-                      worker_marked_complete: false,
+                      can_early_finish: Boolean(a.can_early_finish),
+                      worker_marked_complete: Boolean(
+                        a.employeeMarkedComplete ||
+                          a.agencyMarkedComplete ||
+                          a.marked_complete,
+                      ),
+                      marked_complete: Boolean(
+                        a.employeeMarkedComplete ||
+                          a.agencyMarkedComplete ||
+                          a.marked_complete,
+                      ),
                       early_completed: Boolean(a.early_completed),
                       early_finish_quote: a.early_finish_quote,
                       early_completion_payout: a.early_completion_payout,
@@ -6139,9 +6152,9 @@ export default function ChatScreen() {
                               </View>
 
                               {/* Per-worker Complete Job Early & Pay button */}
-                              {/* Backend can_early_finish requires worker_marked_complete + not early_completed */}
+                              {/* Per-assignment early finish & pay button for both freelancer and agency rows */}
                               {assignment.can_early_finish &&
-                                assignment.worker_marked_complete &&
+                                assignment.marked_complete &&
                                 !assignment.early_completed && (
                                   <TouchableOpacity
                                     style={[
@@ -6173,17 +6186,24 @@ export default function ChatScreen() {
                                               ) {
                                                 return;
                                               }
-                                              if (
-                                                conversation.job
-                                                  ?.payment_model === "DAILY"
-                                              ) {
-                                                earlyCompleteTeamWorkerDailyMutation.mutate(
-                                                  { jobId, assignmentId },
-                                                );
+                                              if (assignment.type === "AGENCY") {
+                                                earlyCompleteTeamEmployeeMutation.mutate({
+                                                  jobId,
+                                                  assignmentId,
+                                                });
                                               } else {
-                                                earlyCompleteTeamWorkerProjectMutation.mutate(
-                                                  { jobId, assignmentId },
-                                                );
+                                                if (
+                                                  conversation.job
+                                                    ?.payment_model === "DAILY"
+                                                ) {
+                                                  earlyCompleteTeamWorkerDailyMutation.mutate(
+                                                    { jobId, assignmentId },
+                                                  );
+                                                } else {
+                                                  earlyCompleteTeamWorkerProjectMutation.mutate(
+                                                    { jobId, assignmentId },
+                                                  );
+                                                }
                                               }
                                             },
                                           },
@@ -6191,11 +6211,13 @@ export default function ChatScreen() {
                                       );
                                     }}
                                     disabled={
+                                      earlyCompleteTeamEmployeeMutation.isPending ||
                                       earlyCompleteTeamWorkerDailyMutation.isPending ||
                                       earlyCompleteTeamWorkerProjectMutation.isPending
                                     }
                                   >
-                                    {earlyCompleteTeamWorkerDailyMutation.isPending ||
+                                    {earlyCompleteTeamEmployeeMutation.isPending ||
+                                    earlyCompleteTeamWorkerDailyMutation.isPending ||
                                     earlyCompleteTeamWorkerProjectMutation.isPending ? (
                                       <ActivityIndicator
                                         size="small"
@@ -7446,8 +7468,14 @@ export default function ChatScreen() {
                       e.agencyMarkedComplete ||
                         e.employeeMarkedComplete ||
                         e.marked_complete ||
-                        e.status === "COMPLETED",
-                      e.agencyMarkedCompleteAt,
+                        ("status" in e &&
+                          String((e as any).status || "").toUpperCase() ===
+                            "COMPLETED"),
+                      e.agencyMarkedCompleteAt ||
+                        e.employeeMarkedCompleteAt ||
+                        e.clientConfirmedArrivalAt ||
+                        e.dispatchedAt ||
+                        null,
                     ),
                   );
 
@@ -7624,6 +7652,7 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 (conversation.team_agency_employees?.length ?? 0) > 0 &&
+                (conversation.team_worker_assignments?.length ?? 0) === 0 &&
                 !conversation.job.clientMarkedComplete &&
                 (conversation.team_agency_employees ?? []).some(
                   (e: any) =>
