@@ -1703,18 +1703,40 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         if not client_profile:
             return Response({"error": "Job has no client"}, status=400)
 
-        if not worker_profile and not agency:
+        if not worker_profile and not agency and not job.is_team_job:
             return Response(
                 {"error": "Job has no assigned worker or agency"}, status=400
             )
 
-        conversation = Conversation.objects.create(
-            client=client_profile,
-            worker=worker_profile,
-            agency=agency,
-            relatedJobPosting=job,
-            status=ConversationStatus.ACTIVE,
-        )
+        if job.is_team_job:
+            conversation, created = Conversation.create_team_conversation(
+                job_posting=job,
+                client_profile=client_profile,
+            )
+
+            # Ensure existing team assignments are represented in participants.
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+            ).select_related("workerID__profileID", "skillSlotID")
+
+            for assignment in team_assignments:
+                conversation.add_team_worker(
+                    assignment.workerID.profileID,
+                    assignment.skillSlotID,
+                )
+
+            print(
+                f"[get_conversation_by_job] {'Created' if created else 'Resolved'} TEAM_GROUP conversation {conversation.conversationID} for team job {job_id}"
+            )
+        else:
+            conversation = Conversation.objects.create(
+                client=client_profile,
+                worker=worker_profile,
+                agency=agency,
+                relatedJobPosting=job,
+                status=ConversationStatus.ACTIVE,
+            )
 
         print(
             f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}"
