@@ -356,6 +356,24 @@ export default function JobsScreen() {
     }
     if (activeTab === "pending") {
       // Pending: Jobs waiting for client action before work starts
+      if (isWorker) {
+        const isInviteRequest =
+          job.job_type === "INVITE" &&
+          job.assigned_worker_id === user?.profile_data?.id &&
+          (job.invite_status === "PENDING" ||
+            (job.invite_status === null && job.status === "ACTIVE"));
+
+        if (isInviteRequest) {
+          return false;
+        }
+
+        return (
+          job.is_team_job === true &&
+          job.status === "ACTIVE" &&
+          job.application_status === "ACCEPTED"
+        );
+      }
+
       if (!isClient) {
         return false;
       }
@@ -457,6 +475,21 @@ export default function JobsScreen() {
         return true;
       }
       if (tabName === "pending") {
+        if (isWorker) {
+          const isInviteRequest =
+            job.job_type === "INVITE" &&
+            job.assigned_worker_id === user?.profile_data?.id &&
+            (job.invite_status === "PENDING" ||
+              (job.invite_status === null && job.status === "ACTIVE"));
+          if (isInviteRequest) return false;
+
+          return (
+            job.is_team_job === true &&
+            job.status === "ACTIVE" &&
+            job.application_status === "ACCEPTED"
+          );
+        }
+
         if (!isClient) return false;
         if (job.is_team_job && job.status === "ACTIVE") {
           const full =
@@ -1040,7 +1073,7 @@ export default function JobsScreen() {
             </TouchableOpacity>
           )}
 
-          {isClient && (
+          {(isClient || isWorker) && (
             <TouchableOpacity
               style={[styles.tab, activeTab === "pending" && styles.tabActive]}
               onPress={() => setActiveTab("pending")}

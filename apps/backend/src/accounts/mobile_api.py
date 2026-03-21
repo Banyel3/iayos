@@ -1268,7 +1268,15 @@ def mobile_my_jobs(
 
             jobs_qs = (
                 JobPosting.objects.filter(
-                    Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
+                    Q(assignedWorkerID=worker_profile)
+                    | Q(jobID__in=applied_job_ids)
+                    | Q(
+                        worker_assignments__workerID=worker_profile,
+                        worker_assignments__assignment_status__in=[
+                            "ACTIVE",
+                            "COMPLETED",
+                        ],
+                    )
                 )
                 .select_related(
                     "clientID__profileID__accountFK",
@@ -1276,6 +1284,7 @@ def mobile_my_jobs(
                     "assignedAgencyFK__accountFK",
                 )
                 .prefetch_related("photos")
+                .distinct()
             )
             print(f"      Jobs query created for worker")
         else:
@@ -1535,9 +1544,36 @@ def mobile_my_jobs(
                 job_data["agency_logo"] = getattr(assigned_agency, "logo", "")
 
             if profile.profileType == "WORKER":
-                application = JobApplication.objects.filter(
-                    jobID=job, workerID=worker_profile
-                ).first()
+                from django.db.models import Case, IntegerField, Value, When
+
+                application = (
+                    JobApplication.objects.filter(jobID=job, workerID=worker_profile)
+                    .order_by(
+                        Case(
+                            When(
+                                status=JobApplication.ApplicationStatus.ACCEPTED,
+                                then=Value(0),
+                            ),
+                            When(
+                                status=JobApplication.ApplicationStatus.PENDING,
+                                then=Value(1),
+                            ),
+                            When(
+                                status=JobApplication.ApplicationStatus.REJECTED,
+                                then=Value(2),
+                            ),
+                            When(
+                                status=JobApplication.ApplicationStatus.WITHDRAWN,
+                                then=Value(3),
+                            ),
+                            default=Value(4),
+                            output_field=IntegerField(),
+                        ),
+                        "-updatedAt",
+                        "-createdAt",
+                    )
+                    .first()
+                )
                 if application:
                     job_data["application_status"] = application.status
 
