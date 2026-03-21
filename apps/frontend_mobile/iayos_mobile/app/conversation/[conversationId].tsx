@@ -655,7 +655,7 @@ export default function ChatScreen() {
       counterpartyHasReviewed &&
       !hasApprovedBackjob &&
       !hasActiveNegotiation) ||
-    // Fallback for DAILY jobs: clientMarkedComplete is never set, use job status instead
+    // Fallback for legacy DAILY payloads where completion can lag on clientMarkedComplete.
     (isJobCompleted &&
       viewerHasReviewed &&
       counterpartyHasReviewed &&
@@ -5806,8 +5806,7 @@ export default function ChatScreen() {
                     )}
 
                   {/* Single DAILY job: Client — Complete Job Early & Pay Remaining */}
-                  {/* Shown only after worker marks today complete. */}
-                  {/* Client pays remaining contracted days and closes the job. */}
+                  {/* Shown only after worker marks today complete and before client completes the job. */}
                   {conversation.my_role === "CLIENT" &&
                     !conversation.is_team_job &&
                     !conversation.is_agency_job &&
@@ -5815,84 +5814,55 @@ export default function ChatScreen() {
                     conversation.job?.workerMarkedComplete &&
                     !conversation.job?.clientMarkedComplete && (
                       <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
-                        {conversation.job?.is_early_completed ? (
-                          <View
+                        <View>
+                          <TouchableOpacity
                             style={{
-                              backgroundColor: "#FEF3C7",
-                              borderRadius: 8,
-                              padding: 10,
                               flexDirection: "row",
                               alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: Colors.warning,
+                              borderRadius: 8,
+                              padding: 12,
                               gap: 8,
                             }}
+                            onPress={handleApproveSoloDailyCompletion}
+                            disabled={earlyCompleteSingleDailyMutation.isPending}
                           >
-                            <Ionicons name="flash" size={16} color="#D97706" />
-                            <Text
-                              style={{
-                                color: "#D97706",
-                                fontWeight: "600",
-                                fontSize: 13,
-                              }}
-                            >
-                              Job completed early — remaining days paid
-                              {conversation.job?.early_completion_payout
-                                ? ` · ₱${Number(conversation.job.early_completion_payout).toLocaleString()} payout`
-                                : ""}
-                            </Text>
-                          </View>
-                        ) : (
-                          <View>
-                            <TouchableOpacity
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                backgroundColor: Colors.warning,
-                                borderRadius: 8,
-                                padding: 12,
-                                gap: 8,
-                              }}
-                              onPress={handleApproveSoloDailyCompletion}
-                              disabled={
-                                earlyCompleteSingleDailyMutation.isPending
-                              }
-                            >
-                              {earlyCompleteSingleDailyMutation.isPending ? (
-                                <ActivityIndicator
-                                  size="small"
+                            {earlyCompleteSingleDailyMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={Colors.white}
+                              />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="wallet"
+                                  size={18}
                                   color={Colors.white}
                                 />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="wallet"
-                                    size={18}
-                                    color={Colors.white}
-                                  />
-                                  <Text
-                                    style={{
-                                      color: Colors.white,
-                                      fontWeight: "600",
-                                      fontSize: 14,
-                                    }}
-                                  >
-                                    {`Complete Job Early & Pay Remaining (₱${Number(conversation.job?.remainingPayment ?? 0).toLocaleString()})`}
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                            <Text
-                              style={{
-                                fontSize: 11,
-                                color: Colors.textSecondary,
-                                marginTop: 6,
-                                textAlign: "center",
-                              }}
-                            >
-                              Worker marked today complete. This pays remaining contracted days and closes the job.
-                            </Text>
-                          </View>
-                        )}
+                                <Text
+                                  style={{
+                                    color: Colors.white,
+                                    fontWeight: "600",
+                                    fontSize: 14,
+                                  }}
+                                >
+                                  {`Complete Job Early & Pay Remaining (₱${Number(conversation.job?.remainingPayment ?? 0).toLocaleString()})`}
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              color: Colors.textSecondary,
+                              marginTop: 6,
+                              textAlign: "center",
+                            }}
+                          >
+                            Worker marked today complete. This pays remaining contracted days and closes the job.
+                          </Text>
+                        </View>
                       </View>
                     )}
                 </View>
@@ -7562,7 +7532,7 @@ export default function ChatScreen() {
                   );
                 })()}
 
-              {/* CLIENT: Per-employee Finish Early & Pay (team+agency jobs) */}
+              {/* CLIENT: Per-employee early finish & pay (team jobs with agency employees) */}
               {conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
