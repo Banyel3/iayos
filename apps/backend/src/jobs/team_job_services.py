@@ -1007,8 +1007,12 @@ def create_team_job(
         if payment_model_upper == "DAILY"
         else (
             max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
-            if preferred_start_date_obj and scheduled_end_date_obj and scheduled_end_date_obj >= preferred_start_date_obj
-            else (int(duration_days) if duration_days and int(duration_days) > 0 else None)
+            if preferred_start_date_obj
+            and scheduled_end_date_obj
+            and scheduled_end_date_obj >= preferred_start_date_obj
+            else (
+                int(duration_days) if duration_days and int(duration_days) > 0 else None
+            )
         ),
         shift_type=shift_type_upper,
         budget_allocation_type=allocation_type,
@@ -1107,6 +1111,12 @@ def create_team_job(
                     "Please deposit more funds or wait for an active job to complete."
                 ),
             }
+
+        # Escrow principal is now collected from wallet.
+        if not job.escrowPaid:
+            job.escrowPaid = True
+            job.escrowPaidAt = timezone.now()
+            job.save(update_fields=["escrowPaid", "escrowPaidAt", "updatedAt"])
 
         # Create transaction record
         Transaction.objects.create(
@@ -2769,7 +2779,9 @@ def client_approve_team_job(
             if additional_charge > Decimal("0.00"):
                 client_wallet.balance -= additional_charge
             try:
-                client_wallet.save(update_fields=["balance", "reservedBalance", "updatedAt"])
+                client_wallet.save(
+                    update_fields=["balance", "reservedBalance", "updatedAt"]
+                )
             except IntegrityError:
                 return {
                     "success": False,
@@ -2789,7 +2801,11 @@ def client_approve_team_job(
                     transactionType="PAYMENT",
                     status="COMPLETED",
                     description=f"Final payment for team job: {job.title}"
-                    + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
+                    + (
+                        " (cash proof uploaded)"
+                        if payment_method_upper == "CASH"
+                        else ""
+                    ),
                     balanceAfter=client_wallet.balance,
                     relatedJobPosting=job,
                     paymentMethod=payment_method_upper,
