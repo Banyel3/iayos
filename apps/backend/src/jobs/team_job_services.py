@@ -3576,11 +3576,24 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
         }
 
     # Mark arrival as confirmed
+    # Hybrid/team flow is arrival-first; auto-mark dispatched for compatibility
+    # with legacy workflow checks that still inspect dispatched flags.
+    if not getattr(assignment, "dispatched", False):
+        assignment.dispatched = True
+        if not getattr(assignment, "dispatchedAt", None):
+            assignment.dispatchedAt = timezone.now()
+
     assignment.clientConfirmedArrival = True
     assignment.clientConfirmedArrivalAt = timezone.now()
     assignment.status = "IN_PROGRESS"
     assignment.save(
-        update_fields=["clientConfirmedArrival", "clientConfirmedArrivalAt", "status"]
+        update_fields=[
+            "dispatched",
+            "dispatchedAt",
+            "clientConfirmedArrival",
+            "clientConfirmedArrivalAt",
+            "status",
+        ]
     )
 
     employee_name = assignment.employee.fullName

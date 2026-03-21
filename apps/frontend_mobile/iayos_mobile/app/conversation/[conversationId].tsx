@@ -5891,26 +5891,59 @@ export default function ChatScreen() {
               {/* TEAM JOB PHASE 1: Client sees full team arrival status */}
               {/* Covers both DAILY and PROJECT team jobs (simplified arrival flow). */}
               {conversation.is_team_job &&
-                !conversation.is_agency_job &&
                 conversation.my_role === "CLIENT" &&
                 !isTeamProjectAttendance &&
                 !isProjectMultiDayJob &&
                 !hasTeamProjectAttendanceSignals &&
-                conversation.team_worker_assignments &&
-                conversation.team_worker_assignments.length > 0 &&
+                ((conversation.team_worker_assignments?.length ?? 0) > 0 ||
+                  (conversation.team_agency_employees?.length ?? 0) > 0) &&
                 !conversation.job.clientMarkedComplete &&
                 (() => {
-                  const assignments = [...conversation.team_worker_assignments];
+                  const workerAssignments =
+                    conversation.team_worker_assignments ?? [];
+                  const agencyAssignments =
+                    conversation.team_agency_employees ?? [];
+
+                  const assignments = [
+                    ...workerAssignments.map((a) => ({
+                      type: "WORKER" as const,
+                      assignment_id: a.assignment_id,
+                      name: a.name,
+                      skill: a.skill,
+                      avatar: a.avatar,
+                      arrived: Boolean(a.client_confirmed_arrival),
+                      completed: Boolean(a.worker_marked_complete),
+                    })),
+                    ...agencyAssignments.map((a) => ({
+                      type: "AGENCY" as const,
+                      assignment_id: a.assignment_id,
+                      name: a.name,
+                      skill: a.skill,
+                      avatar: a.avatar,
+                      arrived: Boolean(a.clientConfirmedArrival),
+                      completed: Boolean(
+                        a.agencyMarkedComplete ||
+                          a.employeeMarkedComplete ||
+                          a.marked_complete ||
+                          String(a.status || "").toUpperCase() === "COMPLETED",
+                      ),
+                    })),
+                  ];
+
+                  if (assignments.length === 0) {
+                    return null;
+                  }
+
                   const arrivedCount = assignments.filter(
-                    (a) => a.client_confirmed_arrival,
+                    (a) => a.arrived,
                   ).length;
                   const completedCount = assignments.filter(
-                    (a) => a.worker_marked_complete,
+                    (a) => a.completed,
                   ).length;
 
                   assignments.sort((a, b) => {
-                    const aPending = !a.client_confirmed_arrival;
-                    const bPending = !b.client_confirmed_arrival;
+                    const aPending = !a.arrived;
+                    const bPending = !b.arrived;
                     if (aPending !== bPending) {
                       return aPending ? -1 : 1;
                     }
@@ -5929,7 +5962,8 @@ export default function ChatScreen() {
                       </View>
 
                       <Text style={styles.teamProjectArrivalSubtext}>
-                        Confirm each worker arrival to unlock completion flow.
+                        Confirm each team member arrival to unlock completion
+                        flow.
                         {completedCount > 0
                           ? ` ${completedCount}/${assignments.length} marked complete.`
                           : ""}
@@ -5939,8 +5973,8 @@ export default function ChatScreen() {
                         {assignments.map((assignment) => {
                           const firstName =
                             assignment.name?.split(" ")[0] || "Worker";
-                          const isArrived = assignment.client_confirmed_arrival;
-                          const isComplete = assignment.worker_marked_complete;
+                          const isArrived = assignment.arrived;
+                          const isComplete = assignment.completed;
                           const statusLabel = isComplete
                             ? "Completed"
                             : isArrived
@@ -5949,7 +5983,7 @@ export default function ChatScreen() {
 
                           return (
                             <View
-                              key={`team-arrival-${assignment.assignment_id}`}
+                              key={`team-arrival-${assignment.type}-${assignment.assignment_id}`}
                             >
                               <View
                                 style={styles.teamProjectArrivalRow}
@@ -6030,16 +6064,25 @@ export default function ChatScreen() {
                                   <TouchableOpacity
                                     style={styles.teamProjectConfirmArrivalButton}
                                     onPress={() =>
-                                      handleConfirmTeamWorkerArrival(
-                                        assignment.assignment_id,
-                                        assignment.name,
-                                      )
+                                      assignment.type === "AGENCY"
+                                        ? handleConfirmTeamEmployeeArrival(
+                                            assignment.assignment_id,
+                                            assignment.name,
+                                          )
+                                        : handleConfirmTeamWorkerArrival(
+                                            assignment.assignment_id,
+                                            assignment.name,
+                                          )
                                     }
                                     disabled={
-                                      confirmTeamWorkerArrivalMutation.isPending
+                                      assignment.type === "AGENCY"
+                                        ? confirmTeamEmployeeArrivalMutation.isPending
+                                        : confirmTeamWorkerArrivalMutation.isPending
                                     }
                                   >
-                                    {confirmTeamWorkerArrivalMutation.isPending ? (
+                                    {(assignment.type === "AGENCY"
+                                      ? confirmTeamEmployeeArrivalMutation.isPending
+                                      : confirmTeamWorkerArrivalMutation.isPending) ? (
                                       <ActivityIndicator
                                         size="small"
                                         color={Colors.white}
