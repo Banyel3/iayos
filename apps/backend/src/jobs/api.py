@@ -47,6 +47,10 @@ from .schemas import (
     QASkipNextDaySchema,
     CancelJobSchema,
 )
+
+import logging
+
+logger = logging.getLogger(__name__)
 from .cancellation_service import cancel_job_with_scenarios
 from .backjob_service import auto_start_agency_backjob_if_ready, get_business_local_date
 from .text_moderation import validate_job_post_content
@@ -499,8 +503,13 @@ def _resolve_project_duration_days_from_payload(data) -> int:
         working_days = int(getattr(data, "number_of_working_days", 0) or 0)
         if working_days > 0:
             return working_days
-    except (TypeError, ValueError):
-        pass
+    except (TypeError, ValueError) as exc:
+        # Malformed number_of_working_days; log and fall back to other duration hints.
+        logger.debug(
+            "Invalid number_of_working_days value in payload %r: %s",
+            getattr(data, "number_of_working_days", None),
+            exc,
+        )
 
     # 1) Explicit numeric duration_days from client payload.
     try:
