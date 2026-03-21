@@ -65,6 +65,7 @@ export interface JobDetail {
   total_workers_needed?: number;
   total_workers_assigned?: number;
   duration_days?: number | null;
+  shift_type?: "ANY" | "MORNING" | "NIGHT" | string;
   total_days_worked?: number;
   materials_needed: string[];
   expected_duration: string | null;

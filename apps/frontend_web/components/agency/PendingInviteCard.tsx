@@ -10,6 +10,8 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -59,6 +61,9 @@ interface PendingInviteJob {
   description: string;
   category: Category | null;
   budget: number;
+  payment_model?: "PROJECT" | "DAILY";
+  daily_rate_agreed?: number | null;
+  shift_type?: "ANY" | "MORNING" | "NIGHT" | null;
   location: string;
   urgency: string;
   status: string;
@@ -239,9 +244,11 @@ export default function PendingInviteCard({
                   <Banknote className="h-4 w-4 text-[#00BAF1]" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-medium">Total Budget</p>
+                  <p className="text-xs text-slate-500 font-medium">{job.payment_model === "DAILY" ? "Daily Rate" : "Total Budget"}</p>
                   <div className="font-bold text-slate-900">
-                    ₱{job.budget?.toLocaleString()}
+                    {job.payment_model === "DAILY" && job.daily_rate_agreed
+                      ? `₱${job.daily_rate_agreed.toLocaleString()}/day`
+                      : `₱${job.budget?.toLocaleString()}`}
                   </div>
                 </div>
               </div>
@@ -293,6 +300,40 @@ export default function PendingInviteCard({
                     <p className="text-xs text-slate-500 font-medium">End Date</p>
                     <p className="font-semibold text-slate-900">
                       {formatShortDate(endDateRaw)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {typeof job.duration_days === "number" && job.duration_days > 0 && (
+                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
+                  <div className="p-1.5 bg-[#00BAF1]/10 rounded-lg">
+                    <Clock className="h-4 w-4 text-[#00BAF1]" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 font-medium">Working Days</p>
+                    <p className="font-semibold text-slate-900">
+                      {job.duration_days} day{job.duration_days === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {job.payment_model === "DAILY" && job.shift_type && (
+                <div className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg p-3 border border-gray-200 min-w-[150px] md:w-auto">
+                  <div className={`p-1.5 rounded-lg ${job.shift_type === "MORNING" ? "bg-amber-100" : job.shift_type === "NIGHT" ? "bg-indigo-100" : "bg-gray-100"}`}>
+                    {job.shift_type === "MORNING" ? (
+                      <Sun className="h-4 w-4 text-amber-600" />
+                    ) : job.shift_type === "NIGHT" ? (
+                      <Moon className="h-4 w-4 text-indigo-600" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 font-medium">Shift</p>
+                    <p className="font-semibold text-slate-900">
+                      {job.shift_type === "MORNING" ? "Day Shift" : job.shift_type === "NIGHT" ? "Night Shift" : "Any Shift"}
                     </p>
                   </div>
                 </div>

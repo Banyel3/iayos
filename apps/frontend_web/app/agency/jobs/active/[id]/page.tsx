@@ -10,6 +10,9 @@ import {
   Calendar,
   User,
   Briefcase,
+  Clock,
+  Sun,
+  Moon,
   Image as ImageIcon,
   X,
 } from "lucide-react";
@@ -32,6 +35,10 @@ interface JobDetail {
   clientMarkedComplete: boolean;
   completionNotes: string | null;
   photos: string[];
+  payment_model?: "PROJECT" | "DAILY" | string;
+  daily_rate_agreed?: number | null;
+  duration_days?: number | null;
+  shift_type?: "ANY" | "MORNING" | "NIGHT" | string;
 }
 
 export default function JobDetailPage() {
@@ -181,6 +188,32 @@ export default function JobDetailPage() {
               <p className="font-semibold text-gray-900">{job.status}</p>
             </div>
           </div>
+          {(job.duration_days ?? 0) > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Clock className="text-orange-600" size={20} />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Working Days</p>
+                <p className="font-semibold text-gray-900">
+                  {job.duration_days} day{(job.duration_days ?? 0) === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+          )}
+          {job.payment_model === "DAILY" && job.shift_type && (
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${job.shift_type === "MORNING" ? "bg-yellow-100" : job.shift_type === "NIGHT" ? "bg-indigo-100" : "bg-gray-100"}`}>
+                {job.shift_type === "MORNING" ? <Sun className="text-yellow-600" size={20} /> : job.shift_type === "NIGHT" ? <Moon className="text-indigo-600" size={20} /> : <Clock className="text-gray-600" size={20} />}
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Shift</p>
+                <p className="font-semibold text-gray-900">
+                  {job.shift_type === "MORNING" ? "Day Shift" : job.shift_type === "NIGHT" ? "Night Shift" : "Any Shift"}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

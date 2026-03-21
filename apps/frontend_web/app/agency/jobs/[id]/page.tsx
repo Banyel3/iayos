@@ -28,6 +28,8 @@ import {
   Star,
   UserCheck,
   UserX,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { JobSkillSlot, JobSkillSlotsResponse } from "@/types/agency-team-jobs";
 import { JobBudgetDisplay } from "@/components/agency/JobBudgetDisplay";
@@ -58,6 +60,7 @@ interface Job {
   payment_model?: 'PROJECT' | 'DAILY';
   daily_rate_agreed?: number;
   duration_days?: number;
+  shift_type?: 'ANY' | 'MORNING' | 'NIGHT';
   actual_start_date?: string;
   total_days_worked?: number;
   daily_escrow_total?: number;
@@ -366,6 +369,24 @@ export default function JobDetailPage() {
                           {new Date(
                             job.preferredStartDate,
                           ).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {job.payment_model === 'DAILY' && job.shift_type && (
+                    <div className="flex items-start space-x-3">
+                      {job.shift_type === 'MORNING' ? (
+                        <Sun className="h-5 w-5 text-amber-500 mt-0.5" />
+                      ) : job.shift_type === 'NIGHT' ? (
+                        <Moon className="h-5 w-5 text-indigo-500 mt-0.5" />
+                      ) : (
+                        <Clock className="h-5 w-5 text-gray-400 mt-0.5" />
+                      )}
+                      <div>
+                        <div className="text-sm text-gray-600">Shift</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          {job.shift_type === 'MORNING' ? 'Day Shift' : job.shift_type === 'NIGHT' ? 'Night Shift' : 'Any Shift'}
                         </div>
                       </div>
                     </div>

@@ -1005,7 +1005,11 @@ def create_team_job(
         else None,
         duration_days=effective_duration_days
         if payment_model_upper == "DAILY"
-        else None,
+        else (
+            max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
+            if preferred_start_date_obj and scheduled_end_date_obj and scheduled_end_date_obj >= preferred_start_date_obj
+            else (int(duration_days) if duration_days and int(duration_days) > 0 else None)
+        ),
         shift_type=shift_type_upper,
         budget_allocation_type=allocation_type,
         team_job_start_threshold=Decimal(str(team_start_threshold)),

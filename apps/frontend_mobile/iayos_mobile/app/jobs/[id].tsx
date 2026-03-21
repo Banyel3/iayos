@@ -554,8 +554,17 @@ export default function JobDetailScreen() {
         skill_level_required: jobData.skill_level_required,
         work_environment: jobData.work_environment,
         // Payment model fields
-        payment_model: jobData.payment_model || "PROJECT",
+        payment_model:
+          jobData.payment_model ||
+          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
         daily_rate_agreed: jobData.daily_rate_agreed ?? null,
+        daily_rate:
+          jobData.daily_rate_agreed ??
+          (jobData.payment_model === "DAILY" &&
+          jobData.budget &&
+          jobData.duration_days
+            ? jobData.budget / jobData.duration_days
+            : undefined),
         duration_days: jobData.duration_days ?? null,
         shift_type: jobData.shift_type ?? "ANY",
         // Team Job fields
@@ -573,20 +582,9 @@ export default function JobDetailScreen() {
         team_fill_percentage: jobData.team_fill_percentage,
         total_workers_needed: jobData.total_workers_needed,
         total_workers_assigned: jobData.total_workers_assigned,
-        // Missing fields mapping
+        // Additional fields
         preferred_start_date: jobData.preferred_start_date,
         scheduled_end_date: jobData.scheduled_end_date,
-        payment_model:
-          jobData.payment_model ||
-          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
-        daily_rate:
-          jobData.daily_rate_agreed ??
-          (jobData.payment_model === "DAILY" &&
-          jobData.budget &&
-          jobData.duration_days
-            ? jobData.budget / jobData.duration_days
-            : undefined),
-        duration_days: jobData.duration_days,
         workerMarkedOnTheWay: Boolean(jobData.worker_marked_on_the_way),
         workerMarkedOnTheWayAt: jobData.worker_marked_on_the_way_at || null,
         workerMarkedJobStarted: Boolean(jobData.worker_marked_job_started),
@@ -1835,17 +1833,20 @@ export default function JobDetailScreen() {
 
   const urgencyColors = getUrgencyColor(job.urgency);
 
+  const isDailyPayment = job.payment_model === "DAILY";
   const dailyDuration = Number(job.duration_days || 0);
   const dailyStartDate = job.preferred_start_date
     ? new Date(job.preferred_start_date)
     : null;
-  const durationDays = Math.max(dailyDuration, job.payment_model === "DAILY" ? 1 : 0);
+  const durationDays = Math.max(dailyDuration, isDailyPayment ? 1 : 0);
   const shiftLabel =
-    job.shift_type === "MORNING"
-      ? "Day Shift"
-      : job.shift_type === "NIGHT"
-        ? "Night Shift"
-        : "Anytime";
+    isDailyPayment
+      ? (job.shift_type === "MORNING"
+          ? "Day Shift"
+          : job.shift_type === "NIGHT"
+            ? "Night Shift"
+            : "Anytime")
+      : null;
   const startDateLabel = job.preferred_start_date
     ? new Date(job.preferred_start_date).toLocaleDateString("en-US", {
         month: "short",
@@ -2297,20 +2298,28 @@ export default function JobDetailScreen() {
                         : ""}
                     </Text>
                   )}
-                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
-                    Shift: {shiftLabel}
-                  </Text>
+                  {shiftLabel && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Shift: {shiftLabel}
+                    </Text>
+                  )}
                 </View>
               ) : (
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: Colors.textSecondary,
-                    marginTop: 2,
-                  }}
-                >
-                  Project Based
-                </Text>
+                <View style={{ marginTop: 2 }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: Colors.textSecondary,
+                    }}
+                  >
+                    Project Based
+                  </Text>
+                  {durationDays > 0 && (
+                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                      Working Days: {durationDays} day{durationDays === 1 ? "" : "s"}
+                    </Text>
+                  )}
+                </View>
               )}
             </View>
           </View>

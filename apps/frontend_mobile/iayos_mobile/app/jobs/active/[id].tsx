@@ -87,6 +87,7 @@ interface ActiveJobDetail {
   payment_model?: "PROJECT" | "DAILY" | string;
   daily_rate_agreed?: number | null;
   duration_days?: number | null;
+  shift_type?: "ANY" | "MORNING" | "NIGHT" | string;
   // Team Job Fields
   is_team_job?: boolean;
   skill_slots?: SkillSlot[];
@@ -229,6 +230,7 @@ export default function ActiveJobDetailScreen() {
         payment_model: data.payment_model || "PROJECT",
         daily_rate_agreed: data.daily_rate_agreed ?? null,
         duration_days: data.duration_days ?? null,
+        shift_type: data.shift_type ?? "ANY",
         is_team_job: data.is_team_job || false,
         skill_slots: data.skill_slots || [],
         worker_assignments: data.worker_assignments || [],
@@ -859,21 +861,45 @@ export default function ActiveJobDetailScreen() {
             <Text style={styles.detailLabel}>Budget</Text>
             <Text style={styles.detailValue}>{job.budget}</Text>
             {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
-              <Text
-                style={{ fontSize: 11, color: Colors.primary, marginTop: 2 }}
-              >
-                📅 ₱{Number(job.daily_rate_agreed).toLocaleString()}/day
-              </Text>
+              <View>
+                <Text
+                  style={{ fontSize: 11, color: Colors.primary, marginTop: 2 }}
+                >
+                  📅 ₱{Number(job.daily_rate_agreed).toLocaleString()}/day
+                </Text>
+                {(job.duration_days ?? 0) > 0 && (
+                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                    {job.duration_days} day{(job.duration_days ?? 0) === 1 ? "" : "s"}
+                  </Text>
+                )}
+                {job.shift_type && job.shift_type !== "ANY" && (
+                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                    {job.shift_type === "MORNING" ? "☀️ Day Shift" : "🌙 Night Shift"}
+                  </Text>
+                )}
+                {job.shift_type === "ANY" && (
+                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                    Anytime
+                  </Text>
+                )}
+              </View>
             ) : (
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: Colors.textSecondary,
-                  marginTop: 2,
-                }}
-              >
-                💼 Project
-              </Text>
+              <View>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: Colors.textSecondary,
+                    marginTop: 2,
+                  }}
+                >
+                  💼 Project
+                </Text>
+                {(job.duration_days ?? 0) > 0 && (
+                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                    {job.duration_days} day{(job.duration_days ?? 0) === 1 ? "" : "s"}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
           <View style={styles.detailCard}>

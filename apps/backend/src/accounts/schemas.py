@@ -214,6 +214,11 @@ class CreateJobMobileSchema(Schema):
     scheduled_end_date: str  # YYYY-MM-DD format (required)
     materials_needed: Optional[list] = None  # List of strings
     downpayment_method: str  # 'WALLET' | 'GCASH'
+    # Payment model fields
+    payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
+    daily_rate: Optional[float] = None  # Required for DAILY model
+    duration_days: Optional[int] = None  # Required for DAILY model
+    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
     # Universal fields for ML accuracy
     job_scope: Optional[str] = (
         "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
@@ -540,6 +545,10 @@ class CreateInviteJobMobileSchema(Schema):
     worker_id: Optional[int] = None  # Either worker_id OR agency_id (not both)
     agency_id: Optional[int] = None
     downpayment_method: str  # 'WALLET' | 'GCASH'
+    # Payment model fields
+    payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
+    daily_rate: Optional[float] = None  # Required for DAILY model
+    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
     # Universal fields for ML accuracy
     job_scope: Optional[str] = (
         "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'

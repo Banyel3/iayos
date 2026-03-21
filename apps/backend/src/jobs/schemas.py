@@ -17,6 +17,9 @@ class CreateJobPostingSchema(Schema):
     number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date
     materials_needed: Optional[list[str]] = []
     payment_method: Optional[str] = "WALLET"  # WALLET or GCASH
+    payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
+    daily_rate: Optional[float] = None  # Required for DAILY model
+    duration_days: Optional[int] = None  # Required for DAILY model
     shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
 
 
