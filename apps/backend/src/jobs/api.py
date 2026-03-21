@@ -835,7 +835,8 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     status=JobPosting.JobStatus.ACTIVE,
                     payment_model=getattr(data, "payment_model", None) or "PROJECT",
                     daily_rate_agreed=float(data.daily_rate)
-                    if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                    if getattr(data, "daily_rate", None)
+                    and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                     else None,
                     duration_days=_resolve_project_duration_days_from_payload(data),
                     shift_type=(getattr(data, "shift_type", None) or "ANY")
@@ -954,7 +955,8 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 status=JobPosting.JobStatus.ACTIVE,
                 payment_model=getattr(data, "payment_model", None) or "PROJECT",
                 daily_rate_agreed=float(data.daily_rate)
-                if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                if getattr(data, "daily_rate", None)
+                and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                 else None,
                 duration_days=_resolve_project_duration_days_from_payload(data),
                 shift_type=(getattr(data, "shift_type", None) or "ANY")
@@ -13004,7 +13006,48 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
 
     with db_transaction.atomic():
         job.qa_day_offset = new_offset
-        job.save(update_fields=["qa_day_offset", "updatedAt"])
+        job_changed_fields = ["qa_day_offset", "updatedAt"]
+
+        # DAILY team QA skip should advance to a fresh effective day. Reset
+        # non-early-completed per-assignment completion flags so the next day
+        # does not inherit stale "completed" UI state.
+        if is_daily and job.is_team_job and not job.clientMarkedComplete:
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+                early_completed=False,
+                worker_marked_complete=True,
+            ).update(worker_marked_complete=False, worker_marked_complete_at=None)
+
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status="COMPLETED",
+                early_completed=False,
+            ).update(assignment_status="ACTIVE")
+
+            JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot__isnull=False,
+                status__in=["IN_PROGRESS", "COMPLETED"],
+                early_completed=False,
+            ).update(
+                status="ASSIGNED",
+                agencyMarkedComplete=False,
+                agencyMarkedCompleteAt=None,
+                employeeMarkedComplete=False,
+                employeeMarkedCompleteAt=None,
+                clientApproved=False,
+                clientApprovedAt=None,
+            )
+
+            if job.workerMarkedComplete:
+                job.workerMarkedComplete = False
+                job.workerMarkedCompleteAt = None
+                job_changed_fields.extend(
+                    ["workerMarkedComplete", "workerMarkedCompleteAt"]
+                )
+
+        job.save(update_fields=job_changed_fields)
 
         JobLog.objects.create(
             jobID=job,

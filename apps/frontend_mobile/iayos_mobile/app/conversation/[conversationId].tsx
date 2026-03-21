@@ -906,12 +906,11 @@ export default function ChatScreen() {
     conversation?.backjob?.my_schedule_confirmed === true ||
     localBackjobScheduleConfirmed;
 
-  const agencyAssignedEmployees =
-    conversation?.is_agency_job
-      ? conversation?.assigned_employees || []
-      : conversation?.is_team_job && conversation?.my_role === "AGENCY"
-        ? conversation?.team_agency_employees || []
-        : [];
+  const agencyAssignedEmployees = conversation?.is_agency_job
+    ? conversation?.assigned_employees || []
+    : Array.isArray(conversation?.team_agency_employees)
+      ? conversation.team_agency_employees
+      : [];
   // Backward compatibility: some legacy team backjob payloads can miss/lag
   // is_team_job, but still include team_worker_assignments.
   const teamAssignedWorkers = Array.isArray(
