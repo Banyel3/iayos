@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Worker feed now includes team jobs when at least one non-agency skill slot remains open.
   - Prevented worker apply CTA from showing on agency-invited slots in team job detail.
   - Added backend hard guard to reject worker applications on agency-reserved slots.
+  - Aligned worker-visible filtering for team project-rate and agency-hire hybrid scenarios via backend query-level slot-open checks.
   - **Impact**: Hybrid team jobs now appear correctly in mobile home, and workers can only apply to worker-open slots.
 
 - **Team Job Agency Invite Guard (Duplicate Agency Across Slots)**
