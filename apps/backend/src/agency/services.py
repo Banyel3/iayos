@@ -1291,21 +1291,37 @@ def get_agency_jobs(
                 )
             iuf = invite_status_filter.upper()
             if iuf == "PENDING":
-                # Jobs where this agency has ≥1 PENDING slot invite, OR legacy job still PENDING
+                # Team jobs: slot-level pending invites for this agency
+                # Legacy direct-invite jobs: job-level pending invite status
                 invite_query = Q(
+                    is_team_job=True,
                     skill_slots__invited_agency=agency,
                     skill_slots__agency_invite_status="PENDING",
-                ) | Q(assignedAgencyFK=agency, inviteStatus="PENDING")
+                ) | Q(
+                    is_team_job=False,
+                    assignedAgencyFK=agency,
+                    inviteStatus="PENDING",
+                )
             elif iuf == "ACCEPTED":
                 invite_query = Q(
+                    is_team_job=True,
                     skill_slots__invited_agency=agency,
                     skill_slots__agency_invite_status="ACCEPTED",
-                ) | Q(assignedAgencyFK=agency, inviteStatus="ACCEPTED")
+                ) | Q(
+                    is_team_job=False,
+                    assignedAgencyFK=agency,
+                    inviteStatus="ACCEPTED",
+                )
             elif iuf == "REJECTED":
                 invite_query = Q(
+                    is_team_job=True,
                     skill_slots__invited_agency=agency,
                     skill_slots__agency_invite_status="REJECTED",
-                ) | Q(assignedAgencyFK=agency, inviteStatus="REJECTED")
+                ) | Q(
+                    is_team_job=False,
+                    assignedAgencyFK=agency,
+                    inviteStatus="REJECTED",
+                )
 
         combined = base_query & status_query & invite_query
 
