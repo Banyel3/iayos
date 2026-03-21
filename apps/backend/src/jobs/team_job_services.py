@@ -3094,11 +3094,15 @@ def agency_reject_team_slot_invite(
         )
         return {"success": False, "error": f"Invite has already been {status_text}"}
 
-    # Reject the invite — slot becomes open for freelance workers
-    slot.agency_invite_status = "REJECTED"
+    # Reject the invite — slot becomes open for freelance workers.
+    # Clear slot-level agency ownership so worker listing/apply logic recognizes
+    # this slot as open, while keeping audit trail in JobLog/Notification.
+    slot.agency_invite_status = None
     slot.agency_invite_responded_at = timezone.now()
+    slot.invited_agency = None
     slot.save(
         update_fields=[
+            "invited_agency",
             "agency_invite_status",
             "agency_invite_responded_at",
             "updatedAt",
@@ -3150,6 +3154,7 @@ def agency_reject_team_slot_invite(
         "specialization": slot.specializationID.specializationName,
         "agency_invite_status": "REJECTED",
         "slot_now_open": True,
+        "can_reinvite_agency": True,
         "message": f"Declined invite for {slot.specializationID.specializationName} slot. Slot is now open for freelance workers.",
     }
 
