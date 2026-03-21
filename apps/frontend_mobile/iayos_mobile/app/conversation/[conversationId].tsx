@@ -1564,9 +1564,13 @@ export default function ChatScreen() {
 
     const allAssignmentsEarlyCompleted =
       isDailyTeamJob &&
-      (conversation.team_worker_assignments?.length ?? 0) > 0 &&
+      ((conversation.team_worker_assignments?.length ?? 0) > 0 ||
+        (conversation.team_agency_employees?.length ?? 0) > 0) &&
       (conversation.team_worker_assignments ?? []).every(
         (assignment: any) => assignment.early_completed,
+      ) &&
+      (conversation.team_agency_employees ?? []).every(
+        (employee: any) => employee.early_completed,
       );
 
     if (allAssignmentsEarlyCompleted) {

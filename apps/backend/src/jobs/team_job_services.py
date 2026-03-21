@@ -3969,8 +3969,39 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
     if not assignment.clientConfirmedArrival:
         return {"success": False, "error": "Client must confirm employee arrival first"}
 
-    # Payout = full paymentAmount (works for both DAILY and PROJECT)
-    payout = Decimal(str(assignment.paymentAmount or "0.00"))
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+
+    # Payout computation parity:
+    # - DAILY team jobs: full contracted employee amount for planned duration
+    #   minus already credited amount (paymentAmount)
+    # - PROJECT team jobs: full assignment share (paymentAmount fallback to slot budget)
+    payout = Decimal("0.00")
+    contracted_amount = Decimal("0.00")
+    already_credited = Decimal(str(assignment.paymentAmount or "0.00"))
+
+    if payment_model == "DAILY":
+        planned_days = int(getattr(job, "duration_days", 0) or 0)
+        if planned_days <= 0:
+            planned_days = 1
+
+        daily_rate = Decimal("0.00")
+        employee_daily_rate = getattr(assignment.employee, "daily_rate", None)
+        if employee_daily_rate:
+            daily_rate = Decimal(str(employee_daily_rate))
+        else:
+            daily_rate = Decimal(str(getattr(job, "daily_rate_agreed", None) or "0.00"))
+
+        contracted_amount = daily_rate * Decimal(planned_days)
+        payout = contracted_amount - already_credited
+        if payout < Decimal("0.00"):
+            payout = Decimal("0.00")
+    else:
+        if getattr(assignment, "paymentAmount", None) is not None:
+            contracted_amount = Decimal(str(assignment.paymentAmount or "0.00"))
+            payout = contracted_amount
+        elif assignment.skill_slot and assignment.skill_slot.budget_per_worker:
+            contracted_amount = Decimal(str(assignment.skill_slot.budget_per_worker))
+            payout = contracted_amount
 
     now = timezone.now()
     employee_name = assignment.employee.name
@@ -4053,6 +4084,9 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
         "assignment_id": assignment.assignmentID,
         "employee_name": employee_name,
         "payout": float(payout),
+        "contracted_amount": float(contracted_amount),
+        "already_credited": float(already_credited),
+        "payment_model": payment_model,
         "all_team_complete": all_complete,
         "message": f"{employee_name} early-completed. PHP {float(payout):,.2f} to agency pending earnings.",
     }
