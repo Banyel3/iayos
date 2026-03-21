@@ -3110,7 +3110,9 @@ export default function JobDetailScreen() {
 
         {/* Job Invitation Actions - For workers to accept/reject INVITE jobs */}
         {isWorker &&
+          !job.is_team_job &&
           job.jobType === "INVITE" &&
+          job.assignedWorker?.id === user?.profile_data?.id &&
           (job.inviteStatus === "PENDING" ||
             (!job.inviteStatus && job.status === "ACTIVE")) &&
           job.status === "ACTIVE" && (
