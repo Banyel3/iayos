@@ -230,8 +230,11 @@ export type ConversationDetail = {
     early_finish_quote?: number | null;
   }>;
   pending_team_worker_reviews?: Array<{
-    worker_id: number;
-    account_id: number;
+    target_type?: "WORKER" | "EMPLOYEE";
+    worker_id?: number;
+    employee_id?: number;
+    assignment_id?: number;
+    account_id?: number;
     name: string;
     avatar: string;
     skill?: string;
