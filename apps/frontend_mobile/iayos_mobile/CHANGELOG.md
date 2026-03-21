@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hybrid Team Invite Card Misrouting (Worker Job Detail)**
+  - Fixed worker invite action card visibility so team hybrid jobs no longer render direct `Accept/Decline Invitation` controls.
+  - Worker invitation card is now limited to non-team direct worker invites assigned to the current worker.
+  - Hybrid team jobs now consistently proceed through slot-based apply/proposal flow for worker-open slots.
+  - **Impact**: Prevents incorrect worker invite UX on agency+freelancer team jobs and avoids dead-end progression in job detail.
+
 - **Agency Slot Reject Reopen + Client Open Jobs Visibility (Hybrid Team Jobs)**
   - When an agency rejects a team slot invite, slot-level agency reservation is now cleared so the slot truly reopens to freelancers.
   - Added explicit response marker that slot can be re-invited to agencies after rejection.
