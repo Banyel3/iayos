@@ -619,6 +619,35 @@ export default function JobDetailScreen() {
       hasAcceptedApplication: boolean;
       appliedSlotIds: number[];
     }> => {
+      const normalizeId = (value: unknown): number | null => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+      };
+
+      const resolveAppStatus = (app: any): string =>
+        String(app?.status ?? app?.application_status ?? "")
+          .trim()
+          .toUpperCase();
+
+      const resolveJobId = (app: any): number | null =>
+        normalizeId(
+          app?.job_id ??
+            app?.jobId ??
+            app?.job?.id ??
+            app?.job?.job_id ??
+            app?.job?.jobID,
+        );
+
+      const resolveSlotId = (app: any): number | null =>
+        normalizeId(
+          app?.applied_skill_slot_id ??
+            app?.appliedSkillSlotId ??
+            app?.skill_slot_id ??
+            app?.skillSlotId ??
+            app?.applied_skill_slot?.skill_slot_id ??
+            app?.applied_skill_slot?.skillSlotID,
+        );
+
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
         method: "GET",
       });
@@ -636,20 +665,25 @@ export default function JobDetailScreen() {
         data?.applications || data?.data?.applications || [];
 
       if (Array.isArray(rawApplications)) {
+        const currentJobId = normalizeId(id);
         const jobApplications = rawApplications.filter((app: any) => {
-          const appJobId =
-            app?.job_id ?? app?.jobId ?? app?.job?.id ?? app?.job?.job_id;
-          return String(appJobId) === String(id);
+          if (currentJobId === null) return false;
+          return resolveJobId(app) === currentJobId;
         });
-        const hasApplied = jobApplications.length > 0;
-        const hasAcceptedApplication = jobApplications.some(
-          (app: any) =>
-            String(app?.status || app?.application_status || "").toUpperCase() ===
-            "ACCEPTED",
+        const activeJobApplications = jobApplications.filter((app: any) =>
+          ["PENDING", "ACCEPTED"].includes(resolveAppStatus(app)),
         );
-        const appliedSlotIds = jobApplications
-          .filter((app: any) => app.applied_skill_slot_id !== null)
-          .map((app: any) => app.applied_skill_slot_id);
+        const hasApplied = activeJobApplications.length > 0;
+        const hasAcceptedApplication = jobApplications.some(
+          (app: any) => resolveAppStatus(app) === "ACCEPTED",
+        );
+        const appliedSlotIds = Array.from(
+          new Set(
+            activeJobApplications
+              .map((app: any) => resolveSlotId(app))
+              .filter((slotId): slotId is number => slotId !== null),
+          ),
+        );
         return { hasApplied, hasAcceptedApplication, appliedSlotIds };
       }
       return {
@@ -969,7 +1003,7 @@ export default function JobDetailScreen() {
         throw new Error("Failed to fetch applications");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       // Handle potential nested data structure e.g. { success: true, applications: [] }
       const apps =
         data.applications || (data.data && data.data.applications) || [];
@@ -997,7 +1031,7 @@ export default function JobDetailScreen() {
           method: "POST",
         },
       );
-      const data = await response.json();
+      const data = (await response.json()) as any;
       if (!response.ok) {
         throw new Error(
           String(data?.error || data?.detail || "Failed to accept application"),
@@ -1485,14 +1519,14 @@ export default function JobDetailScreen() {
     !!currentWorkerAssignment;
 
   const canWorkerViewFullAddress =
-    isWorker &&
-    (hasAcceptedApplication ||
-      job?.inviteStatus === "ACCEPTED" ||
-      isCurrentWorkerAssigned ||
-      job?.status === "IN_PROGRESS" ||
-      job?.status === "COMPLETED" ||
-      (job?.status === "CANCELLED" &&
-        (hasAcceptedApplication || job?.inviteStatus === "ACCEPTED" || isCurrentWorkerAssigned)));
+      isWorker &&
+      (hasAcceptedApplication ||
+        job?.inviteStatus === "ACCEPTED" ||
+        isCurrentWorkerAssigned ||
+        job?.status === "IN_PROGRESS" ||
+        job?.status === "COMPLETED" ||
+        (job?.status === "CANCELLED" &&
+          (hasAcceptedApplication || isCurrentWorkerAssigned)));
 
   const locationDisplayText = isWorker
     ? canWorkerViewFullAddress

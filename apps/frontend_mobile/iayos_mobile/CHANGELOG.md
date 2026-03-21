@@ -41,6 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hybrid Application Visibility + Agency Slot Count Accuracy**
+  - Fixed worker hybrid slot apply-state detection on job detail to robustly map application/job/slot IDs across payload shapes.
+  - Team slot badges/actions now rely on active applications only (`PENDING`/`ACCEPTED`) for "Already Applied" state, preventing stale rejected/withdrawn states from blocking re-apply UX.
+  - Updated worker mobile home exclusion logic to hide only jobs with active applications, allowing previously rejected/withdrawn hybrid jobs to reappear when eligible.
+  - Updated agency accepted-jobs team assignment progress to use agency invited-slot totals instead of full-job totals in hybrid flows.
+  - Hardened agency assign-modal fallback worker count to use agency accepted-slot headcount (not global team headcount), preventing incorrect "needs 2" prompts when the agency slot needs 1.
+  - **Impact**: Existing hybrid jobs now show correct apply-state and applied-tab behavior for workers, and agency accepted cards/modals show correct slot-scoped worker expectations.
+
 - **Hybrid Team Invite Card Misrouting (Worker Job Detail)**
   - Fixed worker invite action card visibility so team hybrid jobs no longer render direct `Accept/Decline Invitation` controls.
   - Worker invitation card is now limited to non-team direct worker invites assigned to the current worker.

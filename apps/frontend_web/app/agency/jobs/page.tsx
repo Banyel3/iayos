@@ -91,9 +91,9 @@ interface Job {
   } | null;
   budget: number;
   payment_model?: "PROJECT" | "DAILY";
-  daily_rate_agreed?: number;
+  daily_rate_agreed?: number | null;
   duration_days?: number | null;
-  shift_type?: "ANY" | "MORNING" | "NIGHT";
+  shift_type?: "ANY" | "MORNING" | "NIGHT" | null;
   actual_start_date?: string;
   total_days_worked?: number;
   daily_escrow_total?: number;
@@ -115,6 +115,12 @@ interface Job {
   total_workers_assigned?: number;
   skill_slots?: Array<{
     specialization_name: string;
+  }>;
+  agency_invited_slots?: Array<{
+    skill_slot_id: number;
+    specialization_name: string;
+    workers_needed: number;
+    agency_invite_status: "PENDING" | "ACCEPTED" | "REJECTED" | string;
   }>;
   client: {
     id: number;
@@ -145,6 +151,29 @@ const isProjectMultiDayJob = (job?: Job | null): boolean => {
 const usesTeamProjectWorkflow = (job?: Job | null): boolean => {
   if (!job) return false;
   return Boolean(job.is_team_job) || isProjectMultiDayJob(job);
+};
+
+const getAgencyAcceptedSlotWorkersNeeded = (job: Job): number => {
+  const invitedSlots = Array.isArray(job.agency_invited_slots)
+    ? job.agency_invited_slots
+    : [];
+  const acceptedNeeded = invitedSlots
+    .filter(
+      (slot) => String(slot.agency_invite_status || "").toUpperCase() === "ACCEPTED",
+    )
+    .reduce((sum, slot) => sum + Math.max(0, Number(slot.workers_needed || 0)), 0);
+
+  if (acceptedNeeded > 0) return acceptedNeeded;
+  return Math.max(1, Number(job.total_workers_needed || 0)) || 1;
+};
+
+const getAgencyProgressCounts = (job: Job): {
+  needed: number;
+  assigned: number;
+} => {
+  const needed = getAgencyAcceptedSlotWorkersNeeded(job);
+  const assigned = Math.min(Math.max(0, Number(job.total_workers_assigned || 0)), needed);
+  return { needed, assigned };
 };
 
 const DailyJobInfoRow = ({ job }: { job: Job }) => {
@@ -646,7 +675,7 @@ export default function AgencyJobsPage() {
     }
   };
 
-  const handleRejectInviteClick = (job: Job) => {
+  const handleRejectInviteClick = (job: any) => {
     setSelectedJobForReject(job);
     setRejectModalOpen(true);
   };
@@ -800,8 +829,7 @@ export default function AgencyJobsPage() {
         } else {
           // Backward compatibility: legacy project jobs may not have slot rows yet.
           // Synthesize a single slot so UI stays in team workflow instead of legacy modal.
-          const fallbackWorkersNeeded =
-            Math.max(1, Number(job.total_workers_needed || 0)) || 1;
+          const fallbackWorkersNeeded = getAgencyAcceptedSlotWorkersNeeded(job);
           const fallbackSlot: JobSkillSlot = {
             skill_slot_id: -1,
             specialization_id: job.category?.id || -1,
@@ -821,8 +849,7 @@ export default function AgencyJobsPage() {
       } catch (error) {
         console.error("Error loading skill slots:", error);
         // Keep user on unified flow even during API hiccups.
-        const fallbackWorkersNeeded =
-          Math.max(1, Number(job.total_workers_needed || 0)) || 1;
+        const fallbackWorkersNeeded = getAgencyAcceptedSlotWorkersNeeded(job);
         const fallbackSlot: JobSkillSlot = {
           skill_slot_id: -1,
           specialization_id: job.category?.id || -1,
@@ -1187,7 +1214,13 @@ export default function AgencyJobsPage() {
                 Showing {acceptedJobs.length} accepted{" "}
                 {acceptedJobs.length === 1 ? "job" : "jobs"}
               </div>
-              {acceptedJobs.map((job) => (
+              {acceptedJobs.map((job) => {
+                const agencyProgress = getAgencyProgressCounts(job);
+                const progressPercent =
+                  agencyProgress.needed > 0
+                    ? (agencyProgress.assigned / agencyProgress.needed) * 100
+                    : 0;
+                return (
                 <Card
                   key={job.jobID}
                   className="border-0 shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden group"
@@ -1239,7 +1272,7 @@ export default function AgencyJobsPage() {
                                 <JobBudgetDisplay
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
-                                  dailyRate={job.daily_rate_agreed}
+                                  dailyRate={job.daily_rate_agreed ?? undefined}
                                   durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
@@ -1301,20 +1334,20 @@ export default function AgencyJobsPage() {
 
                         {/* Assignment Progress for Team Jobs */}
                         {usesTeamProjectWorkflow(job) &&
-                          (job.total_workers_assigned || 0) > 0 && (
+                          agencyProgress.assigned > 0 && (
                           <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
                             <div className="flex items-center justify-between gap-4">
                               <div className="flex items-center gap-2">
                                 <Users className="h-4 w-4 text-[#00BAF1]" />
                                 <span className="text-sm font-medium text-blue-800">
-                                  {job.total_workers_assigned}/{job.total_workers_needed} assigned
+                                  {agencyProgress.assigned}/{agencyProgress.needed} assigned
                                 </span>
                               </div>
                               <div className="flex-1 h-1.5 bg-blue-100 rounded-full max-w-[200px]">
                                 <div
                                   className="h-full bg-[#00BAF1] rounded-full"
                                   style={{
-                                    width: `${((job.total_workers_assigned || 0) / (job.total_workers_needed || 1)) * 100}%`,
+                                    width: `${progressPercent}%`,
                                   }}
                                 />
                               </div>
@@ -1368,7 +1401,8 @@ export default function AgencyJobsPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </>
@@ -1441,7 +1475,7 @@ export default function AgencyJobsPage() {
                                 <JobBudgetDisplay
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
-                                  dailyRate={job.daily_rate_agreed}
+                                  dailyRate={job.daily_rate_agreed ?? undefined}
                                   durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
@@ -1596,7 +1630,7 @@ export default function AgencyJobsPage() {
                                 <JobBudgetDisplay
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
-                                  dailyRate={job.daily_rate_agreed}
+                                  dailyRate={job.daily_rate_agreed ?? undefined}
                                   durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
@@ -1752,7 +1786,7 @@ export default function AgencyJobsPage() {
                                 <JobBudgetDisplay
                                   budget={job.budget}
                                   paymentModel={job.payment_model}
-                                  dailyRate={job.daily_rate_agreed}
+                                  dailyRate={job.daily_rate_agreed ?? undefined}
                                   durationDays={job.duration_days ?? undefined}
                                 />
                               </div>
