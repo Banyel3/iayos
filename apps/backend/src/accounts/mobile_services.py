@@ -18,7 +18,7 @@ from .models import (
     JobWorkerAssignment,
     JobLog,
 )
-from django.db.models import Q, Count, Avg, Prefetch, Sum
+from django.db.models import Q, Count, Avg, Prefetch, Sum, Exists, OuterRef
 from django.utils import timezone
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
@@ -260,17 +260,34 @@ def get_mobile_job_list(
         ).values_list("jobID", flat=True)
 
         # Base query - ACTIVE jobs excluding own posts and already-applied jobs.
-        # Visibility is decided per-job below so hybrid team jobs (agency + open worker slots)
-        # can still appear on worker home.
+        # Visibility rules:
+        # - Non-team jobs: public LISTING only, unassigned.
+        # - Team jobs: visible if there is at least one non-agency slot still open.
+        open_worker_team_slot_qs = JobSkillSlot.objects.filter(
+            jobID_id=OuterRef("pk"),
+            invited_agency__isnull=True,
+            status__in=["OPEN", "PARTIALLY_FILLED"],
+        )
+
         queryset = (
             JobPosting.objects.filter(
                 status="ACTIVE",
             )
+            .annotate(has_open_worker_team_slot=Exists(open_worker_team_slot_qs))
             .exclude(
                 clientID__profileID__accountFK=user  # Exclude jobs posted by the same user
             )
             .exclude(
                 jobID__in=applied_job_ids  # Exclude jobs the worker has already applied to
+            )
+            .filter(
+                Q(
+                    is_team_job=False,
+                    jobType="LISTING",
+                    assignedWorkerID__isnull=True,
+                    assignedAgencyFK__isnull=True,
+                )
+                | Q(is_team_job=True, has_open_worker_team_slot=True)
             )
         )
 
@@ -298,25 +315,6 @@ def get_mobile_job_list(
         # Calculate distances and add to jobs if user has location
         jobs_with_distance = []
         for job in all_jobs:
-            # Visibility gate for worker home:
-            # - Regular jobs: public LISTING jobs only, unassigned.
-            # - Team jobs: show if there is at least one non-agency slot still open to workers.
-            if not job.is_team_job:
-                if (
-                    job.jobType != "LISTING"
-                    or job.assignedWorkerID_id is not None
-                    or job.assignedAgencyFK_id is not None
-                ):
-                    continue
-            else:
-                open_worker_slot_exists = JobSkillSlot.objects.filter(
-                    jobID=job,
-                    invited_agency__isnull=True,
-                    status__in=["OPEN", "PARTIALLY_FILLED"],
-                ).exists()
-                if not open_worker_slot_exists:
-                    continue
-
             # Check if current user has applied
             has_applied = False
             try:

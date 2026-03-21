@@ -1644,6 +1644,13 @@ export default function JobDetailScreen() {
             showMissingRequiredSkillAlert(error.message, "TEAM");
             return;
           }
+          if (/reserved for an invited agency|SLOT_RESERVED_FOR_AGENCY/i.test(error.message)) {
+            Alert.alert(
+              "Slot Reserved for Agency",
+              "This slot is reserved for agency assignment and is not open for worker applications.",
+            );
+            return;
+          }
           Alert.alert("Application Failed", error.message);
         },
       },
