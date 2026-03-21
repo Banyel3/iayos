@@ -55,6 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserved existing chat behavior for non-team jobs and fully-filled team jobs.
   - **Impact**: Prevents premature chat access that bypasses incomplete-slot gating and makes progression clearer for agencies.
 
+- **Agency Messages Tab Enforces Team Slot Completion Before Chat Visibility**
+  - Updated agency conversations API to exclude team-job conversations until `total_workers_assigned >= total_workers_needed`.
+  - Added direct conversation endpoint guard to block opening `/agency/messages/{id}` while team slots are still incomplete.
+  - **Impact**: Team chats are now consistently hidden/locked across both Job Management and Messages tabs until all required slots are filled.
+
 - **Hybrid Team Invite Card Misrouting (Worker Job Detail)**
   - Fixed worker invite action card visibility so team hybrid jobs no longer render direct `Accept/Decline Invitation` controls.
   - Worker invitation card is now limited to non-team direct worker invites assigned to the current worker.

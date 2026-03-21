@@ -2276,7 +2276,7 @@ def get_agency_conversations(request, filter: str = "all"):
     try:
         from profiles.models import Conversation, Message
         from accounts.models import Job, Profile
-        from django.db.models import Q, Count, Max
+        from django.db.models import Q, Count, Max, F
 
         account = request.auth
 
@@ -2312,6 +2312,16 @@ def get_agency_conversations(request, filter: str = "all"):
                 | Q(
                     relatedJobPosting__assignedAgencyFK=agency
                 )  # Job is assigned to this agency
+            )
+            .filter(
+                # Team-job chat should only be visible after all required slots are filled.
+                Q(relatedJobPosting__is_team_job=False)
+                | Q(
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__total_workers_assigned__gte=F(
+                        "relatedJobPosting__total_workers_needed"
+                    ),
+                )
             )
             .select_related(
                 "client__accountFK",
@@ -2610,6 +2620,20 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
+
+        # Team-job conversation access is locked until all required slots are filled.
+        if job.is_team_job:
+            total_needed = int(job.total_workers_needed or 0)
+            total_assigned = int(job.total_workers_assigned or 0)
+            if total_assigned < total_needed:
+                return Response(
+                    {
+                        "error": "Conversation is locked until all team slots are filled",
+                        "can_send_message": False,
+                        "can_send_reason": "Chat unlocks once all team slots are assigned.",
+                    },
+                    status=403,
+                )
 
         # Backjob chat lock: keep conversation visible but lock messaging until admin opens negotiation.
         from accounts.models import JobDispute
