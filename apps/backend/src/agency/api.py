@@ -2487,7 +2487,7 @@ def get_agency_conversations(request, filter: str = "all"):
                         "workerID__profileID__accountFK",
                         "skillSlotID__specializationID",
                     )
-                    .order_by("createdAt")
+                    .order_by("assignedAt")
                 )
 
                 for assignment in worker_assignments:
@@ -2848,7 +2848,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     "workerID__profileID__accountFK",
                     "skillSlotID__specializationID",
                 )
-                .order_by("createdAt")
+                .order_by("assignedAt")
             )
 
             for assignment in worker_assignments:
