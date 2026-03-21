@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Team Job Agency Invite Guard (Duplicate Agency Across Slots)**
+  - Prevented inviting the same agency into multiple skill slots during team job creation.
+  - Added immediate client-side guard in team create flow with prompt to navigate to existing **Hire Agency** flow.
+  - Added submit-time duplicate validation safety check for slot-level agency invites.
+  - Added backend hard validation (`DUPLICATE_AGENCY_SLOT_INVITE`) so API-level bypass is also blocked.
+  - **Impact**: Multi-slot invites now enforce distinct agencies per slot, and users are redirected to the correct direct agency flow when they intend to hire one agency for multiple requirements.
+
 - **Single Project Conversation Arrival Flow (Client-First Simplified Path)**
   - Removed legacy worker-first action gates (`Mark On The Way` / `Mark Job Started`) from single non-team, non-agency project conversation actions.
   - Client now always gets the first actionable button: **Confirm Worker Has Arrived**.

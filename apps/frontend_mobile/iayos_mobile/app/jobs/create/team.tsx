@@ -474,6 +474,7 @@ export default function CreateTeamJobScreen() {
     fallback_slots?: TeamCreateFallbackSlot[];
     error?: string;
     error_code?: string;
+    agency_id?: number;
     field_errors?: Record<string, { message: string }>;
   }
 
@@ -525,6 +526,9 @@ export default function CreateTeamJobScreen() {
       };
       if (!response.ok || !result.success) {
         if (result.requires_agency_fallback) {
+          throw result;
+        }
+        if (result.error_code === "DUPLICATE_AGENCY_SLOT_INVITE") {
           throw result;
         }
         if (result.error_code === "CONTENT_POLICY_VIOLATION") {
@@ -603,6 +607,22 @@ export default function CreateTeamJobScreen() {
         return;
       }
 
+      if (fallbackData?.error_code === "DUPLICATE_AGENCY_SLOT_INVITE") {
+        const duplicateAgencyId = Number(fallbackData?.agency_id);
+        const duplicateAgency = (agenciesData?.agencies || []).find(
+          (a: Agency) => a.id === duplicateAgencyId,
+        );
+        if (duplicateAgency) {
+          promptNavigateToHireAgency(duplicateAgency);
+        } else {
+          Alert.alert(
+            "Use Hire Agency Flow",
+            "The same agency cannot be invited to multiple slots. Use the Hire Agency flow instead.",
+          );
+        }
+        return;
+      }
+
       Alert.alert("Error", error.message || "Failed to create team job");
     },
   });
@@ -662,9 +682,40 @@ export default function CreateTeamJobScreen() {
     setAgencyPickerVisible(true);
   };
 
+  const promptNavigateToHireAgency = (agency: Agency) => {
+    Alert.alert(
+      "Use Hire Agency Flow",
+      `${agency.name} is already invited in another slot. If the same agency will fill multiple requirements, use the Hire Agency flow instead of team multi-slot invites.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Go to Hire Agency",
+          onPress: () => {
+            setAgencyPickerVisible(false);
+            setAgencyPickerSlotId(null);
+            router.push({
+              pathname: "/jobs/create",
+              params: { agencyId: String(agency.id) },
+            });
+          },
+        },
+      ],
+    );
+  };
+
   // Select agency for a slot
   const selectAgencyForSlot = (agency: Agency) => {
     if (!agencyPickerSlotId) return;
+
+    const alreadyInvitedInAnotherSlot = skillSlots.some(
+      (slot) => slot.id !== agencyPickerSlotId && slot.agency_id === agency.id,
+    );
+
+    if (alreadyInvitedInAnotherSlot) {
+      promptNavigateToHireAgency(agency);
+      return;
+    }
+
     setSkillSlots((prev) =>
       prev.map((slot) =>
         slot.id === agencyPickerSlotId
@@ -725,6 +776,15 @@ export default function CreateTeamJobScreen() {
     }
 
     if (!barangay || !street) return "Please provide a complete location";
+
+    const invitedAgencyIds = skillSlots
+      .map((slot) => slot.agency_id)
+      .filter((id): id is number => typeof id === "number");
+    const hasDuplicateAgencyInvite =
+      new Set(invitedAgencyIds).size !== invitedAgencyIds.length;
+    if (hasDuplicateAgencyInvite) {
+      return "The same agency cannot be invited to multiple slots. Use the Hire Agency flow instead.";
+    }
 
     if (allocationMethod === "MANUAL_ALLOCATION") {
       const totalAllocated = skillSlots.reduce(
