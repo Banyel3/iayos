@@ -259,13 +259,12 @@ def get_mobile_job_list(
             workerID__profileID__accountFK=user
         ).values_list("jobID", flat=True)
 
-        # Base query - only ACTIVE jobs that are LISTING type (exclude INVITE/direct hire jobs)
+        # Base query - ACTIVE jobs excluding own posts and already-applied jobs.
+        # Visibility is decided per-job below so hybrid team jobs (agency + open worker slots)
+        # can still appear on worker home.
         queryset = (
             JobPosting.objects.filter(
                 status="ACTIVE",
-                jobType="LISTING",  # Only show public job listings, not direct invites
-                assignedWorkerID__isnull=True,  # Exclude jobs that already have a worker
-                assignedAgencyFK__isnull=True,  # Exclude jobs assigned to agencies
             )
             .exclude(
                 clientID__profileID__accountFK=user  # Exclude jobs posted by the same user
@@ -299,6 +298,25 @@ def get_mobile_job_list(
         # Calculate distances and add to jobs if user has location
         jobs_with_distance = []
         for job in all_jobs:
+            # Visibility gate for worker home:
+            # - Regular jobs: public LISTING jobs only, unassigned.
+            # - Team jobs: show if there is at least one non-agency slot still open to workers.
+            if not job.is_team_job:
+                if (
+                    job.jobType != "LISTING"
+                    or job.assignedWorkerID_id is not None
+                    or job.assignedAgencyFK_id is not None
+                ):
+                    continue
+            else:
+                open_worker_slot_exists = JobSkillSlot.objects.filter(
+                    jobID=job,
+                    invited_agency__isnull=True,
+                    status__in=["OPEN", "PARTIALLY_FILLED"],
+                ).exists()
+                if not open_worker_slot_exists:
+                    continue
+
             # Check if current user has applied
             has_applied = False
             try:
