@@ -107,6 +107,17 @@ interface CreateJobRequest {
   materials_needed?: string[];
 }
 
+interface ContentPolicyFieldError {
+  message: string;
+  matches?: Array<{ start: number; end: number }>;
+}
+
+interface ContentPolicyErrorPayload {
+  error_code?: string;
+  error?: string;
+  field_errors?: Record<string, ContentPolicyFieldError>;
+}
+
 // Skill slot for multi-employee agency hiring
 interface SkillSlot {
   specialization_id: number;
@@ -1024,7 +1035,11 @@ export default function CreateJobScreen() {
 
   const createJobMutation = useMutation({
     mutationFn: async (jobData: CreateJobRequest) => {
-      const response = await fetchJson<{
+      const response = await apiRequest(ENDPOINTS.CREATE_JOB, {
+        method: "POST",
+        body: JSON.stringify(jobData),
+      });
+      const result = (await response.json()) as {
         success: boolean;
         job_posting_id: number;
         message: string;
@@ -1038,11 +1053,16 @@ export default function CreateJobScreen() {
         invoice_id?: string;
         transaction_id?: number;
         new_wallet_balance?: number;
-      }>(ENDPOINTS.CREATE_JOB, {
-        method: "POST",
-        body: JSON.stringify(jobData),
-      });
-      return response;
+        error_code?: string;
+        error?: string;
+        field_errors?: Record<string, ContentPolicyFieldError>;
+      };
+
+      if (!response.ok || !result.success) {
+        throw result;
+      }
+
+      return result;
     },
     onSuccess: async (data) => {
       // Invalidate wallet queries to reflect reserved balance change
@@ -1107,7 +1127,23 @@ export default function CreateJobScreen() {
       }
     },
     onError: (error: any) => {
-      const errorMessage = error?.message || "Failed to create job request";
+      const policyPayload = error as ContentPolicyErrorPayload;
+      if (
+        policyPayload?.error_code === "CONTENT_POLICY_VIOLATION" &&
+        policyPayload.field_errors
+      ) {
+        const fieldNames = Object.keys(policyPayload.field_errors);
+        const firstFields = fieldNames.slice(0, 3).join(", ");
+        const moreCount = Math.max(0, fieldNames.length - 3);
+        const suffix = moreCount > 0 ? ` (+${moreCount} more)` : "";
+        Alert.alert(
+          "Please Revise Your Job Post",
+          `We found inappropriate language in: ${firstFields}${suffix}. Please update those fields and submit again.`,
+        );
+        return;
+      }
+
+      const errorMessage = error?.message || error?.error || "Failed to create job request";
       Alert.alert("Error", errorMessage);
     },
   });

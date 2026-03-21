@@ -15,6 +15,7 @@ from accounts.models import (
 )
 from jobs.team_job_services import create_team_job, early_complete_single_project_job
 from jobs.api import accept_job_invite_worker
+from jobs.text_moderation import validate_job_post_content
 
 
 class TeamJobCreationFallbackTests(TestCase):
@@ -267,3 +268,31 @@ class JobInviteAcceptResponseTests(TestCase):
 
         job.refresh_from_db()
         self.assertEqual(job.status, "IN_PROGRESS")
+
+
+class JobContentModerationTests(TestCase):
+    def test_clean_content_has_no_violations(self):
+        violations = validate_job_post_content(
+            title="Need reliable electrician",
+            description="Install two outlets and check breaker panel.",
+            location="Tetuan, Zamboanga City",
+        )
+        self.assertEqual(violations, {})
+
+    def test_profanity_in_title_detected_with_positions(self):
+        violations = validate_job_post_content(
+            title="Need f*ck electrician",
+            description="Standard wiring",
+            location="Tetuan",
+        )
+        self.assertIn("title", violations)
+        self.assertTrue(len(violations["title"]["matches"]) > 0)
+
+    def test_profanity_in_slot_notes_detected(self):
+        violations = validate_job_post_content(
+            title="Need helper",
+            description="Painting work",
+            location="Tetuan",
+            skill_slots=[{"notes": "gago workers only"}],
+        )
+        self.assertIn("skill_slots[0].notes", violations)
