@@ -15,6 +15,7 @@ import {
 export type AgencyConversationJob = {
   id: number;
   title: string;
+  is_team_job?: boolean;
   status: string;
   budget: number;
   location: string;
