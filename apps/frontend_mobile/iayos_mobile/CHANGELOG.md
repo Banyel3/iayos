@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Agency Slot Reject Reopen + Client Open Jobs Visibility (Hybrid Team Jobs)**
+  - When an agency rejects a team slot invite, slot-level agency reservation is now cleared so the slot truly reopens to freelancers.
+  - Added explicit response marker that slot can be re-invited to agencies after rejection.
+  - Updated client **Open Jobs** tab logic so unfilled team jobs remain visible regardless of `job_type`, enabling continued slot management/re-invite flows.
+  - **Impact**: Rejected agency slots no longer become dead slots, and clients can still access posted hybrid team jobs to re-invite agencies or fill remaining slots.
+
 - **Hybrid Team Job Visibility on Worker Home + Slot Guarding**
   - Fixed worker mobile home listing visibility for hybrid team jobs (one agency-invited slot + one open worker slot).
   - Worker feed now includes team jobs when at least one non-agency skill slot remains open.
