@@ -9,9 +9,7 @@ class CreateJobPostingSchema(Schema):
     budget: float
     location: str
     expected_duration: Optional[str] = None
-    urgency: Optional[str] = (
-        "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM, no longer shown in UI)
-    )
+    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     preferred_start_date: str  # Required: YYYY-MM-DD
     scheduled_end_date: Optional[str] = (
         None  # Deprecated: computed from number_of_working_days
@@ -40,9 +38,7 @@ class CreateJobPostingMobileSchema(Schema):
     budget: Optional[float] = None  # Required for PROJECT, not for DAILY
     location: str
     expected_duration: Optional[str] = None
-    urgency: Optional[str] = (
-        "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM, no longer shown in UI)
-    )
+    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     urgency_level: Optional[str] = None  # Frontend alias for urgency
     preferred_start_date: str  # Required: YYYY-MM-DD
     scheduled_end_date: Optional[str] = (
@@ -153,7 +149,7 @@ class CreateTeamJobSchema(Schema):
     description: str
     location: str
     total_budget: float  # Total budget for entire job
-    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (no longer shown in UI)
+    urgency: Optional[str] = "MEDIUM"  # LOW, MEDIUM, HIGH (default MEDIUM)
     preferred_start_date: str  # Required: YYYY-MM-DD
     scheduled_end_date: Optional[str] = (
         None  # Deprecated: computed from number_of_working_days

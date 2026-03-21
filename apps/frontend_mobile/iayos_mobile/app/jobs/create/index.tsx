@@ -98,6 +98,8 @@ interface CreateJobRequest {
   work_environment: "INDOOR" | "OUTDOOR" | "BOTH" | null;
   // Multi-employee mode for agencies
   skill_slots?: SkillSlot[];
+  // Urgency level
+  urgency?: "LOW" | "MEDIUM" | "HIGH";
   // Daily payment model fields
   payment_model?: "PROJECT" | "DAILY";
   daily_rate?: number;
@@ -322,6 +324,8 @@ export default function CreateJobScreen() {
   const [workEnvironment, setWorkEnvironment] = useState<
     "INDOOR" | "OUTDOOR" | "BOTH" | null
   >(null);
+  // Urgency level
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
   // Daily payment model fields
   const [paymentModel, setPaymentModel] = useState<"PROJECT" | "DAILY">(
     "PROJECT",
@@ -397,6 +401,22 @@ export default function CreateJobScreen() {
       setPaymentModel("PROJECT");
     }
   }, [isAgencyHire, paymentModel]);
+
+  // When urgency is HIGH, auto-set start date to today and working days to 1
+  useEffect(() => {
+    if (urgency === "HIGH") {
+      setStartDate(new Date());
+      setDurationDays("1");
+    }
+  }, [urgency]);
+
+  // When working days is 1, force PROJECT payment model (daily rate not applicable)
+  const isDurationOneDay = (parseInt(durationDays) || 0) === 1;
+  useEffect(() => {
+    if (isDurationOneDay && paymentModel === "DAILY") {
+      setPaymentModel("PROJECT");
+    }
+  }, [isDurationOneDay, paymentModel]);
 
   const hasInsufficientBalance = walletBalance < requiredDownpayment;
   const shortfallAmount = requiredDownpayment - walletBalance;
@@ -1269,6 +1289,8 @@ export default function CreateJobScreen() {
         : undefined,
       number_of_working_days: parseInt(durationDays) || undefined,
       downpayment_method: "WALLET", // Jobs only use Wallet payment
+      // Urgency level
+      urgency,
       // Universal job fields for ML accuracy - explicitly passed
       skill_level_required: skillLevel ?? null,
       job_scope: jobScope ?? null,
@@ -2032,6 +2054,47 @@ export default function CreateJobScreen() {
                 </Text>
               </View>
 
+              {/* Urgency Level */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Urgency Level</Text>
+                <View style={styles.urgencyRow}>
+                  {(
+                    [
+                      { value: "LOW", label: "Low" },
+                      { value: "MEDIUM", label: "Medium" },
+                      { value: "HIGH", label: "Urgent" },
+                    ] as const
+                  ).map((level) => (
+                    <TouchableOpacity
+                      key={level.value}
+                      style={[
+                        styles.urgencyButton,
+                        urgency === level.value &&
+                          styles.urgencyButtonActive,
+                        urgency === level.value && level.value === "HIGH" && {
+                          backgroundColor: "#FEE2E2",
+                          borderColor: Colors.error,
+                        },
+                      ]}
+                      onPress={() => setUrgency(level.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          urgency === level.value &&
+                            styles.urgencyTextActive,
+                          urgency === level.value && level.value === "HIGH" && {
+                            color: Colors.error,
+                          },
+                        ]}
+                      >
+                        {level.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               {/* Job Dates */}
               <View style={styles.datesRow}>
                 {/* Start Date */}
@@ -2041,8 +2104,10 @@ export default function CreateJobScreen() {
                     style={[
                       styles.dateButton,
                       !startDate && { borderColor: Colors.border },
+                      urgency === "HIGH" && styles.inputDisabled,
                     ]}
-                    onPress={() => setShowDatePicker(true)}
+                    onPress={() => { if (urgency !== "HIGH") setShowDatePicker(true); }}
+                    disabled={urgency === "HIGH"}
                   >
                     <Ionicons
                       name="calendar"
@@ -2197,17 +2262,17 @@ export default function CreateJobScreen() {
                         style={[
                           styles.optionButton,
                           paymentModel === "DAILY" && styles.optionButtonActive,
-                          isOneDayJob && styles.optionButtonDisabled,
+                          (isOneDayJob || isDurationOneDay) && styles.optionButtonDisabled,
                         ]}
-                        onPress={() => !isOneDayJob && setPaymentModel("DAILY")}
-                        disabled={isOneDayJob}
+                        onPress={() => !isOneDayJob && !isDurationOneDay && setPaymentModel("DAILY")}
+                        disabled={isOneDayJob || isDurationOneDay}
                       >
                         <Text
                           style={[
                             styles.optionButtonText,
                             paymentModel === "DAILY" &&
                               styles.optionButtonTextActive,
-                            isOneDayJob && styles.optionButtonTextDisabled,
+                            (isOneDayJob || isDurationOneDay) && styles.optionButtonTextDisabled,
                           ]}
                         >
                           Daily Rate
@@ -2215,7 +2280,7 @@ export default function CreateJobScreen() {
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.hint}>
-                      {isOneDayJob
+                      {isOneDayJob || isDurationOneDay
                         ? "Daily rate is unavailable for one-day jobs (Fixed Budget only)"
                         : effectivePaymentModel === "PROJECT"
                           ? "Pay for the entire project (50% downpayment, 50% on completion)"
@@ -3234,7 +3299,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: "center",
   },
   urgencyButtonActive: {

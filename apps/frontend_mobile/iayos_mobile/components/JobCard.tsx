@@ -42,6 +42,8 @@ interface JobCardProps {
   status?: "active" | "in_progress" | "completed" | "cancelled";
   applicationCount?: number;
   onPress?: () => void;
+  // Urgency
+  urgency?: "LOW" | "MEDIUM" | "HIGH";
   // Team Job Fields
   isTeamJob?: boolean;
   totalWorkersNeeded?: number;
@@ -62,6 +64,8 @@ export default function JobCard({
   status = "active",
   applicationCount,
   onPress,
+  // Urgency
+  urgency,
   // Team Job Fields
   isTeamJob,
   totalWorkersNeeded,
@@ -125,6 +129,14 @@ export default function JobCard({
         activeOpacity={1}
         style={styles.card}
       >
+        {/* Urgent Badge */}
+        {urgency === "HIGH" && (
+          <View style={styles.urgentBadge}>
+            <Ionicons name="flash" size={12} color="#FFF" />
+            <Text style={styles.urgentBadgeText}>URGENT</Text>
+          </View>
+        )}
+
         {/* Job Title */}
         <Text style={styles.title} numberOfLines={2}>
           {title}
@@ -198,6 +210,23 @@ const styles = StyleSheet.create({
         elevation: 5,
       },
     }),
+  },
+  urgentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 10,
+    gap: 4,
+  },
+  urgentBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: 0.5,
   },
   title: {
     fontSize: 24,

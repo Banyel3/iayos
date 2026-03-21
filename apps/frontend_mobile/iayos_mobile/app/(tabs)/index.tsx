@@ -590,6 +590,7 @@ export default function BrowseJobsScreen() {
       status={item.status?.toLowerCase() as any}
       applicationCount={item.applicationCount}
       onPress={() => handleJobPress(item.id)}
+      urgency={item.urgency}
       // Team Job Fields
       isTeamJob={item.is_team_job}
       totalWorkersNeeded={item.total_workers_needed}

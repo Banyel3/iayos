@@ -130,6 +130,8 @@ export default function CreateTeamJobScreen() {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isOneDayJob, setIsOneDayJob] = useState(false);
+  // Urgency level
+  const [urgency, setUrgency] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [pendingTeamJobData, setPendingTeamJobData] = useState<any | null>(
     null,
@@ -274,6 +276,22 @@ export default function CreateTeamJobScreen() {
       setDurationDays("1");
     }
   }, [paymentModel, startDate, isOneDayJob]);
+
+  // When urgency is HIGH, auto-set start date to today and working days to 1
+  useEffect(() => {
+    if (urgency === "HIGH") {
+      setStartDate(new Date());
+      setDurationDays("1");
+    }
+  }, [urgency]);
+
+  // When working days is 1, force PROJECT payment model (daily rate not applicable)
+  const isDurationOneDay = (parseInt(durationDays) || 0) === 1;
+  useEffect(() => {
+    if (isDurationOneDay && paymentModel === "DAILY") {
+      setPaymentModel("PROJECT");
+    }
+  }, [isDurationOneDay, paymentModel]);
 
   // Calculate budget allocation preview
   const budgetAllocation = useMemo(() => {
@@ -844,6 +862,7 @@ export default function CreateTeamJobScreen() {
       description: description.trim(),
       location: `${street.trim()}, ${barangay}, Zamboanga City`,
       total_budget: budgetNum,
+      urgency,
       preferred_start_date: startDate
         ? formatLocalDateYYYYMMDD(startDate)
         : undefined,
@@ -1351,11 +1370,52 @@ export default function CreateTeamJobScreen() {
                 </Text>
               </View>
 
+              {/* Urgency Level */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Urgency Level</Text>
+                <View style={styles.urgencyOptions}>
+                  {(
+                    [
+                      { value: "LOW", label: "Low" },
+                      { value: "MEDIUM", label: "Medium" },
+                      { value: "HIGH", label: "Urgent" },
+                    ] as const
+                  ).map((level) => (
+                    <TouchableOpacity
+                      key={level.value}
+                      style={[
+                        styles.urgencyOption,
+                        urgency === level.value && {
+                          borderColor: level.value === "HIGH" ? Colors.error : Colors.primary,
+                          backgroundColor: level.value === "HIGH" ? "#FEE2E2" : `${Colors.primary}10`,
+                        },
+                      ]}
+                      onPress={() => setUrgency(level.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.urgencyText,
+                          urgency === level.value && {
+                            color: level.value === "HIGH" ? Colors.error : Colors.primary,
+                          },
+                        ]}
+                      >
+                        {level.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Preferred Start Date</Text>
                 <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker(true)}
+                  style={[
+                    styles.dateButton,
+                    urgency === "HIGH" && { opacity: 0.7, backgroundColor: Colors.backgroundSecondary },
+                  ]}
+                  onPress={() => { if (urgency !== "HIGH") setShowDatePicker(true); }}
+                  disabled={urgency === "HIGH"}
                 >
                   <Ionicons
                     name="calendar"
@@ -1620,8 +1680,10 @@ export default function CreateTeamJobScreen() {
                         borderColor: Colors.primary,
                         backgroundColor: `${Colors.primary}10`,
                       },
+                      isDurationOneDay && { opacity: 0.5 },
                     ]}
-                    onPress={() => setPaymentModel("DAILY")}
+                    onPress={() => !isDurationOneDay && setPaymentModel("DAILY")}
+                    disabled={isDurationOneDay}
                   >
                     <Text
                       style={[
