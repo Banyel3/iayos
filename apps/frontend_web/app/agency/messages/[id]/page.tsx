@@ -718,7 +718,12 @@ export default function AgencyChatScreen() {
   } =
     conversation;
 
-  const effectiveAgencyAssignments: AssignedEmployee[] = job.is_team_job
+  const isTeamConversation =
+    Boolean(job.is_team_job) ||
+    (team_worker_assignments?.length ?? 0) > 0 ||
+    (team_agency_employees?.length ?? 0) > 0;
+
+  const effectiveAgencyAssignments: AssignedEmployee[] = isTeamConversation
     ? (team_agency_employees || []).map(
         (employee: TeamAgencyEmployeeAssignment) => ({
           employeeId: employee.id,
@@ -765,7 +770,7 @@ export default function AgencyChatScreen() {
   ];
   const hasFreelanceAssignments = (team_worker_assignments?.length ?? 0) > 0;
   const supportsAgencyDispatchWorkflow =
-    !job.is_team_job || (effectiveAgencyAssignments?.length ?? 0) > 0;
+    !isTeamConversation || (effectiveAgencyAssignments?.length ?? 0) > 0;
 
   const myReview = reviewViewData.myReview;
   const clientReview = reviewViewData.clientReview;
@@ -1174,7 +1179,7 @@ export default function AgencyChatScreen() {
                 }
 
                 if (!allDispatched) {
-                  if (job.is_team_job) {
+                  if (isTeamConversation) {
                     return (
                       <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-800 font-medium">
                         Team hybrid flow is arrival-first. Waiting for client to confirm team member arrivals.
@@ -1311,7 +1316,7 @@ export default function AgencyChatScreen() {
                     );
                   }
 
-                  if (job.is_team_job) {
+                  if (isTeamConversation) {
                     const pendingTeamCompletions = (team_agency_employees || []).filter(
                       (employee: TeamAgencyEmployeeAssignment) =>
                         Boolean(employee.clientConfirmedArrival) &&
@@ -1408,7 +1413,7 @@ export default function AgencyChatScreen() {
                   return null;
                 }
 
-                if (job.is_team_job) {
+                if (isTeamConversation) {
                   const arrivedTeamEmployees = (team_agency_employees || []).filter(
                     (employee: TeamAgencyEmployeeAssignment) =>
                       Boolean(employee.clientConfirmedArrival),
