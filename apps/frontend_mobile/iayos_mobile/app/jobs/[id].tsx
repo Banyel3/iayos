@@ -91,6 +91,7 @@ interface JobDetail {
     phone: string | null;
   };
   postedAt: string;
+  createdAt?: string | null;
   urgency: "LOW" | "MEDIUM" | "HIGH";
   photos: Array<{
     id: number;
@@ -257,6 +258,45 @@ const getStreetAndBarangayFromLocation = (location?: string | null) => {
   }
 
   return parts[0] || "Location not specified";
+};
+
+const formatRelativePostedTime = (value?: string | null) => {
+  if (!value) return "Recently";
+
+  const postedDate = new Date(value);
+  if (Number.isNaN(postedDate.getTime())) return "Recently";
+
+  const diffSeconds = Math.max(
+    Math.floor((Date.now() - postedDate.getTime()) / 1000),
+    0,
+  );
+
+  if (diffSeconds < 60) {
+    return `${diffSeconds} second${diffSeconds === 1 ? "" : "s"} ago`;
+  }
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  }
+
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 5) {
+    return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
+  }
+
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${Math.max(diffMonths, 1)} month${diffMonths === 1 ? "" : "s"} ago`;
 };
 
 // ============================================================================
@@ -467,6 +507,7 @@ export default function JobDetailScreen() {
         postedAt: jobData.created_at
           ? new Date(jobData.created_at).toLocaleDateString()
           : "Recently",
+        createdAt: jobData.created_at || null,
         urgency: jobData.urgency_level || "LOW",
         photos:
           jobData.photos?.map((url: string, idx: number) => ({
@@ -1731,7 +1772,9 @@ export default function JobDetailScreen() {
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Job Details</Text>
+          <View style={styles.headerCenter} pointerEvents="none">
+            <Text style={styles.headerTitle}>Job Details</Text>
+          </View>
           <View style={{ width: 24 }} />
         </View>
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -1796,20 +1839,24 @@ export default function JobDetailScreen() {
   const dailyStartDate = job.preferred_start_date
     ? new Date(job.preferred_start_date)
     : null;
-  const dailyEndDate =
-    job.scheduled_end_date &&
-    !Number.isNaN(new Date(job.scheduled_end_date).getTime())
-      ? new Date(job.scheduled_end_date)
-      : dailyStartDate && dailyDuration > 0
-        ? new Date(
-            dailyStartDate.getFullYear(),
-            dailyStartDate.getMonth(),
-            dailyStartDate.getDate() + dailyDuration - 1,
-          )
-        : null;
+  const durationDays = Math.max(dailyDuration, job.payment_model === "DAILY" ? 1 : 0);
+  const shiftLabel =
+    job.shift_type === "MORNING"
+      ? "Day Shift"
+      : job.shift_type === "NIGHT"
+        ? "Night Shift"
+        : "Anytime";
+  const startDateLabel = job.preferred_start_date
+    ? new Date(job.preferred_start_date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    : null;
+  const durationLabel = durationDays > 0 ? `${durationDays} Day${durationDays === 1 ? "" : "s"}` : null;
+  const postedTimeAgo = formatRelativePostedTime(job.createdAt || job.postedAt);
   const todayDate = new Date();
   const dayProgress =
-    job.payment_model === "DAILY" && dailyStartDate && dailyDuration > 0
+    job.payment_model === "DAILY" && dailyStartDate && durationDays > 0
       ? Math.min(
           Math.max(
             Math.floor(
@@ -1827,9 +1874,14 @@ export default function JobDetailScreen() {
             ) + 1,
             1,
           ),
-          dailyDuration,
+          durationDays,
         )
       : null;
+  const hasLifecycleEvents = Boolean(
+    job.workerMarkedOnTheWay ||
+      job.workerMarkedJobStarted ||
+      job.clientConfirmedWorkStarted,
+  );
 
   const formatReviewDate = (value?: string) => {
     if (!value) return null;
@@ -2014,7 +2066,10 @@ export default function JobDetailScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Job Details</Text>
+        <View style={styles.headerCenter} pointerEvents="none">
+          <Text style={styles.headerTitle}>Job Details</Text>
+          <Text style={styles.headerSubtitle}>Posted {postedTimeAgo}</Text>
+        </View>
         <View style={styles.headerRight}>
           {/* Edit button - only show for job owner on ACTIVE jobs */}
           {user?.accountID === job.postedBy?.id && job.status === "ACTIVE" && (
@@ -2060,7 +2115,6 @@ export default function JobDetailScreen() {
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photos</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {job.photos.map((photo) => (
                 <TouchableOpacity
@@ -2084,7 +2138,6 @@ export default function JobDetailScreen() {
         {/* Job Header */}
         <View style={styles.jobHeader}>
           <View style={styles.jobTitleRow}>
-            <Text style={styles.jobTitle}>{job.title}</Text>
             <View
               style={[
                 styles.urgencyBadge,
@@ -2095,31 +2148,13 @@ export default function JobDetailScreen() {
                 {job.urgency}
               </Text>
             </View>
+            <Text style={styles.jobTitle}>{job.title}</Text>
           </View>
           <View style={styles.jobMetaRow}>
             {job.preferred_start_date ? (
-              <View style={styles.jobDateBubblesRow}>
-                <View style={styles.jobDateBubble}>
-                  <Text style={styles.jobDateBubbleText}>
-                    <Text style={styles.jobDateBubbleLabel}>Start</Text>
-                    {` ${new Date(job.preferred_start_date).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })}`}
-                  </Text>
-                </View>
-                {dailyEndDate && (
-                  <View style={styles.jobDateBubble}>
-                    <Text style={styles.jobDateBubbleText}>
-                      <Text style={styles.jobDateBubbleLabel}>End</Text>
-                      {` ${dailyEndDate.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}`}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <Text style={styles.jobMetaInlineText}>
+                {[startDateLabel, durationLabel, shiftLabel].filter(Boolean).join(" \u00B7 ")}
+              </Text>
             ) : (
               <Text style={styles.jobStartDate}>{`Posted ${job.postedAt}`}</Text>
             )}
@@ -2165,16 +2200,18 @@ export default function JobDetailScreen() {
           )}
         </View>
 
-        <View style={styles.section}>
-          <JobLifecycleTimeline
-            workerMarkedOnTheWay={job.workerMarkedOnTheWay}
-            workerMarkedOnTheWayAt={job.workerMarkedOnTheWayAt}
-            workerMarkedJobStarted={job.workerMarkedJobStarted}
-            workerMarkedJobStartedAt={job.workerMarkedJobStartedAt}
-            clientConfirmedWorkStarted={job.clientConfirmedWorkStarted}
-            clientConfirmedWorkStartedAt={job.clientConfirmedWorkStartedAt}
-          />
-        </View>
+        {hasLifecycleEvents && (
+          <View style={styles.section}>
+            <JobLifecycleTimeline
+              workerMarkedOnTheWay={job.workerMarkedOnTheWay}
+              workerMarkedOnTheWayAt={job.workerMarkedOnTheWayAt}
+              workerMarkedJobStarted={job.workerMarkedJobStarted}
+              workerMarkedJobStartedAt={job.workerMarkedJobStartedAt}
+              clientConfirmedWorkStarted={job.clientConfirmedWorkStarted}
+              clientConfirmedWorkStartedAt={job.clientConfirmedWorkStartedAt}
+            />
+          </View>
+        )}
 
         {job.status === "CANCELLED" && (
           <View style={styles.section}>
@@ -2244,30 +2281,25 @@ export default function JobDetailScreen() {
                   ? `₱${job.budgetRangeMin.toLocaleString()} - ₱${job.budgetRangeMax.toLocaleString()}`
                   : job.budget}
               </Text>
-              {job.payment_model === "DAILY" && job.daily_rate_agreed ? (
+              {job.payment_model === "DAILY" ? (
                 <View style={{ marginTop: 2 }}>
-                  <Text style={{ fontSize: 11, color: Colors.primary }}>
-                    Daily Rate: ₱
-                    {Number(job.daily_rate_agreed).toLocaleString()}/day
-                  </Text>
-                  {dailyDuration > 0 && (
+                  {job.daily_rate_agreed != null && (
+                    <Text style={{ fontSize: 11, color: Colors.primary }}>
+                      Daily Rate: ₱
+                      {Number(job.daily_rate_agreed).toLocaleString()}/day
+                    </Text>
+                  )}
+                  {durationDays > 0 && (
                     <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
-                      Duration: {dailyDuration} days
+                      Duration: {durationDays} day{durationDays === 1 ? "" : "s"}
                       {dayProgress
-                        ? ` (Day ${dayProgress}/${dailyDuration})`
+                        ? ` (Day ${dayProgress}/${durationDays})`
                         : ""}
                     </Text>
                   )}
-                  {dailyEndDate && (
-                    <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
-                      End Date:{" "}
-                      {dailyEndDate.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </Text>
-                  )}
+                  <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                    Shift: {shiftLabel}
+                  </Text>
                 </View>
               ) : (
                 <Text
@@ -2282,7 +2314,7 @@ export default function JobDetailScreen() {
               )}
             </View>
           </View>
-          <View style={styles.verticalDivider} />
+          <View style={styles.horizontalDivider} />
           <View style={styles.detailCard}>
             <Ionicons
               name="location-outline"
@@ -2292,26 +2324,33 @@ export default function JobDetailScreen() {
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Location</Text>
               <Text style={styles.detailValue}>{locationDisplayText}</Text>
-              {isWorker && canWorkerViewFullAddress && (
-                <View style={styles.clientContactBlock}>
-                  <Text style={styles.clientContactLabel}>Client Contact</Text>
-                  <Text style={styles.clientContactValue}>
-                    {job.postedBy?.phone || "Not available"}
-                  </Text>
-                  {!!job.postedBy?.phone && (
-                    <TouchableOpacity
-                      style={styles.callClientButton}
-                      onPress={handleCallClient}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="call-outline" size={16} color={Colors.white} />
-                      <Text style={styles.callClientButtonText}>Call Client</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
             </View>
           </View>
+          {isWorker && canWorkerViewFullAddress && (
+            <View style={styles.detailCard}>
+              <Ionicons
+                name="call-outline"
+                size={24}
+                color={Colors.primary}
+              />
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Client Contact</Text>
+                <Text style={styles.detailValue}>
+                  {job.postedBy?.phone || "Not available"}
+                </Text>
+                {!!job.postedBy?.phone && (
+                  <TouchableOpacity
+                    style={styles.callClientButton}
+                    onPress={handleCallClient}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="call-outline" size={16} color={Colors.white} />
+                    <Text style={styles.callClientButtonText}>Call Client</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Expected Duration */}
@@ -4842,11 +4881,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    position: "relative",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  headerCenter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   backIconButton: {
     padding: Spacing.xs,
@@ -4866,6 +4913,14 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     fontWeight: "700",
     color: Colors.textPrimary,
+    textAlign: "center",
+  },
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "400",
+    color: Colors.textSecondary,
+    textAlign: "center",
   },
   jobHeader: {
     backgroundColor: Colors.white,
@@ -4876,22 +4931,20 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   jobTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
     alignItems: "flex-start",
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   jobTitle: {
-    flex: 1,
     fontSize: 28, // Made larger as requested
     fontWeight: "800",
     color: Colors.textPrimary,
-    marginRight: Spacing.md,
   },
   urgencyBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: BorderRadius.sm,
+    marginBottom: 6,
   },
   urgencyText: {
     fontSize: Typography.fontSize.xs,
@@ -4926,24 +4979,20 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   detailsSection: {
-    flexDirection: "row",
+    flexDirection: "column",
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
     paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
   detailCard: {
-    flex: 1,
-    flexBasis: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: Spacing.sm,
   },
-  verticalDivider: {
-    width: 1,
+  horizontalDivider: {
+    height: 1,
     backgroundColor: Colors.border,
-    marginHorizontal: Spacing.sm,
-    height: "100%",
   },
   detailContent: {
     marginLeft: Spacing.sm,
@@ -5018,8 +5067,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   photoThumbnail: {
-    width: 120,
-    height: 120,
+    width: 150,
+    height: 150,
     borderRadius: BorderRadius.md,
     marginRight: Spacing.md,
     backgroundColor: Colors.background,
@@ -5133,29 +5182,10 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   // Job Details
-  jobDateBubblesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.xs,
-    alignItems: "center",
-    flex: 1,
-  },
-  jobDateBubble: {
-    borderWidth: 1,
-    borderColor: "#00BAF1",
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    backgroundColor: Colors.white,
-  },
-  jobDateBubbleText: {
+  jobMetaInlineText: {
     fontSize: Typography.fontSize.sm,
     color: "#00BAF1",
-    fontWeight: "500",
-  },
-  jobDateBubbleLabel: {
-    color: "#00BAF1",
-    fontWeight: "700",
+    fontWeight: "600",
   },
   jobStartDate: {
     fontSize: Typography.fontSize.base,

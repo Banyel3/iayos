@@ -222,6 +222,7 @@ export function useApplyToSkillSlot() {
         queryKey: ["jobs", variables.jobId.toString()],
       });
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
