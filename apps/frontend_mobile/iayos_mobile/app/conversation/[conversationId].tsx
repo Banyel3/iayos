@@ -986,9 +986,9 @@ export default function ChatScreen() {
         existing.skills.push(skill);
       }
       existing.client_confirmed_arrival =
-        existing.client_confirmed_arrival && arrived;
+        existing.client_confirmed_arrival || arrived;
       existing.worker_marked_complete =
-        existing.worker_marked_complete && complete;
+        existing.worker_marked_complete || complete;
       if (!existing.client_confirmed_arrival_at && raw?.client_confirmed_arrival_at) {
         existing.client_confirmed_arrival_at = raw.client_confirmed_arrival_at;
       }
@@ -1365,6 +1365,38 @@ export default function ChatScreen() {
     useState(false);
   const [isTestingModeEnabled, setIsTestingModeEnabled] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
+  const [arrivalConfirmPendingKeys, setArrivalConfirmPendingKeys] = useState<
+    Record<string, boolean>
+  >({});
+
+  const getArrivalConfirmKey = (
+    type: "WORKER" | "AGENCY" | "PROJECT",
+    id: number,
+  ) => `${type}:${id}`;
+
+  const isArrivalConfirmPending = (
+    type: "WORKER" | "AGENCY" | "PROJECT",
+    id: number,
+  ) => Boolean(arrivalConfirmPendingKeys[getArrivalConfirmKey(type, id)]);
+
+  const setArrivalConfirmPending = (
+    type: "WORKER" | "AGENCY" | "PROJECT",
+    id: number,
+    pending: boolean,
+  ) => {
+    const key = getArrivalConfirmKey(type, id);
+    setArrivalConfirmPendingKeys((prev) => {
+      if (pending) {
+        if (prev[key]) return prev;
+        return { ...prev, [key]: true };
+      }
+
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1626,6 +1658,7 @@ export default function ChatScreen() {
     workerName: string,
   ) => {
     if (!conversation) return;
+    if (isArrivalConfirmPending("WORKER", assignmentId)) return;
 
     Alert.alert(
       "Confirm Worker Arrival",
@@ -1635,9 +1668,14 @@ export default function ChatScreen() {
         {
           text: "Confirm Arrival",
           onPress: () => {
+            setArrivalConfirmPending("WORKER", assignmentId, true);
             confirmTeamWorkerArrivalMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
+            }, {
+              onSettled: () => {
+                setArrivalConfirmPending("WORKER", assignmentId, false);
+              },
             });
           },
         },
@@ -1650,6 +1688,7 @@ export default function ChatScreen() {
     employeeName: string,
   ) => {
     if (!conversation) return;
+    if (isArrivalConfirmPending("AGENCY", assignmentId)) return;
 
     Alert.alert(
       "Confirm Employee Arrival",
@@ -1659,9 +1698,14 @@ export default function ChatScreen() {
         {
           text: "Confirm Arrival",
           onPress: () => {
+            setArrivalConfirmPending("AGENCY", assignmentId, true);
             confirmTeamEmployeeArrivalMutation.mutate({
               jobId: conversation.job.id,
               assignmentId,
+            }, {
+              onSettled: () => {
+                setArrivalConfirmPending("AGENCY", assignmentId, false);
+              },
             });
           },
         },
@@ -3915,6 +3959,8 @@ export default function ChatScreen() {
   const isAnyMultiDayFlow = effectiveDurationDays > 1;
   const isTeamSingleDayProjectAttendanceFlow =
     isTeamProjectAttendance && !isProjectMultiDayJob;
+  const isDirectHireAgencyJob =
+    conversation.is_agency_job === true && conversation.is_team_job !== true;
   const shouldChargePerAttendance = conversation.job?.payment_model === "DAILY";
   const canShowQASkipNextDay =
     conversation.my_role === "CLIENT" &&
@@ -4720,10 +4766,15 @@ export default function ChatScreen() {
                         ? conversation.assigned_employees
                         : [];
                       const dispatchedCount = assignedEmployees.filter(
-                        (e) => e.dispatched,
+                        (e) => Boolean(getAgencyDispatchedFlag(e)),
                       ).length;
                       const pendingArrivalCount = assignedEmployees.filter(
-                        (e) => e.dispatched && !e.clientConfirmedArrival,
+                        (e) => {
+                          const arrived = Boolean(getAgencyArrivedFlag(e));
+                          if (arrived) return false;
+                          if (isDirectHireAgencyJob) return true;
+                          return Boolean(getAgencyDispatchedFlag(e));
+                        },
                       ).length;
                       const onSiteWorkingCount = assignedEmployees.filter(
                         (e: any) =>
@@ -4743,7 +4794,8 @@ export default function ChatScreen() {
                           ? `${onSiteWorkingCount} employee${onSiteWorkingCount > 1 ? "s" : ""} working on site...`
                           : pendingArrivalCount > 0
                             ? `Confirm Arrivals (${pendingArrivalCount} on the way)`
-                            : dispatchedCount < assignedEmployees.length
+                            : !isDirectHireAgencyJob &&
+                                dispatchedCount < assignedEmployees.length
                               ? `Waiting for agency to dispatch employees (${dispatchedCount} of ${assignedEmployees.length} dispatched)`
                               : null;
 
@@ -4814,7 +4866,9 @@ export default function ChatScreen() {
                         (conversation.team_agency_employees?.length ?? 0) >
                           0)) &&
                     conversation.job.payment_model === "PROJECT" &&
-                    (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
+                    (!isProjectMultiDayJob ||
+                      isBackjobActiveForDispatch ||
+                      isDirectHireAgencyJob) &&
                     (() => {
                       // For pure agency jobs use assigned_employees; for
                       // mixed team+agency jobs use team_agency_employees.
@@ -4823,15 +4877,21 @@ export default function ChatScreen() {
                         : (conversation.assigned_employees ?? []);
 
                       const pendingArrivalEmployees = sourceEmployees.filter(
-                        (e) =>
-                          isAgencyStatusInCurrentBackjobCycle(
-                            getAgencyDispatchedFlag(e),
-                            getAgencyDispatchedAt(e),
-                          ) &&
-                          !isAgencyStatusInCurrentBackjobCycle(
+                        (e) => {
+                          const arrived = isAgencyStatusInCurrentBackjobCycle(
                             getAgencyArrivedFlag(e),
                             getAgencyArrivedAt(e),
-                          ),
+                          );
+                          if (arrived) return false;
+
+                          // Direct-hire uses client-first arrival confirmation.
+                          if (isDirectHireAgencyJob) return true;
+
+                          return isAgencyStatusInCurrentBackjobCycle(
+                            getAgencyDispatchedFlag(e),
+                            getAgencyDispatchedAt(e),
+                          );
+                        },
                       );
 
                       if (pendingArrivalEmployees.length === 0) return null;
@@ -4871,18 +4931,64 @@ export default function ChatScreen() {
                                             conversation.is_team_job &&
                                             Number.isFinite(assignmentId)
                                           ) {
+                                            if (
+                                              isArrivalConfirmPending(
+                                                "AGENCY",
+                                                assignmentId,
+                                              )
+                                            ) {
+                                              return;
+                                            }
+
+                                            setArrivalConfirmPending(
+                                              "AGENCY",
+                                              assignmentId,
+                                              true,
+                                            );
                                             confirmTeamEmployeeArrivalMutation.mutate(
                                               {
                                                 jobId: conversation.job.id,
                                                 assignmentId,
                                               },
+                                              {
+                                                onSettled: () => {
+                                                  setArrivalConfirmPending(
+                                                    "AGENCY",
+                                                    assignmentId,
+                                                    false,
+                                                  );
+                                                },
+                                              },
                                             );
                                             return;
                                           }
 
+                                          if (
+                                            isArrivalConfirmPending(
+                                              "PROJECT",
+                                              employeeId,
+                                            )
+                                          ) {
+                                            return;
+                                          }
+
+                                          setArrivalConfirmPending(
+                                            "PROJECT",
+                                            employeeId,
+                                            true,
+                                          );
+
                                           confirmProjectArrivalMutation.mutate({
                                             jobId: conversation.job.id,
                                             employeeId,
+                                          }, {
+                                            onSettled: () => {
+                                              setArrivalConfirmPending(
+                                                "PROJECT",
+                                                employeeId,
+                                                false,
+                                              );
+                                            },
                                           });
                                         },
                                       },
@@ -4891,14 +4997,38 @@ export default function ChatScreen() {
                                 }
                                 disabled={
                                   conversation.is_team_job
-                                    ? confirmTeamEmployeeArrivalMutation.isPending
-                                    : confirmProjectArrivalMutation.isPending
+                                    ? (
+                                        Number.isFinite(
+                                          Number(employee?.assignment_id),
+                                        ) &&
+                                        isArrivalConfirmPending(
+                                          "AGENCY",
+                                          Number(employee?.assignment_id),
+                                        )
+                                      ) ||
+                                      confirmTeamEmployeeArrivalMutation.isPending
+                                    : isArrivalConfirmPending(
+                                        "PROJECT",
+                                        employeeId,
+                                      ) || confirmProjectArrivalMutation.isPending
                                 }
                                 activeOpacity={0.85}
                               >
                                 {(conversation.is_team_job
-                                  ? confirmTeamEmployeeArrivalMutation.isPending
-                                  : confirmProjectArrivalMutation.isPending) ? (
+                                  ? (
+                                      Number.isFinite(
+                                        Number(employee?.assignment_id),
+                                      ) &&
+                                      isArrivalConfirmPending(
+                                        "AGENCY",
+                                        Number(employee?.assignment_id),
+                                      )
+                                    ) ||
+                                    confirmTeamEmployeeArrivalMutation.isPending
+                                  : isArrivalConfirmPending(
+                                      "PROJECT",
+                                      employeeId,
+                                    ) || confirmProjectArrivalMutation.isPending) ? (
                                   <ActivityIndicator
                                     size="small"
                                     color={Colors.white}
@@ -7623,7 +7753,9 @@ export default function ChatScreen() {
                   (conversation.team_agency_employees?.length ?? 0) > 0)) &&
                 conversation.my_role === "AGENCY" &&
                 conversation.job.payment_model === "PROJECT" &&
-                (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
+                (!isProjectMultiDayJob ||
+                  isBackjobActiveForDispatch ||
+                  isDirectHireAgencyJob) &&
                  agencyAssignedEmployees.length > 0 &&
                  (() => {
                    const assignedEmployees = agencyAssignedEmployees;
@@ -7851,7 +7983,9 @@ export default function ChatScreen() {
                 (conversation.is_team_job &&
                   (conversation.team_agency_employees?.length ?? 0) > 0)) &&
                 conversation.my_role === "CLIENT" &&
-                (!isProjectMultiDayJob || isBackjobActiveForDispatch) &&
+                (!isProjectMultiDayJob ||
+                  isBackjobActiveForDispatch ||
+                  isDirectHireAgencyJob) &&
                 agencyAssignedEmployees.length > 0 &&
                 (() => {
                   const assignedEmployees = agencyAssignedEmployees;
@@ -7903,7 +8037,11 @@ export default function ChatScreen() {
                       );
 
                   const allWorkflowComplete =
-                    (isDailyAgencyFlow ? allArrived : allDispatched && allArrived) &&
+                    (isDailyAgencyFlow
+                      ? allArrived
+                      : isDirectHireAgencyJob
+                        ? allArrived
+                        : allDispatched && allArrived) &&
                     allComplete &&
                     allFreelancersComplete;
 
