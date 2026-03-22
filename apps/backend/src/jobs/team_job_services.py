@@ -2984,11 +2984,42 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
             "error": "No active assignments found for this worker",
         }
 
-    # Check if already confirmed across all active assignments for this worker.
+    # Idempotent: if every active assignment for this worker is already confirmed,
+    # return success so stale client state can converge without a hard failure.
     if all(a.client_confirmed_arrival for a in worker_assignments):
+        confirmed_at = next(
+            (
+                a.client_confirmed_arrival_at
+                for a in worker_assignments
+                if a.client_confirmed_arrival_at
+            ),
+            assignment.client_confirmed_arrival_at,
+        )
+
+        total_workers = JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE"
+        ).count()
+        arrived_workers = JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE", client_confirmed_arrival=True
+        ).count()
+
+        worker_name = (
+            f"{assignment.workerID.profileID.firstName} "
+            f"{assignment.workerID.profileID.lastName}"
+        ).strip() or "Worker"
+
         return {
-            "success": False,
-            "error": f"Worker arrival already confirmed at {assignment.client_confirmed_arrival_at.strftime('%Y-%m-%d %H:%M')}",
+            "success": True,
+            "already_confirmed": True,
+            "assignment_id": assignment.assignmentID,
+            "updated_assignment_ids": [a.assignmentID for a in worker_assignments],
+            "updated_count": len(worker_assignments),
+            "worker_name": worker_name,
+            "confirmed_at": confirmed_at.isoformat() if confirmed_at else None,
+            "all_workers_arrived": arrived_workers == total_workers,
+            "arrived_count": arrived_workers,
+            "total_count": total_workers,
+            "message": f"{worker_name} arrival was already confirmed",
         }
 
     # Unified arrival confirmation across all active assignments for this worker.

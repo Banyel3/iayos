@@ -21,7 +21,11 @@ from accounts.models import (
     workerSpecialization,
 )
 from adminpanel.models import ContentModerationTerm
-from jobs.team_job_services import create_team_job, early_complete_single_project_job
+from jobs.team_job_services import (
+    confirm_team_worker_arrival,
+    create_team_job,
+    early_complete_single_project_job,
+)
 from jobs.api import accept_job_invite_worker, confirm_project_employee_arrival
 from jobs.text_moderation import validate_job_post_content
 from agency.services import get_agency_jobs, assign_employees_to_slots
@@ -515,6 +519,70 @@ class AgencyHybridInviteCompatibilityTests(TestCase):
         assignment.refresh_from_db()
         self.assertTrue(assignment.dispatched)
         self.assertTrue(assignment.clientConfirmedArrival)
+
+    def test_confirm_team_worker_arrival_is_idempotent(self):
+        job = self._create_direct_agency_team_job(
+            invite_status="ACCEPTED",
+            status="IN_PROGRESS",
+        )
+
+        worker_account = Accounts.objects.create_user(
+            email="team-freelance-worker@test.com",
+            password="password123",
+            isVerified=True,
+            verification_level=2,
+            KYCVerified=True,
+        )
+        worker_profile = Profile.objects.create(
+            accountFK=worker_account,
+            profileType="WORKER",
+            firstName="Chris",
+            lastName="Worker",
+        )
+        worker = WorkerProfile.objects.create(
+            profileID=worker_profile,
+            yearsOfExperience=2,
+            nbiClearance="NBI-67890",
+            certification="Basic",
+        )
+
+        slot = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1000.00"),
+            skill_level_required="ENTRY",
+            status="OPEN",
+        )
+
+        assignment = JobWorkerAssignment.objects.create(
+            jobID=job,
+            skillSlotID=slot,
+            workerID=worker,
+            assignment_status="ACTIVE",
+            client_confirmed_arrival=False,
+        )
+
+        first_result = confirm_team_worker_arrival(
+            job_id=job.jobID,
+            assignment_id=assignment.assignmentID,
+            client_user=self.client_account,
+        )
+        self.assertTrue(first_result.get("success"), msg=first_result)
+        self.assertEqual(first_result.get("updated_count"), 1)
+
+        second_result = confirm_team_worker_arrival(
+            job_id=job.jobID,
+            assignment_id=assignment.assignmentID,
+            client_user=self.client_account,
+        )
+        self.assertTrue(second_result.get("success"), msg=second_result)
+        self.assertTrue(second_result.get("already_confirmed"), msg=second_result)
+        self.assertEqual(second_result.get("updated_count"), 1)
+        self.assertEqual(
+            second_result.get("updated_assignment_ids"), [assignment.assignmentID]
+        )
+        self.assertIsNotNone(second_result.get("confirmed_at"))
 
     def test_verify_arrival_accepts_awaiting_worker_reference(self):
         job = Job.objects.create(

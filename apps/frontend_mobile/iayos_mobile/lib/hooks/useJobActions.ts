@@ -179,7 +179,22 @@ export function useConfirmWorkerArrived() {
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      const message = (error.message || "").toLowerCase();
+      if (message.includes("already confirmed")) {
+        queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+        queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
+        queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+        queryClient.invalidateQueries({ queryKey: ["jobs"] });
+
+        Toast.show({
+          type: "success",
+          text1: "Worker Arrival Already Confirmed",
+          text2: "Refreshing status to latest state",
+        });
+        return;
+      }
+
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
