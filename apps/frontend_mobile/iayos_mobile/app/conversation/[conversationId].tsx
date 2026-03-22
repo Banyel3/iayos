@@ -1788,13 +1788,11 @@ export default function ChatScreen() {
 
     const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
       const status = String(row?.status || "").toUpperCase();
-      const supportsSettlementStatus = ["PRESENT", "HALF_DAY", "ABSENT"].includes(
-        status,
-      );
+      const isDisputedRow = status === "DISPUTED";
 
       return (
         Number.isFinite(Number(row?.attendance_id)) &&
-        supportsSettlementStatus &&
+        !isDisputedRow &&
         !Boolean(row?.client_confirmed) &&
         !Boolean(row?.payment_processed) &&
         Boolean(row?.worker_confirmed)
@@ -6413,24 +6411,45 @@ export default function ChatScreen() {
                     conversation.team_agency_employees ?? [];
 
                   const assignments: UnifiedTeamAssignment[] = [
-                    ...workerAssignments.map((a) => ({
-                      type: "WORKER" as const,
-                      assignment_id: Number(a.assignment_ids?.[0]),
-                      name: a.name,
-                      skill:
-                        Array.isArray(a.skills) && a.skills.length > 0
-                          ? a.skills.join(", ")
-                          : "Team Worker",
-                      avatar: a.avatar,
-                      arrived: Boolean(a.client_confirmed_arrival),
-                      completed: Boolean(a.worker_marked_complete),
-                      can_early_finish: false,
-                      worker_marked_complete: Boolean(a.worker_marked_complete),
-                      marked_complete: Boolean(a.worker_marked_complete),
-                      early_completed: false,
-                      early_finish_quote: null,
-                      early_completion_payout: null,
-                    })),
+                    ...workerAssignments.map((a) => {
+                      const assignmentIds = Array.isArray(a.assignment_ids)
+                        ? a.assignment_ids
+                            .map((id) => Number(id))
+                            .filter((id) => Number.isFinite(id))
+                        : [];
+                      const workerRows = teamAssignedWorkers.filter((row: any) =>
+                        assignmentIds.includes(Number(row?.assignment_id)),
+                      );
+
+                      return {
+                        type: "WORKER" as const,
+                        assignment_id: Number(assignmentIds[0]),
+                        name: a.name,
+                        skill:
+                          Array.isArray(a.skills) && a.skills.length > 0
+                            ? a.skills.join(", ")
+                            : "Team Worker",
+                        avatar: a.avatar,
+                        arrived: Boolean(a.client_confirmed_arrival),
+                        completed: Boolean(a.worker_marked_complete),
+                        can_early_finish: workerRows.some((row: any) =>
+                          Boolean(row?.can_early_finish),
+                        ),
+                        worker_marked_complete: Boolean(a.worker_marked_complete),
+                        marked_complete: Boolean(a.worker_marked_complete),
+                        early_completed: workerRows.some((row: any) =>
+                          Boolean(row?.early_completed),
+                        ),
+                        early_finish_quote:
+                          workerRows.find(
+                            (row: any) => row?.early_finish_quote != null,
+                          )?.early_finish_quote ?? null,
+                        early_completion_payout:
+                          workerRows.find(
+                            (row: any) => row?.early_completion_payout != null,
+                          )?.early_completion_payout ?? null,
+                      };
+                    }),
                     ...agencyAssignments.map((a) => ({
                       type: "AGENCY" as const,
                       assignment_id: Number(a.assignment_id),
