@@ -1787,17 +1787,20 @@ export default function ChatScreen() {
     if (!conversation) return;
 
     const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
+      const attendanceId = Number(row?.attendance_id ?? row?.id);
       const status = String(row?.status || "").toUpperCase();
       const isDisputedRow = status === "DISPUTED";
 
       return (
-        Number.isFinite(Number(row?.attendance_id)) &&
+        Number.isFinite(attendanceId) &&
         !isDisputedRow &&
         !Boolean(row?.client_confirmed) &&
-        !Boolean(row?.payment_processed) &&
-        Boolean(row?.worker_confirmed)
+        !Boolean(row?.payment_processed)
       );
-    });
+    }).map((row: any) => ({
+      ...row,
+      attendance_id: Number(row?.attendance_id ?? row?.id),
+    }));
 
     if (payableRows.length === 0) {
       Alert.alert(
@@ -8090,16 +8093,14 @@ export default function ChatScreen() {
                               disabled={
                                 isTeamAgencyJob
                                   ? isDailyAgencyFlow
-                                    ? isBulkDailySettlementInFlight ||
-                                      clientConfirmAttendanceMutation.isPending
+                                    ? isBulkDailySettlementInFlight
                                     : approveTeamJobCompletionMutation.isPending
                                   : approveAgencyProjectJobMutation.isPending
                               }
                             >
                               {(isTeamAgencyJob
                                 ? isDailyAgencyFlow
-                                  ? isBulkDailySettlementInFlight ||
-                                    clientConfirmAttendanceMutation.isPending
+                                  ? isBulkDailySettlementInFlight
                                   : approveTeamJobCompletionMutation.isPending
                                 : approveAgencyProjectJobMutation.isPending) ? (
                                 <ActivityIndicator
