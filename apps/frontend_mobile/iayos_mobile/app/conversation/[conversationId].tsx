@@ -1738,6 +1738,18 @@ export default function ChatScreen() {
       ? conversation.team_worker_assignments
       : [];
 
+    const isDailyTeamJob = conversation.job.payment_model === "DAILY";
+
+    // All valid worker assignment IDs
+    const workerAssignmentIds = Array.from(
+      new Set(
+        teamWorkerRows
+          .map((row: any) => Number(row?.assignment_id))
+          .filter((assignmentId: number) => Number.isFinite(assignmentId)),
+      ),
+    );
+
+    // Pending-only worker assignment IDs
     const pendingWorkerAssignmentIds = Array.from(
       new Set(
         teamWorkerRows
@@ -1754,6 +1766,16 @@ export default function ChatScreen() {
       ),
     );
 
+    // All valid employee assignment IDs
+    const employeeAssignmentIds = Array.from(
+      new Set(
+        agencyAssignedEmployees
+          .map((employee: any) => Number(employee?.assignment_id))
+          .filter((assignmentId: number) => Number.isFinite(assignmentId)),
+      ),
+    );
+
+    // Pending-only employee assignment IDs
     const pendingEmployeeAssignmentIds = Array.from(
       new Set(
         agencyAssignedEmployees
@@ -1773,16 +1795,21 @@ export default function ChatScreen() {
       ),
     );
 
+    // For DAILY jobs: target all assignments (idempotent re-confirm)
+    // For non-DAILY: target only pending arrivals
+    const workerTargets = isDailyTeamJob ? workerAssignmentIds : pendingWorkerAssignmentIds;
+    const employeeTargets = isDailyTeamJob ? employeeAssignmentIds : pendingEmployeeAssignmentIds;
+
     if (
-      pendingWorkerAssignmentIds.length === 0 &&
-      pendingEmployeeAssignmentIds.length === 0
+      workerTargets.length === 0 &&
+      employeeTargets.length === 0
     ) {
       return conversation;
     }
 
     setIsApprovePayPreflightInFlight(true);
     try {
-      for (const assignmentId of pendingWorkerAssignmentIds) {
+      for (const assignmentId of workerTargets) {
         setArrivalConfirmPending("WORKER", assignmentId, true);
         try {
           await confirmTeamWorkerArrivalMutation.mutateAsync({
@@ -1798,7 +1825,7 @@ export default function ChatScreen() {
         }
       }
 
-      for (const assignmentId of pendingEmployeeAssignmentIds) {
+      for (const assignmentId of employeeTargets) {
         setArrivalConfirmPending("AGENCY", assignmentId, true);
         try {
           await confirmTeamEmployeeArrivalMutation.mutateAsync({
