@@ -1940,36 +1940,16 @@ export default function ChatScreen() {
   const handleApproveDailyTeamWorkday = async () => {
     if (!conversation) return;
 
-    const preflightConversation = await runApprovePayArrivalPreflight();
-    if (!preflightConversation) return;
-
-    const refreshedResult = await refetch();
-    const latestConversation =
-      (refreshedResult?.data as ConversationDetail | undefined) ?? preflightConversation;
-
-    const payableRows = (latestConversation.attendance_today ?? []).filter((row: any) => {
+    const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
       const attendanceId = Number(row?.attendance_id ?? row?.id);
       const status = String(row?.status || "").toUpperCase();
       const isDisputedRow = status === "DISPUTED";
 
-      return (
-        Number.isFinite(attendanceId) &&
-        !isDisputedRow &&
-        !Boolean(row?.client_confirmed) &&
-        !Boolean(row?.payment_processed)
-      );
+      return Number.isFinite(attendanceId) && !isDisputedRow;
     }).map((row: any) => ({
       ...row,
       attendance_id: Number(row?.attendance_id ?? row?.id),
     }));
-
-    if (payableRows.length === 0) {
-      Alert.alert(
-        "Nothing To Settle",
-        "No attendance rows are available for today yet. Please refresh and try again after arrivals/completions sync.",
-      );
-      return;
-    }
 
     const totalAmount = payableRows.reduce(
       (sum: number, row: any) => sum + Number(row?.amount_earned || 0),
@@ -1995,24 +1975,32 @@ export default function ChatScreen() {
 
           setIsBulkDailySettlementInFlight(true);
           try {
+            let settledCount = 0;
+
             for (const row of payableRows) {
-              await clientConfirmAttendanceMutation.mutateAsync({
-                attendanceId: Number(row.attendance_id),
-                paymentMethod: "WALLET",
-              });
+              try {
+                await clientConfirmAttendanceMutation.mutateAsync({
+                  attendanceId: Number(row.attendance_id),
+                  paymentMethod: "WALLET",
+                });
+                settledCount += 1;
+              } catch {
+                // Keep going so one bad row does not block settling other workers.
+              }
             }
 
-            Toast.show({
-              type: "success",
-              text1: "Workday Settled",
-              text2: `${payableRows.length} attendance row(s) confirmed and paid`,
-            });
-          } catch (error) {
-            const message =
-              error instanceof Error
-                ? error.message
-                : "Failed to settle one or more attendance rows";
-            Alert.alert("Day Settlement Failed", message);
+            if (settledCount > 0) {
+              Toast.show({
+                type: "success",
+                text1: "Workday Settled",
+                text2: `${settledCount} attendance row(s) confirmed and paid`,
+              });
+            } else {
+              Alert.alert(
+                "Settlement Failed",
+                "Unable to settle attendance rows for today.",
+              );
+            }
           } finally {
             setIsBulkDailySettlementInFlight(false);
           }
@@ -8231,10 +8219,14 @@ export default function ChatScreen() {
                     allComplete &&
                     allFreelancersComplete;
 
+                  const showApprovePayButton = isDailyAgencyFlow
+                    ? allComplete && allFreelancersComplete
+                    : allWorkflowComplete;
+
                   return (
                     <>
                       {/* Single agency-level approve & pay button */}
-                      {allWorkflowComplete &&
+                      {showApprovePayButton &&
                         !conversation.job.clientMarkedComplete && (
                           <View style={styles.employeeActionsSection}>
                             <Text style={styles.actionSectionTitle}>
@@ -8257,8 +8249,7 @@ export default function ChatScreen() {
                               disabled={
                                 isTeamAgencyJob
                                   ? isDailyAgencyFlow
-                                    ? isBulkDailySettlementInFlight ||
-                                      isApprovePayPreflightInFlight
+                                    ? isBulkDailySettlementInFlight
                                     : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight
                                   : approveAgencyProjectJobMutation.isPending
@@ -8266,8 +8257,7 @@ export default function ChatScreen() {
                             >
                               {(isTeamAgencyJob
                                 ? isDailyAgencyFlow
-                                  ? isBulkDailySettlementInFlight ||
-                                      isApprovePayPreflightInFlight
+                                  ? isBulkDailySettlementInFlight
                                   : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight
                                 : approveAgencyProjectJobMutation.isPending) ? (
