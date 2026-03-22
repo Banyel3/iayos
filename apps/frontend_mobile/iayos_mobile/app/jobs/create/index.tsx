@@ -61,6 +61,7 @@ interface Category {
   name: string;
   icon: string;
   minimum_rate: number;
+  is_custom?: boolean;
 }
 
 interface WorkerMaterial {
@@ -509,12 +510,19 @@ export default function CreateJobScreen() {
     isError: categoriesLoadError,
     error: categoriesError,
   } = useQuery({
-    queryKey: ["categories", workerId || "all"],
+    queryKey: ["categories", workerId || "all", agencyId || null],
     queryFn: async () => {
       const fetchCategories = async (url: string) => {
         const response = await fetchJson<{ categories: Category[] }>(url);
         return response.categories || [];
       };
+
+      // For agency hire, include the agency's custom skills in the category list.
+      if (agencyId) {
+        return fetchCategories(
+          `${ENDPOINTS.GET_CATEGORIES}?agency_id=${agencyId}`,
+        );
+      }
 
       // For direct worker hire, prefer worker-skill categories but gracefully
       // fall back to all categories when worker mapping is empty.
@@ -901,6 +909,9 @@ export default function CreateJobScreen() {
       if (agencySpecs.size > 0) {
         const specsArray = Array.from(agencySpecs);
         const filteredByAgencySpecs = list.filter((cat) => {
+          // Always include agency custom skills regardless of name matching
+          if (cat.is_custom) return true;
+
           const catName = cat.name.toLowerCase();
           return specsArray.some((spec) => {
             if (!spec) return false;
@@ -922,6 +933,12 @@ export default function CreateJobScreen() {
         // produce no hits (e.g., legacy/misaligned agency skill naming).
         if (filteredByAgencySpecs.length > 0) {
           list = filteredByAgencySpecs;
+        }
+      } else {
+        // No agency specs to match against but we still want to show custom skills
+        const customSkills = list.filter((cat) => cat.is_custom);
+        if (customSkills.length > 0) {
+          list = [...list.filter((cat) => !cat.is_custom), ...customSkills];
         }
       }
     }

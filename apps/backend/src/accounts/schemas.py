@@ -211,14 +211,15 @@ class CreateJobMobileSchema(Schema):
     expected_duration: str
     urgency_level: str  # 'LOW' | 'MEDIUM' | 'HIGH'
     preferred_start_date: str  # YYYY-MM-DD format (required)
-    scheduled_end_date: str  # YYYY-MM-DD format (required)
+    scheduled_end_date: Optional[str] = None  # YYYY-MM-DD format; derived server-side when number_of_working_days is provided
+    number_of_working_days: Optional[int] = None  # Replaces scheduled_end_date for duration
     materials_needed: Optional[list] = None  # List of strings
     downpayment_method: str  # 'WALLET' | 'GCASH'
     # Payment model fields
     payment_model: Optional[str] = "PROJECT"  # PROJECT or DAILY
     daily_rate: Optional[float] = None  # Required for DAILY model
     duration_days: Optional[int] = None  # Required for DAILY model
-    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT (for DAILY model)
+    shift_type: Optional[str] = "ANY"  # ANY, MORNING, or NIGHT
     # Universal fields for ML accuracy
     job_scope: Optional[str] = (
         "MINOR_REPAIR"  # 'MINOR_REPAIR' | 'MODERATE_PROJECT' | 'MAJOR_RENOVATION'
