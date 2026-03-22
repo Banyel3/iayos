@@ -3771,6 +3771,7 @@ export default function ChatScreen() {
   // it was still in the temporal dead zone, making !isProjectMultiDayJob always true).
   const isProjectMultiDayJob =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const isAnyMultiDayFlow = effectiveDurationDays > 1;
   const isTeamSingleDayProjectAttendanceFlow =
     isTeamProjectAttendance && !isProjectMultiDayJob;
   const shouldChargePerAttendance = conversation.job?.payment_model === "DAILY";
@@ -6317,7 +6318,8 @@ export default function ChatScreen() {
 
                               {/* Per-worker Complete Job Early & Pay button */}
                               {/* Per-assignment early finish & pay button for both freelancer and agency rows */}
-                              {assignment.can_early_finish &&
+                              {isAnyMultiDayFlow &&
+                                assignment.can_early_finish &&
                                 assignment.marked_complete &&
                                 !assignment.early_completed && (
                                   <TouchableOpacity
@@ -7269,12 +7271,14 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 )}
 
-              {/* CLIENT: Finish Early & Pay (Solo PROJECT) — full budget released now */}
+              {/* CLIENT: Finish Early & Pay (Solo multi-day flow) — full budget released now */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
-                isLegacySingleProjectFlow &&
+                isAnyMultiDayFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
+                (conversation.job.payment_model === "DAILY" ||
+                  isLegacySingleProjectFlow) &&
                 conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete &&

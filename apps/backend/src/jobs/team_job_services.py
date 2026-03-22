@@ -2754,6 +2754,13 @@ def early_complete_team_worker(job_id: int, assignment_id: int, client_user) -> 
             "error": "Early completion with full pay is only for DAILY team jobs",
         }
 
+    planned_days = int(getattr(job, "duration_days", 0) or 0)
+    if planned_days <= 1:
+        return {
+            "success": False,
+            "error": "Use standard completion flow for single-day jobs",
+        }
+
     if job.status != "IN_PROGRESS":
         return {
             "success": False,
@@ -2792,7 +2799,7 @@ def early_complete_team_worker(job_id: int, assignment_id: int, client_user) -> 
     daily_rate = (
         assignment.daily_rate_at_assignment or job.daily_rate_agreed or Decimal("0.00")
     )
-    total_planned_days = job.duration_days or 0
+    total_planned_days = planned_days
     full_contract_amount = daily_rate * Decimal(str(total_planned_days))
     already_earned = assignment.total_earned or Decimal("0.00")
     remaining_payout = full_contract_amount - already_earned
@@ -4189,6 +4196,12 @@ def early_complete_team_worker_project(
             "error": "This endpoint is for PROJECT team jobs only",
         }
 
+    if _get_required_project_days(job) <= 1:
+        return {
+            "success": False,
+            "error": "Use standard completion flow for single-day jobs",
+        }
+
     if job.status != "IN_PROGRESS":
         return {
             "success": False,
@@ -4321,6 +4334,21 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
 
     if not job.is_team_job:
         return {"success": False, "error": "This is not a team job"}
+
+    if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+        planned_days = int(getattr(job, "duration_days", 0) or 0)
+        if planned_days <= 1:
+            return {
+                "success": False,
+                "error": "Use standard completion flow for single-day jobs",
+            }
+
+    if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "PROJECT":
+        if _get_required_project_days(job) <= 1:
+            return {
+                "success": False,
+                "error": "Use standard completion flow for single-day jobs",
+            }
 
     if job.status != "IN_PROGRESS":
         return {
@@ -4500,6 +4528,12 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
 
     if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() != "PROJECT":
         return {"success": False, "error": "This endpoint is for PROJECT jobs only"}
+
+    if _get_required_project_days(job) <= 1:
+        return {
+            "success": False,
+            "error": "Use standard completion flow for single-day jobs",
+        }
 
     if job.is_team_job:
         return {

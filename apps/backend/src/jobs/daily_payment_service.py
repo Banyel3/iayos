@@ -1347,6 +1347,13 @@ class DailyPaymentService:
                 "error": f"Job must be IN_PROGRESS (current: {job.status})",
             }
 
+        planned_days = int(getattr(job, "duration_days", 0) or 0)
+        if planned_days <= 1:
+            return {
+                "success": False,
+                "error": "Use standard completion flow for single-day jobs",
+            }
+
         # Gate: at least one arrival confirmed today
         today = timezone.localdate()
         has_confirmed_today = DailyAttendance.objects.filter(
