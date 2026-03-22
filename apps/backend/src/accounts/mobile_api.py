@@ -9510,15 +9510,17 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             saved_path = default_storage.save(file_name, cash_proof_image)
             cash_proof_url = default_storage.url(saved_path)
 
-        # Check if already confirmed
+        # Idempotent success for repeated client confirmations.
         if attendance.client_confirmed:
             return Response(
                 {
-                    "error": "Attendance already confirmed by client",
+                    "success": True,
+                    "message": "Attendance already confirmed by client",
+                    "already_confirmed": True,
                     "attendance_id": attendance.attendanceID,
                     "payment_processed": attendance.payment_processed,
                 },
-                status=400,
+                status=200,
             )
 
         is_project_multiday = (
