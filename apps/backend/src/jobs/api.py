@@ -5713,6 +5713,7 @@ def client_approve_job_completion(
         # Check if remaining payment already paid
         if job.remainingPaymentPaid:
             print(f"✅ Remaining payment already paid for job {job_id}")
+            job.save()  # Persist clientMarkedComplete, status, and other in-memory changes
             return {
                 "success": True,
                 "message": "Job completion approved! You can now leave a review.",
