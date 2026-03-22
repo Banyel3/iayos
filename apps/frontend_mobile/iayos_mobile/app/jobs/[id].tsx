@@ -1564,13 +1564,36 @@ export default function JobDetailScreen() {
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
 
+  // Normalize slot id across API payload variants.
+  const resolveApplicationSlotId = (app: any): number | null => {
+    const slotId = Number(
+      app?.applied_skill_slot_id ??
+        app?.skill_slot_id ??
+        app?.appliedSkillSlotId ??
+        app?.skillSlotId ??
+        app?.applied_skill_slot?.skill_slot_id ??
+        app?.applied_skill_slot?.skillSlotID,
+    );
+    return Number.isFinite(slotId) && slotId > 0 ? slotId : null;
+  };
+
+  const getWorkerSlotKey = (app: any): string | null => {
+    const workerId = Number(app?.worker_id);
+    const slotId = resolveApplicationSlotId(app);
+    if (!Number.isFinite(workerId) || workerId <= 0 || slotId === null) {
+      return null;
+    }
+    return `${workerId}:${slotId}`;
+  };
+
   // Track (worker_id, skill_slot_id) pairs that are already accepted on this job.
   // A worker CAN be accepted on a DIFFERENT slot (multi-slot), so we gate per pair,
   // not per worker. The key is `${worker_id}:${skill_slot_id}`.
   const acceptedWorkerSlotKeys = new Set(
     teamApplications
       .filter((a: any) => a.status === "ACCEPTED")
-      .map((a: any) => `${a.worker_id}:${a.applied_skill_slot_id}`),
+      .map((a: any) => getWorkerSlotKey(a))
+      .filter((key: string | null): key is string => key !== null),
   );
 
   const handleTeamSlotApply = (slot: SkillSlot) => {
@@ -1737,7 +1760,7 @@ export default function JobDetailScreen() {
     setCountdownConfig({
       visible: true,
       title: "Accept Team Application",
-      message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
+      message: `Assign ${workerName} to this team job slot? They can still be accepted for other slots on this same team job.`,
       confirmLabel: "Accept",
       confirmStyle: "default",
       countdownSeconds: 3,
@@ -3049,7 +3072,7 @@ export default function JobDetailScreen() {
                 </View>
 
                 {app.status === "PENDING" &&
-                  !acceptedWorkerSlotKeys.has(`${app.worker_id}:${app.applied_skill_slot_id}`) && (
+                  !acceptedWorkerSlotKeys.has(getWorkerSlotKey(app) || "") && (
                     <View style={styles.applicationActions}>
                       <TouchableOpacity
                         style={styles.acceptButton}
@@ -3106,7 +3129,7 @@ export default function JobDetailScreen() {
                     </View>
                   )}
                 {app.status === "PENDING" &&
-                  acceptedWorkerSlotKeys.has(`${app.worker_id}:${app.applied_skill_slot_id}`) && (
+                  acceptedWorkerSlotKeys.has(getWorkerSlotKey(app) || "") && (
                     <View
                       style={[
                         styles.applicationActions,
