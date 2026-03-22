@@ -4085,6 +4085,8 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     return {
         "success": True,
         "assignment_id": assignment.assignmentID,
+        "updated_assignment_ids": [assignment.assignmentID],
+        "updated_count": 1,
         "employee_name": employee_name,
         "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat(),
         "all_team_arrived": all_arrived,

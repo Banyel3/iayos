@@ -465,7 +465,9 @@ export function useConfirmTeamWorkerArrival() {
         ? data.updated_assignment_ids
             .map((id: unknown) => Number(id))
             .filter((id: number) => Number.isFinite(id))
-        : [assignmentId];
+        : Number.isFinite(Number(data?.assignment_id))
+          ? [Number(data.assignment_id)]
+          : [assignmentId];
 
       patchConversationTeamAssignmentsState(
         queryClient,
@@ -538,6 +540,8 @@ export function useConfirmTeamEmployeeArrival() {
         jobId,
         updatedAssignmentIds,
         {
+          client_confirmed_arrival: true,
+          client_confirmed_arrival_at: data?.confirmed_at || nowIso,
           clientConfirmedArrival: true,
           clientConfirmedArrivalAt: data?.confirmed_at || nowIso,
           status: "IN_PROGRESS",
@@ -552,6 +556,8 @@ export function useConfirmTeamEmployeeArrival() {
 
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
     onError: (error: Error) => {
       Toast.show({
@@ -1082,7 +1088,12 @@ export function useConfirmProjectArrival() {
     }: {
       jobId: number;
       employeeId: number;
-    }): Promise<{ employee_name: string }> => {
+    }): Promise<{
+      employee_name: string;
+      assignment_id?: number;
+      updated_assignment_ids?: number[];
+      confirmed_at?: string;
+    }> => {
       const url = ENDPOINTS.AGENCY_CONFIRM_PROJECT_ARRIVAL(jobId, employeeId);
       const response = await apiRequest(url, { method: "POST" });
 
@@ -1091,9 +1102,44 @@ export function useConfirmProjectArrival() {
         throw new Error(getErrorMessage(error, "Failed to confirm arrival"));
       }
 
-      return response.json() as Promise<{ employee_name: string }>;
+      return response.json() as Promise<{
+        employee_name: string;
+        assignment_id?: number;
+        updated_assignment_ids?: number[];
+        confirmed_at?: string;
+      }>;
     },
-    onSuccess: (data: { employee_name: string }, { jobId }) => {
+    onSuccess: (
+      data: {
+        employee_name: string;
+        assignment_id?: number;
+        updated_assignment_ids?: number[];
+        confirmed_at?: string;
+      },
+      { jobId },
+    ) => {
+      const nowIso = new Date().toISOString();
+      const updatedAssignmentIds = Array.isArray(data?.updated_assignment_ids)
+        ? data.updated_assignment_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+        : Number.isFinite(Number(data?.assignment_id))
+          ? [Number(data.assignment_id)]
+          : [];
+
+      patchConversationTeamAgencyEmployeesState(
+        queryClient,
+        jobId,
+        updatedAssignmentIds,
+        {
+          client_confirmed_arrival: true,
+          client_confirmed_arrival_at: data?.confirmed_at || nowIso,
+          clientConfirmedArrival: true,
+          clientConfirmedArrivalAt: data?.confirmed_at || nowIso,
+          status: "IN_PROGRESS",
+        },
+      );
+
       Toast.show({
         type: "success",
         text1: "Arrival Confirmed",
@@ -1102,6 +1148,7 @@ export function useConfirmProjectArrival() {
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
     },
     onError: (error: Error) => {
       Toast.show({
