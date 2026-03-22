@@ -142,6 +142,55 @@ function patchConversationAttendanceById(
   );
 }
 
+function patchConversationAttendanceByAnyMatch(
+  queryClient: ReturnType<typeof useQueryClient>,
+  matcher: (row: any) => boolean,
+  updater: (row: any) => any,
+  jobId?: number,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.attendance_today) {
+        return previous;
+      }
+
+      if (
+        Number.isFinite(jobId) &&
+        (!previous?.job || Number(previous.job.id) !== Number(jobId))
+      ) {
+        return previous;
+      }
+
+      const rows = Array.isArray(previous.attendance_today)
+        ? previous.attendance_today
+        : [];
+      let hasChange = false;
+
+      const updatedRows = rows.map((row: any) => {
+        if (!matcher(row)) {
+          return row;
+        }
+
+        hasChange = true;
+        return updater(row);
+      });
+
+      if (!hasChange) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        attendance_today: updatedRows,
+      };
+    },
+  );
+}
+
 function patchConversationSkipRequestStatus(
   queryClient: ReturnType<typeof useQueryClient>,
   jobId: number,
@@ -1240,7 +1289,7 @@ export const useClientConfirmAttendance = () => {
         ENDPOINTS.CLIENT_CONFIRM_ATTENDANCE(attendanceId),
         {
           method: "POST",
-          body: formData,
+          body: formData as any,
         },
       );
 
@@ -1354,6 +1403,11 @@ export interface VerifyArrivalResponse {
   success: boolean;
   message: string;
   attendance_id: number;
+  assignment_id?: number | null;
+  worker_id?: number | null;
+  worker_account_id?: number | null;
+  already_verified?: boolean;
+  is_dispatched?: boolean;
   employee_name: string;
   time_in: string;
   status: AttendanceStatus;
@@ -1379,6 +1433,65 @@ export const useClientVerifyArrival = () => {
       return response.json() as Promise<VerifyArrivalResponse>;
     },
     onSuccess: (data, { jobId, attendanceId }) => {
+      const sourceRef = String(attendanceId ?? "");
+      const responseAssignmentId = Number(data.assignment_id);
+      const responseWorkerId = Number(data.worker_id);
+      const responseWorkerAccountId = Number(data.worker_account_id);
+
+      patchConversationAttendanceByAnyMatch(
+        queryClient,
+        (row) => {
+          const rowRef = String(row?.attendance_id ?? "");
+          const rowAssignmentId = Number(row?.assignment_id);
+          const rowWorkerId = Number(row?.worker_id);
+          const rowWorkerAccountId = Number(row?.worker_account_id);
+
+          if (rowRef === sourceRef) return true;
+
+          if (
+            Number.isFinite(responseAssignmentId) &&
+            Number.isFinite(rowAssignmentId) &&
+            rowAssignmentId === responseAssignmentId
+          ) {
+            return true;
+          }
+
+          if (
+            Number.isFinite(responseWorkerId) &&
+            Number.isFinite(rowWorkerId) &&
+            rowWorkerId === responseWorkerId
+          ) {
+            return true;
+          }
+
+          if (
+            Number.isFinite(responseWorkerAccountId) &&
+            Number.isFinite(rowWorkerAccountId) &&
+            rowWorkerAccountId === responseWorkerAccountId
+          ) {
+            return true;
+          }
+
+          return false;
+        },
+        (row) => ({
+          ...row,
+          attendance_id: data.attendance_id || row?.attendance_id,
+          assignment_id:
+            data.assignment_id ?? row?.assignment_id ?? null,
+          worker_id: data.worker_id ?? row?.worker_id ?? null,
+          worker_account_id:
+            data.worker_account_id ?? row?.worker_account_id ?? null,
+          is_dispatched: Boolean(data.is_dispatched),
+          status: data.status,
+          time_in: data.time_in || row?.time_in,
+          worker_confirmed: true,
+          worker_confirmed_at:
+            row?.worker_confirmed_at || new Date().toISOString(),
+        }),
+        jobId,
+      );
+
       patchConversationAttendanceById(
         queryClient,
         attendanceId,

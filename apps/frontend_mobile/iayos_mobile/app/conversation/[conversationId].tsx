@@ -5527,73 +5527,84 @@ export default function ChatScreen() {
                                           styles.teamWorkerCardConfirmed,
                                       ]}
                                     >
-                                      {isOnTheWayForClient ? (
-                                        <View
-                                          style={
-                                            styles.teamWorkerOnTheWayBannerRow
-                                          }
-                                        >
-                                          <Text
+                                      {(() => {
+                                        const arrivalActionDisabled =
+                                          clientVerifyArrivalMutation.isPending ||
+                                          Boolean(attendance.time_in) ||
+                                          Boolean(attendance.client_confirmed);
+                                        return isOnTheWayForClient ? (
+                                          <View
                                             style={
-                                              styles.teamWorkerOnTheWayName
-                                            }
-                                            numberOfLines={1}
-                                          >
-                                            {workerDisplayName}
-                                          </Text>
-                                          <TouchableOpacity
-                                            style={[
-                                              styles.confirmArrivalButtonCompact,
-                                              styles.confirmArrivalButtonSmall,
-                                              {
-                                                backgroundColor: Colors.primary,
-                                              },
-                                            ]}
-                                            onPress={() =>
-                                              Alert.alert(
-                                                "Verify Arrival",
-                                                `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
-                                                [
-                                                  {
-                                                    text: "Cancel",
-                                                    style: "cancel",
-                                                  },
-                                                  {
-                                                    text: "Verify",
-                                                    onPress: () =>
-                                                      clientVerifyArrivalMutation.mutate(
-                                                        {
-                                                          jobId:
-                                                            conversation.job.id,
-                                                          attendanceId:
-                                                            attendance.attendance_id,
-                                                        },
-                                                      ),
-                                                  },
-                                                ],
-                                              )
-                                            }
-                                            disabled={
-                                              clientVerifyArrivalMutation.isPending
+                                              styles.teamWorkerOnTheWayBannerRow
                                             }
                                           >
-                                            {clientVerifyArrivalMutation.isPending ? (
-                                              <ActivityIndicator
-                                                size="small"
-                                                color={Colors.white}
-                                              />
-                                            ) : (
-                                              <Text
-                                                style={
-                                                  styles.confirmArrivalButtonTextSmall
-                                                }
-                                              >
-                                                Confirm Arrival
-                                              </Text>
-                                            )}
-                                          </TouchableOpacity>
-                                        </View>
-                                      ) : isActiveWorkdayForClient ? (
+                                            <Text
+                                              style={
+                                                styles.teamWorkerOnTheWayName
+                                              }
+                                              numberOfLines={1}
+                                            >
+                                              {workerDisplayName}
+                                            </Text>
+                                            <TouchableOpacity
+                                              style={[
+                                                styles.confirmArrivalButtonCompact,
+                                                styles.confirmArrivalButtonSmall,
+                                                {
+                                                  backgroundColor:
+                                                    arrivalActionDisabled
+                                                      ? Colors.textSecondary
+                                                      : Colors.primary,
+                                                },
+                                              ]}
+                                              onPress={() =>
+                                                Alert.alert(
+                                                  "Verify Arrival",
+                                                  `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
+                                                  [
+                                                    {
+                                                      text: "Cancel",
+                                                      style: "cancel",
+                                                    },
+                                                    {
+                                                      text: "Verify",
+                                                      onPress: () =>
+                                                        clientVerifyArrivalMutation.mutate(
+                                                          {
+                                                            jobId:
+                                                              conversation.job.id,
+                                                            attendanceId:
+                                                              attendance.attendance_id,
+                                                          },
+                                                        ),
+                                                    },
+                                                  ],
+                                                )
+                                              }
+                                              disabled={arrivalActionDisabled}
+                                            >
+                                              {clientVerifyArrivalMutation.isPending ? (
+                                                <ActivityIndicator
+                                                  size="small"
+                                                  color={Colors.white}
+                                                />
+                                              ) : (
+                                                <Text
+                                                  style={
+                                                    styles.confirmArrivalButtonTextSmall
+                                                  }
+                                                >
+                                                  {attendance.time_in
+                                                    ? "Arrived"
+                                                    : "Confirm Arrival"}
+                                                </Text>
+                                              )}
+                                            </TouchableOpacity>
+                                          </View>
+                                        ) : null;
+                                      })()}
+
+                                      {isOnTheWayForClient ? null : isActiveWorkdayForClient ? (
                                         <View
                                           style={
                                             styles.teamWorkerOnTheWayBannerRow

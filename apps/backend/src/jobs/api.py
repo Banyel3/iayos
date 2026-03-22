@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 from .cancellation_service import cancel_job_with_scenarios
 from .backjob_service import auto_start_agency_backjob_if_ready, get_business_local_date
 from .text_moderation import validate_job_post_content
+from .rate_validation import validate_daily_rate_for_specialization
 from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
@@ -795,6 +796,23 @@ def create_job_posting(request, data: CreateJobPostingSchema):
         except Specializations.DoesNotExist:
             return Response({"error": "Invalid category selected"}, status=400)
 
+        payment_model = (getattr(data, "payment_model", None) or "PROJECT").upper()
+        if payment_model == "DAILY":
+            if getattr(data, "daily_rate", None) is None:
+                return Response(
+                    {"error": "daily_rate is required for DAILY payment model"},
+                    status=400,
+                )
+
+            rate_error = validate_daily_rate_for_specialization(
+                daily_rate=Decimal(str(data.daily_rate)),
+                specialization=category,
+                field_name="daily_rate",
+                field_label="Daily rate",
+            )
+            if rate_error:
+                return Response(rate_error, status=400)
+
         content_violations = validate_job_post_content(
             title=data.title,
             description=data.description,
@@ -1369,6 +1387,16 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
 
         # Force project payment model for agency direct hires.
         payment_model = "PROJECT" if data.agency_id else requested_payment_model
+
+        if payment_model == "DAILY":
+            rate_error = validate_daily_rate_for_specialization(
+                daily_rate=Decimal(str(data.daily_rate or 0)),
+                specialization=category,
+                field_name="daily_rate",
+                field_label="Daily rate",
+            )
+            if rate_error:
+                return Response(rate_error, status=400)
 
         # Calculate payment based on payment model
         if payment_model == "DAILY":
@@ -3501,26 +3529,43 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
         if data.budget_option not in ["ACCEPT", "NEGOTIATE"]:
             return Response({"error": "Invalid budget option"}, status=400)
 
-        if (
-            data.budget_option == "NEGOTIATE"
-            and job.categoryID
-            and job.categoryID.minimumRate
-            and data.proposed_budget is not None
-        ):
-            proposed_budget = Decimal(str(data.proposed_budget))
-            minimum_rate = Decimal(str(job.categoryID.minimumRate))
-            if proposed_budget < minimum_rate:
+        if data.budget_option == "NEGOTIATE" and job.categoryID:
+            if (
+                getattr(job, "payment_model", "PROJECT") == "DAILY"
+                and data.proposed_daily_rate is None
+            ):
                 return Response(
-                    {
-                        "error": (
-                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
-                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
-                        ),
-                        "minimum_rate": float(minimum_rate),
-                        "category": job.categoryID.specializationName,
-                    },
+                    {"error": "proposed_daily_rate is required for DAILY negotiation"},
                     status=400,
                 )
+
+            if (
+                getattr(job, "payment_model", "PROJECT") == "DAILY"
+                and data.proposed_daily_rate is not None
+            ):
+                rate_error = validate_daily_rate_for_specialization(
+                    daily_rate=Decimal(str(data.proposed_daily_rate)),
+                    specialization=job.categoryID,
+                    field_name="proposed_daily_rate",
+                    field_label="Proposed daily rate",
+                )
+                if rate_error:
+                    return Response(rate_error, status=400)
+            elif job.categoryID.minimumRate and data.proposed_budget is not None:
+                proposed_budget = Decimal(str(data.proposed_budget))
+                minimum_rate = Decimal(str(job.categoryID.minimumRate))
+                if proposed_budget < minimum_rate:
+                    return Response(
+                        {
+                            "error": (
+                                f"Proposed budget cannot be less than P{minimum_rate:,.2f} "
+                                f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                            ),
+                            "minimum_rate": float(minimum_rate),
+                            "category": job.categoryID.specializationName,
+                        },
+                        status=400,
+                    )
 
         if existing_application and existing_application.status in [
             JobApplication.ApplicationStatus.REJECTED,
@@ -10313,6 +10358,29 @@ def accept_team_application_endpoint(
         if payload and payload.daily_rate_override is not None:
             daily_rate_override = Decimal(str(payload.daily_rate_override))
 
+        if daily_rate_override is not None:
+            try:
+                application = JobApplication.objects.select_related(
+                    "applied_skill_slot__specializationID", "jobID__categoryID"
+                ).get(applicationID=application_id, jobID__jobID=job_id)
+            except JobApplication.DoesNotExist:
+                return Response({"error": "Application not found"}, status=404)
+
+            specialization = (
+                application.applied_skill_slot.specializationID
+                if application.applied_skill_slot
+                else application.jobID.categoryID
+            )
+            if specialization is not None:
+                rate_error = validate_daily_rate_for_specialization(
+                    daily_rate=daily_rate_override,
+                    specialization=specialization,
+                    field_name="daily_rate_override",
+                    field_label="Daily rate override",
+                )
+                if rate_error:
+                    return Response(rate_error, status=400)
+
         result = accept_team_application(
             job_id=job_id,
             application_id=application_id,
@@ -12234,6 +12302,30 @@ def verify_employee_arrival(request, job_id: int, attendance_id: str):
             {"error": "Only the job client can mark worker arrival"}, status=403
         )
 
+    assignment_id = attendance.assignmentID_id
+    worker_id = None
+    worker_account_id = None
+    employee_name = "Worker"
+
+    if attendance.employeeID:
+        worker_id = attendance.employeeID.employeeID
+        worker_account_id = getattr(attendance.employeeID, "accountFK_id", None)
+        employee_name = attendance.employeeID.fullName
+    elif (
+        attendance.assignmentID
+        and attendance.assignmentID.workerID
+        and attendance.assignmentID.workerID.profileID
+    ):
+        p = attendance.assignmentID.workerID.profileID
+        worker_id = attendance.assignmentID.workerID_id
+        worker_account_id = p.accountFK_id
+        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
+    elif attendance.workerID and attendance.workerID.profileID:
+        p = attendance.workerID.profileID
+        worker_id = attendance.workerID_id
+        worker_account_id = p.accountFK_id
+        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
+
     # Idempotent: if arrival already verified, return success
     if attendance.time_in:
         return {
@@ -12241,8 +12333,13 @@ def verify_employee_arrival(request, job_id: int, attendance_id: str):
             "already_verified": True,
             "message": "Worker arrival was already verified.",
             "attendance_id": attendance.attendanceID,
+            "assignment_id": assignment_id,
+            "worker_id": worker_id,
+            "worker_account_id": worker_account_id,
+            "employee_name": employee_name,
             "time_in": attendance.time_in.isoformat(),
             "worker_confirmed": attendance.worker_confirmed,
+            "is_dispatched": attendance.status == "DISPATCHED",
             "status": attendance.status,
         }
 
@@ -12300,29 +12397,17 @@ def verify_employee_arrival(request, job_id: int, attendance_id: str):
                 ]
             )
 
-    # Resolve display name
-    if attendance.employeeID:
-        employee_name = attendance.employeeID.fullName
-    elif (
-        attendance.assignmentID
-        and attendance.assignmentID.workerID
-        and attendance.assignmentID.workerID.profileID
-    ):
-        p = attendance.assignmentID.workerID.profileID
-        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
-    elif attendance.workerID and attendance.workerID.profileID:
-        p = attendance.workerID.profileID
-        employee_name = f"{p.firstName or ''} {p.lastName or ''}".strip() or "Worker"
-    else:
-        employee_name = "Worker"
-
     return {
         "success": True,
         "message": f"{employee_name} arrival confirmed — work started",
         "attendance_id": attendance.attendanceID,
+        "assignment_id": assignment_id,
+        "worker_id": worker_id,
+        "worker_account_id": worker_account_id,
         "employee_name": employee_name,
         "time_in": attendance.time_in.isoformat(),
         "worker_confirmed": True,
+        "is_dispatched": False,
         "status": attendance.status,
     }
 
@@ -12788,6 +12873,16 @@ def request_rate_change(request, job_id: int, data: RequestRateChangeSchema):
 
     if not new_rate or Decimal(str(new_rate)) <= 0:
         return Response({"error": "new_rate must be positive"}, status=400)
+
+    if job.categoryID:
+        rate_error = validate_daily_rate_for_specialization(
+            daily_rate=Decimal(str(new_rate)),
+            specialization=job.categoryID,
+            field_name="new_rate",
+            field_label="New daily rate",
+        )
+        if rate_error:
+            return Response(rate_error, status=400)
 
     if not reason:
         return Response({"error": "reason is required"}, status=400)
