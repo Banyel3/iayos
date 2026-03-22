@@ -1376,6 +1376,8 @@ def accept_job_invite(request, job_id: int):
         # --- Team-job slot fan-out ---
         # If this is a team job and the agency has pending slot invites, process them
         # via the per-slot service (which handles notifications + conversation).
+        # If no slot-level pending invites exist, fall back to direct invite handling
+        # when this agency is the assignedAgencyFK on the job.
         if job.is_team_job:
             pending_slots = list(
                 JobSkillSlot.objects.filter(
@@ -1409,11 +1411,15 @@ def accept_job_invite(request, job_id: int):
                     "failed_count": len(failed),
                     "processed_slot_ids": [r.get("slot_id") for r in accepted],
                 }
-            # No PENDING slots for this agency — nothing to fan-out
-            return Response(
-                {"error": "No pending slot invites found for your agency on this job"},
-                status=400,
-            )
+            # No PENDING slots for this agency. Continue to legacy direct-invite path
+            # if this agency is directly assigned on the job.
+            if job.assignedAgencyFK_id != agency.agencyId:
+                return Response(
+                    {
+                        "error": "No pending slot invites found for your agency on this job"
+                    },
+                    status=400,
+                )
 
         # Verify job is INVITE type
         if job.jobType != "INVITE":
@@ -1606,10 +1612,13 @@ def reject_job_invite(request, job_id: int, reason: str | None = None):
                     "failed_count": len(failed),
                     "processed_slot_ids": [r.get("slot_id") for r in rejected],
                 }
-            return Response(
-                {"error": "No pending slot invites found for your agency on this job"},
-                status=400,
-            )
+            if job.assignedAgencyFK_id != agency.agencyId:
+                return Response(
+                    {
+                        "error": "No pending slot invites found for your agency on this job"
+                    },
+                    status=400,
+                )
 
         # Legacy direct-invite path (non-team INVITE job)
         # Verify job is INVITE type

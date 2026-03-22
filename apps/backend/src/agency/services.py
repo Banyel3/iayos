@@ -1280,8 +1280,10 @@ def get_agency_jobs(
                 )
             status_query = Q(status=status_filter.upper())
 
-        # Apply invite status filter — for team-slot jobs we look at slot statuses;
-        # for legacy direct-invite jobs we look at inviteStatus on the job itself.
+        # Apply invite status filter:
+        # - Slot-level invites (team/hybrid): JobSkillSlot.agency_invite_status
+        # - Direct agency invites (legacy + team jobs created through create-mobile):
+        #   Job.inviteStatus on assignedAgencyFK jobs
         invite_query = Q()
         if invite_status_filter:
             valid_invite_statuses = ["PENDING", "ACCEPTED", "REJECTED"]
@@ -1291,34 +1293,26 @@ def get_agency_jobs(
                 )
             iuf = invite_status_filter.upper()
             if iuf == "PENDING":
-                # Team jobs: slot-level pending invites for this agency
-                # Legacy direct-invite jobs: job-level pending invite status
                 invite_query = Q(
-                    is_team_job=True,
                     skill_slots__invited_agency=agency,
                     skill_slots__agency_invite_status="PENDING",
                 ) | Q(
-                    is_team_job=False,
                     assignedAgencyFK=agency,
                     inviteStatus="PENDING",
                 )
             elif iuf == "ACCEPTED":
                 invite_query = Q(
-                    is_team_job=True,
                     skill_slots__invited_agency=agency,
                     skill_slots__agency_invite_status="ACCEPTED",
                 ) | Q(
-                    is_team_job=False,
                     assignedAgencyFK=agency,
                     inviteStatus="ACCEPTED",
                 )
             elif iuf == "REJECTED":
                 invite_query = Q(
-                    is_team_job=True,
                     skill_slots__invited_agency=agency,
                     skill_slots__agency_invite_status="REJECTED",
                 ) | Q(
-                    is_team_job=False,
                     assignedAgencyFK=agency,
                     inviteStatus="REJECTED",
                 )
@@ -1470,18 +1464,16 @@ def get_agency_jobs(
 
         # Get status counts
         status_counts = {
-            "active": Job.objects.filter(
-                assignedAgencyFK=agency, status="ACTIVE"
-            ).count(),
-            "inProgress": Job.objects.filter(
-                assignedAgencyFK=agency, status="IN_PROGRESS"
-            ).count(),
-            "completed": Job.objects.filter(
-                assignedAgencyFK=agency, status="COMPLETED"
-            ).count(),
-            "cancelled": Job.objects.filter(
-                assignedAgencyFK=agency, status="CANCELLED"
-            ).count(),
+            "active": Job.objects.filter(base_query, status="ACTIVE").distinct().count(),
+            "inProgress": Job.objects.filter(base_query, status="IN_PROGRESS")
+            .distinct()
+            .count(),
+            "completed": Job.objects.filter(base_query, status="COMPLETED")
+            .distinct()
+            .count(),
+            "cancelled": Job.objects.filter(base_query, status="CANCELLED")
+            .distinct()
+            .count(),
         }
 
         return {

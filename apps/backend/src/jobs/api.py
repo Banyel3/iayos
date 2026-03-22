@@ -1488,6 +1488,10 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                                 else "ENTRY",
                                 notes=slot_data.notes or "",
                                 status="OPEN",
+                                invited_agency=assigned_agency if data.agency_id else None,
+                                agency_invite_status=(
+                                    "PENDING" if data.agency_id else None
+                                ),
                             )
                             print(
                                 f"   ✅ Created slot: {slot_specialization.specializationName} x{slot_data.workers_needed}"
