@@ -45,6 +45,7 @@ import {
   useMarkComplete,
   useApproveCompletion,
   useConfirmTeamWorkerArrival,
+  useConfirmTeamEmployeeArrival,
   useMarkTeamAssignmentComplete,
   useApproveTeamJobCompletion,
   useProjectExtendOneDay,
@@ -59,7 +60,6 @@ import {
 import {
   useEarlyCompleteWorker,
   useEarlyCompleteProjectWorker,
-  useConfirmTeamEmployeeArrival,
   useEarlyCompleteTeamEmployee,
 } from "../../lib/hooks/useTeamJob";
 import { useAuth } from "../../context/AuthContext";
@@ -1629,7 +1629,7 @@ export default function ChatScreen() {
           onPress: () => {
             confirmTeamEmployeeArrivalMutation.mutate({
               jobId: conversation.job.id,
-              assignmentId: String(assignmentId),
+              assignmentId,
             });
           },
         },

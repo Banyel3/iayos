@@ -86,6 +86,60 @@ function patchConversationTeamAssignmentsState(
   );
 }
 
+function patchConversationTeamAgencyEmployeesState(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  assignmentIds: number[],
+  assignmentPatch: Record<string, any>,
+) {
+  const assignmentIdSet = new Set(
+    (assignmentIds || [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id)),
+  );
+  if (assignmentIdSet.size === 0) {
+    return;
+  }
+
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+    },
+    (previous: any) => {
+      if (!previous?.job || previous.job.id !== jobId) {
+        return previous;
+      }
+
+      const employees = Array.isArray(previous?.team_agency_employees)
+        ? previous.team_agency_employees
+        : [];
+      let hasChange = false;
+
+      const updatedEmployees = employees.map((employee: any) => {
+        if (!assignmentIdSet.has(Number(employee?.assignment_id))) {
+          return employee;
+        }
+
+        hasChange = true;
+        return {
+          ...employee,
+          ...assignmentPatch,
+        };
+      });
+
+      if (!hasChange) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        team_agency_employees: updatedEmployees,
+      };
+    },
+  );
+}
+
 /**
  * Client confirms worker has arrived — simplified single-tap flow.
  * Calls the new /confirm-worker-arrived endpoint (idempotent, no prerequisites).
@@ -430,6 +484,72 @@ export function useConfirmTeamWorkerArrival() {
       });
 
       // Invalidate messages to refetch with updated arrival status
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Confirmation Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+/**
+ * Client confirms a team agency employee has arrived (for hybrid/team jobs)
+ */
+export function useConfirmTeamEmployeeArrival() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+    }) => {
+      const url = `${API_BASE_URL}/jobs/${jobId}/team/employees/${assignmentId}/confirm-arrival`;
+      const response = await apiRequest(url, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(
+          getErrorMessage(error, "Failed to confirm employee arrival"),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: (data: any, { jobId, assignmentId }) => {
+      const nowIso = new Date().toISOString();
+      const updatedAssignmentIds = Array.isArray(data?.updated_assignment_ids)
+        ? data.updated_assignment_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+        : [assignmentId];
+
+      patchConversationTeamAgencyEmployeesState(
+        queryClient,
+        jobId,
+        updatedAssignmentIds,
+        {
+          clientConfirmedArrival: true,
+          clientConfirmedArrivalAt: data?.confirmed_at || nowIso,
+          status: "IN_PROGRESS",
+        },
+      );
+
+      Toast.show({
+        type: "success",
+        text1: "Employee Arrival Confirmed",
+        text2: `${data.employee_name || "Employee"} has been notified`,
+      });
+
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
     },
