@@ -1387,6 +1387,21 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
                 else None,
             }
 
+        # Rejection context fallback for UI when slot was reopened to freelancers.
+        last_rejection = None
+        last_rejected_agency_id = getattr(slot, "last_rejected_agency_id", None)
+        if last_rejected_agency_id:
+            last_rejection = {
+                "agency_id": last_rejected_agency_id,
+                "agency_name": getattr(slot, "last_rejected_agency_name", None),
+                "reason": getattr(slot, "last_rejection_reason", None),
+                "rejected_at": (
+                    slot.last_rejected_at.isoformat()
+                    if getattr(slot, "last_rejected_at", None)
+                    else None
+                ),
+            }
+
         # Employee assignments for this slot
         slot_employees = []
         for emp_assign in slot.employee_slot_assignments.filter(
@@ -1425,6 +1440,7 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
                 "status": slot.status,
                 "notes": slot.notes,
                 "agency_invite": agency_info,
+                "last_agency_rejection": last_rejection,
                 "employee_assignments": slot_employees,
             }
         )
@@ -1554,6 +1570,133 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
         if client_profile
         else "Unknown",
         "created_at": job.createdAt.isoformat(),
+    }
+
+
+@transaction.atomic
+def invite_agency_to_team_slot(job_id: int, slot_id: int, client_user, agency_id: int) -> dict:
+    """Invite (or re-invite) an agency to a specific team slot in an existing team job."""
+    from accounts.models import Agency, JobLog
+
+    try:
+        job = Job.objects.select_related("clientID__profileID__accountFK").get(jobID=job_id)
+    except Job.DoesNotExist:
+        return {"success": False, "error": "Job not found"}
+
+    if not job.is_team_job:
+        return {"success": False, "error": "This is not a team job"}
+
+    if not job.clientID or job.clientID.profileID.accountFK != client_user:
+        return {"success": False, "error": "Not authorized to update this team job"}
+
+    if job.status not in ["ACTIVE", "IN_PROGRESS"]:
+        return {
+            "success": False,
+            "error": f"Cannot invite agencies for job with status: {job.status}",
+        }
+
+    try:
+        slot = JobSkillSlot.objects.select_related("specializationID").get(
+            skillSlotID=slot_id,
+            jobID=job,
+        )
+    except JobSkillSlot.DoesNotExist:
+        return {"success": False, "error": "Skill slot not found for this job"}
+
+    if slot.status == "CLOSED":
+        return {"success": False, "error": "Cannot invite an agency to a closed slot"}
+
+    if slot.workers_needed <= slot.assigned_count:
+        return {"success": False, "error": "Slot is already fully filled"}
+
+    if slot.invited_agency_id and slot.agency_invite_status in ["PENDING", "ACCEPTED"]:
+        return {
+            "success": False,
+            "error": "This slot already has an active agency invite",
+            "error_code": "ACTIVE_AGENCY_INVITE_EXISTS",
+        }
+
+    # Keep one agency from being assigned to multiple slots on the same team job.
+    duplicate_slot = JobSkillSlot.objects.filter(
+        jobID=job,
+        invited_agency_id=agency_id,
+    ).exclude(skillSlotID=slot.skillSlotID)
+    if duplicate_slot.exists():
+        return {
+            "success": False,
+            "error": (
+                "The same agency cannot be invited to multiple slots in one team job. "
+                "Use the Invite Agency flow instead."
+            ),
+            "error_code": "DUPLICATE_AGENCY_SLOT_INVITE",
+            "agency_id": agency_id,
+        }
+
+    try:
+        agency = Agency.objects.select_related("accountFK").get(agencyId=agency_id)
+    except Agency.DoesNotExist:
+        return {"success": False, "error": "Agency not found"}
+
+    # Keep one-agency-per-slot policy while allowing re-invite after rejection.
+    slot.invited_agency = agency
+    slot.agency_invite_status = "PENDING"
+    slot.agency_invite_responded_at = None
+    # Clear stale rejection context after a fresh invite.
+    if hasattr(slot, "last_rejected_agency_id"):
+        slot.last_rejected_agency_id = None
+    if hasattr(slot, "last_rejected_agency_name"):
+        slot.last_rejected_agency_name = None
+    if hasattr(slot, "last_rejection_reason"):
+        slot.last_rejection_reason = None
+    if hasattr(slot, "last_rejected_at"):
+        slot.last_rejected_at = None
+
+    update_fields = [
+        "invited_agency",
+        "agency_invite_status",
+        "agency_invite_responded_at",
+        "updatedAt",
+    ]
+    if hasattr(slot, "last_rejected_agency_id"):
+        update_fields.append("last_rejected_agency_id")
+    if hasattr(slot, "last_rejected_agency_name"):
+        update_fields.append("last_rejected_agency_name")
+    if hasattr(slot, "last_rejection_reason"):
+        update_fields.append("last_rejection_reason")
+    if hasattr(slot, "last_rejected_at"):
+        update_fields.append("last_rejected_at")
+    slot.save(update_fields=update_fields)
+
+    Notification.objects.create(
+        accountFK=agency.accountFK,
+        notificationType="TEAM_JOB_SLOT_INVITE",
+        title=f"Team Slot Invitation: {job.title}",
+        message=(
+            f"You've been invited to fill '{slot.specializationID.specializationName}' "
+            f"for '{job.title}'."
+        ),
+        relatedJobID=job.jobID,
+    )
+
+    JobLog.objects.create(
+        jobID=job,
+        notes=(
+            f"Client invited agency '{agency.businessName}' for slot "
+            f"'{slot.specializationID.specializationName}'"
+        ),
+        changedBy=client_user,
+        oldStatus=job.status,
+        newStatus=job.status,
+    )
+
+    return {
+        "success": True,
+        "job_id": job.jobID,
+        "slot_id": slot.skillSlotID,
+        "agency_id": agency.agencyId,
+        "agency_name": agency.businessName,
+        "agency_invite_status": "PENDING",
+        "message": f"Invited {agency.businessName} for {slot.specializationID.specializationName} slot.",
     }
 
 
@@ -3366,15 +3509,30 @@ def agency_reject_team_slot_invite(
     # this slot as open, while keeping audit trail in JobLog/Notification.
     slot.agency_invite_status = None
     slot.agency_invite_responded_at = timezone.now()
+    if hasattr(slot, "last_rejected_agency_id"):
+        slot.last_rejected_agency_id = agency.agencyId
+    if hasattr(slot, "last_rejected_agency_name"):
+        slot.last_rejected_agency_name = agency.businessName
+    if hasattr(slot, "last_rejection_reason"):
+        slot.last_rejection_reason = (reason or "").strip() or None
+    if hasattr(slot, "last_rejected_at"):
+        slot.last_rejected_at = timezone.now()
     slot.invited_agency = None
-    slot.save(
-        update_fields=[
-            "invited_agency",
-            "agency_invite_status",
-            "agency_invite_responded_at",
-            "updatedAt",
-        ]
-    )
+    update_fields = [
+        "invited_agency",
+        "agency_invite_status",
+        "agency_invite_responded_at",
+        "updatedAt",
+    ]
+    if hasattr(slot, "last_rejected_agency_id"):
+        update_fields.append("last_rejected_agency_id")
+    if hasattr(slot, "last_rejected_agency_name"):
+        update_fields.append("last_rejected_agency_name")
+    if hasattr(slot, "last_rejection_reason"):
+        update_fields.append("last_rejection_reason")
+    if hasattr(slot, "last_rejected_at"):
+        update_fields.append("last_rejected_at")
+    slot.save(update_fields=update_fields)
 
     # Log
     JobLog.objects.create(

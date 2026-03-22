@@ -9985,6 +9985,7 @@ from jobs.schemas import (
     TeamJobResponseSchema,
     TeamJobDetailSchema,
     TeamJobApplicationSchema,
+    TeamSlotAgencyInviteSchema,
     AssignWorkerToSlotSchema,
     AcceptTeamApplicationSchema,
     UpdateSkillSlotSchema,
@@ -9994,6 +9995,7 @@ from jobs.schemas import (
 from jobs.team_job_services import (
     create_team_job,
     get_team_job_detail,
+    invite_agency_to_team_slot,
     apply_to_skill_slot,
     accept_team_application,
     reject_team_application,
@@ -10231,6 +10233,33 @@ def reject_team_application_endpoint(
 
     except Exception as e:
         print(f"❌ Error rejecting team application: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
+
+
+@router.post("/team/{job_id}/slots/{slot_id}/invite-agency", auth=dual_auth)
+@require_kyc
+def invite_agency_to_team_slot_endpoint(
+    request,
+    job_id: int,
+    slot_id: int,
+    payload: TeamSlotAgencyInviteSchema,
+):
+    """Client invites/re-invites an agency to an existing team slot."""
+    try:
+        result = invite_agency_to_team_slot(
+            job_id=job_id,
+            slot_id=slot_id,
+            client_user=request.auth,
+            agency_id=payload.agency_id,
+        )
+        if not result.get("success"):
+            return Response(result, status=400)
+        return result
+    except Exception as e:
+        print(f"❌ Error inviting agency to team slot: {str(e)}")
         import traceback
 
         traceback.print_exc()

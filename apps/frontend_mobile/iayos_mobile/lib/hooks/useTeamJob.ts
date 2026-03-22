@@ -28,6 +28,12 @@ export interface SkillSlot {
     invite_status: "PENDING" | "ACCEPTED" | "REJECTED";
     invite_responded_at: string | null;
   } | null;
+  last_agency_rejection?: {
+    agency_id: number;
+    agency_name: string | null;
+    reason: string | null;
+    rejected_at: string | null;
+  } | null;
   employee_assignments: EmployeeSlotAssignment[];
 }
 
@@ -223,6 +229,51 @@ export function useApplyToSkillSlot() {
       });
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs", "my-applications"] });
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
+}
+
+/**
+ * Client invites or re-invites an agency for a team job slot.
+ */
+export function useInviteAgencyToTeamSlot() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      slotId,
+      agencyId,
+    }: {
+      jobId: number;
+      slotId: number;
+      agencyId: number;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.TEAM_INVITE_AGENCY_SLOT(jobId, slotId),
+        {
+          method: "POST",
+          body: JSON.stringify({ agency_id: agencyId }),
+        },
+      );
+
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to invite agency"));
+      }
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      Alert.alert("Agency Invited", data.message || "Agency invite sent.");
+      queryClient.invalidateQueries({ queryKey: ["team-job", variables.jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", variables.jobId.toString()] });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
