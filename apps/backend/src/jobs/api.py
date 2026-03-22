@@ -13820,6 +13820,11 @@ def early_complete_single_daily_job(
             {"error": "Only the job client can perform early completion"}, status=403
         )
 
+    if int(getattr(job, "duration_days", 0) or 0) <= 1:
+        return Response(
+            {"error": "Use standard completion flow for single-day jobs"}, status=400
+        )
+
     # Upload cash proof image if provided
     cash_proof_url = None
     if payment_method_upper == "CASH" and cash_proof_image:
