@@ -416,9 +416,14 @@ export function useRejectTeamApplication() {
       return data;
     },
     onSuccess: (data, variables) => {
+      const proposalsRemaining = Number((data as any)?.proposals_remaining ?? -1);
       Alert.alert(
         "Application Rejected",
-        data.message || "The application has been rejected.",
+        proposalsRemaining >= 0
+          ? proposalsRemaining > 0
+            ? `Application rejected. Worker has ${proposalsRemaining} proposal${proposalsRemaining !== 1 ? "s" : ""} remaining.`
+            : "Application rejected. Worker has no proposal attempts remaining."
+          : data.message || "The application has been rejected.",
       );
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],

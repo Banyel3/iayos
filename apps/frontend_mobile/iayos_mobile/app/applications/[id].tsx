@@ -49,6 +49,9 @@ interface ApplicationDetail {
   jobDailyRate: number | null;
   jobDurationDays: number | null;
   negotiationCount: number;
+  proposalsRemaining: number;
+  maxProposals: number;
+  rejectionReason: string | null;
   client: {
     id: number;
     name: string;
@@ -88,6 +91,10 @@ interface MobileApplicationDetailResponse {
     job_daily_rate?: number | null;
     job_duration_days?: number | null;
     negotiation_count?: number;
+    proposals_remaining?: number;
+    max_proposals?: number;
+    client_rejection_reason?: string | null;
+    response_message?: string | null;
   };
 }
 
@@ -246,6 +253,12 @@ export default function ApplicationDetailScreen() {
         jobDailyRate: raw.application.job_daily_rate ?? null,
         jobDurationDays: raw.application.job_duration_days ?? null,
         negotiationCount: raw.application.negotiation_count ?? 0,
+        proposalsRemaining: raw.application.proposals_remaining ?? 0,
+        maxProposals: raw.application.max_proposals ?? 3,
+        rejectionReason:
+          raw.application.client_rejection_reason ??
+          raw.application.response_message ??
+          null,
         client: {
           id: raw.application.client_id,
           name: raw.application.client_name || "Client",
@@ -455,7 +468,8 @@ export default function ApplicationDetailScreen() {
 
   // Derive negotiation state
   const thread = negotiationData?.thread ?? [];
-  const proposalsRemaining = negotiationData?.proposals_remaining ?? 0;
+  const proposalsRemaining =
+    negotiationData?.proposals_remaining ?? application.proposalsRemaining ?? 0;
   const lastRound = thread.length > 0 ? thread[thread.length - 1] : null;
   const clientCountered =
     lastRound?.actor === "CLIENT" && lastRound?.status === "PENDING";
@@ -580,6 +594,23 @@ export default function ApplicationDetailScreen() {
           </View>
         </View>
 
+        {application.status === "REJECTED" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Client Response</Text>
+            <View style={styles.card}>
+              <Text style={styles.proposalMessage}>
+                {application.rejectionReason ||
+                  "Your proposal was not selected by the client."}
+              </Text>
+              <Text style={styles.durationText}>
+                {proposalsRemaining > 0
+                  ? `You can still submit ${proposalsRemaining} more proposal${proposalsRemaining !== 1 ? "s" : ""} for this application.`
+                  : "You have no proposal attempts remaining for this application."}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Negotiation Section */}
         {application.negotiationCount > 0 && (
           <View style={styles.section}>
@@ -682,7 +713,7 @@ export default function ApplicationDetailScreen() {
             {clientCountered && lastRound && (
               <View style={styles.counterActionCard}>
                 <Text style={styles.counterActionTitle}>
-                  Client's Counter-Offer
+                  Client&apos;s Counter-Offer
                 </Text>
                 <Text style={styles.counterActionPrice}>
                   {isDaily && lastRound.proposed_daily_rate && lastRound.proposed_days
