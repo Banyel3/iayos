@@ -28,6 +28,7 @@ from accounts.models import (
     Notification,
     Accounts,
 )
+from jobs.rate_validation import validate_daily_rate_for_specialization
 
 
 class DailyPaymentService:
@@ -774,6 +775,16 @@ class DailyPaymentService:
             }
 
         old_rate = job.daily_rate_agreed
+
+        if job.categoryID:
+            rate_error = validate_daily_rate_for_specialization(
+                daily_rate=new_rate,
+                specialization=job.categoryID,
+                field_name="new_rate",
+                field_label="New daily rate",
+            )
+            if rate_error:
+                return {"success": False, "error": rate_error["error"]}
 
         if new_rate == old_rate:
             return {"success": False, "error": "New rate is same as current rate"}

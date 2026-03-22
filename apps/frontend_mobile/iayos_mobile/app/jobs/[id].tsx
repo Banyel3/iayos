@@ -152,6 +152,7 @@ interface JobDetail {
   preferred_start_date?: string;
   scheduled_end_date?: string;
   daily_rate?: number;
+  minimum_rate?: number | null;
   workerMarkedOnTheWay?: boolean;
   workerMarkedOnTheWayAt?: string | null;
   workerMarkedJobStarted?: boolean;
@@ -589,6 +590,7 @@ export default function JobDetailScreen() {
             : undefined),
         duration_days: jobData.duration_days ?? null,
         shift_type: jobData.shift_type ?? "ANY",
+        minimum_rate: typeof jobData.minimum_rate === "number" ? jobData.minimum_rate : null,
         // Team Job fields
         is_team_job: jobData.is_team_job || false,
         skill_slots: jobData.skill_slots || [],
@@ -1396,6 +1398,13 @@ export default function JobDetailScreen() {
         Alert.alert("Error", "Please enter a valid daily rate");
         return;
       }
+      if (job?.minimum_rate && dailyRate < job.minimum_rate) {
+        Alert.alert(
+          "Daily Rate Too Low",
+          `The minimum daily rate for this job category is ₱${job.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
+        );
+        return;
+      }
       if (!days || days <= 0) {
         Alert.alert("Error", "Please enter a valid number of days");
         return;
@@ -1798,6 +1807,13 @@ export default function JobDetailScreen() {
       const days = parseInt(proposedDays);
       if (!dailyRate || dailyRate <= 0) {
         Alert.alert("Error", "Please enter a valid daily rate");
+        return;
+      }
+      if (job?.minimum_rate && dailyRate < job.minimum_rate) {
+        Alert.alert(
+          "Daily Rate Too Low",
+          `The minimum daily rate for this job category is ₱${job.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
+        );
         return;
       }
       if (!days || days <= 0) {

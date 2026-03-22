@@ -28,6 +28,7 @@ from decimal import Decimal
 import math
 import re
 from adminpanel.audit_service import log_action
+from jobs.rate_validation import validate_daily_rate_for_specialization
 
 logger = logging.getLogger(__name__)
 
@@ -987,6 +988,9 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
                 if job.categoryID
                 else "General",
             },
+            "minimum_rate": float(job.categoryID.minimumRate)
+            if job.categoryID and job.categoryID.minimumRate
+            else None,
             "client": client_data,
             "assigned_worker": assigned_worker,
             "assigned_agency": assigned_agency,  # Agency info for agency-handled jobs
@@ -1260,6 +1264,16 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                 daily_rate_agreed = float(job_data["daily_rate"])
             except (TypeError, ValueError):
                 pass
+
+        if payment_model == "DAILY" and daily_rate_agreed is not None and category:
+            rate_error = validate_daily_rate_for_specialization(
+                daily_rate=Decimal(str(daily_rate_agreed)),
+                specialization=category,
+                field_name="daily_rate",
+                field_label="Daily rate",
+            )
+            if rate_error:
+                return {"success": False, **rate_error}
 
         raw_shift_type = job_data.get("shift_type") or "ANY"
         resolved_shift_type = str(raw_shift_type).upper()
@@ -1776,6 +1790,20 @@ def create_mobile_invite_job(
                         invite_daily_rate = float(job_data["daily_rate"])
                     except (TypeError, ValueError):
                         pass
+
+                if (
+                    invite_payment_model == "DAILY"
+                    and invite_daily_rate is not None
+                    and category is not None
+                ):
+                    rate_error = validate_daily_rate_for_specialization(
+                        daily_rate=Decimal(str(invite_daily_rate)),
+                        specialization=category,
+                        field_name="daily_rate",
+                        field_label="Daily rate",
+                    )
+                    if rate_error:
+                        return {"success": False, **rate_error}
 
                 invite_shift_type = str(job_data.get("shift_type") or "ANY").upper()
                 if invite_shift_type not in {"ANY", "MORNING", "NIGHT"}:

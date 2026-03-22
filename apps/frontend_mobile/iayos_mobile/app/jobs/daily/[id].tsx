@@ -70,6 +70,7 @@ interface DailyJobDetail {
   category: string;
   budget: string;
   daily_rate: number;
+  minimum_rate?: number | null;
   estimated_duration: number;
   location_city: string;
   location_barangay: string;
@@ -705,6 +706,7 @@ export default function DailyJobDetailScreen() {
         onSubmit={handleRequestRateChange}
         currentRate={summary?.daily_rate || 0}
         remainingDays={summary?.remaining_days || 0}
+        minimumRate={Number(job?.minimum_rate || 0)}
         isWorker={isWorker}
         isSubmitting={requestRateChangeMutation.isPending}
       />

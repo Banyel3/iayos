@@ -27,6 +27,10 @@ from accounts.models import (
     PriceNegotiation,
 )
 from profiles.models import Conversation, ConversationParticipant, Message
+from jobs.rate_validation import (
+    validate_daily_rate_for_specialization,
+    validate_daily_rate_for_specializations,
+)
 
 
 def _post_team_arrival_system_update(job: Job):
@@ -997,6 +1001,18 @@ def create_team_job(
                 "error": "daily_rate and duration_days must be positive",
             }
 
+        slot_specializations = list(
+            Specializations.objects.filter(specializationID__in=spec_ids)
+        )
+        rate_error = validate_daily_rate_for_specializations(
+            daily_rate=effective_daily_rate,
+            specializations=slot_specializations,
+            field_name="daily_rate",
+            field_label="Daily rate",
+        )
+        if rate_error:
+            return {"success": False, **rate_error}
+
         # DAILY team budget is derived from rate/day per worker.
         effective_total_budget = (
             effective_daily_rate
@@ -1802,21 +1818,36 @@ def apply_to_skill_slot(
             "required_specialization_id": skill_slot.specializationID.specializationID,
         }
 
-    if (
-        budget_option == "NEGOTIATE"
-        and skill_slot.specializationID.minimumRate
-        and proposed_budget < skill_slot.specializationID.minimumRate
-    ):
-        minimum_rate = skill_slot.specializationID.minimumRate
-        return {
-            "success": False,
-            "error": (
-                f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
-                f"(DOLE minimum rate for {skill_slot.specializationID.specializationName})."
-            ),
-            "minimum_rate": float(minimum_rate),
-            "category": skill_slot.specializationID.specializationName,
-        }
+    if budget_option == "NEGOTIATE":
+        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+            if proposed_daily_rate is None:
+                return {
+                    "success": False,
+                    "error": "proposed_daily_rate is required for DAILY negotiation",
+                }
+
+            rate_error = validate_daily_rate_for_specialization(
+                daily_rate=proposed_daily_rate,
+                specialization=skill_slot.specializationID,
+                field_name="proposed_daily_rate",
+                field_label="Proposed daily rate",
+            )
+            if rate_error:
+                return {"success": False, **rate_error}
+        elif (
+            skill_slot.specializationID.minimumRate
+            and proposed_budget < skill_slot.specializationID.minimumRate
+        ):
+            minimum_rate = skill_slot.specializationID.minimumRate
+            return {
+                "success": False,
+                "error": (
+                    f"Proposed budget cannot be less than P{minimum_rate:,.2f} "
+                    f"(DOLE minimum rate for {skill_slot.specializationID.specializationName})."
+                ),
+                "minimum_rate": float(minimum_rate),
+                "category": skill_slot.specializationID.specializationName,
+            }
 
     # Single-row policy per (job, worker, skill_slot): reuse rejected/withdrawn
     # row, block active row, and avoid unique-constraint crashes.
@@ -2062,6 +2093,16 @@ def accept_team_application(
     # Determine daily rate for assignment (DAILY payment model jobs)
     assignment_daily_rate = None
     if job.payment_model == "DAILY":
+        if daily_rate_override is not None:
+            rate_error = validate_daily_rate_for_specialization(
+                daily_rate=daily_rate_override,
+                specialization=required_specialization,
+                field_name="daily_rate_override",
+                field_label="Daily rate override",
+            )
+            if rate_error:
+                return {"success": False, **rate_error}
+
         if daily_rate_override is not None:
             # Client counter-proposed a rate
             assignment_daily_rate = daily_rate_override

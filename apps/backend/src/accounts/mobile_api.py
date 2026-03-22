@@ -51,6 +51,7 @@ from jobs.schemas import (
     ClientCounterSchema,
     ClientRejectPriceSchema,
 )
+from jobs.rate_validation import validate_daily_rate_for_specialization
 
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
@@ -3473,26 +3474,43 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "Proposed budget is required when negotiating"}, status=400
             )
 
-        if (
-            payload.budget_option == "NEGOTIATE"
-            and payload.proposed_budget is not None
-            and job.categoryID
-            and job.categoryID.minimumRate
-        ):
-            proposed_budget = Decimal(str(payload.proposed_budget))
-            minimum_rate = Decimal(str(job.categoryID.minimumRate))
-            if proposed_budget < minimum_rate:
+        if payload.budget_option == "NEGOTIATE" and job.categoryID:
+            if (
+                getattr(job, "payment_model", "PROJECT") == "DAILY"
+                and payload.proposed_daily_rate is None
+            ):
                 return Response(
-                    {
-                        "error": (
-                            f"Proposed budget cannot be less than ₱{minimum_rate:,.2f} "
-                            f"(DOLE minimum rate for {job.categoryID.specializationName})."
-                        ),
-                        "minimum_rate": float(minimum_rate),
-                        "category": job.categoryID.specializationName,
-                    },
+                    {"error": "proposed_daily_rate is required for DAILY negotiation"},
                     status=400,
                 )
+
+            if (
+                getattr(job, "payment_model", "PROJECT") == "DAILY"
+                and payload.proposed_daily_rate is not None
+            ):
+                rate_error = validate_daily_rate_for_specialization(
+                    daily_rate=Decimal(str(payload.proposed_daily_rate)),
+                    specialization=job.categoryID,
+                    field_name="proposed_daily_rate",
+                    field_label="Proposed daily rate",
+                )
+                if rate_error:
+                    return Response(rate_error, status=400)
+            elif payload.proposed_budget is not None and job.categoryID.minimumRate:
+                proposed_budget = Decimal(str(payload.proposed_budget))
+                minimum_rate = Decimal(str(job.categoryID.minimumRate))
+                if proposed_budget < minimum_rate:
+                    return Response(
+                        {
+                            "error": (
+                                f"Proposed budget cannot be less than P{minimum_rate:,.2f} "
+                                f"(DOLE minimum rate for {job.categoryID.specializationName})."
+                            ),
+                            "minimum_rate": float(minimum_rate),
+                            "category": job.categoryID.specializationName,
+                        },
+                        status=400,
+                    )
 
         # Enforce applied_shift for DAILY jobs where shift_type == ANY
         _applied_shift = getattr(payload, "applied_shift", None)
@@ -4135,6 +4153,23 @@ def worker_propose_price(request, application_id: int, payload: WorkerProposeSch
         )
         proposed_days = payload.proposed_days or None
 
+        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+            if proposed_daily_rate is None:
+                return Response(
+                    {"error": "proposed_daily_rate is required for DAILY negotiation"},
+                    status=400,
+                )
+
+            if job.categoryID:
+                rate_error = validate_daily_rate_for_specialization(
+                    daily_rate=proposed_daily_rate,
+                    specialization=job.categoryID,
+                    field_name="proposed_daily_rate",
+                    field_label="Proposed daily rate",
+                )
+                if rate_error:
+                    return Response(rate_error, status=400)
+
         # Mark previous pending entry as superseded
         PriceNegotiation.objects.filter(
             application=application,
@@ -4266,6 +4301,23 @@ def client_counter_offer(request, application_id: int, payload: ClientCounterSch
             else None
         )
         proposed_days = payload.proposed_days or None
+
+        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+            if proposed_daily_rate is None:
+                return Response(
+                    {"error": "proposed_daily_rate is required for DAILY negotiation"},
+                    status=400,
+                )
+
+            if job.categoryID:
+                rate_error = validate_daily_rate_for_specialization(
+                    daily_rate=proposed_daily_rate,
+                    specialization=job.categoryID,
+                    field_name="proposed_daily_rate",
+                    field_label="Proposed daily rate",
+                )
+                if rate_error:
+                    return Response(rate_error, status=400)
 
         # Mark the last worker proposal as COUNTERED
         last.status = PriceNegotiation.NegotiationStatus.COUNTERED
