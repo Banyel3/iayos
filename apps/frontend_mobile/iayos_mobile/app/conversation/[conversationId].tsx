@@ -4604,7 +4604,8 @@ export default function ChatScreen() {
               {((conversation.job?.payment_model === "DAILY" &&
                 !conversation.is_team_job) ||
                 isTeamProjectAttendance ||
-                isProjectMultiDayJob) && (
+                isProjectMultiDayJob ||
+                isDirectHireAgencyJob) && (
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.attendanceTopRow}>
                     <View style={styles.attendanceHeaderTop}>
