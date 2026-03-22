@@ -26,6 +26,7 @@ from jobs.team_job_services import (
     create_team_job,
     early_complete_single_project_job,
 )
+from jobs.cancellation_service import cancel_job_with_scenarios
 from jobs.api import accept_job_invite_worker, confirm_project_employee_arrival
 from jobs.text_moderation import validate_job_post_content
 from agency.services import get_agency_jobs, assign_employees_to_slots
@@ -749,3 +750,97 @@ class JobContentModerationTests(TestCase):
             location="Tetuan",
         )
         self.assertIn("title", violations)
+
+
+class AgencyEmployeeCancellationAvailabilityTests(TestCase):
+    def setUp(self):
+        self.client_account = Accounts.objects.create_user(
+            email="cancel-client@test.com",
+            password="password123",
+            isVerified=True,
+            verification_level=2,
+            KYCVerified=True,
+        )
+        self.agency_account = Accounts.objects.create_user(
+            email="cancel-agency@test.com",
+            password="password123",
+            isVerified=True,
+            verification_level=2,
+            KYCVerified=True,
+        )
+
+        self.client_profile = Profile.objects.create(
+            accountFK=self.client_account,
+            profileType="CLIENT",
+            firstName="Cancel",
+            lastName="Client",
+        )
+        self.client_record = ClientProfile.objects.create(
+            profileID=self.client_profile,
+            description="",
+            totalJobsPosted=0,
+            clientRating=0,
+            activeJobsCount=0,
+        )
+
+        self.agency = Agency.objects.create(
+            accountFK=self.agency_account,
+            businessName="Cancel Agency",
+        )
+        self.specialization = Specializations.objects.create(
+            specializationName="Painter",
+            minimumRate=Decimal("300.00"),
+        )
+
+    def test_cancelled_job_assignments_do_not_keep_employee_working(self):
+        from agency.models import AgencyEmployee
+        from agency.services import get_employee_workload
+
+        job = Job.objects.create(
+            clientID=self.client_record,
+            title="Agency cancellation availability",
+            description="desc",
+            categoryID=self.specialization,
+            budget=Decimal("2000.00"),
+            escrowAmount=Decimal("1000.00"),
+            escrowPaid=True,
+            location="Test",
+            status="IN_PROGRESS",
+            payment_model="PROJECT",
+            assignedAgencyFK=self.agency,
+            clientConfirmedWorkStarted=True,
+        )
+
+        employee = AgencyEmployee.objects.create(
+            agency=self.agency_account,
+            name="Employee One",
+            firstName="Employee",
+            lastName="One",
+            specializations='["Painter"]',
+            isActive=True,
+        )
+
+        assignment = JobEmployeeAssignment.objects.create(
+            job=job,
+            employee=employee,
+            status=JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+        )
+
+        before = get_employee_workload(self.agency_account, employee.employeeID)
+        self.assertEqual(before["availability"], "WORKING")
+
+        result = cancel_job_with_scenarios(
+            job=job,
+            actor_account=self.client_account,
+            reason="Client cancelled the job",
+        )
+        self.assertTrue(result.get("success"), msg=result)
+
+        assignment.refresh_from_db()
+        self.assertEqual(
+            assignment.status,
+            JobEmployeeAssignment.AssignmentStatus.REMOVED,
+        )
+
+        after = get_employee_workload(self.agency_account, employee.employeeID)
+        self.assertEqual(after["availability"], "AVAILABLE")

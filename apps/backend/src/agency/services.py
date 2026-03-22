@@ -2177,7 +2177,9 @@ def validate_employee_not_working(employee, exclude_job=None, target_job=None):
 
     # Check M2M path: JobEmployeeAssignment
     m2m_query = JobEmployeeAssignment.objects.filter(
-        employee=employee, status__in=["ASSIGNED", "IN_PROGRESS"]
+        employee=employee,
+        status__in=["ASSIGNED", "IN_PROGRESS"],
+        job__status__in=["ASSIGNED", "IN_PROGRESS"],
     ).select_related("job")
     if exclude_job:
         m2m_query = m2m_query.exclude(job_id=exclude_job.jobID)
@@ -2232,13 +2234,21 @@ def get_employee_workload(agency_account, employee_id: int) -> dict:
     ).values_list("jobID", flat=True)
 
     m2m_assigned = (
-        JobEmployeeAssignment.objects.filter(employee=employee, status="ASSIGNED")
+        JobEmployeeAssignment.objects.filter(
+            employee=employee,
+            status="ASSIGNED",
+            job__status="ASSIGNED",
+        )
         .exclude(job_id__in=legacy_job_ids)
         .count()
     )
 
     m2m_in_progress = (
-        JobEmployeeAssignment.objects.filter(employee=employee, status="IN_PROGRESS")
+        JobEmployeeAssignment.objects.filter(
+            employee=employee,
+            status="IN_PROGRESS",
+            job__status="IN_PROGRESS",
+        )
         .exclude(job_id__in=legacy_job_ids)
         .count()
     )

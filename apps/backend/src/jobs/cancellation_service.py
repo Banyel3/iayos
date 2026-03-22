@@ -363,6 +363,21 @@ def cancel_job_with_scenarios(
         job.workerCompensationAmount = _q(worker_compensation)
         job.save()
 
+        # Keep assignment records in sync with cancelled jobs so agency employee
+        # availability/workload does not remain stuck in WORKING.
+        JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
+        ).update(assignment_status=JobWorkerAssignment.AssignmentStatus.REMOVED)
+
+        JobEmployeeAssignment.objects.filter(
+            job=job,
+            status__in=[
+                JobEmployeeAssignment.AssignmentStatus.ASSIGNED,
+                JobEmployeeAssignment.AssignmentStatus.IN_PROGRESS,
+            ],
+        ).update(status=JobEmployeeAssignment.AssignmentStatus.REMOVED)
+
         # Policy enforcement: if client cancels after worker marked done, suspend client for 1 day.
         if actor_role == "CLIENT" and cancellation_stage == "AFTER_WORKER_MARKED_DONE":
             suspension_until = now + timedelta(days=1)
