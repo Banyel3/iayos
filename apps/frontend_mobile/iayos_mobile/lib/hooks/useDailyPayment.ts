@@ -1514,7 +1514,7 @@ export const useClientVerifyArrival = () => {
       Toast.show({
         type: "success",
         text1: "Arrival Verified ✅",
-        text2: `${data.employee_name} has started working`,
+        text2: `${data.employee_name || "Worker"} has started working`,
         position: "top",
       });
     },

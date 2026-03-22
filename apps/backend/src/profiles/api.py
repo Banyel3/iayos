@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import re
 from zoneinfo import ZoneInfo
 from jobs.backjob_service import auto_start_agency_backjob_if_ready
+from accounts.models import JobEmployeeAssignment
 from .content_filter import contains_contact_info
 
 
@@ -3193,6 +3194,7 @@ def get_conversation_messages(request, conversation_id: int):
                 worker_avatar = None
                 worker_id = None
                 worker_account_id = None
+                assignment_id = record.assignmentID_id
 
                 if record.workerID:  # Freelance worker
                     profile = record.workerID.profileID
@@ -3208,6 +3210,17 @@ def get_conversation_messages(request, conversation_id: int):
                     worker_avatar = record.employeeID.avatar
                     worker_id = record.employeeID.employeeID
                     worker_account_id = getattr(record.employeeID, "accountFK_id", None)
+                    if assignment_id is None:
+                        assignment_id = (
+                            JobEmployeeAssignment.objects.filter(
+                                job=job,
+                                employee=record.employeeID,
+                                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                            )
+                            .order_by("-updatedAt")
+                            .values_list("assignmentID", flat=True)
+                            .first()
+                        )
                 elif record.assignmentID:  # Team worker (via JobWorkerAssignment)
                     profile = record.assignmentID.workerID.profileID
                     worker_name = (
@@ -3221,6 +3234,7 @@ def get_conversation_messages(request, conversation_id: int):
                 attendance_today.append(
                     {
                         "attendance_id": record.attendanceID,
+                        "assignment_id": assignment_id,
                         "worker_id": worker_id,
                         "worker_account_id": worker_account_id,
                         "worker_name": worker_name,
