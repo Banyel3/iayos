@@ -569,12 +569,12 @@ export const ENDPOINTS = {
   CLIENT_CONFIRM_ATTENDANCE: (attendanceId: number) =>
     `${API_URL}/api/mobile/daily-attendance/${attendanceId}/client-confirm`,
   // New flow: Client verifies arrival and marks checkout
-  CLIENT_VERIFY_ARRIVAL: (jobId: number, attendanceId: number) =>
+  CLIENT_VERIFY_ARRIVAL: (jobId: number, attendanceId: number | string) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/verify-arrival`,
-  CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number) =>
+  CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number | string) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-checkout`,
   // Simplified daily flow: client taps "Mark Day Complete" → sets time_out + triggers payment
-  CLIENT_MARK_DAY_COMPLETE: (jobId: number, attendanceId: number) =>
+  CLIENT_MARK_DAY_COMPLETE: (jobId: number, attendanceId: number | string) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/mark-day-complete`,
   DAILY_EXTEND_ONE_DAY: (jobId: number) =>
     `${API_URL}/api/jobs/${jobId}/daily/extend-one-day`,

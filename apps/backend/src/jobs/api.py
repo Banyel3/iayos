@@ -210,6 +210,137 @@ def get_effective_work_date(job: Job):
     return base_date + timedelta(days=day_offset)
 
 
+def _resolve_daily_attendance_from_ref(
+    job_id: int,
+    attendance_ref: str,
+    *,
+    create_if_missing: bool = False,
+):
+    """Resolve an attendance reference to a DailyAttendance row.
+
+    Supports:
+    - Numeric attendance IDs (legacy/current rows)
+    - Synthetic client placeholder IDs: `awaiting-<assignment_id>`
+
+    When `create_if_missing=True`, synthetic refs can materialize today's
+    attendance row from the underlying assignment.
+    """
+    from accounts.models import DailyAttendance
+
+    ref = str(attendance_ref or "").strip()
+    attendance_qs = DailyAttendance.objects.select_related(
+        "jobID__clientID__profileID__accountFK",
+        "employeeID",
+        "workerID__profileID",
+        "assignmentID__workerID__profileID",
+    )
+
+    if ref.isdigit():
+        return attendance_qs.get(attendanceID=int(ref), jobID__jobID=job_id)
+
+    worker_match = re.match(r"^awaiting-worker-(\d+)$", ref)
+    employee_match = re.match(r"^awaiting-employee-(\d+)$", ref)
+    legacy_match = re.match(r"^awaiting-(\d+)$", ref)
+
+    requested_kind = None
+    if worker_match:
+        requested_kind = "worker"
+        assignment_id = int(worker_match.group(1))
+    elif employee_match:
+        requested_kind = "employee"
+        assignment_id = int(employee_match.group(1))
+    elif legacy_match:
+        assignment_id = int(legacy_match.group(1))
+    else:
+        raise ValueError("Invalid attendance reference")
+
+    team_assignment = None
+    agency_assignment = None
+
+    if requested_kind in (None, "worker"):
+        team_assignment = JobWorkerAssignment.objects.select_related(
+            "jobID", "workerID"
+        ).filter(assignmentID=assignment_id, jobID__jobID=job_id).first()
+
+    if requested_kind in (None, "employee"):
+        agency_assignment = JobEmployeeAssignment.objects.select_related(
+            "job", "employee"
+        ).filter(assignmentID=assignment_id, job__jobID=job_id).first()
+
+    if team_assignment and agency_assignment:
+        # Legacy ambiguous placeholder (`awaiting-<id>`) can collide across
+        # JobWorkerAssignment and JobEmployeeAssignment tables. Prefer whichever
+        # side already has an attendance row for today's effective date.
+        work_date = get_effective_work_date(team_assignment.jobID)
+        worker_row_exists = DailyAttendance.objects.filter(
+            jobID=team_assignment.jobID,
+            assignmentID=team_assignment,
+            date=work_date,
+        ).exists()
+        employee_row_exists = DailyAttendance.objects.filter(
+            jobID=agency_assignment.job,
+            employeeID=agency_assignment.employee,
+            date=work_date,
+        ).exists()
+
+        if worker_row_exists and not employee_row_exists:
+            agency_assignment = None
+        elif employee_row_exists and not worker_row_exists:
+            team_assignment = None
+        else:
+            raise ValueError("Ambiguous attendance reference")
+
+    if not team_assignment and not agency_assignment:
+        raise DailyAttendance.DoesNotExist
+
+    now = timezone.now()
+
+    if team_assignment:
+        job = team_assignment.jobID
+        work_date = get_effective_work_date(job)
+        lookup = {
+            "jobID": job,
+            "assignmentID": team_assignment,
+            "date": work_date,
+        }
+        defaults = {
+            "workerID": team_assignment.workerID,
+            "employeeID": None,
+            "status": "PENDING",
+            "worker_confirmed": True,
+            "worker_confirmed_at": now,
+            "notes": "Auto-created from awaiting assignment reference",
+        }
+    else:
+        job = agency_assignment.job
+        work_date = get_effective_work_date(job)
+        lookup = {
+            "jobID": job,
+            "employeeID": agency_assignment.employee,
+            "date": work_date,
+        }
+        defaults = {
+            "workerID": None,
+            "assignmentID": None,
+            "status": "PENDING",
+            "worker_confirmed": True,
+            "worker_confirmed_at": now,
+            "notes": "Auto-created from awaiting assignment reference",
+        }
+
+    if create_if_missing:
+        attendance, _ = DailyAttendance.objects.get_or_create(
+            **lookup,
+            defaults=defaults,
+        )
+    else:
+        attendance = DailyAttendance.objects.filter(**lookup).first()
+        if attendance is None:
+            raise DailyAttendance.DoesNotExist
+
+    return attendance_qs.get(attendanceID=attendance.attendanceID, jobID__jobID=job_id)
+
+
 def _has_meaningful_text(value: str) -> bool:
     """Require at least one alphabetic character to reject numeric/symbol-only payloads."""
     return bool(re.search(r"[A-Za-z]", value or ""))
@@ -11967,7 +12098,7 @@ def log_daily_attendance(request, job_id: int, data: LogAttendanceSchema):
     "/{job_id}/daily/attendance/{attendance_id}/confirm-worker", auth=dual_auth
 )
 @require_kyc
-def confirm_attendance_worker(request, job_id: int, attendance_id: int):
+def confirm_attendance_worker(request, job_id: int, attendance_id: str):
     """
     Worker confirms their attendance for a specific day.
     For agency jobs, agency rep confirms on behalf of employees.
@@ -11976,9 +12107,11 @@ def confirm_attendance_worker(request, job_id: int, attendance_id: int):
     from accounts.models import DailyAttendance
 
     try:
-        attendance = DailyAttendance.objects.get(
-            attendanceID=attendance_id, jobID__jobID=job_id
+        attendance = _resolve_daily_attendance_from_ref(
+            job_id, attendance_id, create_if_missing=False
         )
+    except ValueError:
+        return Response({"error": "Invalid attendance reference"}, status=400)
     except DailyAttendance.DoesNotExist:
         return Response({"error": "Attendance record not found"}, status=404)
 
@@ -12025,7 +12158,7 @@ def confirm_attendance_worker(request, job_id: int, attendance_id: int):
 )
 @require_kyc
 def confirm_attendance_client(
-    request, job_id: int, attendance_id: int, data: dict = None
+    request, job_id: int, attendance_id: str, data: dict = None
 ):
     """
     Client confirms attendance for a worker's day.
@@ -12038,9 +12171,11 @@ def confirm_attendance_client(
     from accounts.models import DailyAttendance
 
     try:
-        attendance = DailyAttendance.objects.get(
-            attendanceID=attendance_id, jobID__jobID=job_id
+        attendance = _resolve_daily_attendance_from_ref(
+            job_id, attendance_id, create_if_missing=False
         )
+    except ValueError:
+        return Response({"error": "Invalid attendance reference"}, status=400)
     except DailyAttendance.DoesNotExist:
         return Response({"error": "Attendance record not found"}, status=404)
 
@@ -12068,7 +12203,7 @@ def confirm_attendance_client(
     "/{job_id}/daily/attendance/{attendance_id}/verify-arrival", auth=dual_auth
 )
 @require_kyc
-def verify_employee_arrival(request, job_id: int, attendance_id: int):
+def verify_employee_arrival(request, job_id: int, attendance_id: str):
     """
     Client marks that a worker has arrived on-site for the day.
 
@@ -12085,12 +12220,11 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
     from django.utils import timezone
 
     try:
-        attendance = DailyAttendance.objects.select_related(
-            "jobID__clientID__profileID__accountFK",
-            "employeeID",
-            "workerID__profileID",
-            "assignmentID__workerID__profileID",
-        ).get(attendanceID=attendance_id, jobID__jobID=job_id)
+        attendance = _resolve_daily_attendance_from_ref(
+            job_id, attendance_id, create_if_missing=True
+        )
+    except ValueError:
+        return Response({"error": "Invalid attendance reference"}, status=400)
     except DailyAttendance.DoesNotExist:
         return Response({"error": "Attendance record not found"}, status=404)
 
@@ -12195,7 +12329,7 @@ def verify_employee_arrival(request, job_id: int, attendance_id: int):
 
 @router.post("/{job_id}/daily/attendance/{attendance_id}/mark-checkout", auth=dual_auth)
 @require_kyc
-def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
+def mark_employee_checkout_client(request, job_id: int, attendance_id: str):
     """
     Client marks an employee as checked out for the day.
     This sets time_out, signaling end of work for this day.
@@ -12205,12 +12339,11 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
     from django.utils import timezone
 
     try:
-        attendance = DailyAttendance.objects.select_related(
-            "jobID__clientID__profileID__accountFK",
-            "employeeID",
-            "workerID__profileID",
-            "assignmentID__workerID__profileID",
-        ).get(attendanceID=attendance_id, jobID__jobID=job_id)
+        attendance = _resolve_daily_attendance_from_ref(
+            job_id, attendance_id, create_if_missing=False
+        )
+    except ValueError:
+        return Response({"error": "Invalid attendance reference"}, status=400)
     except DailyAttendance.DoesNotExist:
         return Response({"error": "Attendance record not found"}, status=404)
 
@@ -12271,7 +12404,7 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: int):
     "/{job_id}/daily/attendance/{attendance_id}/mark-day-complete", auth=dual_auth
 )
 @require_kyc
-def mark_day_complete(request, job_id: int, attendance_id: int, data: dict = None):
+def mark_day_complete(request, job_id: int, attendance_id: str, data: dict = None):
     """
     Client marks the end of a worker's day and triggers payment in one step.
 
@@ -12293,12 +12426,11 @@ def mark_day_complete(request, job_id: int, attendance_id: int, data: dict = Non
     from django.utils import timezone
 
     try:
-        attendance = DailyAttendance.objects.select_related(
-            "jobID__clientID__profileID__accountFK",
-            "employeeID",
-            "workerID__profileID",
-            "assignmentID__workerID__profileID",
-        ).get(attendanceID=attendance_id, jobID__jobID=job_id)
+        attendance = _resolve_daily_attendance_from_ref(
+            job_id, attendance_id, create_if_missing=False
+        )
+    except ValueError:
+        return Response({"error": "Invalid attendance reference"}, status=400)
     except DailyAttendance.DoesNotExist:
         return Response({"error": "Attendance record not found"}, status=404)
 

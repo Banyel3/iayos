@@ -84,7 +84,7 @@ function patchConversationOnTheWay(
 
 function patchConversationAttendanceById(
   queryClient: ReturnType<typeof useQueryClient>,
-  attendanceId: number,
+  attendanceId: number | string,
   updater: (row: any) => any,
   jobId?: number,
 ) {
@@ -110,8 +110,19 @@ function patchConversationAttendanceById(
         : [];
       let hasChange = false;
 
+      const targetIdRaw = String(attendanceId ?? "");
+      const targetIdNumeric = Number(attendanceId);
+      const targetIdIsNumeric = Number.isFinite(targetIdNumeric);
+
       const updatedRows = rows.map((row: any) => {
-        if (Number(row?.attendance_id) !== Number(attendanceId)) {
+        const rowIdRaw = String(row?.attendance_id ?? "");
+        const rowIdNumeric = Number(row?.attendance_id);
+        const rowIdIsNumeric = Number.isFinite(rowIdNumeric);
+        const isMatch =
+          rowIdRaw === targetIdRaw ||
+          (targetIdIsNumeric && rowIdIsNumeric && rowIdNumeric === targetIdNumeric);
+
+        if (!isMatch) {
           return row;
         }
 
@@ -1228,7 +1239,7 @@ export const useClientConfirmAttendance = () => {
       const response = await apiRequest(
         ENDPOINTS.CLIENT_CONFIRM_ATTENDANCE(attendanceId),
         {
-        method: "POST",
+          method: "POST",
           body: formData,
         },
       );
@@ -1354,7 +1365,7 @@ export const useClientVerifyArrival = () => {
   return useMutation<
     VerifyArrivalResponse,
     Error,
-    { jobId: number; attendanceId: number }
+    { jobId: number; attendanceId: number | string }
   >({
     mutationFn: async ({ jobId, attendanceId }) => {
       const response = await apiRequest(
@@ -1373,9 +1384,13 @@ export const useClientVerifyArrival = () => {
         attendanceId,
         (row) => ({
           ...row,
+          attendance_id: data.attendance_id || row?.attendance_id,
           is_dispatched: false,
           status: data.status,
           time_in: data.time_in || row?.time_in,
+          worker_confirmed: true,
+          worker_confirmed_at:
+            row?.worker_confirmed_at || new Date().toISOString(),
         }),
         jobId,
       );
@@ -1422,7 +1437,7 @@ export const useClientMarkCheckout = () => {
   return useMutation<
     MarkCheckoutResponse,
     Error,
-    { jobId: number; attendanceId: number }
+    { jobId: number; attendanceId: number | string }
   >({
     mutationFn: async ({ jobId, attendanceId }) => {
       const response = await apiRequest(
