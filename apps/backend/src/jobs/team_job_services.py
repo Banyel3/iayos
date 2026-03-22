@@ -2,6 +2,7 @@
 # TEAM JOB SERVICES - Multi-Skill Multi-Worker Business Logic
 # ===========================================================================
 
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from django.conf import settings
@@ -32,6 +33,133 @@ from jobs.rate_validation import (
     validate_daily_rate_for_specialization,
     validate_daily_rate_for_specializations,
 )
+
+
+def _get_effective_work_date(job: Job):
+    """Get effective work date with TESTING-only QA offset applied."""
+    base_date = timezone.now().date()
+
+    if not bool(getattr(settings, "TESTING", False)):
+        return base_date
+
+    day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if day_offset <= 0:
+        return base_date
+
+    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    if duration_days > 0:
+        max_offset = max(duration_days - 1, 0)
+        day_offset = min(day_offset, max_offset)
+
+    return base_date + timedelta(days=day_offset)
+
+
+def _ensure_daily_attendance_row_for_team_member(
+    job: Job,
+    *,
+    worker_assignment: Optional[JobWorkerAssignment] = None,
+    employee_assignment: Optional[JobEmployeeAssignment] = None,
+    happened_at=None,
+) -> Optional[DailyAttendance]:
+    """Create/update a DAILY team attendance row for the effective work date.
+
+    This keeps attendance-driven settlement in sync with arrival/complete actions.
+    """
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "DAILY":
+        return None
+
+    if worker_assignment is None and employee_assignment is None:
+        return None
+
+    now = happened_at or timezone.now()
+    effective_day = _get_effective_work_date(job)
+
+    if worker_assignment is not None:
+        daily_rate = Decimal(
+            str(
+                getattr(worker_assignment, "daily_rate_at_assignment", None)
+                or getattr(job, "daily_rate_agreed", None)
+                or 0
+            )
+        )
+        attendance, _ = DailyAttendance.objects.get_or_create(
+            assignmentID=worker_assignment,
+            date=effective_day,
+            defaults={
+                "jobID": job,
+                "workerID": worker_assignment.workerID,
+                "status": "PENDING",
+                "worker_confirmed": True,
+                "worker_confirmed_at": now,
+                "time_in": now,
+                "amount_earned": daily_rate,
+                "notes": "Auto-synced from team worker arrival/completion",
+            },
+        )
+    else:
+        daily_rate = Decimal(
+            str(
+                getattr(employee_assignment.employee, "daily_rate", None)
+                or getattr(job, "daily_rate_agreed", None)
+                or 0
+            )
+        )
+        attendance, _ = DailyAttendance.objects.get_or_create(
+            jobID=job,
+            employeeID=employee_assignment.employee,
+            date=effective_day,
+            defaults={
+                "workerID": None,
+                "assignmentID": None,
+                "status": "PENDING",
+                "worker_confirmed": True,
+                "worker_confirmed_at": now,
+                "time_in": now,
+                "amount_earned": daily_rate,
+                "notes": "Auto-synced from team employee arrival/completion",
+            },
+        )
+
+    update_fields = []
+    if attendance.jobID_id != job.jobID:
+        attendance.jobID = job
+        update_fields.append("jobID")
+
+    if worker_assignment is not None:
+        if attendance.assignmentID_id is None:
+            attendance.assignmentID = worker_assignment
+            update_fields.append("assignmentID")
+        if attendance.workerID_id is None:
+            attendance.workerID = worker_assignment.workerID
+            update_fields.append("workerID")
+
+    if attendance.status == "DISPATCHED":
+        attendance.status = "PENDING"
+        update_fields.append("status")
+
+    if not attendance.worker_confirmed:
+        attendance.worker_confirmed = True
+        update_fields.append("worker_confirmed")
+
+    if attendance.worker_confirmed_at is None:
+        attendance.worker_confirmed_at = now
+        update_fields.append("worker_confirmed_at")
+
+    if attendance.time_in is None:
+        attendance.time_in = now
+        update_fields.append("time_in")
+
+    if Decimal(str(attendance.amount_earned or 0)) <= Decimal("0.00") and daily_rate > 0:
+        attendance.amount_earned = daily_rate
+        update_fields.append("amount_earned")
+
+    if update_fields:
+        if "updatedAt" not in update_fields:
+            update_fields.append("updatedAt")
+        attendance.save(update_fields=list(dict.fromkeys(update_fields)))
+
+    return attendance
 
 
 def _post_team_arrival_system_update(job: Job):
@@ -2751,6 +2879,16 @@ def worker_complete_team_assignment(
             )
         updated_assignment_ids.append(row.assignmentID)
 
+    # Safety net for DAILY team flow: completion should always have a
+    # settleable attendance row for each active assignment.
+    if is_daily_job:
+        for row in worker_assignments:
+            _ensure_daily_attendance_row_for_team_member(
+                job,
+                worker_assignment=row,
+                happened_at=completion_ts,
+            )
+
     if not updated_assignment_ids:
         # Defensive fallback in case state changed between reads.
         updated_assignment_ids = [a.assignmentID for a in worker_assignments]
@@ -3007,6 +3145,16 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
     # Idempotent: if every active assignment for this worker is already confirmed,
     # return success so stale client state can converge without a hard failure.
     if all(a.client_confirmed_arrival for a in worker_assignments):
+        payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+        if payment_model == "DAILY":
+            confirmed_at = timezone.now()
+            for row in worker_assignments:
+                _ensure_daily_attendance_row_for_team_member(
+                    job,
+                    worker_assignment=row,
+                    happened_at=confirmed_at,
+                )
+
         confirmed_at = next(
             (
                 a.client_confirmed_arrival_at
@@ -3058,6 +3206,15 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
             ]
         )
         updated_assignment_ids.append(row.assignmentID)
+
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model == "DAILY":
+        for row in worker_assignments:
+            _ensure_daily_attendance_row_for_team_member(
+                job,
+                worker_assignment=row,
+                happened_at=confirmed_at,
+            )
 
     if not updated_assignment_ids:
         updated_assignment_ids = [a.assignmentID for a in worker_assignments]
@@ -4153,6 +4310,14 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
 
     # Idempotent success if already confirmed.
     if assignment.clientConfirmedArrival:
+        payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+        if payment_model == "DAILY":
+            _ensure_daily_attendance_row_for_team_member(
+                job,
+                employee_assignment=assignment,
+                happened_at=assignment.clientConfirmedArrivalAt or timezone.now(),
+            )
+
         total_workers = JobWorkerAssignment.objects.filter(
             jobID=job, assignment_status="ACTIVE"
         ).count()
@@ -4218,6 +4383,14 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
             "status",
         ]
     )
+
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model == "DAILY":
+        _ensure_daily_attendance_row_for_team_member(
+            job,
+            employee_assignment=assignment,
+            happened_at=assignment.clientConfirmedArrivalAt,
+        )
 
     employee_name = assignment.employee.fullName
 
@@ -4355,6 +4528,16 @@ def agency_complete_team_employee(
     assignment.completionNotes = notes or ""
     assignment.status = "COMPLETED"
     assignment.save()
+
+    # Safety net for DAILY team flow: completion should always have a
+    # settleable attendance row for this employee.
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model == "DAILY":
+        _ensure_daily_attendance_row_for_team_member(
+            job,
+            employee_assignment=assignment,
+            happened_at=assignment.agencyMarkedCompleteAt,
+        )
 
     employee_name = assignment.employee.fullName
 

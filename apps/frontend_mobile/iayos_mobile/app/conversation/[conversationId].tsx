@@ -1805,7 +1805,7 @@ export default function ChatScreen() {
     if (payableRows.length === 0) {
       Alert.alert(
         "Nothing To Settle",
-        "No unconfirmed attendance rows are ready for day settlement.",
+        "No attendance rows are available for today yet. Please refresh and try again after arrivals/completions sync.",
       );
       return;
     }
@@ -13757,3 +13757,4 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
 });
+
