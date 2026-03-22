@@ -10431,6 +10431,7 @@ def approve_team_job_completion(
     request,
     job_id: int,
     payment_method: str = Form("WALLET"),
+    finalize_daily: str = Form("false"),
     cash_proof_image: UploadedFile = File(None),
 ):
     """
@@ -10493,11 +10494,19 @@ def approve_team_job_completion(
                 status=500,
             )
 
+    finalize_daily_flag = str(finalize_daily or "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
     result = client_approve_team_job(
         job_id=job_id,
         client_user=request.auth,
         payment_method=payment_method_upper,
         cash_proof_url=cash_proof_url,
+        finalize_daily=finalize_daily_flag,
     )
 
     if not result.get("success"):

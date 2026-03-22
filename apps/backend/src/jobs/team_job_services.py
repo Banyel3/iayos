@@ -3005,6 +3005,7 @@ def client_approve_team_job(
     client_user,
     payment_method: Optional[str] = None,
     cash_proof_url: Optional[str] = None,
+    finalize_daily: bool = False,
 ) -> dict:
     """
     Client approves team job completion. This closes the job and team conversation.
@@ -3039,6 +3040,18 @@ def client_approve_team_job(
     is_daily_job = (
         str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY"
     )
+
+    # Guardrail: daily team jobs should settle through attendance actions.
+    # Final job closure must be explicit to avoid accidental completion.
+    if is_daily_job and not finalize_daily:
+        return {
+            "success": False,
+            "error": (
+                "Daily team jobs settle per day through attendance. "
+                "Use daily finish flow for final completion."
+            ),
+            "error_code": "DAILY_TEAM_FINALIZE_REQUIRED",
+        }
 
     required_project_days = _get_required_project_days(job)
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
