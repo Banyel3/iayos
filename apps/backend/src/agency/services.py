@@ -1317,10 +1317,26 @@ def get_agency_jobs(
                     inviteStatus="REJECTED",
                 )
 
-        combined = base_query & status_query & invite_query
+        # Build queryset incrementally so we can apply invite-status edge-case
+        # handling for team/hybrid jobs (avoid accepted invites leaking into pending).
+        jobs_queryset = Job.objects.filter(base_query & status_query)
+
+        if invite_status_filter:
+            iuf = invite_status_filter.upper()
+
+            if iuf == "PENDING":
+                jobs_queryset = jobs_queryset.filter(invite_query)
+                # If this agency already accepted at least one slot on a team/hybrid
+                # job, treat it as accepted and do not show it under pending invites.
+                jobs_queryset = jobs_queryset.exclude(
+                    skill_slots__invited_agency=agency,
+                    skill_slots__agency_invite_status="ACCEPTED",
+                )
+            else:
+                jobs_queryset = jobs_queryset.filter(invite_query)
 
         # Get total count (distinct to avoid duplicates from multi-slot joins)
-        total_count = Job.objects.filter(combined).distinct().count()
+        total_count = jobs_queryset.distinct().count()
 
         # Calculate pagination
         offset = (page - 1) * limit
@@ -1331,7 +1347,7 @@ def get_agency_jobs(
 
         # Get jobs with related data (distinct avoids duplicates from multi-slot joins)
         jobs = (
-            Job.objects.filter(combined)
+            jobs_queryset
             .distinct()
             .select_related(
                 "clientID", "clientID__profileID", "categoryID", "assignedEmployeeID"
