@@ -14815,6 +14815,8 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             "success": True,
             "message": f"{employee.fullName}'s arrival confirmed - work can begin",
             "assignment_id": assignment.assignmentID,
+            "updated_assignment_ids": [assignment.assignmentID],
+            "updated_count": 1,
             "employee_id": employee_id,
             "employee_name": employee.fullName,
             "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat(),

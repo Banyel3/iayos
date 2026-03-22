@@ -2909,6 +2909,9 @@ export default function JobDetailScreen() {
                                     paddingHorizontal: 10,
                                     paddingVertical: 6,
                                     borderRadius: 6,
+                                    opacity: confirmEmployeeArrival.isPending
+                                      ? 0.7
+                                      : 1,
                                   }}
                                   onPress={() =>
                                     confirmEmployeeArrival.mutate({
@@ -2916,6 +2919,7 @@ export default function JobDetailScreen() {
                                       assignmentId: emp.assignment_id,
                                     })
                                   }
+                                  disabled={confirmEmployeeArrival.isPending}
                                 >
                                   <Text
                                     style={{
@@ -2925,7 +2929,9 @@ export default function JobDetailScreen() {
                                       fontSize: 11,
                                     }}
                                   >
-                                    Confirm Arrival
+                                    {confirmEmployeeArrival.isPending
+                                      ? "Confirming..."
+                                      : "Confirm Arrival"}
                                   </Text>
                                 </TouchableOpacity>
                               )}
