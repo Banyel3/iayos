@@ -573,8 +573,34 @@ export function useConfirmTeamEmployeeArrival() {
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["team-job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId)] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      const normalizedMessage = String(error?.message || "").toLowerCase();
+      const isAlreadyConfirmed =
+        normalizedMessage.includes("already confirmed") ||
+        normalizedMessage.includes("already been confirmed") ||
+        normalizedMessage.includes("already arrived");
+
+      if (isAlreadyConfirmed && variables?.jobId) {
+        queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+        queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
+        queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+        queryClient.invalidateQueries({ queryKey: ["jobs"] });
+        queryClient.invalidateQueries({ queryKey: ["team-job", variables.jobId] });
+        queryClient.invalidateQueries({
+          queryKey: ["jobs", String(variables.jobId)],
+        });
+
+        Toast.show({
+          type: "success",
+          text1: "Arrival Already Confirmed",
+          text2: "Refreshing latest job state",
+        });
+        return;
+      }
+
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
@@ -1175,8 +1201,34 @@ export function useConfirmProjectArrival() {
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["team-job", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId)] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      const normalizedMessage = String(error?.message || "").toLowerCase();
+      const isAlreadyConfirmed =
+        normalizedMessage.includes("already confirmed") ||
+        normalizedMessage.includes("already been confirmed") ||
+        normalizedMessage.includes("already arrived");
+
+      if (isAlreadyConfirmed && variables?.jobId) {
+        queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+        queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
+        queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+        queryClient.invalidateQueries({ queryKey: ["jobs"] });
+        queryClient.invalidateQueries({ queryKey: ["team-job", variables.jobId] });
+        queryClient.invalidateQueries({
+          queryKey: ["jobs", String(variables.jobId)],
+        });
+
+        Toast.show({
+          type: "success",
+          text1: "Arrival Already Confirmed",
+          text2: "Refreshing latest job state",
+        });
+        return;
+      }
+
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",

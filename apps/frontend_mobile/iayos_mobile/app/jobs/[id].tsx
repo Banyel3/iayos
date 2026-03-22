@@ -49,12 +49,12 @@ import {
   useAcceptTeamApplication,
   useRejectTeamApplication,
   useInviteAgencyToTeamSlot,
-  useConfirmTeamEmployeeArrival,
   useMarkTeamEmployeeComplete,
   type SkillSlot,
   type WorkerAssignment,
   type AgencyEmployeeAssignment,
 } from "@/lib/hooks/useTeamJob";
+import { useConfirmTeamEmployeeArrival } from "@/lib/hooks/useJobActions";
 import { useAgencies, type Agency } from "@/lib/hooks/useAgencies";
 import { useMySkills } from "@/lib/hooks/useSkills";
 import { useSubmitReport } from "@/lib/hooks/useReports";
@@ -2916,7 +2916,7 @@ export default function JobDetailScreen() {
                                   onPress={() =>
                                     confirmEmployeeArrival.mutate({
                                       jobId: parseInt(job.id),
-                                      assignmentId: emp.assignment_id,
+                                      assignmentId: Number(emp.assignment_id),
                                     })
                                   }
                                   disabled={confirmEmployeeArrival.isPending}
