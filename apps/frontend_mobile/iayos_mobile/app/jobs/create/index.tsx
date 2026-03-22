@@ -1223,6 +1223,17 @@ export default function CreateJobScreen() {
         Alert.alert("Error", "Please enter a valid daily rate");
         return;
       }
+
+      if (effectiveCategory && effectiveCategory.minimum_rate > 0) {
+        const dailyRateValue = parseFloat(dailyRate);
+        if (dailyRateValue < effectiveCategory.minimum_rate) {
+          Alert.alert(
+            "Daily Rate Too Low",
+            `The minimum daily rate for ${effectiveCategory.name} is ₱${effectiveCategory.minimum_rate.toFixed(2)}. Please enter a higher amount.`,
+          );
+          return;
+        }
+      }
     }
 
     // Number of working days validation (required for all job types)
@@ -2806,7 +2817,7 @@ export default function CreateJobScreen() {
                     {workerId && (
                       <View style={styles.inputGroup}>
                         <Text style={styles.label}>
-                          Select from Worker's List:
+                          Select from Worker&apos;s List:
                         </Text>
                         {materialsLoading ? (
                           <View style={styles.loadingCategories}>

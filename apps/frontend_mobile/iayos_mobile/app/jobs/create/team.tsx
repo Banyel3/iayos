@@ -58,6 +58,7 @@ interface Specialization {
   description?: string;
   category_id?: number;
   category_name?: string;
+  minimum_rate?: number;
 }
 
 interface SkillSlot {
@@ -212,6 +213,10 @@ export default function CreateTeamJobScreen() {
           skill.specialization_id,
         name: skill.name ?? skill.specializationName ?? "",
         description: skill.description ?? "",
+        minimum_rate:
+          Number(
+            skill.minimum_rate ?? skill.minimumRate ?? skill.min_rate ?? 0,
+          ) || 0,
         category_id:
           skill.category_id ?? skill.categoryId ?? skill.category ?? undefined,
         category_name:
@@ -777,6 +782,24 @@ export default function CreateTeamJobScreen() {
     if (paymentModel === "DAILY") {
       if (!dailyRate || dailyRateNum <= 0)
         return "Please enter a valid daily rate";
+
+      const violatingSlot = skillSlots.find((slot) => {
+        const specialization = specializations?.find(
+          (s) => Number(s.id) === Number(slot.specialization_id),
+        );
+        const minRate = Number(specialization?.minimum_rate || 0);
+        return minRate > 0 && dailyRateNum < minRate;
+      });
+      if (violatingSlot) {
+        const specialization = specializations?.find(
+          (s) => Number(s.id) === Number(violatingSlot.specialization_id),
+        );
+        const minRate = Number(specialization?.minimum_rate || 0);
+        const specializationName =
+          specialization?.name || violatingSlot.specialization_name || "selected skill";
+        return `Daily rate must be at least ₱${minRate.toFixed(2)} for ${specializationName}`;
+      }
+
       if (budgetNum < 100)
         return "Computed total budget is too low (minimum ₱100)";
     }

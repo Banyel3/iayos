@@ -27,6 +27,7 @@ interface RequestRateChangeModalProps {
   currentRate: number;
   remainingDays: number;
   isWorker: boolean;
+  minimumRate?: number;
 }
 
 const RATE_ADJUSTMENTS = [-500, -200, -100, 100, 200, 500];
@@ -39,6 +40,7 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
   currentRate,
   remainingDays,
   isWorker,
+  minimumRate = 0,
 }) => {
   const [newRate, setNewRate] = useState<string>(currentRate.toString());
   const [reason, setReason] = useState<string>("");
@@ -53,6 +55,7 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
 
   const handleSubmit = () => {
     if (parsedNewRate <= 0 || parsedNewRate === currentRate || !reason.trim()) return;
+    if (minimumRate > 0 && parsedNewRate < minimumRate) return;
     onSubmit(parsedNewRate, reason.trim(), format(effectiveDate, "yyyy-MM-dd"));
   };
 
@@ -76,7 +79,12 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
     setNewRate(numeric);
   };
 
-  const isValid = parsedNewRate > 0 && parsedNewRate !== currentRate && reason.trim().length >= 10;
+  const isBelowMinimum = minimumRate > 0 && parsedNewRate > 0 && parsedNewRate < minimumRate;
+  const isValid =
+    parsedNewRate > 0 &&
+    parsedNewRate !== currentRate &&
+    reason.trim().length >= 10 &&
+    !isBelowMinimum;
 
   return (
     <Modal
@@ -128,6 +136,17 @@ export const RequestRateChangeModal: React.FC<RequestRateChangeModalProps> = ({
                   maxLength={7}
                 />
               </View>
+
+              {minimumRate > 0 && (
+                <Text style={styles.minimumRateHint}>
+                  Minimum daily rate: ₱{minimumRate.toLocaleString()}
+                </Text>
+              )}
+              {isBelowMinimum && (
+                <Text style={styles.minimumRateError}>
+                  New rate must be at least ₱{minimumRate.toLocaleString()}.
+                </Text>
+              )}
 
               {/* Quick Adjustments */}
               <View style={styles.adjustmentsGrid}>
@@ -394,6 +413,17 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize["2xl"],
     fontWeight: "700",
     color: Colors.textPrimary,
+  },
+  minimumRateHint: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  minimumRateError: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.error,
+    marginBottom: Spacing.xs,
+    fontWeight: "600",
   },
   adjustmentsGrid: {
     flexDirection: "row",
