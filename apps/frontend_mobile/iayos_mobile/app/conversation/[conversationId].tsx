@@ -176,6 +176,8 @@ export default function ChatScreen() {
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [isBulkDailySettlementInFlight, setIsBulkDailySettlementInFlight] =
     useState(false);
+  const [isApprovePayPreflightInFlight, setIsApprovePayPreflightInFlight] =
+    useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -1713,6 +1715,128 @@ export default function ChatScreen() {
     );
   };
 
+  const isArrivalAlreadySyncedError = (error: unknown) => {
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : String(error || "").toLowerCase();
+    return (
+      message.includes("already confirmed") ||
+      message.includes("already been confirmed") ||
+      message.includes("already arrived")
+    );
+  };
+
+  const runApprovePayArrivalPreflight = useCallback(async () => {
+    if (!conversation) {
+      return null as ConversationDetail | null;
+    }
+
+    if (conversation.my_role !== "CLIENT" || !conversation.is_team_job) {
+      return conversation;
+    }
+
+    const teamWorkerRows = Array.isArray(conversation.team_worker_assignments)
+      ? conversation.team_worker_assignments
+      : [];
+
+    const pendingWorkerAssignmentIds = Array.from(
+      new Set(
+        teamWorkerRows
+          .map((row: any) => Number(row?.assignment_id))
+          .filter((assignmentId: number) => Number.isFinite(assignmentId))
+          .filter(
+            (assignmentId: number) =>
+              !teamWorkerRows.some(
+                (row: any) =>
+                  Number(row?.assignment_id) === assignmentId &&
+                  Boolean(row?.client_confirmed_arrival),
+              ),
+          ),
+      ),
+    );
+
+    const pendingEmployeeAssignmentIds = Array.from(
+      new Set(
+        agencyAssignedEmployees
+          .map((employee: any) => Number(employee?.assignment_id))
+          .filter((assignmentId: number) => Number.isFinite(assignmentId))
+          .filter((assignmentId: number) => {
+            const employee = agencyAssignedEmployees.find(
+              (row: any) => Number(row?.assignment_id) === assignmentId,
+            );
+            if (!employee) return false;
+
+            return !isAgencyStatusInCurrentBackjobCycle(
+              getAgencyArrivedFlag(employee),
+              getAgencyArrivedAt(employee),
+            );
+          }),
+      ),
+    );
+
+    if (
+      pendingWorkerAssignmentIds.length === 0 &&
+      pendingEmployeeAssignmentIds.length === 0
+    ) {
+      return conversation;
+    }
+
+    setIsApprovePayPreflightInFlight(true);
+    try {
+      for (const assignmentId of pendingWorkerAssignmentIds) {
+        setArrivalConfirmPending("WORKER", assignmentId, true);
+        try {
+          await confirmTeamWorkerArrivalMutation.mutateAsync({
+            jobId: conversation.job.id,
+            assignmentId,
+          });
+        } catch (error) {
+          if (!isArrivalAlreadySyncedError(error)) {
+            throw error;
+          }
+        } finally {
+          setArrivalConfirmPending("WORKER", assignmentId, false);
+        }
+      }
+
+      for (const assignmentId of pendingEmployeeAssignmentIds) {
+        setArrivalConfirmPending("AGENCY", assignmentId, true);
+        try {
+          await confirmTeamEmployeeArrivalMutation.mutateAsync({
+            jobId: conversation.job.id,
+            assignmentId,
+          });
+        } catch (error) {
+          if (!isArrivalAlreadySyncedError(error)) {
+            throw error;
+          }
+        } finally {
+          setArrivalConfirmPending("AGENCY", assignmentId, false);
+        }
+      }
+
+      const refreshed = await refetch();
+      return (refreshed?.data as ConversationDetail | undefined) ?? conversation;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to sync team arrival status before payment.";
+      Alert.alert("Unable To Sync Arrivals", message);
+      return null;
+    } finally {
+      setIsApprovePayPreflightInFlight(false);
+    }
+  }, [
+    agencyAssignedEmployees,
+    confirmTeamEmployeeArrivalMutation,
+    confirmTeamWorkerArrivalMutation,
+    conversation,
+    getAgencyArrivedAt,
+    getAgencyArrivedFlag,
+    isAgencyStatusInCurrentBackjobCycle,
+    refetch,
+    setArrivalConfirmPending,
+  ]);
   // Handle mark team assignment complete (WORKER only, for team jobs)
   const handleMarkTeamAssignmentComplete = (assignmentId: number) => {
     if (!conversation) return;
@@ -1737,8 +1861,11 @@ export default function ChatScreen() {
   };
 
   // Handle approve team job completion (CLIENT only, for team jobs)
-  const handleApproveTeamJobCompletion = () => {
+  const handleApproveTeamJobCompletion = async () => {
     if (!conversation) return;
+
+    const preflightConversation = await runApprovePayArrivalPreflight();
+    if (!preflightConversation) return;
 
     const isDailyTeamJob =
       conversation.is_team_job && conversation.job?.payment_model === "DAILY";
@@ -1783,10 +1910,17 @@ export default function ChatScreen() {
     });
   };
 
-  const handleApproveDailyTeamWorkday = () => {
+  const handleApproveDailyTeamWorkday = async () => {
     if (!conversation) return;
 
-    const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
+    const preflightConversation = await runApprovePayArrivalPreflight();
+    if (!preflightConversation) return;
+
+    const refreshedResult = await refetch();
+    const latestConversation =
+      (refreshedResult?.data as ConversationDetail | undefined) ?? preflightConversation;
+
+    const payableRows = (latestConversation.attendance_today ?? []).filter((row: any) => {
       const attendanceId = Number(row?.attendance_id ?? row?.id);
       const status = String(row?.status || "").toUpperCase();
       const isDisputedRow = status === "DISPUTED";
@@ -7078,12 +7212,14 @@ export default function ChatScreen() {
                           disabled={
                             conversation.job.payment_model === "DAILY"
                               ? dailyFinishJobMutation.isPending
-                              : approveTeamJobCompletionMutation.isPending
+                              : approveTeamJobCompletionMutation.isPending ||
+                                      isApprovePayPreflightInFlight
                           }
                         >
                           {(conversation.job.payment_model === "DAILY"
                             ? dailyFinishJobMutation.isPending
-                            : approveTeamJobCompletionMutation.isPending) ? (
+                            : approveTeamJobCompletionMutation.isPending ||
+                                      isApprovePayPreflightInFlight) ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
@@ -8094,15 +8230,19 @@ export default function ChatScreen() {
                               disabled={
                                 isTeamAgencyJob
                                   ? isDailyAgencyFlow
-                                    ? isBulkDailySettlementInFlight
-                                    : approveTeamJobCompletionMutation.isPending
+                                    ? isBulkDailySettlementInFlight ||
+                                      isApprovePayPreflightInFlight
+                                    : approveTeamJobCompletionMutation.isPending ||
+                                      isApprovePayPreflightInFlight
                                   : approveAgencyProjectJobMutation.isPending
                               }
                             >
                               {(isTeamAgencyJob
                                 ? isDailyAgencyFlow
-                                  ? isBulkDailySettlementInFlight
-                                  : approveTeamJobCompletionMutation.isPending
+                                  ? isBulkDailySettlementInFlight ||
+                                      isApprovePayPreflightInFlight
+                                  : approveTeamJobCompletionMutation.isPending ||
+                                      isApprovePayPreflightInFlight
                                 : approveAgencyProjectJobMutation.isPending) ? (
                                 <ActivityIndicator
                                   size="small"
