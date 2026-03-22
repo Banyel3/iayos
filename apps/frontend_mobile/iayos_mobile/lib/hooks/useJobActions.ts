@@ -1008,6 +1008,17 @@ export function useApproveCompletion() {
         });
       }
 
+      // Optimistically update local cache so post-completion UI shows immediately
+      // without waiting for the invalidateQueries re-fetch to return.
+      const nowIso = new Date().toISOString();
+      patchConversationJobState(queryClient, jobId, {
+        status: "COMPLETED",
+        clientMarkedComplete: true,
+        clientMarkedCompleteAt: data?.approved_at || nowIso,
+        remainingPaymentPaid: true,
+        remainingPaymentPaidAt: data?.approved_at || nowIso,
+      });
+
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });

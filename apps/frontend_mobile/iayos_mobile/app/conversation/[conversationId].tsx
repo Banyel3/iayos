@@ -663,6 +663,12 @@ export default function ChatScreen() {
     isServerMarkedClosed ||
     isConversationArchived ||
     computedConversationClosed;
+  // True as soon as client approves completion — before both reviews are submitted.
+  // Drives post-completion UI (banner, backjob section) without waiting for full closure.
+  const isJobTerminalForUI =
+    isConversationClosed ||
+    ((isJobCompleted || !!conversation?.job?.clientMarkedComplete) &&
+      !isJobCancelled);
   const isPaymentReleased =
     conversation?.job?.paymentBuffer?.is_payment_released === true;
 
@@ -4184,7 +4190,7 @@ export default function ChatScreen() {
 
         {/* Job Info Header with Action Buttons */}
         <View style={styles.jobHeaderContainer}>
-          {isConversationClosed &&
+          {isJobTerminalForUI &&
             !hasApprovedBackjob &&
             !hasActiveNegotiation && (
               <View style={styles.completedStatusBannerRow}>
@@ -7380,10 +7386,15 @@ export default function ChatScreen() {
                       style={[
                         styles.actionButtonText,
                         { color: Colors.success },
+                        conversation.my_role === "WORKER" && {
+                          fontWeight: "400",
+                          fontSize: 13,
+                        },
                       ]}
                     >
-                      Final payment completed. You can approve completion
-                      anytime.
+                      {conversation.my_role === "WORKER"
+                        ? "Client has paid the job in full."
+                        : "Final payment completed. You can approve completion anytime."}
                     </Text>
                   </View>
                 )}
@@ -8000,7 +8011,7 @@ export default function ChatScreen() {
             !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
             (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 &&
-            isConversationClosed &&
+            isJobTerminalForUI &&
             viewerHasReviewed &&
             counterpartyHasReviewed && (
               <TouchableOpacity
@@ -8075,7 +8086,7 @@ export default function ChatScreen() {
             !isPaymentReleased &&
             !conversation.backjob?.has_backjob &&
             (conversation.backjob?.total_backjobs_for_job ?? 0) === 0 &&
-            isConversationClosed &&
+            isJobTerminalForUI &&
             (!viewerHasReviewed || !counterpartyHasReviewed) && (
               <TouchableOpacity
                 style={styles.requestBackjobBanner}
