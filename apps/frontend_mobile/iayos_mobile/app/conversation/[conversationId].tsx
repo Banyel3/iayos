@@ -7386,10 +7386,15 @@ export default function ChatScreen() {
                       style={[
                         styles.actionButtonText,
                         { color: Colors.success },
+                        conversation.my_role === "WORKER" && {
+                          fontWeight: "400",
+                          fontSize: 13,
+                        },
                       ]}
                     >
-                      Final payment completed. You can approve completion
-                      anytime.
+                      {conversation.my_role === "WORKER"
+                        ? "Client has paid the job in full."
+                        : "Final payment completed. You can approve completion anytime."}
                     </Text>
                   </View>
                 )}
