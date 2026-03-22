@@ -1,6 +1,7 @@
 # mobile_services.py
 # Mobile-specific service layer for optimized API responses
 
+import logging
 from django.conf import settings
 from .models import (
     Accounts,
@@ -27,6 +28,8 @@ from decimal import Decimal
 import math
 import re
 from adminpanel.audit_service import log_action
+
+logger = logging.getLogger(__name__)
 
 
 def get_reviewer_info(
@@ -1194,14 +1197,30 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
         if payment_model == "DAILY":
             resolved_duration_days = int(job_data.get("duration_days") or 0) or None
         else:
-            # For PROJECT, compute from explicit value, date range, or expected_duration
+            # For PROJECT, compute from number_of_working_days, explicit value, date range, or expected_duration
             resolved_duration_days = None
+            # number_of_working_days takes highest priority (mobile sends this for PROJECT jobs)
             try:
-                explicit = int(job_data.get("duration_days") or 0)
-                if explicit > 0:
-                    resolved_duration_days = explicit
+                working_days = int(job_data.get("number_of_working_days") or 0)
+                if working_days > 0:
+                    resolved_duration_days = working_days
             except (TypeError, ValueError):
-                pass
+                # Ignore parsing errors here; fall back to other duration sources.
+                logger.debug(
+                    "Unable to parse number_of_working_days from job_data: %r",
+                    job_data.get("number_of_working_days"),
+                )
+            if not resolved_duration_days:
+                try:
+                    explicit = int(job_data.get("duration_days") or 0)
+                    if explicit > 0:
+                        resolved_duration_days = explicit
+                except (TypeError, ValueError):
+                    # Ignore parsing errors here; fall back to other duration sources.
+                    logger.debug(
+                        "Unable to parse duration_days from job_data: %r",
+                        job_data.get("duration_days"),
+                    )
             if (
                 not resolved_duration_days
                 and job_data.get("preferred_start_date")
@@ -1223,7 +1242,12 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                     if end_d >= start_d:
                         resolved_duration_days = max(1, (end_d - start_d).days + 1)
                 except (TypeError, ValueError):
-                    pass
+                    # If dates cannot be parsed, leave duration unresolved and rely on other fields.
+                    logger.debug(
+                        "Unable to parse date range from job_data: preferred_start_date=%r, scheduled_end_date=%r",
+                        job_data.get("preferred_start_date"),
+                        job_data.get("scheduled_end_date"),
+                    )
             if not resolved_duration_days:
                 resolved_duration_days = _parse_expected_duration_days(
                     job_data.get("expected_duration")
@@ -1237,11 +1261,10 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
             except (TypeError, ValueError):
                 pass
 
-        resolved_shift_type = (
-            (job_data.get("shift_type") or "ANY").upper()
-            if payment_model == "DAILY"
-            else "ANY"
-        )
+        raw_shift_type = job_data.get("shift_type") or "ANY"
+        resolved_shift_type = str(raw_shift_type).upper()
+        if resolved_shift_type not in {"ANY", "MORNING", "NIGHT"}:
+            return {"success": False, "error": f"Invalid shift_type: {resolved_shift_type}"}
 
         # Create job posting
         job = JobPosting.objects.create(
@@ -1754,11 +1777,12 @@ def create_mobile_invite_job(
                     except (TypeError, ValueError):
                         pass
 
-                invite_shift_type = (
-                    (job_data.get("shift_type") or "ANY").upper()
-                    if invite_payment_model == "DAILY"
-                    else "ANY"
-                )
+                invite_shift_type = str(job_data.get("shift_type") or "ANY").upper()
+                if invite_shift_type not in {"ANY", "MORNING", "NIGHT"}:
+                    return {
+                        "success": False,
+                        "error": f"Invalid shift_type: {invite_shift_type}",
+                    }
 
                 job = Job.objects.create(
                     clientID=client_profile,
@@ -2697,10 +2721,11 @@ def search_mobile_jobs(
         return {"success": False, "error": f"Search failed: {str(e)}"}
 
 
-def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]:
+def get_job_categories_mobile(worker_id: Optional[int] = None, agency_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Get job categories/specializations for mobile.
     If worker_id is provided, return only categories mapped to that worker's skills.
+    If agency_id is provided, return global categories plus that agency's custom skills.
     """
     try:
         # Keep category feed global by default. Custom worker/agency entries are private.
@@ -2709,6 +2734,23 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
             created_by_worker__isnull=True,
             is_custom=False,
         )
+
+        if agency_id:
+            from django.db.models import Q
+            from .models import Agency
+            try:
+                agency = Agency.objects.get(agencyId=agency_id)
+                # Return global specs + this agency's custom specs
+                categories_qs = Specializations.objects.filter(
+                    Q(
+                        created_by_agency__isnull=True,
+                        created_by_worker__isnull=True,
+                        is_custom=False,
+                    )
+                    | Q(created_by_agency=agency)
+                )
+            except Agency.DoesNotExist:
+                pass
 
         if worker_id:
             # Support multiple worker_id formats sent by mobile/web flows:
@@ -2750,6 +2792,7 @@ def get_job_categories_mobile(worker_id: Optional[int] = None) -> Dict[str, Any]
                 "id": cat.specializationID,
                 "name": cat.specializationName,
                 "minimum_rate": float(cat.minimumRate),
+                "is_custom": cat.is_custom,
             }
             for cat in categories
         ]

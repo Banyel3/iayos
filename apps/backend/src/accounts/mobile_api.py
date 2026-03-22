@@ -1633,14 +1633,15 @@ def mobile_my_jobs(
 
 
 @mobile_router.get("/jobs/categories")
-def mobile_job_categories(request, worker_id: Optional[int] = None):
+def mobile_job_categories(request, worker_id: Optional[int] = None, agency_id: Optional[int] = None):
     """
-    Get all job categories/specializations for mobile
+    Get all job categories/specializations for mobile.
+    If agency_id is provided, also includes that agency's custom skills.
     """
     from .mobile_services import get_job_categories_mobile
 
     try:
-        result = get_job_categories_mobile(worker_id=worker_id)
+        result = get_job_categories_mobile(worker_id=worker_id, agency_id=agency_id)
 
         if result["success"]:
             return result["data"]

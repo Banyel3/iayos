@@ -47,6 +47,10 @@ from .schemas import (
     QASkipNextDaySchema,
     CancelJobSchema,
 )
+
+import logging
+
+logger = logging.getLogger(__name__)
 from .cancellation_service import cancel_job_with_scenarios
 from .backjob_service import auto_start_agency_backjob_if_ready, get_business_local_date
 from .text_moderation import validate_job_post_content
@@ -494,6 +498,19 @@ def _get_required_project_days(job: JobPosting) -> int:
 
 def _resolve_project_duration_days_from_payload(data) -> int:
     """Resolve PROJECT duration days from explicit fields, schedule range, or expected duration text."""
+    # 0) number_of_working_days takes highest priority (mobile sends this for PROJECT jobs).
+    try:
+        working_days = int(getattr(data, "number_of_working_days", 0) or 0)
+        if working_days > 0:
+            return working_days
+    except (TypeError, ValueError) as exc:
+        # Malformed number_of_working_days; log and fall back to other duration hints.
+        logger.debug(
+            "Invalid number_of_working_days value in payload %r: %s",
+            getattr(data, "number_of_working_days", None),
+            exc,
+        )
+
     # 1) Explicit numeric duration_days from client payload.
     try:
         explicit_days = int(getattr(data, "duration_days", 0) or 0)
@@ -839,9 +856,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                     else None,
                     duration_days=_resolve_project_duration_days_from_payload(data),
-                    shift_type=(getattr(data, "shift_type", None) or "ANY")
-                    if (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
-                    else "ANY",
+                    shift_type=str(getattr(data, "shift_type", None) or "ANY").upper(),
                 )
 
                 print(f"📋 Job created as {job_type} (Web endpoint)")
@@ -959,9 +974,7 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                 else None,
                 duration_days=_resolve_project_duration_days_from_payload(data),
-                shift_type=(getattr(data, "shift_type", None) or "ANY")
-                if (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
-                else "ANY",
+                shift_type=str(getattr(data, "shift_type", None) or "ANY").upper(),
             )
 
             # Create pending transaction for escrow payment
@@ -1409,9 +1422,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         if payment_model == "DAILY"
                         else _resolve_project_duration_days_from_payload(data)
                     ),
-                    shift_type=(data.shift_type or "ANY")
-                    if payment_model == "DAILY"
-                    else "ANY",
+                    shift_type=str(data.shift_type or "ANY").upper(),
                     # ML Enhancement Fields
                     job_scope=data.job_scope if data.job_scope else "MODERATE_PROJECT",
                     skill_level_required=data.skill_level_required
@@ -1688,9 +1699,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         if payment_model == "DAILY"
                         else _resolve_project_duration_days_from_payload(data)
                     ),
-                    shift_type=(data.shift_type or "ANY")
-                    if payment_model == "DAILY"
-                    else "ANY",
+                    shift_type=str(data.shift_type or "ANY").upper(),
                 )
 
                 print(
