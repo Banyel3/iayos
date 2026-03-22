@@ -174,6 +174,8 @@ export default function ChatScreen() {
     "APPROVE_COMPLETION" | "PAY_NOW" | "APPROVE_SOLO_DAILY_COMPLETION"
   >("APPROVE_COMPLETION");
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
+  const [isBulkDailySettlementInFlight, setIsBulkDailySettlementInFlight] =
+    useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -1731,6 +1733,84 @@ export default function ChatScreen() {
         setCountdownConfig(null);
         setPaymentActionMode("APPROVE_COMPLETION");
         setShowPaymentModal(true);
+      },
+      icon: "wallet",
+      iconColor: Colors.warning,
+    });
+  };
+
+  const handleApproveDailyTeamWorkday = () => {
+    if (!conversation) return;
+
+    const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
+      const status = String(row?.status || "").toUpperCase();
+      const supportsSettlementStatus = ["PRESENT", "HALF_DAY", "ABSENT"].includes(
+        status,
+      );
+
+      return (
+        Number.isFinite(Number(row?.attendance_id)) &&
+        supportsSettlementStatus &&
+        !Boolean(row?.client_confirmed) &&
+        !Boolean(row?.payment_processed) &&
+        Boolean(row?.worker_confirmed)
+      );
+    });
+
+    if (payableRows.length === 0) {
+      Alert.alert(
+        "Nothing To Settle",
+        "No unconfirmed attendance rows are ready for day settlement.",
+      );
+      return;
+    }
+
+    const totalAmount = payableRows.reduce(
+      (sum: number, row: any) => sum + Number(row?.amount_earned || 0),
+      0,
+    );
+
+    setCountdownConfig({
+      visible: true,
+      title: "Approve & Pay Workday",
+      message:
+        `This will confirm ${payableRows.length} attendance row(s) and process wallet payouts for today.\n\n` +
+        `Estimated total: ₱${totalAmount.toLocaleString()}\n\n` +
+        "The job will remain in progress.",
+      confirmLabel: "Approve Day",
+      countdownSeconds: 3,
+      onConfirm: () => {
+        setCountdownConfig(null);
+
+        void (async () => {
+          if (isBulkDailySettlementInFlight) {
+            return;
+          }
+
+          setIsBulkDailySettlementInFlight(true);
+          try {
+            for (const row of payableRows) {
+              await clientConfirmAttendanceMutation.mutateAsync({
+                attendanceId: Number(row.attendance_id),
+                paymentMethod: "WALLET",
+              });
+            }
+
+            Toast.show({
+              type: "success",
+              text1: "Workday Settled",
+              text2: `${payableRows.length} attendance row(s) confirmed and paid`,
+            });
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Failed to settle one or more attendance rows";
+            Alert.alert("Day Settlement Failed", message);
+          } finally {
+            setIsBulkDailySettlementInFlight(false);
+          }
+        })();
       },
       icon: "wallet",
       iconColor: Colors.warning,
@@ -7845,17 +7925,25 @@ export default function ChatScreen() {
                               ]}
                               onPress={
                                 isTeamAgencyJob
-                                  ? handleApproveTeamJobCompletion
+                                  ? isDailyAgencyFlow
+                                    ? handleApproveDailyTeamWorkday
+                                    : handleApproveTeamJobCompletion
                                   : handleApproveCompletion
                               }
                               disabled={
                                 isTeamAgencyJob
-                                  ? approveTeamJobCompletionMutation.isPending
+                                  ? isDailyAgencyFlow
+                                    ? isBulkDailySettlementInFlight ||
+                                      clientConfirmAttendanceMutation.isPending
+                                    : approveTeamJobCompletionMutation.isPending
                                   : approveAgencyProjectJobMutation.isPending
                               }
                             >
                               {(isTeamAgencyJob
-                                ? approveTeamJobCompletionMutation.isPending
+                                ? isDailyAgencyFlow
+                                  ? isBulkDailySettlementInFlight ||
+                                    clientConfirmAttendanceMutation.isPending
+                                  : approveTeamJobCompletionMutation.isPending
                                 : approveAgencyProjectJobMutation.isPending) ? (
                                 <ActivityIndicator
                                   size="small"
@@ -7882,6 +7970,43 @@ export default function ChatScreen() {
                                 </>
                               )}
                             </TouchableOpacity>
+
+                            {isTeamAgencyJob &&
+                              isDailyAgencyFlow &&
+                              (reachedConfiguredDuration || reachedQaOffsetLimit) && (
+                                <TouchableOpacity
+                                  style={[
+                                    styles.actionButton,
+                                    styles.waitingButton,
+                                    { marginTop: 8 },
+                                  ]}
+                                  onPress={handleFinishDailyTeamJob}
+                                  disabled={dailyFinishJobMutation.isPending}
+                                >
+                                  {dailyFinishJobMutation.isPending ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color={Colors.textPrimary}
+                                    />
+                                  ) : (
+                                    <>
+                                      <Ionicons
+                                        name="flag"
+                                        size={20}
+                                        color={Colors.textPrimary}
+                                      />
+                                      <Text
+                                        style={[
+                                          styles.waitingButtonText,
+                                          { color: Colors.textPrimary },
+                                        ]}
+                                      >
+                                        Finish Entire Job
+                                      </Text>
+                                    </>
+                                  )}
+                                </TouchableOpacity>
+                              )}
                           </View>
                         )}
 
