@@ -3834,14 +3834,21 @@ export default function ChatScreen() {
         !attendance.client_confirmed,
     );
 
+  const getEmployeeId = (employee: any): number | null => {
+    const normalized = Number(
+      employee?.id ?? employee?.employee_id ?? employee?.employeeId,
+    );
+    return Number.isFinite(normalized) ? normalized : null;
+  };
+
   const pendingAgencyDispatchNames =
     conversation.my_role === "CLIENT" &&
     conversation.is_agency_job &&
     (conversation.job?.payment_model === "DAILY" || isProjectMultiDayJob)
       ? (conversation.assigned_employees || [])
           .filter((employee: any) => {
-            const employeeId = Number(employee?.id);
-            if (!Number.isFinite(employeeId)) {
+            const employeeId = getEmployeeId(employee);
+            if (employeeId === null) {
               return false;
             }
 
@@ -4535,9 +4542,13 @@ export default function ChatScreen() {
 
                       return (
                         <View style={styles.attendanceConfirmArrivalList}>
-                          {pendingArrivalEmployees.map((employee) => (
+                          {pendingArrivalEmployees.map((employee) => {
+                            const employeeId = getEmployeeId(employee);
+                            if (employeeId === null) return null;
+
+                            return (
                             <View
-                              key={`attendance-arrival-${employee.id}`}
+                              key={`attendance-arrival-${employeeId}`}
                               style={styles.confirmArrivalWorkerRow}
                             >
                               <Text
@@ -4559,7 +4570,7 @@ export default function ChatScreen() {
                                         onPress: () =>
                                           confirmProjectArrivalMutation.mutate({
                                             jobId: conversation.job.id,
-                                            employeeId: employee.id,
+                                            employeeId,
                                           }),
                                       },
                                     ],
@@ -4586,7 +4597,8 @@ export default function ChatScreen() {
                                 )}
                               </TouchableOpacity>
                             </View>
-                          ))}
+                            );
+                          })}
                         </View>
                       );
                     })()}
@@ -7316,9 +7328,13 @@ export default function ChatScreen() {
                             Dispatch Employees ({pendingDispatch.length}{" "}
                             pending)
                           </Text>
-                          {pendingDispatch.map((employee) => (
+                          {pendingDispatch.map((employee) => {
+                            const employeeId = getEmployeeId(employee);
+                            if (employeeId === null) return null;
+
+                            return (
                             <TouchableOpacity
-                              key={`dispatch-${employee.id}`}
+                              key={`dispatch-${employeeId}`}
                               style={[
                                 styles.actionButton,
                                 styles.dispatchButton,
@@ -7334,7 +7350,7 @@ export default function ChatScreen() {
                                       onPress: () =>
                                         dispatchProjectEmployeeMutation.mutate({
                                           jobId: conversation.job.id,
-                                          employeeId: employee.id,
+                                          employeeId,
                                         }),
                                     },
                                   ],
@@ -7362,7 +7378,8 @@ export default function ChatScreen() {
                                 </>
                               )}
                             </TouchableOpacity>
-                          ))}
+                            );
+                          })}
                         </View>
                       )}
 
@@ -7398,9 +7415,13 @@ export default function ChatScreen() {
                             Mark Work Complete ({pendingComplete.length} on
                             site)
                           </Text>
-                          {pendingComplete.map((employee) => (
+                          {pendingComplete.map((employee) => {
+                            const employeeId = getEmployeeId(employee);
+                            if (employeeId === null) return null;
+
+                            return (
                             <TouchableOpacity
-                              key={`complete-${employee.id}`}
+                              key={`complete-${employeeId}`}
                               style={[
                                 styles.actionButton,
                                 styles.markCompleteButton,
@@ -7417,7 +7438,7 @@ export default function ChatScreen() {
                                         agencyMarkProjectCompleteMutation.mutate(
                                           {
                                             jobId: conversation.job.id,
-                                            employeeId: employee.id,
+                                            employeeId,
                                           },
                                         ),
                                     },
@@ -7446,7 +7467,8 @@ export default function ChatScreen() {
                                 </>
                               )}
                             </TouchableOpacity>
-                          ))}
+                            );
+                          })}
                         </View>
                       )}
 
@@ -7642,9 +7664,13 @@ export default function ChatScreen() {
                         <View style={styles.employeeActionsSection}>
                           {assignedEmployees
                             .filter((e) => e.clientApproved)
-                            .map((employee) => (
+                            .map((employee) => {
+                              const employeeId = getEmployeeId(employee);
+                              if (employeeId === null) return null;
+
+                              return (
                               <View
-                                key={`approved-${employee.id}`}
+                                key={`approved-${employeeId}`}
                                 style={[
                                   styles.actionButton,
                                   styles.waitingButton,
@@ -7664,7 +7690,8 @@ export default function ChatScreen() {
                                   ✓ {employee.name} — Approved & Paid
                                 </Text>
                               </View>
-                            ))}
+                              );
+                            })}
                         </View>
                       )}
                     </>
