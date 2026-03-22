@@ -2582,7 +2582,11 @@ def worker_complete_team_assignment(
     assignment_id: int, worker_user, notes: Optional[str] = None
 ) -> dict:
     """
-    Worker marks their individual assignment as complete in a team job.
+    Worker marks their assignment complete in a team job.
+
+    If the same worker is filling multiple active slots on the same team job,
+    completion is unified: all of that worker's active assignments for the job
+    are marked complete in one action.
     """
     try:
         assignment = JobWorkerAssignment.objects.select_related(
@@ -2601,19 +2605,38 @@ def worker_complete_team_assignment(
             "error": f"Assignment is not active (status: {assignment.assignment_status})",
         }
 
+    worker_assignments = list(
+        JobWorkerAssignment.objects.filter(
+            jobID=assignment.jobID,
+            workerID=assignment.workerID,
+            assignment_status="ACTIVE",
+        )
+    )
+
+    if not worker_assignments:
+        return {
+            "success": False,
+            "error": "No active assignments found for this worker",
+        }
+
     existing_completed_at = assignment.worker_marked_complete_at
-    if assignment.worker_marked_complete:
+    if all(a.worker_marked_complete for a in worker_assignments):
         all_complete = not JobWorkerAssignment.objects.filter(
             jobID=assignment.jobID,
             assignment_status="ACTIVE",
             worker_marked_complete=False,
         ).exists()
+        assignment_ids = [a.assignmentID for a in worker_assignments]
         return {
             "success": True,
             "already_processed": True,
             "assignment_id": assignment.assignmentID,
+            "updated_assignment_ids": assignment_ids,
+            "updated_count": len(assignment_ids),
             "all_workers_complete": all_complete,
-            "message": "Assignment already marked as complete",
+            "message": (
+                "All your active assignments are already marked as complete"
+            ),
             "completed_at": existing_completed_at.isoformat()
             if existing_completed_at
             else None,
@@ -2626,21 +2649,50 @@ def worker_complete_team_assignment(
     is_daily_job = (
         str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY"
     )
-    if is_daily_job and not assignment.client_confirmed_arrival:
+    if is_daily_job and any(not a.client_confirmed_arrival for a in worker_assignments):
         return {
             "success": False,
-            "error": "Client must confirm your arrival before you can mark this assignment complete",
+            "error": (
+                "Client must confirm your arrival on all assigned slots "
+                "before you can mark complete"
+            ),
         }
 
     project_gate_error = _project_multi_day_gate_error(job)
     if project_gate_error:
         return project_gate_error
 
-    # Mark individual completion
-    assignment.worker_marked_complete = True
-    assignment.worker_marked_complete_at = timezone.now()
-    assignment.completion_notes = notes
-    assignment.save()
+    # Unified completion across all active assignments for this worker on this job.
+    completion_ts = timezone.now()
+    updated_assignment_ids = []
+    for row in worker_assignments:
+        if row.worker_marked_complete:
+            continue
+        row.worker_marked_complete = True
+        row.worker_marked_complete_at = completion_ts
+        if notes:
+            row.completion_notes = notes
+            row.save(
+                update_fields=[
+                    "worker_marked_complete",
+                    "worker_marked_complete_at",
+                    "completion_notes",
+                    "updatedAt",
+                ]
+            )
+        else:
+            row.save(
+                update_fields=[
+                    "worker_marked_complete",
+                    "worker_marked_complete_at",
+                    "updatedAt",
+                ]
+            )
+        updated_assignment_ids.append(row.assignmentID)
+
+    if not updated_assignment_ids:
+        # Defensive fallback in case state changed between reads.
+        updated_assignment_ids = [a.assignmentID for a in worker_assignments]
 
     # Notify client
     if job.clientID:
@@ -2649,7 +2701,10 @@ def worker_complete_team_assignment(
             accountFK=job.clientID.profileID.accountFK,
             notificationType="TEAM_WORKER_COMPLETE",
             title="Team Member Completed Work",
-            message=f"{worker_name} has completed their {assignment.skillSlotID.specializationID.specializationName} work for '{job.title}'",
+            message=(
+                f"{worker_name} has marked complete on {len(worker_assignments)} "
+                f"assigned slot(s) for '{job.title}'"
+            ),
             relatedJobID=job.jobID,
         )
 
@@ -2658,14 +2713,16 @@ def worker_complete_team_assignment(
         jobID=job, assignment_status="ACTIVE", worker_marked_complete=False
     ).exists()
 
-    completed_at = assignment.worker_marked_complete_at
+    completed_at = completion_ts
     return {
         "success": True,
         "already_processed": False,
         "assignment_id": assignment.assignmentID,
+        "updated_assignment_ids": updated_assignment_ids,
+        "updated_count": len(updated_assignment_ids),
         "all_workers_complete": all_complete,
         "completed_at": completed_at.isoformat() if completed_at else None,
-        "message": "Marked your work as complete",
+        "message": "Marked your assigned work as complete",
     }
 
 
@@ -2865,17 +2922,46 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
     except JobWorkerAssignment.DoesNotExist:
         return {"success": False, "error": "Worker assignment not found"}
 
-    # Check if already confirmed
-    if assignment.client_confirmed_arrival:
+    worker_assignments = list(
+        JobWorkerAssignment.objects.filter(
+            jobID=job,
+            workerID=assignment.workerID,
+            assignment_status="ACTIVE",
+        )
+    )
+
+    if not worker_assignments:
+        return {
+            "success": False,
+            "error": "No active assignments found for this worker",
+        }
+
+    # Check if already confirmed across all active assignments for this worker.
+    if all(a.client_confirmed_arrival for a in worker_assignments):
         return {
             "success": False,
             "error": f"Worker arrival already confirmed at {assignment.client_confirmed_arrival_at.strftime('%Y-%m-%d %H:%M')}",
         }
 
-    # Mark arrival as confirmed
-    assignment.client_confirmed_arrival = True
-    assignment.client_confirmed_arrival_at = timezone.now()
-    assignment.save()
+    # Unified arrival confirmation across all active assignments for this worker.
+    confirmed_at = timezone.now()
+    updated_assignment_ids = []
+    for row in worker_assignments:
+        if row.client_confirmed_arrival:
+            continue
+        row.client_confirmed_arrival = True
+        row.client_confirmed_arrival_at = confirmed_at
+        row.save(
+            update_fields=[
+                "client_confirmed_arrival",
+                "client_confirmed_arrival_at",
+                "updatedAt",
+            ]
+        )
+        updated_assignment_ids.append(row.assignmentID)
+
+    if not updated_assignment_ids:
+        updated_assignment_ids = [a.assignmentID for a in worker_assignments]
 
     # Notify worker
     worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
@@ -2903,12 +2989,14 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
     return {
         "success": True,
         "assignment_id": assignment.assignmentID,
+        "updated_assignment_ids": updated_assignment_ids,
+        "updated_count": len(updated_assignment_ids),
         "worker_name": worker_name,
-        "confirmed_at": assignment.client_confirmed_arrival_at.isoformat(),
+        "confirmed_at": confirmed_at.isoformat(),
         "all_workers_arrived": all_arrived,
         "arrived_count": arrived_workers,
         "total_count": total_workers,
-        "message": f"Confirmed {worker_name} has arrived",
+        "message": f"Confirmed {worker_name} arrival for all assigned slot(s)",
     }
 
 
