@@ -393,6 +393,17 @@ export function useMessages(
 
       const data = (await response.json()) as ConversationDetail;
       // Transform avatar URLs to absolute URLs for local storage compatibility
+      const normalizeEmployeeShape = (emp: any) => {
+        const normalizedId = Number(emp?.id ?? emp?.employee_id ?? emp?.employeeId);
+        return {
+          ...emp,
+          id: Number.isFinite(normalizedId) ? normalizedId : emp?.id,
+          employee_id: Number.isFinite(normalizedId)
+            ? normalizedId
+            : emp?.employee_id,
+        };
+      };
+
       return {
         ...data,
         other_participant: data.other_participant
@@ -408,7 +419,7 @@ export function useMessages(
             }
           : null,
         assigned_employees: data.assigned_employees?.map((emp: any) => ({
-          ...emp,
+          ...normalizeEmployeeShape(emp),
           avatar: getAbsoluteMediaUrl(emp.avatar) || "",
         })),
         // Team worker assignments for team jobs
@@ -421,7 +432,7 @@ export function useMessages(
         // Agency employees filling skill slots in a mixed team+agency job
         team_agency_employees: data.team_agency_employees?.map(
           (emp: any) => ({
-            ...emp,
+            ...normalizeEmployeeShape(emp),
             avatar: getAbsoluteMediaUrl(emp.avatar) || "",
           }),
         ),
