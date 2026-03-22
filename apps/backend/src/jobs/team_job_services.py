@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from accounts.models import (
     Job,
+    DailyAttendance,
     JobSkillSlot,
     JobWorkerAssignment,
     JobEmployeeAssignment,
@@ -425,7 +426,24 @@ def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
         skill_slot__isnull=False,
     )
 
+    # DAILY employee earnings are driven by processed attendance rows.
+    # paymentAmount on JobEmployeeAssignment is an assignment share, not earned-to-date.
+    employee_earned_totals = {
+        row["employeeID"]: Decimal(str(row["total"] or "0.00"))
+        for row in DailyAttendance.objects.filter(
+            jobID=job,
+            employeeID__isnull=False,
+            payment_processed=True,
+        )
+        .values("employeeID")
+        .annotate(total=Sum("amount_earned"))
+    }
+
     for emp_assignment in employee_assignments:
+        if getattr(emp_assignment, "early_completed", False):
+            # Early-completed employee assignments are already settled in full.
+            continue
+
         account = emp_assignment.employee.agency
         daily_rate = Decimal("0.00")
         if (
@@ -437,7 +455,9 @@ def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
             daily_rate = Decimal(str(job.daily_rate_agreed or "0.00"))
 
         full_contract = daily_rate * Decimal(planned_days)
-        already_earned = Decimal(emp_assignment.paymentAmount or Decimal("0.00"))
+        already_earned = employee_earned_totals.get(
+            getattr(emp_assignment, "employee_id", None), Decimal("0.00")
+        )
         remaining = full_contract - already_earned
         if remaining < Decimal("0.00"):
             remaining = Decimal("0.00")
@@ -3132,6 +3152,44 @@ def client_approve_team_job(
             "error_code": "DAILY_TEAM_FINALIZE_REQUIRED",
         }
 
+    # DAILY finalize guard: prevent premature full closure unless planned duration
+    # has elapsed (supports QA offset) or all assignments were explicitly early-completed.
+    if is_daily_job and finalize_daily:
+        planned_days = int(getattr(job, "duration_days", 0) or 0)
+        total_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+        qa_day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+        effective_days = max(0, total_days_worked + max(0, qa_day_offset))
+
+        all_worker_rows = JobWorkerAssignment.objects.filter(jobID=job)
+        all_employee_rows = JobEmployeeAssignment.objects.filter(
+            job=job,
+            skill_slot__isnull=False,
+        )
+
+        workers_all_early = (
+            all_worker_rows.exists()
+            and not all_worker_rows.exclude(early_completed=True).exists()
+        )
+        employees_all_early = (
+            all_employee_rows.exists()
+            and not all_employee_rows.exclude(early_completed=True).exists()
+        )
+
+        all_assignments_early_completed = workers_all_early and employees_all_early
+
+        if planned_days > 1 and effective_days < planned_days and not all_assignments_early_completed:
+            return {
+                "success": False,
+                "error": (
+                    "Cannot finish DAILY team job yet. "
+                    f"Planned duration is {planned_days} day(s), but only {effective_days} day(s) are completed. "
+                    "Continue daily attendance/pay flow, or early-complete all assignments first."
+                ),
+                "error_code": "DAILY_TEAM_DURATION_NOT_REACHED",
+                "planned_days": planned_days,
+                "completed_days": effective_days,
+            }
+
     required_project_days = _get_required_project_days(job)
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
 
@@ -4570,7 +4628,7 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
     # - PROJECT team jobs: full assignment share (paymentAmount fallback to slot budget)
     payout = Decimal("0.00")
     contracted_amount = Decimal("0.00")
-    already_credited = Decimal(str(assignment.paymentAmount or "0.00"))
+    already_credited = Decimal("0.00")
 
     if payment_model == "DAILY":
         planned_days = int(getattr(job, "duration_days", 0) or 0)
@@ -4585,6 +4643,16 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
             daily_rate = Decimal(str(getattr(job, "daily_rate_agreed", None) or "0.00"))
 
         contracted_amount = daily_rate * Decimal(planned_days)
+        already_credited = Decimal(
+            str(
+                DailyAttendance.objects.filter(
+                    jobID=job,
+                    employeeID=assignment.employee,
+                    payment_processed=True,
+                ).aggregate(total=Sum("amount_earned"))["total"]
+                or "0.00"
+            )
+        )
         payout = contracted_amount - already_credited
         if payout < Decimal("0.00"):
             payout = Decimal("0.00")

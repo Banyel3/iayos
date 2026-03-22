@@ -768,16 +768,18 @@ export function useApproveTeamJobCompletion() {
       jobId,
       paymentMethod,
       cashProofImage,
+      finalizeDaily,
     }: {
       jobId: number;
       paymentMethod: "WALLET" | "CASH";
       cashProofImage?: string;
+      finalizeDaily?: boolean;
     }) => {
       const url = `${API_BASE_URL}/jobs/${jobId}/team/approve-completion`;
 
       const formData = new FormData();
       formData.append("payment_method", paymentMethod);
-      formData.append("finalize_daily", "true");
+      formData.append("finalize_daily", finalizeDaily ? "true" : "false");
 
       if (paymentMethod === "CASH" && cashProofImage) {
         formData.append("cash_proof_image", {
