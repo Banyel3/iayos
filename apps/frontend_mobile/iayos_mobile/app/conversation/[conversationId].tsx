@@ -1190,6 +1190,37 @@ export default function ChatScreen() {
         )
       : [];
 
+  const pendingTeamArrivalWorkerAssignments = pendingTeamArrivalWorkers.filter(
+    (worker: any) => {
+      const assignmentId = Number(worker?.assignment_id);
+      if (!Number.isFinite(assignmentId)) return true;
+
+      return !backjobAttendanceRows.some((row: any) => {
+        const rowAssignmentId = Number(row?.assignment_id);
+        return (
+          Number.isFinite(rowAssignmentId) &&
+          rowAssignmentId === assignmentId &&
+          Boolean(row?.time_in)
+        );
+      });
+    },
+  );
+
+  const pendingTeamAgencyArrivalAssignments =
+    pendingTeamAgencyArrivalEmployees.filter((employee: any) => {
+      const assignmentId = Number(employee?.assignment_id);
+      if (!Number.isFinite(assignmentId)) return true;
+
+      return !backjobAttendanceRows.some((row: any) => {
+        const rowAssignmentId = Number(row?.assignment_id);
+        return (
+          Number.isFinite(rowAssignmentId) &&
+          rowAssignmentId === assignmentId &&
+          Boolean(row?.time_in)
+        );
+      });
+    });
+
   const hasTrackedWorkerStateForBackjob =
     agencyAssignedEmployees.length > 0 ||
     teamAssignedWorkers.length > 0 ||
@@ -1220,8 +1251,8 @@ export default function ChatScreen() {
     teamAssignedWorkers.length > 0 &&
     (isTeamDailyBackjobFlow
       ? effectiveWorkerScheduleConfirmed
-      : pendingTeamArrivalWorkers.length === 0 &&
-        pendingTeamAgencyArrivalEmployees.length === 0);
+      : pendingTeamArrivalWorkerAssignments.length === 0 &&
+        pendingTeamAgencyArrivalAssignments.length === 0);
   const teamBackjobAllWorkersComplete =
     teamAssignedWorkers.length > 0 && pendingTeamCompletionWorkers.length === 0;
   const myTeamBackjobAssignment =
@@ -1281,9 +1312,9 @@ export default function ChatScreen() {
               ? `Waiting for workers to confirm schedule (${teamScheduleConfirmedCount} of ${teamScheduleTotalWorkers || teamAssignedWorkers.length}).`
               : isTeamBackjobFlow &&
                   !isTeamDailyBackjobFlow &&
-                  (pendingTeamArrivalWorkers.length > 0 ||
-                    pendingTeamAgencyArrivalEmployees.length > 0)
-                ? `Confirm arrivals first (${pendingTeamArrivalWorkers.length + pendingTeamAgencyArrivalEmployees.length} pending).`
+                  (pendingTeamArrivalWorkerAssignments.length > 0 ||
+                    pendingTeamAgencyArrivalAssignments.length > 0)
+                ? `Confirm arrivals first (${pendingTeamArrivalWorkerAssignments.length + pendingTeamAgencyArrivalAssignments.length} pending).`
                 : null;
 
   // Materials purchasing workflow mutations
@@ -9815,8 +9846,8 @@ export default function ChatScreen() {
                       isTeamBackjobFlow &&
                       !isTeamDailyBackjobFlow &&
                       !conversation.backjob?.backjob_started &&
-                      (pendingTeamArrivalWorkers.length > 0 ||
-                        pendingTeamAgencyArrivalEmployees.length > 0) && (
+                      (pendingTeamArrivalWorkerAssignments.length > 0 ||
+                        pendingTeamAgencyArrivalAssignments.length > 0) && (
                         <View style={styles.teamProjectArrivalSection}>
                           <View style={styles.teamArrivalHeader}>
                             <Text style={styles.teamArrivalTitle}>
@@ -9825,8 +9856,8 @@ export default function ChatScreen() {
                             <Text style={styles.teamArrivalProgress}>
                               {teamAssignedWorkers.length +
                                 (conversation.team_agency_employees?.length ?? 0) -
-                                pendingTeamArrivalWorkers.length -
-                                pendingTeamAgencyArrivalEmployees.length}
+                                pendingTeamArrivalWorkerAssignments.length -
+                                pendingTeamAgencyArrivalAssignments.length}
                               /
                               {teamAssignedWorkers.length +
                                 (conversation.team_agency_employees?.length ?? 0)}{" "}
@@ -9839,7 +9870,7 @@ export default function ChatScreen() {
                           </Text>
 
                           <View style={styles.teamProjectArrivalList}>
-                            {pendingTeamArrivalWorkers.map(
+                            {pendingTeamArrivalWorkerAssignments.map(
                               (assignment: any) => {
                                 const workerName =
                                   assignment?.name ||
@@ -9932,7 +9963,7 @@ export default function ChatScreen() {
                               },
                             )}
 
-                            {pendingTeamAgencyArrivalEmployees.map(
+                            {pendingTeamAgencyArrivalAssignments.map(
                               (employee: any) => {
                                 const employeeName = employee?.name || "Agency Employee";
                                 const assignmentId = Number(employee?.assignment_id);
