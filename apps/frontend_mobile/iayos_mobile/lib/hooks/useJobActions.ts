@@ -32,12 +32,21 @@ function patchConversationJobState(
   );
 }
 
-function patchConversationTeamAssignmentState(
+function patchConversationTeamAssignmentsState(
   queryClient: ReturnType<typeof useQueryClient>,
   jobId: number,
-  assignmentId: number,
+  assignmentIds: number[],
   assignmentPatch: Record<string, any>,
 ) {
+  const assignmentIdSet = new Set(
+    (assignmentIds || [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id)),
+  );
+  if (assignmentIdSet.size === 0) {
+    return;
+  }
+
   queryClient.setQueriesData(
     {
       predicate: (query) =>
@@ -54,7 +63,7 @@ function patchConversationTeamAssignmentState(
       let hasChange = false;
 
       const updatedAssignments = assignments.map((assignment: any) => {
-        if (Number(assignment?.assignment_id) !== Number(assignmentId)) {
+        if (!assignmentIdSet.has(Number(assignment?.assignment_id))) {
           return assignment;
         }
 
@@ -398,10 +407,21 @@ export function useConfirmTeamWorkerArrival() {
     },
     onSuccess: (data: any, { jobId, assignmentId }) => {
       const nowIso = new Date().toISOString();
-      patchConversationTeamAssignmentState(queryClient, jobId, assignmentId, {
-        client_confirmed_arrival: true,
-        client_confirmed_arrival_at: data?.confirmed_at || nowIso,
-      });
+      const updatedAssignmentIds = Array.isArray(data?.updated_assignment_ids)
+        ? data.updated_assignment_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+        : [assignmentId];
+
+      patchConversationTeamAssignmentsState(
+        queryClient,
+        jobId,
+        updatedAssignmentIds,
+        {
+          client_confirmed_arrival: true,
+          client_confirmed_arrival_at: data?.confirmed_at || nowIso,
+        },
+      );
 
       Toast.show({
         type: "success",
@@ -456,10 +476,21 @@ export function useMarkTeamAssignmentComplete() {
     },
     onSuccess: (data: any, { jobId, assignmentId }) => {
       const nowIso = new Date().toISOString();
-      patchConversationTeamAssignmentState(queryClient, jobId, assignmentId, {
-        worker_marked_complete: true,
-        worker_marked_complete_at: data?.completed_at || nowIso,
-      });
+      const updatedAssignmentIds = Array.isArray(data?.updated_assignment_ids)
+        ? data.updated_assignment_ids
+            .map((id: unknown) => Number(id))
+            .filter((id: number) => Number.isFinite(id))
+        : [assignmentId];
+
+      patchConversationTeamAssignmentsState(
+        queryClient,
+        jobId,
+        updatedAssignmentIds,
+        {
+          worker_marked_complete: true,
+          worker_marked_complete_at: data?.completed_at || nowIso,
+        },
+      );
 
       Toast.show({
         type: "success",
