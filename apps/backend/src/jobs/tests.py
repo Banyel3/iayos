@@ -20,8 +20,9 @@ from adminpanel.models import ContentModerationTerm
 from jobs.team_job_services import create_team_job, early_complete_single_project_job
 from jobs.api import accept_job_invite_worker
 from jobs.text_moderation import validate_job_post_content
-from agency.services import get_agency_jobs
+from agency.services import get_agency_jobs, assign_employees_to_slots
 from agency.api import accept_job_invite, reject_job_invite
+from agency.models import AgencyEmployee
 import jobs.text_moderation as text_moderation
 
 
@@ -364,6 +365,68 @@ class AgencyHybridInviteCompatibilityTests(TestCase):
 
         job.refresh_from_db()
         self.assertEqual(job.inviteStatus, "ACCEPTED")
+
+    def test_accept_job_invite_normalizes_slot_invites_for_direct_team_job(self):
+        job = self._create_direct_agency_team_job(invite_status="PENDING", status="ACTIVE")
+        slot = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1000.00"),
+            skill_level_required="ENTRY",
+            status="OPEN",
+            invited_agency=None,
+            agency_invite_status=None,
+        )
+
+        request = self.factory.post(f"/api/agency/jobs/{job.jobID}/accept")
+        request.auth = self.agency_account
+
+        result = accept_job_invite(request, job.jobID)
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("success"), msg=result)
+
+        slot.refresh_from_db()
+        self.assertEqual(slot.invited_agency_id, self.agency.agencyId)
+        self.assertEqual(slot.agency_invite_status, "ACCEPTED")
+
+    def test_assign_slots_fallback_normalizes_accepted_direct_team_job(self):
+        job = self._create_direct_agency_team_job(invite_status="ACCEPTED", status="ACTIVE")
+        slot = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1000.00"),
+            skill_level_required="ENTRY",
+            status="OPEN",
+            invited_agency=None,
+            agency_invite_status=None,
+        )
+
+        employee = AgencyEmployee.objects.create(
+            agency=self.agency_account,
+            name="Peter Griffin",
+            firstName="Peter",
+            lastName="Griffin",
+            specializations='["Masonry"]',
+            isActive=True,
+        )
+
+        result = assign_employees_to_slots(
+            agency_account=self.agency_account,
+            job_id=job.jobID,
+            assignments=[
+                {"skill_slot_id": slot.skillSlotID, "employee_id": employee.employeeID}
+            ],
+            primary_contact_employee_id=employee.employeeID,
+        )
+
+        self.assertTrue(result.get("success"), msg=result)
+
+        slot.refresh_from_db()
+        self.assertEqual(slot.invited_agency_id, self.agency.agencyId)
+        self.assertEqual(slot.agency_invite_status, "ACCEPTED")
 
     def test_reject_job_invite_falls_back_for_team_job_without_slot_invites(self):
         job = self._create_direct_agency_team_job(invite_status="PENDING", status="ACTIVE")

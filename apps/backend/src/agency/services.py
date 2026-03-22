@@ -3001,6 +3001,35 @@ def assign_employees_to_slots(
         invited_agency=agency,
         agency_invite_status="ACCEPTED",
     )
+
+    # Legacy direct-invite compatibility:
+    # Some older team jobs have job-level ACCEPTED invite but missing slot-level
+    # agency invite status. Normalize those slots to keep assignment flow working.
+    if not accepted_slots_qs.exists() and job.assignedAgencyFK == agency:
+        invite_status = str(job.inviteStatus or "").upper()
+        if invite_status == "ACCEPTED":
+            normalized_count = job.skill_slots.filter(
+                Q(invited_agency=agency) | Q(invited_agency__isnull=True)
+            ).filter(
+                Q(agency_invite_status__isnull=True)
+                | Q(agency_invite_status="PENDING")
+                | Q(agency_invite_status="ACCEPTED")
+            ).update(
+                invited_agency=agency,
+                agency_invite_status="ACCEPTED",
+                agency_invite_responded_at=timezone.now(),
+            )
+            if normalized_count:
+                print(
+                    f"🔧 Normalized {normalized_count} slot invite(s) in assign_employees_to_slots for job {job.jobID}"
+                )
+            accepted_slots_qs = job.skill_slots.select_related(
+                "specializationID"
+            ).filter(
+                invited_agency=agency,
+                agency_invite_status="ACCEPTED",
+            )
+
     skill_slots = {slot.skillSlotID: slot for slot in accepted_slots_qs}
     if not skill_slots:
         return {
