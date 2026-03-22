@@ -53,6 +53,9 @@ class CreateJobPostingMobileSchema(Schema):
     downpayment_method: Optional[str] = None  # Frontend alias for payment_method
     worker_id: Optional[int] = None  # If provided, job is for specific worker
     agency_id: Optional[int] = None  # If provided, job is for specific agency
+    agency_hire_mode: Optional[str] = (
+        None  # DIRECT or TEAM_SLOT for agency jobs
+    )
     skill_slots: Optional[list[MobileSkillSlotSchema]] = (
         None  # For team hiring with multiple workers
     )

@@ -1347,6 +1347,11 @@ def get_agency_jobs(
         # Format response
         jobs_data = []
         for job in jobs:
+            agency_flow_mode = job.get_effective_agency_flow_mode()
+            is_team_slot_flow = (
+                agency_flow_mode == Job.AgencyFlowMode.TEAM_SLOT
+            )
+
             # Get client info
             client_profile = job.clientID.profileID
 
@@ -1363,7 +1368,7 @@ def get_agency_jobs(
             # Build skill slots data for team jobs
             skill_slots_data = []
             agency_invited_slots_data = []
-            if job.is_team_job:
+            if is_team_slot_flow:
                 for slot in job.skill_slots.all():
                     slot_dict = {
                         "skill_slot_id": slot.skillSlotID,
@@ -1416,6 +1421,7 @@ def get_agency_jobs(
                     else None,
                     "assignedEmployee": assigned_employee,
                     "inviteStatus": job.inviteStatus,
+                    "agency_flow_mode": agency_flow_mode,
                     # Daily payment model fields
                     "payment_model": getattr(job, "payment_model", "PROJECT"),
                     "daily_rate_agreed": float(job.daily_rate_agreed)
@@ -1435,7 +1441,7 @@ def get_agency_jobs(
                     if hasattr(job, "daily_escrow_total") and job.daily_escrow_total
                     else None,
                     # Team job fields
-                    "is_team_job": job.is_team_job,
+                    "is_team_job": is_team_slot_flow,
                     "total_workers_needed": job.total_workers_needed,
                     "total_workers_assigned": job.total_workers_assigned,
                     "team_fill_percentage": job.team_fill_percentage,
@@ -1596,6 +1602,9 @@ def get_agency_job_detail(account_id, job_id):
             except:
                 materials_needed = []
 
+        agency_flow_mode = job.get_effective_agency_flow_mode()
+        is_team_slot_flow = agency_flow_mode == Job.AgencyFlowMode.TEAM_SLOT
+
         job_data = {
             "jobID": job.jobID,
             "title": job.title,
@@ -1644,6 +1653,8 @@ def get_agency_job_detail(account_id, job_id):
             else None,
             "assignmentNotes": job.assignmentNotes,
             "inviteStatus": job.inviteStatus,
+            "agency_flow_mode": agency_flow_mode,
+            "is_team_job": is_team_slot_flow,
             # Workflow tracking fields
             "clientConfirmedWorkStarted": job.clientConfirmedWorkStarted,
             "workerMarkedComplete": job.workerMarkedComplete,

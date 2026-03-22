@@ -111,6 +111,7 @@ interface Job {
     employeeId: number;
     name: string;
   };
+  agency_flow_mode?: "DIRECT" | "TEAM_SLOT" | null;
   is_team_job?: boolean;
   total_workers_needed?: number;
   total_workers_assigned?: number;
@@ -151,6 +152,9 @@ const isProjectMultiDayJob = (job?: Job | null): boolean => {
 
 const usesTeamProjectWorkflow = (job?: Job | null): boolean => {
   if (!job) return false;
+  if (job.agency_flow_mode) {
+    return job.agency_flow_mode === "TEAM_SLOT";
+  }
   return Boolean(job.is_team_job) || isProjectMultiDayJob(job);
 };
 
@@ -1225,7 +1229,7 @@ export default function AgencyJobsPage() {
                 const totalWorkersAssigned = Number(job.total_workers_assigned || 0);
                 const areAllTeamSlotsFilled =
                   totalWorkersNeeded > 0 && totalWorkersAssigned >= totalWorkersNeeded;
-                const isAcceptedChatLocked = Boolean(job.is_team_job) && !areAllTeamSlotsFilled;
+                const isAcceptedChatLocked = usesTeamProjectWorkflow(job) && !areAllTeamSlotsFilled;
                 return (
                 <Card
                   key={job.jobID}

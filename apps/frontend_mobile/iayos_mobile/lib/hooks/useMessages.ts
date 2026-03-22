@@ -79,6 +79,7 @@ export type ConversationDetail = {
   conversation_id: number;
   status?: string;
   is_archived?: boolean;
+  agency_flow_mode?: "DIRECT" | "TEAM_SLOT" | null;
   job: {
     id: number;
     title: string;
@@ -120,6 +121,7 @@ export type ConversationDetail = {
     paymentBuffer?: PaymentBufferInfo | null;
     // Daily payment model fields
     payment_model?: "PROJECT" | "DAILY";
+    agency_flow_mode?: "DIRECT" | "TEAM_SLOT" | null;
     daily_rate?: number;
     duration_days?: number;
     total_days_worked?: number;
@@ -392,20 +394,49 @@ export function useMessages(
       }
 
       const data = (await response.json()) as ConversationDetail;
+      const flowMode =
+        data.job?.agency_flow_mode ?? data.agency_flow_mode ?? null;
+      const normalizedIsTeamJob =
+        flowMode === "TEAM_SLOT" ? true : Boolean(data.is_team_job);
+      const normalizedIsAgencyJob =
+        flowMode === "DIRECT" ? true : Boolean(data.is_agency_job);
       // Transform avatar URLs to absolute URLs for local storage compatibility
       const normalizeEmployeeShape = (emp: any) => {
         const normalizedId = Number(emp?.id ?? emp?.employee_id ?? emp?.employeeId);
+        const dispatched = Boolean(emp?.dispatched);
+        const dispatchedAt =
+          emp?.dispatchedAt ?? emp?.dispatched_at ?? null;
+        const clientConfirmedArrival = Boolean(
+          emp?.clientConfirmedArrival ?? emp?.client_confirmed_arrival,
+        );
+        const clientConfirmedArrivalAt =
+          emp?.clientConfirmedArrivalAt ?? emp?.client_confirmed_arrival_at ?? null;
+
         return {
           ...emp,
           id: Number.isFinite(normalizedId) ? normalizedId : emp?.id,
           employee_id: Number.isFinite(normalizedId)
             ? normalizedId
             : emp?.employee_id,
+          dispatched,
+          dispatchedAt,
+          dispatched_at: dispatchedAt,
+          clientConfirmedArrival,
+          clientConfirmedArrivalAt,
+          client_confirmed_arrival: clientConfirmedArrival,
+          client_confirmed_arrival_at: clientConfirmedArrivalAt,
         };
       };
 
       return {
         ...data,
+        agency_flow_mode: flowMode,
+        is_team_job: normalizedIsTeamJob,
+        is_agency_job: normalizedIsAgencyJob,
+        job: {
+          ...data.job,
+          agency_flow_mode: flowMode,
+        },
         other_participant: data.other_participant
           ? {
               ...data.other_participant,

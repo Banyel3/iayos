@@ -56,6 +56,24 @@ def _is_testing_mode_enabled() -> bool:
     return bool(getattr(settings, "TESTING", False))
 
 
+def _get_job_agency_flow_mode(job):
+    if not job:
+        return None
+
+    if hasattr(job, "get_effective_agency_flow_mode"):
+        return job.get_effective_agency_flow_mode()
+
+    raw_mode = str(getattr(job, "agency_flow_mode", "") or "").upper().strip()
+    if raw_mode in {"DIRECT", "TEAM_SLOT"}:
+        return raw_mode
+
+    if getattr(job, "assignedAgencyFK_id", None) and getattr(job, "is_team_job", False):
+        return "TEAM_SLOT"
+    if getattr(job, "assignedAgencyFK_id", None):
+        return "DIRECT"
+    return None
+
+
 def _get_clamped_qa_day_offset(job) -> int:
     day_offset = max(int(getattr(job, "qa_day_offset", 0) or 0), 0)
     duration_days = _derive_duration_days(job)
@@ -1882,10 +1900,13 @@ def get_conversation_messages(request, conversation_id: int):
         # Secondary check: if the job itself has an assigned agency, this IS an agency conversation
         # This handles cases where the conversation was created without the agency field
         job_ref = conversation.relatedJobPosting
+        job_flow_mode = _get_job_agency_flow_mode(job_ref)
+        is_team_slot_flow = job_flow_mode == "TEAM_SLOT"
+
         if (
             not is_agency_conversation
             and job_ref
-            and not getattr(job_ref, "is_team_job", False)
+            and not is_team_slot_flow
             and getattr(job_ref, "assignedAgencyFK_id", None)
         ):
             print(
@@ -1907,7 +1928,7 @@ def get_conversation_messages(request, conversation_id: int):
                 is_agency_conversation = True
 
         # Hybrid/team conversations should follow team workflow payloads.
-        if job_ref and getattr(job_ref, "is_team_job", False):
+        if job_ref and is_team_slot_flow:
             is_agency_conversation = False
 
             # Auto-heal edge case: DAILY team/hybrid jobs that are fully
@@ -2145,8 +2166,8 @@ def get_conversation_messages(request, conversation_id: int):
         agency_review_exists = False
         employees_pending_review = []  # For multi-employee support
         is_team_job = (
-            job.is_team_job
-        )  # Check if this is a team job (for per-worker review tracking)
+            _get_job_agency_flow_mode(job) == "TEAM_SLOT"
+        )  # Check if this is a team-slot job (for per-worker review tracking)
 
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
@@ -2633,7 +2654,7 @@ def get_conversation_messages(request, conversation_id: int):
             print(f"   ⚠️ ML prediction error: {str(e)}")
 
         # Team job worker review tracking
-        is_team_job = job.is_team_job
+        is_team_job = _get_job_agency_flow_mode(job) == "TEAM_SLOT"
         team_workers_pending_review = []
         all_team_workers_reviewed = False
         team_worker_assignments = []
@@ -3711,6 +3732,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "payment_model": getattr(
                     job, "payment_model", "PROJECT"
                 ),  # PROJECT or DAILY
+                "agency_flow_mode": _get_job_agency_flow_mode(job),
                 "daily_rate": float(job.daily_rate_agreed)
                 if hasattr(job, "daily_rate_agreed") and job.daily_rate_agreed
                 else None,
@@ -3785,6 +3807,7 @@ def get_conversation_messages(request, conversation_id: int):
             if is_agency_job_for_reviews
             else None,
             "is_agency_job": is_agency_conversation,
+            "agency_flow_mode": _get_job_agency_flow_mode(job),
             "is_team_job": is_team_job,
             "team_worker_assignments": team_worker_assignments if is_team_job else [],
             "team_agency_employees": team_agency_employees

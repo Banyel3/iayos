@@ -85,6 +85,7 @@ interface CreateJobRequest {
   downpayment_method: "WALLET" | "GCASH"; // Payment method for job escrow
   worker_id?: number;
   agency_id?: number;
+  agency_hire_mode?: "DIRECT" | "TEAM_SLOT";
   selected_materials?: {
     worker_material_id: number;
     name: string;
@@ -1363,6 +1364,12 @@ export default function CreateJobScreen() {
     }
     if (agencyId) {
       (jobData as any).agency_id = parseInt(agencyId);
+      const totalAgencyWorkers = skillSlots.reduce(
+        (sum, slot) => sum + Number(slot.workers_needed || 0),
+        0,
+      );
+      jobData.agency_hire_mode =
+        skillSlots.length > 1 || totalAgencyWorkers > 1 ? "TEAM_SLOT" : "DIRECT";
     }
     // Always include skill slots in payload (backend ignores for non-agency via is_team_job guard)
     if (skillSlots.length > 0) {
