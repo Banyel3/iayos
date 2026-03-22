@@ -537,6 +537,7 @@ export function useApproveTeamJobCompletion() {
 
       const formData = new FormData();
       formData.append("payment_method", paymentMethod);
+      formData.append("finalize_daily", "true");
 
       if (paymentMethod === "CASH" && cashProofImage) {
         formData.append("cash_proof_image", {

@@ -1676,6 +1676,31 @@ export default function ChatScreen() {
     });
   };
 
+  const handleFinishDailyTeamJob = () => {
+    if (!conversation) return;
+
+    const remainingAmount = Number(conversation.job.remainingPayment ?? 0).toFixed(2);
+
+    setCountdownConfig({
+      visible: true,
+      title: "Finish Daily Team Job",
+      message:
+        `This will finish the entire DAILY team job, settle remaining balances, and open reviews/backjob flow.\n\n` +
+        `Remaining settlement shown: ₱${remainingAmount}\n\n` +
+        "Use this only when the full job is done, not just today's work.",
+      confirmLabel: "Finish Entire Job",
+      countdownSeconds: 3,
+      onConfirm: () => {
+        setCountdownConfig(null);
+        dailyFinishJobMutation.mutate({
+          jobId: conversation.job.id,
+        });
+      },
+      icon: "flag",
+      iconColor: Colors.error,
+    });
+  };
+
   // Handle approve early completion for solo DAILY jobs (CLIENT only)
   // Mirrors handleApproveTeamJobCompletion — countdown → payment modal (WALLET or CASH).
   // CASH: client pays worker directly and uploads proof; existing escrow is still released.
@@ -5905,8 +5930,8 @@ export default function ChatScreen() {
                           Team Workday Completed
                         </Text>
                         <Text style={styles.projectEndActionsText}>
-                          All team workers are checked out. Finish this project
-                          now to proceed with final payment (Wallet or Cash).
+                          All team workers are checked out. Finish the entire
+                          DAILY team job only when all planned days are done.
                         </Text>
 
                         <View style={styles.projectEndActionsButtons}>
@@ -5914,23 +5939,27 @@ export default function ChatScreen() {
                             style={styles.projectFinishButton}
                             onPress={() => {
                               Alert.alert(
-                                "Finish Team Project & Pay",
-                                "All workers are checked out. Continue to choose payment method (Wallet or Cash) and complete the job.",
+                                "Finish Daily Team Job",
+                                "All workers are checked out for today. Finish the entire job only if all planned days are done.",
                                 [
                                   { text: "Cancel", style: "cancel" },
                                   {
                                     text: "Continue",
                                     onPress: () =>
-                                      handleApproveTeamJobCompletion(),
+                                      handleFinishDailyTeamJob(),
                                   },
                                 ],
                               );
                             }}
                             disabled={
-                              approveTeamJobCompletionMutation.isPending
+                              conversation.job.payment_model === "DAILY"
+                                ? dailyFinishJobMutation.isPending
+                                : approveTeamJobCompletionMutation.isPending
                             }
                           >
-                            {approveTeamJobCompletionMutation.isPending ? (
+                            {(conversation.job.payment_model === "DAILY"
+                            ? dailyFinishJobMutation.isPending
+                            : approveTeamJobCompletionMutation.isPending) ? (
                               <ActivityIndicator
                                 size="small"
                                 color={Colors.white}
@@ -6632,7 +6661,8 @@ export default function ChatScreen() {
                               )}
                             </TouchableOpacity>
                           )}
-                        {conversation.job.remainingPaymentPaid && (
+                        {conversation.job.payment_model !== "DAILY" &&
+                          conversation.job.remainingPaymentPaid && (
                           <View
                             style={[
                               styles.actionButton,
@@ -6663,7 +6693,8 @@ export default function ChatScreen() {
                   if (!conversation.job.clientMarkedComplete) {
                     return (
                       <>
-                        {conversation.job.remainingPaymentPaid && (
+                        {conversation.job.payment_model !== "DAILY" &&
+                          conversation.job.remainingPaymentPaid && (
                           <View
                             style={[
                               styles.actionButton,
@@ -6690,10 +6721,20 @@ export default function ChatScreen() {
                             styles.actionButton,
                             styles.approveCompletionButton,
                           ]}
-                          onPress={handleApproveTeamJobCompletion}
-                          disabled={approveTeamJobCompletionMutation.isPending}
+                          onPress={
+                            conversation.job.payment_model === "DAILY"
+                              ? handleFinishDailyTeamJob
+                              : handleApproveTeamJobCompletion
+                          }
+                          disabled={
+                            conversation.job.payment_model === "DAILY"
+                              ? dailyFinishJobMutation.isPending
+                              : approveTeamJobCompletionMutation.isPending
+                          }
                         >
-                          {approveTeamJobCompletionMutation.isPending ? (
+                          {(conversation.job.payment_model === "DAILY"
+                            ? dailyFinishJobMutation.isPending
+                            : approveTeamJobCompletionMutation.isPending) ? (
                             <ActivityIndicator
                               size="small"
                               color={Colors.white}
@@ -6702,18 +6743,22 @@ export default function ChatScreen() {
                             <>
                               <Ionicons
                                 name={
-                                  conversation.job.remainingPaymentPaid
-                                    ? "checkmark-circle"
-                                    : "wallet"
+                                  conversation.job.payment_model === "DAILY"
+                                    ? "flag"
+                                    : conversation.job.remainingPaymentPaid
+                                      ? "checkmark-circle"
+                                      : "wallet"
                                 }
                                 size={20}
                                 color={Colors.white}
                               />
-                               <Text style={styles.actionButtonText}>
-                                  {conversation.job.remainingPaymentPaid ||
-                                  allAssignmentsEarlyCompleted
-                                    ? "Approve Team Completion"
-                                    : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                                <Text style={styles.actionButtonText}>
+                                  {conversation.job.payment_model === "DAILY"
+                                    ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                    : conversation.job.remainingPaymentPaid ||
+                                        allAssignmentsEarlyCompleted
+                                      ? "Approve Team Completion"
+                                      : `Approve & Pay Team (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
                                 </Text>
                             </>
                           )}
@@ -7599,7 +7644,7 @@ export default function ChatScreen() {
                   );
                 })()}
 
-              {/* CLIENT VIEW: Confirm arrivals and Approve & Pay (agency job or mixed team+agency) */}
+              {/* CLIENT VIEW: Confirm arrivals and explicit final finish (agency or mixed team+agency DAILY) */}
               {(conversation.is_agency_job ||
                 (conversation.is_team_job &&
                   (conversation.team_agency_employees?.length ?? 0) > 0)) &&
@@ -7638,20 +7683,20 @@ export default function ChatScreen() {
                   return (
                     <View style={styles.employeeActionsSection}>
                       <Text style={styles.actionSectionTitle}>
-                        Approve & Pay Team + Agency (DAILY)
+                        Finish Daily Team + Agency Job
                       </Text>
                       <TouchableOpacity
                         style={[styles.actionButton, styles.approveCompletionButton]}
-                        onPress={handleApproveTeamJobCompletion}
-                        disabled={approveTeamJobCompletionMutation.isPending}
+                        onPress={handleFinishDailyTeamJob}
+                        disabled={dailyFinishJobMutation.isPending}
                       >
-                        {approveTeamJobCompletionMutation.isPending ? (
+                        {dailyFinishJobMutation.isPending ? (
                           <ActivityIndicator size="small" color={Colors.white} />
                         ) : (
                           <>
-                            <Ionicons name="wallet" size={20} color={Colors.white} />
+                            <Ionicons name="flag" size={20} color={Colors.white} />
                             <Text style={styles.actionButtonText}>
-                              {`Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
+                              {`Finish Entire Job (Settle ₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
                             </Text>
                           </>
                         )}
