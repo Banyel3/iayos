@@ -3899,17 +3899,17 @@ export default function ChatScreen() {
                 new Date().toISOString().slice(0, 10),
               time_in: null,
               time_out: null,
-              status: "AWAITING_WORKER",
-              is_dispatched: false,
-              worker_confirmed: false,
+              status: "PENDING",
+              is_dispatched: true,
+              worker_confirmed: true,
               worker_confirmed_at: null,
               client_confirmed: false,
               client_confirmed_at: null,
               amount_earned: 0,
               payment_processed: false,
-              notes: "Awaiting worker to mark as on the way",
+              notes: "Awaiting client arrival confirmation",
               assignment_id: assignment.assignment_id,
-              awaiting_worker: true,
+              awaiting_worker: false,
             };
           });
 
@@ -5449,11 +5449,8 @@ export default function ChatScreen() {
                         {(conversation.job?.payment_model === "DAILY" ||
                           isProjectMultiDayJob ||
                           isTeamProjectAttendance) &&
-                          (clientAttendanceRows.length > 0 ||
-                            pendingAgencyDispatchNames.length > 0) &&
-                          clientAttendanceRows.every(
-                            (attendance: any) => attendance.awaiting_worker,
-                          ) && (
+                          clientAttendanceRows.length === 0 &&
+                          pendingAgencyDispatchNames.length > 0 && (
                             <View
                               style={[
                                 styles.actionButton,
@@ -5466,9 +5463,7 @@ export default function ChatScreen() {
                                 color={Colors.textSecondary}
                               />
                               <Text style={styles.waitingButtonText}>
-                                {pendingAgencyDispatchNames.length > 0
-                                  ? `Awaiting ${pendingAgencyDispatchNames.join(", ")} to be dispatched...`
-                                  : "Awaiting workers to mark as on the way..."}
+                                Loading attendance rows for {pendingAgencyDispatchNames.join(", ")}...
                               </Text>
                             </View>
                           )}

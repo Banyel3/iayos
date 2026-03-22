@@ -14240,7 +14240,7 @@ def get_escrow_status(request, job_id: int):
 # AGENCY PROJECT JOB WORKFLOW - CLIENT ENDPOINTS
 # =============================================================================
 # Client-side endpoints for PROJECT payment model agency jobs:
-# 1. confirm-arrival-project: Client confirms dispatched employee has arrived
+# 1. confirm-arrival-project: Client confirms employee has arrived
 # 2. approve-agency-project: Client approves all work and pays
 # Agency-side endpoints (dispatch, mark-complete) are in agency/api.py
 
@@ -14364,14 +14364,14 @@ def _resolve_agency_project_assignment_workflow(
 @require_kyc
 def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
     """
-    Client confirms that a dispatched agency employee has arrived.
+    Client confirms that an agency employee has arrived.
     This is for PROJECT payment model jobs (not DAILY).
 
-    WORKFLOW: dispatch → client confirms arrival → agency marks complete → client approves & pays
+    Canonical flow: client confirms arrival first, then agency marks complete,
+    then client approves & pays. Dispatch remains optional telemetry.
 
     Requires:
     - User must be the job client
-    - Employee must be dispatched first
     """
     from accounts.models import Job, JobEmployeeAssignment
     from agency.models import AgencyEmployee
@@ -14423,14 +14423,14 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
                 status=404,
             )
 
-        # Verify employee is dispatched
+        now = timezone.now()
+
+        # Client-first arrival compatibility:
+        # dispatch is no longer a hard prerequisite. If missing, auto-sync
+        # assignment dispatch markers to keep legacy consumers consistent.
         if not assignment.dispatched:
-            return Response(
-                {
-                    "error": f"{employee.fullName} has not been dispatched yet. Wait for agency to dispatch."
-                },
-                status=400,
-            )
+            assignment.dispatched = True
+            assignment.dispatchedAt = assignment.dispatchedAt or now
 
         # Check if already confirmed
         if assignment.clientConfirmedArrival:
@@ -14446,8 +14446,16 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
 
         # Confirm arrival
         assignment.clientConfirmedArrival = True
-        assignment.clientConfirmedArrivalAt = timezone.now()
-        assignment.save()
+        assignment.clientConfirmedArrivalAt = now
+        assignment.save(
+            update_fields=[
+                "dispatched",
+                "dispatchedAt",
+                "clientConfirmedArrival",
+                "clientConfirmedArrivalAt",
+                "updatedAt",
+            ]
+        )
 
         # Backward compatibility + parity: initialize project start markers on
         # first confirmed arrival so elapsed-day gating works for invite jobs.
@@ -14459,7 +14467,7 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             job_changed_fields.append("clientConfirmedWorkStarted")
 
         if not job.clientConfirmedWorkStartedAt:
-            job.clientConfirmedWorkStartedAt = timezone.now()
+            job.clientConfirmedWorkStartedAt = now
             job_changed_fields.append("clientConfirmedWorkStartedAt")
 
         if not getattr(job, "actual_start_date", None):

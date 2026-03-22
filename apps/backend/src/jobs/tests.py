@@ -9,6 +9,7 @@ from accounts.models import (
     Agency,
     ClientProfile,
     Job,
+    JobEmployeeAssignment,
     JobSkillSlot,
     Profile,
     Specializations,
@@ -18,7 +19,7 @@ from accounts.models import (
 )
 from adminpanel.models import ContentModerationTerm
 from jobs.team_job_services import create_team_job, early_complete_single_project_job
-from jobs.api import accept_job_invite_worker
+from jobs.api import accept_job_invite_worker, confirm_project_employee_arrival
 from jobs.text_moderation import validate_job_post_content
 from agency.services import get_agency_jobs, assign_employees_to_slots
 from agency.api import accept_job_invite, reject_job_invite
@@ -460,6 +461,57 @@ class AgencyHybridInviteCompatibilityTests(TestCase):
         slot.refresh_from_db()
         self.assertEqual(slot.invited_agency_id, self.agency.agencyId)
         self.assertEqual(slot.agency_invite_status, "PENDING")
+
+    def test_confirm_project_employee_arrival_auto_syncs_dispatch(self):
+        job = Job.objects.create(
+            clientID=self.client_record,
+            title="Direct agency project",
+            description="desc",
+            categoryID=self.specialization,
+            budget=Decimal("1000.00"),
+            escrowAmount=Decimal("500.00"),
+            escrowPaid=True,
+            location="Test",
+            jobType="INVITE",
+            inviteStatus="ACCEPTED",
+            status="IN_PROGRESS",
+            payment_model="PROJECT",
+            is_team_job=True,
+            assignedAgencyFK=self.agency,
+        )
+
+        employee = AgencyEmployee.objects.create(
+            agency=self.agency_account,
+            name="Lois Griffin",
+            firstName="Lois",
+            lastName="Griffin",
+            specializations='["Masonry"]',
+            isActive=True,
+        )
+
+        assignment = JobEmployeeAssignment.objects.create(
+            job=job,
+            employee=employee,
+            status="ASSIGNED",
+            dispatched=False,
+            clientConfirmedArrival=False,
+        )
+
+        request = self.factory.post(
+            f"/api/jobs/{job.jobID}/employees/{employee.employeeID}/confirm-arrival-project"
+        )
+        request.auth = self.client_account
+
+        result = confirm_project_employee_arrival(
+            request, job.jobID, employee.employeeID
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("success"), msg=result)
+
+        assignment.refresh_from_db()
+        self.assertTrue(assignment.dispatched)
+        self.assertTrue(assignment.clientConfirmedArrival)
 
 
 class JobContentModerationTests(TestCase):
