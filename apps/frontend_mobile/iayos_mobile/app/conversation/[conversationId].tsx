@@ -1940,16 +1940,31 @@ export default function ChatScreen() {
   const handleApproveDailyTeamWorkday = async () => {
     if (!conversation) return;
 
-    const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
+    const preflightConversation = await runApprovePayArrivalPreflight();
+    if (!preflightConversation) return;
+
+    const payableRows = (preflightConversation.attendance_today ?? []).filter((row: any) => {
       const attendanceId = Number(row?.attendance_id ?? row?.id);
       const status = String(row?.status || "").toUpperCase();
       const isDisputedRow = status === "DISPUTED";
 
-      return Number.isFinite(attendanceId) && !isDisputedRow;
+      return (
+        Number.isFinite(attendanceId) &&
+        !isDisputedRow &&
+        !Boolean(row?.payment_processed)
+      );
     }).map((row: any) => ({
       ...row,
       attendance_id: Number(row?.attendance_id ?? row?.id),
     }));
+
+    if (payableRows.length === 0) {
+      Alert.alert(
+        "Nothing To Settle",
+        "No payable attendance rows were found for today after sync.",
+      );
+      return;
+    }
 
     const totalAmount = payableRows.reduce(
       (sum: number, row: any) => sum + Number(row?.amount_earned || 0),
