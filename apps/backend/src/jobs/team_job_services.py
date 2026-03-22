@@ -4124,6 +4124,11 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
             "updated_assignment_ids": [assignment.assignmentID],
             "updated_count": 1,
             "employee_name": assignment.employee.fullName,
+            "dispatched": bool(getattr(assignment, "dispatched", False)),
+            "client_confirmed_arrival": bool(
+                getattr(assignment, "clientConfirmedArrival", False)
+            ),
+            "status": assignment.status,
             "confirmed_at": (
                 assignment.clientConfirmedArrivalAt.isoformat()
                 if assignment.clientConfirmedArrivalAt
@@ -4211,6 +4216,11 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
         "updated_assignment_ids": [assignment.assignmentID],
         "updated_count": 1,
         "employee_name": employee_name,
+        "dispatched": bool(getattr(assignment, "dispatched", False)),
+        "client_confirmed_arrival": bool(
+            getattr(assignment, "clientConfirmedArrival", False)
+        ),
+        "status": assignment.status,
         "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat(),
         "all_team_arrived": all_arrived,
         "arrived_count": arrived_workers + arrived_employees,

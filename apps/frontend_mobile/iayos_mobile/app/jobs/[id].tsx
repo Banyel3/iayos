@@ -2899,10 +2899,23 @@ export default function JobDetailScreen() {
                                 </Text>
                               </View>
                             </View>
-                            {/* Confirm Arrival button */}
-                            {emp.dispatched &&
-                              !emp.client_confirmed_arrival &&
-                              job.status === "IN_PROGRESS" && (
+                            {(() => {
+                              const hasArrived =
+                                Boolean(emp.client_confirmed_arrival) ||
+                                Boolean((emp as any).clientConfirmedArrival) ||
+                                emp.status === "IN_PROGRESS" ||
+                                emp.status === "COMPLETED";
+
+                              const canConfirmArrival =
+                                Boolean(emp.dispatched) &&
+                                !hasArrived &&
+                                job.status === "IN_PROGRESS";
+
+                              if (!canConfirmArrival) {
+                                return null;
+                              }
+
+                              return (
                                 <TouchableOpacity
                                   style={{
                                     backgroundColor: Colors.primary,
@@ -2934,7 +2947,8 @@ export default function JobDetailScreen() {
                                       : "Confirm Arrival"}
                                   </Text>
                                 </TouchableOpacity>
-                              )}
+                              );
+                            })()}
                           </View>
                         ))}
                       </View>
