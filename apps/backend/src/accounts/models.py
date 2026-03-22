@@ -2202,6 +2202,10 @@ class JobApplication(models.Model):
         max_length=20, choices=ApplicationStatus.choices, default="PENDING"
     )
 
+    # Client rejection context (used when application is fully rejected, not
+    # price-only rejection in negotiation thread).
+    clientRejectionReason = models.TextField(null=True, blank=True)
+
     # Price Negotiation tracking
     negotiation_count = models.PositiveSmallIntegerField(
         default=0,

@@ -95,6 +95,10 @@ interface MyApplication {
   proposed_daily_rate?: number | null;
   proposed_days?: number | null;
   payment_model?: "PROJECT" | "DAILY" | string;
+  negotiation_count?: number;
+  max_proposals?: number;
+  proposals_remaining?: number;
+  client_rejection_reason?: string | null;
   created_at: string;
   assigned_agency_id?: number | null;
   client_name: string;
@@ -301,11 +305,13 @@ export default function JobsScreen() {
 
   // Applied tab contains:
   // 1. Pending applications (awaiting client decision)
-  // 2. Accepted applications still ACTIVE (job not yet started — visible here until
+  // 2. Rejected applications (worker can still re-negotiate/re-propose)
+  // 3. Accepted applications still ACTIVE (job not yet started — visible here until
   //    the job transitions to IN_PROGRESS, applies to both team and non-team jobs)
   const filteredApplications = applications.filter(
     (app) =>
       (app.application_status === "PENDING" ||
+        app.application_status === "REJECTED" ||
         (app.application_status === "ACCEPTED" &&
           app.job_status === "ACTIVE")) &&
       !inProgressJobIds.has(app.job_id) &&
@@ -1326,6 +1332,30 @@ export default function JobsScreen() {
                     {app.job_description}
                   </Text>
 
+                  {app.application_status === "REJECTED" && (
+                    <View style={styles.rejectedHintBox}>
+                      <Ionicons
+                        name="information-circle-outline"
+                        size={16}
+                        color={Colors.warning}
+                      />
+                      <View style={styles.rejectedHintTextWrap}>
+                        <Text style={styles.rejectedHintText}>
+                          {typeof app.proposals_remaining === "number"
+                            ? app.proposals_remaining > 0
+                              ? `Proposal rejected. You can propose ${app.proposals_remaining} more time${app.proposals_remaining !== 1 ? "s" : ""}.`
+                              : "Proposal rejected. You have no proposal attempts remaining."
+                            : "Proposal rejected. Open details to continue negotiation if available."}
+                        </Text>
+                        {!!app.client_rejection_reason && (
+                          <Text style={styles.rejectedReasonText} numberOfLines={2}>
+                            Reason: {app.client_rejection_reason}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
                   {/* Client Info */}
                   <View style={styles.userInfoContainer}>
                     {app.client_img ? (
@@ -1843,6 +1873,30 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "700",
     color: Colors.primary,
+  },
+  rejectedHintBox: {
+    marginTop: 10,
+    marginBottom: 2,
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  rejectedHintTextWrap: {
+    flex: 1,
+  },
+  rejectedHintText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+  },
+  rejectedReasonText: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,

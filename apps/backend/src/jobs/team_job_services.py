@@ -2210,20 +2210,29 @@ def reject_team_application(
     application.status = "REJECTED"
     application.save()
 
-    # Notify worker
-    worker_name = f"{application.workerID.profileID.firstName}"
+    # Notify worker with proposal allowance context
+    max_proposals = 3
+    proposals_remaining = max(max_proposals - int(application.negotiation_count or 0), 0)
     rejection_message = (
         f"Your application for {slot_name} position in '{job.title}' was not accepted."
     )
     if reason:
-        rejection_message += f" Reason: {reason}"
+        rejection_message += f" Reason: {reason.strip()}"
+    if proposals_remaining > 0:
+        rejection_message += (
+            f" You have {proposals_remaining} proposal"
+            f"{'s' if proposals_remaining != 1 else ''} remaining out of {max_proposals}."
+        )
+    else:
+        rejection_message += " You have no proposal attempts remaining for this application."
 
     Notification.objects.create(
         accountFK=application.workerID.profileID.accountFK,
-        notificationType="TEAM_APPLICATION_REJECTED",
+        notificationType="APPLICATION_REJECTED",
         title="Application Not Accepted",
         message=rejection_message,
         relatedJobID=job.jobID,
+        relatedApplicationID=application.applicationID,
     )
 
     print(f"❌ Rejected team application #{application_id} for job #{job_id}")
@@ -2233,6 +2242,8 @@ def reject_team_application(
         "application_id": application_id,
         "worker_name": f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}",
         "skill_slot": slot_name,
+        "proposals_remaining": proposals_remaining,
+        "max_proposals": max_proposals,
         "message": f"Application rejected for {slot_name} position",
     }
 

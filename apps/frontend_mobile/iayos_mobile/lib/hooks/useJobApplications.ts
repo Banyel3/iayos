@@ -94,10 +94,12 @@ export function useManageApplication() {
       jobId,
       applicationId,
       action,
+      reason,
     }: {
       jobId: number;
       applicationId: number;
       action: "ACCEPTED" | "REJECTED";
+      reason?: string;
     }) => {
       const url =
         action === "ACCEPTED"
@@ -106,6 +108,10 @@ export function useManageApplication() {
       try {
         return await fetchJson<any>(url, {
           method: "POST",
+          body:
+            action === "REJECTED"
+              ? JSON.stringify({ reason: (reason || "").trim() })
+              : undefined,
         });
       } catch (e: any) {
         throw new Error(

@@ -183,6 +183,10 @@ interface JobApplication {
   budget_option: "ACCEPT" | "NEGOTIATE";
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   negotiation_count: number;
+  max_proposals?: number;
+  proposals_remaining?: number;
+  client_rejection_reason?: string | null;
+  response_message?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -354,6 +358,17 @@ export default function JobDetailScreen() {
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showRejectApplicationModal, setShowRejectApplicationModal] =
+    useState(false);
+  const [rejectApplicationId, setRejectApplicationId] = useState<number | null>(
+    null,
+  );
+  const [rejectApplicationTarget, setRejectApplicationTarget] = useState<
+    "STANDARD" | "TEAM"
+  >("STANDARD");
+  const [rejectApplicationWorkerName, setRejectApplicationWorkerName] =
+    useState("");
+  const [rejectApplicationReason, setRejectApplicationReason] = useState("");
   const submitReportMutation = useSubmitReport();
 
   // Application form state
@@ -1052,17 +1067,26 @@ export default function JobDetailScreen() {
 
   // Reject application mutation
   const rejectApplicationMutation = useMutation({
-    mutationFn: async (applicationId: number) => {
+    mutationFn: async ({ applicationId, reason }: { applicationId: number; reason: string }) => {
       const response = await apiRequest(
         ENDPOINTS.REJECT_APPLICATION(parseInt(id), applicationId),
         {
           method: "POST",
+          body: JSON.stringify({ reason }),
         },
       );
-      return response.json();
+      const data = (await response.json()) as any;
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to reject application"));
+      }
+      return data;
     },
     onSuccess: () => {
       Alert.alert("Success", "Application rejected.");
+      setShowRejectApplicationModal(false);
+      setRejectApplicationId(null);
+      setRejectApplicationWorkerName("");
+      setRejectApplicationReason("");
       queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
     },
     onError: (error: Error) => {
@@ -1091,16 +1115,42 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    setCountdownConfig({
-      visible: true,
-      title: "Reject Application",
-      message: `Are you sure you want to reject ${workerName}'s application?`,
-      confirmLabel: "Reject",
-      confirmStyle: "destructive",
-      countdownSeconds: 3,
-      onConfirm: () => rejectApplicationMutation.mutate(applicationId),
-      icon: "close-circle",
-      iconColor: Colors.error,
+    setRejectApplicationTarget("STANDARD");
+    setRejectApplicationId(applicationId);
+    setRejectApplicationWorkerName(workerName);
+    setRejectApplicationReason("");
+    setShowRejectApplicationModal(true);
+  };
+
+  const handleSubmitRejectApplication = () => {
+    if (!rejectApplicationId) return;
+    if (!rejectApplicationReason.trim()) {
+      Alert.alert("Reason Required", "Please provide a rejection reason.");
+      return;
+    }
+    if (rejectApplicationTarget === "TEAM") {
+      rejectTeamApplication.mutate(
+        {
+          jobId: parseInt(id),
+          applicationId: rejectApplicationId,
+          reason: rejectApplicationReason.trim(),
+        },
+        {
+          onSuccess: () => {
+            setShowRejectApplicationModal(false);
+            setRejectApplicationId(null);
+            setRejectApplicationWorkerName("");
+            setRejectApplicationReason("");
+            setRejectApplicationTarget("STANDARD");
+          },
+        },
+      );
+      return;
+    }
+
+    rejectApplicationMutation.mutate({
+      applicationId: rejectApplicationId,
+      reason: rejectApplicationReason.trim(),
     });
   };
 
@@ -1259,7 +1309,7 @@ export default function JobDetailScreen() {
       ]);
     };
 
-    chooseCancellationReason((reason) => {
+    chooseCancellationReason((reason: string) => {
       setCountdownConfig({
         visible: true,
         title: "Cancel Job",
@@ -1778,15 +1828,11 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert("Reject Application", `Reject ${workerName}'s application?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reject",
-        style: "destructive",
-        onPress: () =>
-          rejectTeamApplication.mutate({ jobId: parseInt(id), applicationId }),
-      },
-    ]);
+    setRejectApplicationTarget("TEAM");
+    setRejectApplicationId(applicationId);
+    setRejectApplicationWorkerName(workerName);
+    setRejectApplicationReason("");
+    setShowRejectApplicationModal(true);
   };
 
   const getSlotStatusColor = (status: string) => {
@@ -3421,6 +3467,23 @@ export default function JobDetailScreen() {
                       </View>
                     )}
 
+                    {application.status === "REJECTED" && (
+                      <View style={styles.rejectedInfoBox}>
+                        <Text style={styles.rejectedInfoText}>
+                          {typeof application.proposals_remaining === "number"
+                            ? application.proposals_remaining > 0
+                              ? `Rejected. Worker can still re-propose ${application.proposals_remaining} more time${application.proposals_remaining !== 1 ? "s" : ""}.`
+                              : "Rejected. Worker has no proposal attempts remaining."
+                            : "Rejected application."}
+                        </Text>
+                        {!!(application.client_rejection_reason || application.response_message) && (
+                          <Text style={styles.rejectedInfoReason} numberOfLines={2}>
+                            Reason: {application.client_rejection_reason || application.response_message}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
                     <View style={styles.applicationDetails}>
                       {application.budget_option === "NEGOTIATE" && (
                         <View style={styles.applicationDetailItem}>
@@ -4479,6 +4542,79 @@ export default function JobDetailScreen() {
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Reject Application Modal */}
+      <Modal
+        visible={showRejectApplicationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRejectApplicationModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.rejectModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRejectApplicationModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.rejectModalContent}>
+              <View style={styles.rejectModalHeader}>
+                <Text style={styles.rejectModalTitle}>Reject Application</Text>
+                <TouchableOpacity
+                  onPress={() => setShowRejectApplicationModal(false)}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.rejectModalLabel}>
+                Reason for rejecting {rejectApplicationWorkerName || "this worker"}
+              </Text>
+              <TextInput
+                style={styles.rejectModalInput}
+                placeholder="Please explain why this proposal was rejected..."
+                placeholderTextColor={Colors.textHint}
+                value={rejectApplicationReason}
+                onChangeText={setRejectApplicationReason}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+
+              <View style={styles.rejectModalButtons}>
+                <TouchableOpacity
+                  style={styles.rejectModalCancelButton}
+                  onPress={() => {
+                    setShowRejectApplicationModal(false);
+                    setRejectApplicationReason("");
+                    setRejectApplicationId(null);
+                    setRejectApplicationWorkerName("");
+                  }}
+                >
+                  <Text style={styles.rejectModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.rejectModalSubmitButton}
+                  onPress={handleSubmitRejectApplication}
+                  disabled={rejectApplicationMutation.isPending}
+                >
+                  {rejectApplicationMutation.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.rejectModalSubmitText}>Reject</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Reject Invite Modal */}
@@ -5636,6 +5772,24 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textPrimary,
     lineHeight: 20,
+  },
+  rejectedInfoBox: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  rejectedInfoText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "700",
+    color: Colors.warning,
+  },
+  rejectedInfoReason: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
   applicationDetails: {
     flexDirection: "row",

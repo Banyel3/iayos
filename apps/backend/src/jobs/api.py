@@ -3323,17 +3323,17 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "This job is no longer accepting applications"}, status=400
             )
 
-        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
+        # Single-row application policy (non-team):
+        # reuse REJECTED/WITHDRAWN rows instead of creating new duplicates.
         existing_application = JobApplication.objects.filter(
             jobID=job,
             workerID=worker_profile,
-            status__in=[
-                JobApplication.ApplicationStatus.PENDING,
-                JobApplication.ApplicationStatus.ACCEPTED,
-            ],
         ).first()
 
-        if existing_application:
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.PENDING,
+            JobApplication.ApplicationStatus.ACCEPTED,
+        ]:
             return Response(
                 {"error": "You have already applied for this job"}, status=400
             )
@@ -3378,25 +3378,86 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                     status=400,
                 )
 
-        # Create the application
-        application = JobApplication.objects.create(
-            jobID=job,
-            workerID=worker_profile,
-            proposalMessage=data.proposal_message,
-            proposedBudget=data.proposed_budget,
-            estimatedDuration=data.estimated_duration or "",
-            budgetOption=data.budget_option,
-            proposed_daily_rate=Decimal(str(data.proposed_daily_rate))
-            if data.proposed_daily_rate is not None
-            else None,
-            proposed_days=data.proposed_days,
-            status=JobApplication.ApplicationStatus.PENDING,
-            applied_shift=(
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.REJECTED,
+            JobApplication.ApplicationStatus.WITHDRAWN,
+        ]:
+            application = existing_application
+            application.proposalMessage = data.proposal_message
+            application.proposedBudget = data.proposed_budget
+            application.estimatedDuration = data.estimated_duration or ""
+            application.budgetOption = data.budget_option
+            application.proposed_daily_rate = (
+                Decimal(str(data.proposed_daily_rate))
+                if data.proposed_daily_rate is not None
+                else None
+            )
+            application.proposed_days = data.proposed_days
+            application.status = JobApplication.ApplicationStatus.PENDING
+            application.applied_shift = (
                 job.shift_type
                 if job.shift_type in ("MORNING", "NIGHT")
                 else (getattr(data, "applied_shift", None) or None)
-            ),
-        )
+            )
+            application.negotiation_count = 1 if data.budget_option == "NEGOTIATE" else 0
+            application.clientRejectionReason = None
+            application.save(
+                update_fields=[
+                    "proposalMessage",
+                    "proposedBudget",
+                    "estimatedDuration",
+                    "budgetOption",
+                    "proposed_daily_rate",
+                    "proposed_days",
+                    "status",
+                    "applied_shift",
+                    "negotiation_count",
+                    "clientRejectionReason",
+                    "updatedAt",
+                ]
+            )
+            from accounts.models import PriceNegotiation
+
+            PriceNegotiation.objects.filter(application=application).delete()
+        else:
+            # Create the application
+            application = JobApplication.objects.create(
+                jobID=job,
+                workerID=worker_profile,
+                proposalMessage=data.proposal_message,
+                proposedBudget=data.proposed_budget,
+                estimatedDuration=data.estimated_duration or "",
+                budgetOption=data.budget_option,
+                proposed_daily_rate=Decimal(str(data.proposed_daily_rate))
+                if data.proposed_daily_rate is not None
+                else None,
+                proposed_days=data.proposed_days,
+                status=JobApplication.ApplicationStatus.PENDING,
+                applied_shift=(
+                    job.shift_type
+                    if job.shift_type in ("MORNING", "NIGHT")
+                    else (getattr(data, "applied_shift", None) or None)
+                ),
+                negotiation_count=1 if data.budget_option == "NEGOTIATE" else 0,
+            )
+
+        if data.budget_option == "NEGOTIATE":
+            from accounts.models import PriceNegotiation
+
+            PriceNegotiation.objects.create(
+                application=application,
+                actor=PriceNegotiation.Actor.WORKER,
+                round_number=1,
+                proposed_budget=Decimal(str(data.proposed_budget or 0)),
+                proposed_daily_rate=(
+                    Decimal(str(data.proposed_daily_rate))
+                    if data.proposed_daily_rate is not None
+                    else None
+                ),
+                proposed_days=data.proposed_days,
+                message=data.proposal_message,
+                status=PriceNegotiation.NegotiationStatus.PENDING,
+            )
 
         print(f"✅ Application {application.applicationID} created successfully")
 
@@ -3859,7 +3920,7 @@ def accept_application(request, job_id: int, application_id: int):
 
 @router.post("/{job_id}/applications/{application_id}/reject", auth=cookie_auth)
 @require_kyc
-def reject_application(request, job_id: int, application_id: int):
+def reject_application(request, job_id: int, application_id: int, payload: dict = None):
     """
     Reject a job application
     Only the client who owns the job can reject applications
@@ -3910,18 +3971,33 @@ def reject_application(request, job_id: int, application_id: int):
                 status=400,
             )
 
-        # Update application status
+        # Update application status and persist optional client rejection note.
+        rejection_reason = ((payload or {}).get("reason") or "").strip()
         application.status = JobApplication.ApplicationStatus.REJECTED
+        application.clientRejectionReason = rejection_reason or None
         application.save()
 
         # Create notification for the worker
         from accounts.models import Notification
 
+        max_proposals = 3
+        proposals_remaining = max(max_proposals - int(application.negotiation_count or 0), 0)
+        rejection_message = f"Your proposal for '{job.title}' was not selected."
+        if rejection_reason:
+            rejection_message += f" Reason: {rejection_reason}."
+        if proposals_remaining > 0:
+            rejection_message += (
+                f" You have {proposals_remaining} proposal"
+                f"{'s' if proposals_remaining != 1 else ''} remaining out of {max_proposals}."
+            )
+        else:
+            rejection_message += " You have no proposals remaining for this application."
+
         Notification.objects.create(
             accountFK=application.workerID.profileID.accountFK,
             notificationType="APPLICATION_REJECTED",
             title=f"Application Not Selected",
-            message=f"Your application for '{job.title}' was not selected. Don't worry, there are more opportunities waiting!",
+            message=rejection_message,
             relatedJobID=job.jobID,
             relatedApplicationID=application.applicationID,
         )
@@ -3934,6 +4010,8 @@ def reject_application(request, job_id: int, application_id: int):
         return {
             "success": True,
             "message": "Application rejected successfully",
+            "proposals_remaining": proposals_remaining,
+            "max_proposals": max_proposals,
             "application": {
                 "id": application.applicationID,
                 "status": application.status,

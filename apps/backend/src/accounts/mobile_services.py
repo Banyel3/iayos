@@ -261,6 +261,7 @@ def get_mobile_job_list(
             status__in=[
                 JobApplication.ApplicationStatus.PENDING,
                 JobApplication.ApplicationStatus.ACCEPTED,
+                JobApplication.ApplicationStatus.REJECTED,
             ],
         ).values_list("jobID", flat=True)
 
