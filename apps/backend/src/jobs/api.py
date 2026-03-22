@@ -14726,17 +14726,37 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
             assignment.dispatched = True
             assignment.dispatchedAt = assignment.dispatchedAt or now
 
-        # Check if already confirmed
-        if assignment.clientConfirmedArrival:
-            return Response(
-                {
-                    "error": f"{employee.fullName}'s arrival has already been confirmed",
-                    "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat()
-                    if assignment.clientConfirmedArrivalAt
-                    else None,
-                },
-                status=400,
+        # Runtime auto-heal existing jobs before duplicate checks.
+        _, is_arrived, _ = _resolve_agency_project_assignment_workflow(job, assignment)
+
+        # Idempotent success on repeat confirmations.
+        if is_arrived:
+            all_assignments = JobEmployeeAssignment.objects.filter(
+                job=job, status__in=["ASSIGNED", "IN_PROGRESS"]
             )
+            arrived_count = sum(
+                1 for a in all_assignments if bool(a.clientConfirmedArrival)
+            )
+            total_count = all_assignments.count()
+            all_arrived = arrived_count == total_count
+
+            return {
+                "success": True,
+                "already_confirmed": True,
+                "message": f"{employee.fullName}'s arrival is already confirmed",
+                "assignment_id": assignment.assignmentID,
+                "updated_assignment_ids": [assignment.assignmentID],
+                "updated_count": 1,
+                "employee_id": employee_id,
+                "employee_name": employee.fullName,
+                "confirmed_at": assignment.clientConfirmedArrivalAt.isoformat()
+                if assignment.clientConfirmedArrivalAt
+                else None,
+                "all_arrived": all_arrived,
+                "arrived_count": arrived_count,
+                "total_count": total_count,
+                "effective_work_date": get_effective_work_date(job).isoformat(),
+            }
 
         # Confirm arrival
         assignment.clientConfirmedArrival = True

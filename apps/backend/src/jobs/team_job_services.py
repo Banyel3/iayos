@@ -4036,11 +4036,103 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     except JobEmployeeAssignment.DoesNotExist:
         return {"success": False, "error": "Employee assignment not found"}
 
-    # Check if already confirmed
+    # Runtime auto-heal for existing jobs: derive workflow signals from the
+    # latest attendance record when assignment flags are missing.
+    from accounts.models import DailyAttendance
+
+    attendance = (
+        DailyAttendance.objects.filter(jobID=job, employeeID=assignment.employee)
+        .order_by("-date", "-attendanceID")
+        .first()
+    )
+    if attendance:
+        now = timezone.now()
+        healed_fields = []
+        attendance_status = str(getattr(attendance, "status", "") or "")
+        dispatch_signal = bool(
+            getattr(attendance, "worker_confirmed", False)
+            or getattr(attendance, "worker_confirmed_at", None)
+            or getattr(attendance, "time_in", None)
+            or getattr(attendance, "time_out", None)
+            or getattr(attendance, "client_confirmed", False)
+            or attendance_status in ["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"]
+        )
+        arrival_signal = bool(
+            getattr(attendance, "client_confirmed", False)
+            or getattr(attendance, "client_confirmed_at", None)
+            or getattr(attendance, "time_in", None)
+            or getattr(attendance, "time_out", None)
+        )
+
+        if dispatch_signal and not getattr(assignment, "dispatched", False):
+            assignment.dispatched = True
+            assignment.dispatchedAt = (
+                assignment.dispatchedAt
+                or getattr(attendance, "worker_confirmed_at", None)
+                or getattr(attendance, "time_in", None)
+                or now
+            )
+            healed_fields.extend(["dispatched", "dispatchedAt"])
+
+        if arrival_signal and not assignment.clientConfirmedArrival:
+            assignment.clientConfirmedArrival = True
+            assignment.clientConfirmedArrivalAt = (
+                assignment.clientConfirmedArrivalAt
+                or getattr(attendance, "client_confirmed_at", None)
+                or getattr(attendance, "time_in", None)
+                or getattr(attendance, "time_out", None)
+                or now
+            )
+            if assignment.status == "ASSIGNED":
+                assignment.status = "IN_PROGRESS"
+                healed_fields.append("status")
+            healed_fields.extend(["clientConfirmedArrival", "clientConfirmedArrivalAt"])
+
+        if healed_fields:
+            if "updatedAt" not in healed_fields:
+                healed_fields.append("updatedAt")
+            assignment.save(update_fields=list(dict.fromkeys(healed_fields)))
+
+    # Idempotent success if already confirmed.
     if assignment.clientConfirmedArrival:
+        total_workers = JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE"
+        ).count()
+        arrived_workers = JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE", client_confirmed_arrival=True
+        ).count()
+        total_employees = JobEmployeeAssignment.objects.filter(
+            job=job,
+            skill_slot__isnull=False,
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        ).count()
+        arrived_employees = JobEmployeeAssignment.objects.filter(
+            job=job,
+            skill_slot__isnull=False,
+            clientConfirmedArrival=True,
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        ).count()
+
+        all_arrived = (arrived_workers == total_workers) and (
+            arrived_employees == total_employees
+        )
+
         return {
-            "success": False,
-            "error": f"Employee arrival already confirmed at {assignment.clientConfirmedArrivalAt}",
+            "success": True,
+            "already_confirmed": True,
+            "assignment_id": assignment.assignmentID,
+            "updated_assignment_ids": [assignment.assignmentID],
+            "updated_count": 1,
+            "employee_name": assignment.employee.fullName,
+            "confirmed_at": (
+                assignment.clientConfirmedArrivalAt.isoformat()
+                if assignment.clientConfirmedArrivalAt
+                else None
+            ),
+            "all_team_arrived": all_arrived,
+            "arrived_count": arrived_workers + arrived_employees,
+            "total_count": total_workers + total_employees,
+            "message": f"{assignment.employee.fullName} arrival was already confirmed",
         }
 
     # Mark arrival as confirmed
