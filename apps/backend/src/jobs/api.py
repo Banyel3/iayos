@@ -59,7 +59,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from decimal import Decimal
 from django.db import transaction as db_transaction, IntegrityError
-from django.db.models import Q
+from django.db.models import Q, Sum
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional, Dict, Any
@@ -729,6 +729,64 @@ def _project_multi_day_gate_error(job: JobPosting):
         "error": (
             f"This is a {required_days}-day project job. "
             f"Final completion and payment are only allowed on day {required_days}."
+        ),
+        "required_days": required_days,
+        "elapsed_days": elapsed_days,
+        "remaining_days": required_days - elapsed_days,
+        "payment_model": payment_model,
+    }
+
+
+def _resolve_daily_required_days(job: JobPosting) -> int:
+    configured_days = int(getattr(job, "duration_days", 0) or 0)
+    if configured_days > 0:
+        return configured_days
+
+    expected_duration = getattr(job, "expectedDuration", None)
+    parsed_expected = _parse_expected_duration_days(expected_duration)
+    if parsed_expected > 0:
+        return parsed_expected
+
+    return 1
+
+
+def _get_elapsed_daily_days(job: JobPosting) -> int:
+    total_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+    if total_days_worked > 0:
+        elapsed = total_days_worked
+    else:
+        started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
+        if not started_at:
+            elapsed = 0
+        else:
+            start_date = timezone.localtime(started_at).date()
+            today = timezone.localdate()
+            elapsed = max((today - start_date).days + 1, 0)
+
+    qa_day_offset = int(getattr(job, "qa_day_offset", 0) or 0)
+    if qa_day_offset > 0:
+        elapsed += qa_day_offset
+
+    return max(elapsed, 0)
+
+
+def _daily_finish_gate_error(job: JobPosting):
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "DAILY":
+        return None
+
+    required_days = _resolve_daily_required_days(job)
+    if required_days <= 1:
+        return None
+
+    elapsed_days = _get_elapsed_daily_days(job)
+    if elapsed_days >= required_days:
+        return None
+
+    return {
+        "error": (
+            f"This is a {required_days}-day DAILY job. "
+            f"Final finish is only allowed on day {required_days}."
         ),
         "required_days": required_days,
         "elapsed_days": elapsed_days,
@@ -13808,8 +13866,11 @@ def finish_daily_job(request, job_id: int):
             {"error": "Only the job client can finish this daily job"}, status=403
         )
 
+    daily_gate_error = _daily_finish_gate_error(job)
+    if daily_gate_error:
+        return Response(daily_gate_error, status=400)
+
     from decimal import Decimal
-    from django.db.models import Sum
     from accounts.models import DailyAttendance, Wallet, Transaction, Notification
     from jobs.payment_buffer_service import has_receivable_ledger_for_account
     from jobs.daily_payment_service import DailyPaymentService
@@ -13881,39 +13942,44 @@ def finish_daily_job(request, job_id: int):
     now = timezone.now()
 
     # Guardrail: do not mark paid/completed without receivable ledger side effects.
-    # Backward compatibility: older records may have payment_processed attendance
-    # but missing linked receivable rows for this job. Auto-repair with a
-    # zero-amount compatibility ledger row (no balance changes) before failing.
-    if total_paid > Decimal("0.00"):
-        recipient_account = None
-        if job.assignedAgencyFK:
-            recipient_account = job.assignedAgencyFK.accountFK
-        elif job.assignedWorkerID and job.assignedWorkerID.profileID:
-            recipient_account = job.assignedWorkerID.profileID.accountFK
+    # Validate all recipient accounts involved in this job, including team recipients.
+    recipient_accounts = set()
+    if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+        recipient_accounts.add(job.assignedAgencyFK.accountFK)
+    if (
+        job.assignedWorkerID
+        and job.assignedWorkerID.profileID
+        and job.assignedWorkerID.profileID.accountFK
+    ):
+        recipient_accounts.add(job.assignedWorkerID.profileID.accountFK)
 
-        if recipient_account and not has_receivable_ledger_for_account(
-            job, recipient_account
-        ):
-            repair_wallet, _ = Wallet.objects.get_or_create(accountFK=recipient_account)
-            Transaction.objects.create(
-                walletID=repair_wallet,
-                transactionType="EARNING",
-                amount=Decimal("0.00"),
-                balanceAfter=repair_wallet.balance,
-                status="COMPLETED",
-                description=f"Compatibility ledger repair for paid DAILY job #{job.jobID}",
-                relatedJobPosting=job,
-                paymentMethod="WALLET",
+    if job.is_team_job:
+        worker_accounts = JobWorkerAssignment.objects.filter(jobID=job).values_list(
+            "workerID__profileID__accountFK", flat=True
+        )
+        recipient_accounts.update(account for account in worker_accounts if account)
+
+        employee_accounts = JobEmployeeAssignment.objects.filter(
+            job=job,
+            skill_slot__isnull=False,
+        ).values_list("skill_slot__invited_agency__accountFK", flat=True)
+        recipient_accounts.update(account for account in employee_accounts if account)
+
+    if total_paid > Decimal("0.00") and recipient_accounts:
+        missing_recipients = [
+            account
+            for account in recipient_accounts
+            if not has_receivable_ledger_for_account(job, account)
+        ]
+        if missing_recipients:
+            return Response(
+                {
+                    "error": "Cannot finish daily job: missing settlement ledger entries for one or more recipients. Confirm and process all attendance payments first.",
+                    "job_id": job.jobID,
+                    "missing_recipients": len(missing_recipients),
+                },
+                status=409,
             )
-
-            if not has_receivable_ledger_for_account(job, recipient_account):
-                return Response(
-                    {
-                        "error": "Cannot finish job: missing receivable ledger entries for paid work",
-                        "job_id": job.jobID,
-                    },
-                    status=409,
-                )
 
     job.status = "COMPLETED"
     job.clientMarkedComplete = True
@@ -13924,7 +13990,7 @@ def finish_daily_job(request, job_id: int):
             transactionType__in=["PENDING_EARNING", "EARNING"],
             status__in=["PENDING", "COMPLETED"],
         ).exists()
-        if job.assignedAgencyFK and not has_settlement_entry:
+        if recipient_accounts and not has_settlement_entry:
             return Response(
                 {
                     "error": "Cannot mark daily job payment as completed without settlement ledger entries. Confirm and process daily attendance payments first."

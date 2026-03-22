@@ -5968,11 +5968,11 @@ export default function ChatScreen() {
                     !conversation.job.clientMarkedComplete && (
                       <View style={styles.projectEndActionsCard}>
                         <Text style={styles.projectEndActionsTitle}>
-                          Team Workday Completed
+                          Team Project Workday Completed
                         </Text>
                         <Text style={styles.projectEndActionsText}>
                           All team workers are checked out. Finish the entire
-                          DAILY team job only when all planned days are done.
+                          team PROJECT job when the work is complete.
                         </Text>
 
                         <View style={styles.projectEndActionsButtons}>
@@ -5980,27 +5980,21 @@ export default function ChatScreen() {
                             style={styles.projectFinishButton}
                             onPress={() => {
                               Alert.alert(
-                                "Finish Daily Team Job",
-                                "All workers are checked out for today. Finish the entire job only if all planned days are done.",
+                                "Approve Team Completion & Pay",
+                                "All workers are checked out for this workday. Continue to choose payment method (Wallet or Cash) for final team payment.",
                                 [
                                   { text: "Cancel", style: "cancel" },
                                   {
                                     text: "Continue",
                                     onPress: () =>
-                                      handleFinishDailyTeamJob(),
+                                      handleApproveTeamJobCompletion(),
                                   },
                                 ],
                               );
                             }}
-                            disabled={
-                              conversation.job.payment_model === "DAILY"
-                                ? dailyFinishJobMutation.isPending
-                                : approveTeamJobCompletionMutation.isPending
-                            }
+                            disabled={approveTeamJobCompletionMutation.isPending}
                           >
-                            {(conversation.job.payment_model === "DAILY"
-                            ? dailyFinishJobMutation.isPending
-                            : approveTeamJobCompletionMutation.isPending) ? (
+                            {approveTeamJobCompletionMutation.isPending ? (
                               <ActivityIndicator
                                 size="small"
                                 color={Colors.white}
@@ -6008,12 +6002,12 @@ export default function ChatScreen() {
                             ) : (
                               <>
                                 <Ionicons
-                                  name="wallet"
+                                  name="card"
                                   size={16}
                                   color={Colors.white}
                                 />
                                 <Text style={styles.projectFinishButtonText}>
-                                  Finish & Pay
+                                  Approve & Pay Team
                                 </Text>
                               </>
                             )}
