@@ -111,8 +111,6 @@ class Command(BaseCommand):
 
             if execute:
                 with transaction.atomic():
-                    if "updatedAt" not in update_fields:
-                        update_fields.append("updatedAt")
                     assignment.save(update_fields=list(dict.fromkeys(update_fields)))
                     touched_rows += 1
             else:

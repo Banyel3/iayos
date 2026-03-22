@@ -12483,7 +12483,6 @@ def verify_employee_arrival(request, job_id: int, attendance_id: str):
                 update_fields=[
                     "clientConfirmedArrival",
                     "clientConfirmedArrivalAt",
-                    "updatedAt",
                 ]
             )
 
@@ -14798,7 +14797,6 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
                 "dispatchedAt",
                 "clientConfirmedArrival",
                 "clientConfirmedArrivalAt",
-                "updatedAt",
             ]
         )
 
