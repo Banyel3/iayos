@@ -2,11 +2,14 @@ from decimal import Decimal
 
 from django.test import TestCase
 from django.test.client import RequestFactory
+from django.core.management import call_command
 
 from accounts.models import (
     Accounts,
+    Agency,
     ClientProfile,
     Job,
+    JobSkillSlot,
     Profile,
     Specializations,
     Wallet,
@@ -17,6 +20,8 @@ from adminpanel.models import ContentModerationTerm
 from jobs.team_job_services import create_team_job, early_complete_single_project_job
 from jobs.api import accept_job_invite_worker
 from jobs.text_moderation import validate_job_post_content
+from agency.services import get_agency_jobs
+from agency.api import accept_job_invite, reject_job_invite
 import jobs.text_moderation as text_moderation
 
 
@@ -270,6 +275,128 @@ class JobInviteAcceptResponseTests(TestCase):
 
         job.refresh_from_db()
         self.assertEqual(job.status, "IN_PROGRESS")
+
+
+class AgencyHybridInviteCompatibilityTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+        self.client_account = Accounts.objects.create_user(
+            email="agency-client@test.com",
+            password="password123",
+            isVerified=True,
+            verification_level=2,
+            KYCVerified=True,
+        )
+        self.agency_account = Accounts.objects.create_user(
+            email="agency-owner@test.com",
+            password="password123",
+            isVerified=True,
+            verification_level=2,
+            KYCVerified=True,
+        )
+
+        self.client_profile = Profile.objects.create(
+            accountFK=self.client_account,
+            profileType="CLIENT",
+            firstName="Client",
+            lastName="Agency",
+        )
+        self.client_record = ClientProfile.objects.create(
+            profileID=self.client_profile,
+            description="",
+            totalJobsPosted=0,
+            clientRating=0,
+            activeJobsCount=0,
+        )
+
+        self.agency = Agency.objects.create(
+            accountFK=self.agency_account,
+            businessName="Team Agency",
+        )
+
+        self.specialization = Specializations.objects.create(
+            specializationName="Masonry",
+            minimumRate=Decimal("400.00"),
+        )
+
+    def _create_direct_agency_team_job(self, invite_status="PENDING", status="ACTIVE"):
+        return Job.objects.create(
+            clientID=self.client_record,
+            title="Direct agency team job",
+            description="desc",
+            categoryID=self.specialization,
+            budget=Decimal("1000.00"),
+            escrowAmount=Decimal("500.00"),
+            escrowPaid=True,
+            location="Test",
+            jobType="INVITE",
+            inviteStatus=invite_status,
+            status=status,
+            is_team_job=True,
+            assignedAgencyFK=self.agency,
+        )
+
+    def test_get_agency_jobs_includes_direct_agency_team_invites(self):
+        self._create_direct_agency_team_job(invite_status="PENDING", status="ACTIVE")
+
+        result = get_agency_jobs(
+            account_id=self.agency_account.accountID,
+            status_filter="ACTIVE",
+            invite_status_filter="PENDING",
+        )
+
+        self.assertEqual(len(result["jobs"]), 1)
+        self.assertEqual(result["jobs"][0]["inviteStatus"], "PENDING")
+        self.assertEqual(result["jobs"][0]["is_team_job"], True)
+
+    def test_accept_job_invite_falls_back_for_team_job_without_slot_invites(self):
+        job = self._create_direct_agency_team_job(invite_status="PENDING", status="ACTIVE")
+
+        request = self.factory.post(f"/api/agency/jobs/{job.jobID}/accept")
+        request.auth = self.agency_account
+
+        result = accept_job_invite(request, job.jobID)
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("success"), msg=result)
+        self.assertEqual(result.get("invite_status"), "ACCEPTED")
+
+        job.refresh_from_db()
+        self.assertEqual(job.inviteStatus, "ACCEPTED")
+
+    def test_reject_job_invite_falls_back_for_team_job_without_slot_invites(self):
+        job = self._create_direct_agency_team_job(invite_status="PENDING", status="ACTIVE")
+
+        request = self.factory.post(f"/api/agency/jobs/{job.jobID}/reject")
+        request.auth = self.agency_account
+
+        result = reject_job_invite(request, job.jobID, reason="No capacity")
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("success"), msg=result)
+        self.assertEqual(result.get("invite_status"), "REJECTED")
+
+        job.refresh_from_db()
+        self.assertEqual(job.inviteStatus, "REJECTED")
+        self.assertEqual(job.status, "CANCELLED")
+
+    def test_backfill_sets_missing_slot_invite_fields(self):
+        job = self._create_direct_agency_team_job(invite_status="PENDING", status="ACTIVE")
+        slot = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=2,
+            budget_allocated=Decimal("1000.00"),
+            skill_level_required="ENTRY",
+            status="OPEN",
+        )
+
+        call_command("backfill_agency_team_slot_invites", "--execute")
+
+        slot.refresh_from_db()
+        self.assertEqual(slot.invited_agency_id, self.agency.agencyId)
+        self.assertEqual(slot.agency_invite_status, "PENDING")
 
 
 class JobContentModerationTests(TestCase):
