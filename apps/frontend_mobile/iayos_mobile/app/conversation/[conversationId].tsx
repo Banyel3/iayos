@@ -7767,67 +7767,6 @@ export default function ChatScreen() {
                   );
                 })()}
 
-              {/* CLIENT VIEW: Confirm arrivals and explicit final finish (agency or mixed team+agency DAILY) */}
-              {(conversation.is_agency_job ||
-                (conversation.is_team_job &&
-                  (conversation.team_agency_employees?.length ?? 0) > 0)) &&
-                conversation.my_role === "CLIENT" &&
-                conversation.job.payment_model === "DAILY" &&
-                !conversation.job.clientMarkedComplete &&
-                agencyAssignedEmployees.length > 0 &&
-                (() => {
-                  const assignedEmployees = agencyAssignedEmployees;
-                  const allArrived = assignedEmployees.every((e) =>
-                    isAgencyStatusInCurrentBackjobCycle(
-                      e.clientConfirmedArrival,
-                      e.clientConfirmedArrivalAt,
-                    ),
-                  );
-                  const allComplete = assignedEmployees.every((e) =>
-                    isAgencyStatusInCurrentBackjobCycle(
-                      e.agencyMarkedComplete ||
-                        e.employeeMarkedComplete ||
-                        e.marked_complete ||
-                        ("status" in e &&
-                          String((e as any).status || "").toUpperCase() ===
-                            "COMPLETED"),
-                      e.agencyMarkedCompleteAt ||
-                        e.employeeMarkedCompleteAt ||
-                        e.clientConfirmedArrivalAt ||
-                        e.dispatchedAt ||
-                        null,
-                    ),
-                  );
-
-                  if (!allArrived || !allComplete) {
-                    return null;
-                  }
-
-                  return (
-                    <View style={styles.employeeActionsSection}>
-                      <Text style={styles.actionSectionTitle}>
-                        Finish Daily Team + Agency Job
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.approveCompletionButton]}
-                        onPress={handleFinishDailyTeamJob}
-                        disabled={dailyFinishJobMutation.isPending}
-                      >
-                        {dailyFinishJobMutation.isPending ? (
-                          <ActivityIndicator size="small" color={Colors.white} />
-                        ) : (
-                          <>
-                            <Ionicons name="flag" size={20} color={Colors.white} />
-                            <Text style={styles.actionButtonText}>
-                              {`Finish Entire Job (Settle ₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`}
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })()}
-
               {(conversation.is_agency_job ||
                 (conversation.is_team_job &&
                   (conversation.team_agency_employees?.length ?? 0) > 0)) &&
@@ -7840,10 +7779,6 @@ export default function ChatScreen() {
                     conversation.is_team_job && !conversation.is_agency_job;
                   const isDailyAgencyFlow =
                     conversation.job.payment_model === "DAILY";
-
-                  if (isDailyAgencyFlow) {
-                    return null;
-                  }
                   const isEmployeeComplete = (employee: any) =>
                     employee.agencyMarkedComplete ||
                     employee.agency_marked_complete ||
@@ -7873,9 +7808,24 @@ export default function ChatScreen() {
                       getAgencyCompletionAt(e),
                     ),
                   );
+
+                  const allFreelancersComplete = !isDailyAgencyFlow
+                    ? true
+                    : (conversation.team_worker_assignments ?? []).every(
+                        (assignment: any) => {
+                          const status = String(assignment?.status || "").toUpperCase();
+                          return Boolean(
+                            assignment?.worker_marked_complete ||
+                              assignment?.marked_complete ||
+                              status === "COMPLETED",
+                          );
+                        },
+                      );
+
                   const allWorkflowComplete =
                     (isDailyAgencyFlow ? allArrived : allDispatched && allArrived) &&
-                    allComplete;
+                    allComplete &&
+                    allFreelancersComplete;
 
                   return (
                     <>
@@ -7920,7 +7870,9 @@ export default function ChatScreen() {
                                   />
                                   <Text style={styles.actionButtonText}>
                                     {isTeamAgencyJob
-                                      ? `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                      ? isDailyAgencyFlow
+                                        ? `Approve & Pay (For the Day)`
+                                        : `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
                                       : `Approve & Pay Agency (₱${(
                                           (conversation.job.remainingPayment ??
                                             conversation.job.budget * 0.5) +
