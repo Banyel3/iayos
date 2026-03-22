@@ -210,6 +210,7 @@ class SkillSlotDetailSchema(Schema):
     invited_agency_id: Optional[int] = None
     invited_agency_name: Optional[str] = None
     agency_invite_status: Optional[str] = None  # PENDING, ACCEPTED, REJECTED
+    last_agency_rejection: Optional[dict] = None
 
 
 class WorkerAssignmentSchema(Schema):
@@ -264,6 +265,12 @@ class TeamJobApplicationSchema(Schema):
     proposed_daily_rate: Optional[float] = None
     proposed_days: Optional[int] = None
     applied_shift: Optional[str] = None  # MORNING or NIGHT (for DAILY ANY jobs)
+
+
+class TeamSlotAgencyInviteSchema(Schema):
+    """Schema for inviting an agency to a specific team slot on an existing job."""
+
+    agency_id: int
 
 
 class AssignWorkerToSlotSchema(Schema):

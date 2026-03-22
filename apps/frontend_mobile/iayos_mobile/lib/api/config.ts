@@ -397,6 +397,8 @@ export const ENDPOINTS = {
     `${API_BASE_URL}/jobs/team/${jobId}/applications/${applicationId}/accept`,
   TEAM_REJECT_APPLICATION: (jobId: number, applicationId: number) =>
     `${API_BASE_URL}/jobs/team/${jobId}/applications/${applicationId}/reject`,
+  TEAM_INVITE_AGENCY_SLOT: (jobId: number, slotId: number) =>
+    `${API_BASE_URL}/jobs/team/${jobId}/slots/${slotId}/invite-agency`,
   TEAM_APPLY_SKILL_SLOT: (jobId: number) =>
     `${API_BASE_URL}/jobs/team/${jobId}/apply`,
   TEAM_START_JOB: (jobId: number) => `${API_BASE_URL}/jobs/team/${jobId}/start`,

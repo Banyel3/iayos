@@ -3212,6 +3212,29 @@ class JobSkillSlot(models.Model):
         help_text="Timestamp when agency responded to slot invite",
     )
 
+    # Last rejection snapshot for UI fallback when slot is reopened to freelancers.
+    last_rejected_agency_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="Most recent agency ID that rejected this slot invite",
+    )
+    last_rejected_agency_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Most recent agency name that rejected this slot invite",
+    )
+    last_rejection_reason = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Most recent rejection reason provided by agency for this slot",
+    )
+    last_rejected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the latest agency rejection was recorded",
+    )
+
     # Timestamps
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)

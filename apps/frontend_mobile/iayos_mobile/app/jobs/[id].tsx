@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -48,12 +48,14 @@ import {
   useTeamJobApplications,
   useAcceptTeamApplication,
   useRejectTeamApplication,
+  useInviteAgencyToTeamSlot,
   useConfirmTeamEmployeeArrival,
   useMarkTeamEmployeeComplete,
   type SkillSlot,
   type WorkerAssignment,
   type AgencyEmployeeAssignment,
 } from "@/lib/hooks/useTeamJob";
+import { useAgencies, type Agency } from "@/lib/hooks/useAgencies";
 import { useMySkills } from "@/lib/hooks/useSkills";
 import { useSubmitReport } from "@/lib/hooks/useReports";
 import { useFocusEffect } from "@react-navigation/native";
@@ -369,6 +371,11 @@ export default function JobDetailScreen() {
   const [rejectApplicationWorkerName, setRejectApplicationWorkerName] =
     useState("");
   const [rejectApplicationReason, setRejectApplicationReason] = useState("");
+  const [agencyPickerVisible, setAgencyPickerVisible] = useState(false);
+  const [agencySearchQuery, setAgencySearchQuery] = useState("");
+  const [agencyPickerSlotId, setAgencyPickerSlotId] = useState<number | null>(
+    null,
+  );
   const submitReportMutation = useSubmitReport();
 
   // Application form state
@@ -1082,7 +1089,10 @@ export default function JobDetailScreen() {
       return data;
     },
     onSuccess: () => {
-      Alert.alert("Success", "Application rejected.");
+      Alert.alert(
+        "Application Rejected",
+        "The worker was notified with your reason and remaining proposal attempts.",
+      );
       setShowRejectApplicationModal(false);
       setRejectApplicationId(null);
       setRejectApplicationWorkerName("");
@@ -1536,6 +1546,26 @@ export default function JobDetailScreen() {
   // Accept/reject team applications
   const acceptTeamApplication = useAcceptTeamApplication();
   const rejectTeamApplication = useRejectTeamApplication();
+  const inviteAgencyToSlot = useInviteAgencyToTeamSlot();
+
+  // Reuse the same inline agency picker pattern used in team job creation flow.
+  const { data: agenciesData, isLoading: agenciesLoading } = useAgencies({
+    sortBy: "rating",
+    limit: 50,
+  });
+
+  const filteredAgencies = useMemo(() => {
+    const agencies = agenciesData?.agencies || [];
+    const search = agencySearchQuery.trim().toLowerCase();
+    if (!search) return agencies;
+    return agencies.filter(
+      (agency: Agency) =>
+        agency.name.toLowerCase().includes(search) ||
+        (agency.specializations || []).some((skill) =>
+          skill.toLowerCase().includes(search),
+        ),
+    );
+  }, [agenciesData, agencySearchQuery]);
 
   // Agency employee team job actions
   const confirmEmployeeArrival = useConfirmTeamEmployeeArrival();
@@ -1613,6 +1643,11 @@ export default function JobDetailScreen() {
 
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
+  const teamSlotsWithOpenings = (job?.skill_slots || []).filter(
+    (slot) =>
+      (slot.openings_remaining || 0) > 0 &&
+      !slot.agency_invite,
+  );
 
   // Normalize slot id across API payload variants.
   const resolveApplicationSlotId = (app: any): number | null => {
@@ -1721,6 +1756,23 @@ export default function JobDetailScreen() {
       setAppliedShift(null);
     }
     setShowTeamApplyModal(true);
+  };
+
+  const openAgencyPickerForSlot = (slotId: number) => {
+    setAgencyPickerSlotId(slotId);
+    setAgencySearchQuery("");
+    setAgencyPickerVisible(true);
+  };
+
+  const handleSelectAgencyForSlot = (agency: Agency) => {
+    if (!agencyPickerSlotId) return;
+    inviteAgencyToSlot.mutate({
+      jobId: parseInt(id),
+      slotId: agencyPickerSlotId,
+      agencyId: agency.id,
+    });
+    setAgencyPickerVisible(false);
+    setAgencyPickerSlotId(null);
   };
 
   const handleSubmitTeamApplication = () => {
@@ -3027,7 +3079,7 @@ export default function JobDetailScreen() {
         )}
 
         {/* Team Job Applications - For clients to review applications */}
-        {isTeamJob && isClient && teamApplications.length > 0 && (
+        {isTeamJob && isClient && (teamApplications.length > 0 || teamSlotsWithOpenings.length > 0) && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Team Applications</Text>
@@ -3040,6 +3092,91 @@ export default function JobDetailScreen() {
                 </Text>
               </View>
             </View>
+
+            {teamApplications.length === 0 && (
+              <View style={styles.emptyApplications}>
+                <Ionicons
+                  name="document-text-outline"
+                  size={48}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.emptyApplicationsText}>No applications yet</Text>
+                <Text style={styles.emptyApplicationsSubtext}>
+                  You can invite an agency again for open slots, or let freelancers apply.
+                </Text>
+              </View>
+            )}
+
+            {teamSlotsWithOpenings.length > 0 && (
+              <View style={{ gap: 10, marginBottom: teamApplications.length > 0 ? 12 : 0 }}>
+                {teamSlotsWithOpenings.map((slot) => (
+                  <View
+                    key={`slot-fallback-${slot.skill_slot_id}`}
+                    style={styles.teamAgencyFallbackCard}
+                  >
+                    <View style={styles.teamAgencyFallbackHeader}>
+                      <Text style={styles.teamAgencyFallbackTitle}>
+                        {slot.specialization_name}
+                      </Text>
+                      <Text style={styles.teamAgencyFallbackMeta}>
+                        Openings: {slot.openings_remaining}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.teamAgencyFallbackText}>
+                      This slot is open for freelancers.
+                    </Text>
+
+                    {!!slot.last_agency_rejection && (
+                      <Text style={styles.teamAgencyFallbackReason}>
+                        Last agency rejection: {slot.last_agency_rejection.agency_name || "Agency"}
+                        {slot.last_agency_rejection.reason
+                          ? ` - ${slot.last_agency_rejection.reason}`
+                          : ""}
+                      </Text>
+                    )}
+
+                    <View style={styles.teamAgencyFallbackActions}>
+                      <TouchableOpacity
+                        style={styles.teamAgencyFallbackInviteButton}
+                        onPress={() => openAgencyPickerForSlot(slot.skill_slot_id)}
+                        disabled={inviteAgencyToSlot.isPending}
+                      >
+                        {inviteAgencyToSlot.isPending &&
+                        inviteAgencyToSlot.variables?.slotId === slot.skill_slot_id ? (
+                          <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                          <>
+                            <Ionicons name="business-outline" size={16} color={Colors.white} />
+                            <Text style={styles.teamAgencyFallbackInviteText}>
+                              Invite Agency Again
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.teamAgencyFallbackWorkerButton}
+                        onPress={() => {
+                          const catId =
+                            typeof job.category === "object" ? job.category.id : undefined;
+                          router.push({
+                            pathname: "/jobs/invite-workers" as any,
+                            params: {
+                              jobId: id,
+                              categoryId: catId?.toString() || "",
+                            },
+                          });
+                        }}
+                      >
+                        <Ionicons name="person-add-outline" size={16} color={Colors.primary} />
+                        <Text style={styles.teamAgencyFallbackWorkerText}>Invite Workers</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {teamApplications.map((app: any) => (
               <View key={app.application_id} style={styles.applicationCard}>
@@ -4620,6 +4757,88 @@ export default function JobDetailScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Agency Picker Modal (team slot reinvite fallback) */}
+      <Modal
+        visible={agencyPickerVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setAgencyPickerVisible(false)}
+      >
+        <View style={styles.agencyModalContainer}>
+          <View style={styles.agencyModalHeader}>
+            <Text style={styles.agencyModalTitle}>Invite Agency</Text>
+            <TouchableOpacity onPress={() => setAgencyPickerVisible(false)}>
+              <Ionicons name="close" size={28} color={Colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
+            <TextInput
+              style={styles.agencySearchInput}
+              placeholder="Search agencies..."
+              placeholderTextColor={Colors.textHint}
+              value={agencySearchQuery}
+              onChangeText={setAgencySearchQuery}
+            />
+            <Text
+              style={{
+                ...Typography.body.small,
+                color: Colors.textSecondary,
+                marginTop: Spacing.xs,
+                marginBottom: Spacing.sm,
+              }}
+            >
+              Select an agency to invite for this skill slot. The agency can accept or decline.
+            </Text>
+          </View>
+
+          {agenciesLoading ? (
+            <View style={styles.agencyPickerLoading}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ paddingHorizontal: Spacing.md }}>
+              {filteredAgencies.length === 0 ? (
+                <View style={styles.agencyPickerEmpty}>
+                  <Ionicons
+                    name="business-outline"
+                    size={40}
+                    color={Colors.textHint}
+                  />
+                  <Text style={styles.emptyApplicationsText}>No agencies found</Text>
+                </View>
+              ) : (
+                filteredAgencies.map((agency) => (
+                  <TouchableOpacity
+                    key={`slot-agency-${agency.id}`}
+                    style={styles.agencyPickerRow}
+                    onPress={() => handleSelectAgencyForSlot(agency)}
+                  >
+                    <View style={styles.agencyPickerIconCircle}>
+                      <Ionicons name="business" size={20} color={Colors.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.agencyPickerName} numberOfLines={1}>
+                        {agency.name}
+                      </Text>
+                      <Text style={styles.agencyPickerMeta}>
+                        {agency.completedJobs} jobs done
+                        {agency.rating > 0 ? ` • ${agency.rating.toFixed(1)}★` : ""}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={24}
+                      color={Colors.primary}
+                    />
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+
       {/* Reject Invite Modal */}
       <Modal
         visible={showRejectInviteModal}
@@ -5793,6 +6012,136 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  teamAgencyFallbackCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  teamAgencyFallbackHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
+  teamAgencyFallbackTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  teamAgencyFallbackMeta: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  teamAgencyFallbackText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+  },
+  teamAgencyFallbackReason: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.error,
+    marginTop: Spacing.xs,
+  },
+  teamAgencyFallbackActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  teamAgencyFallbackInviteButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    gap: 6,
+  },
+  teamAgencyFallbackInviteText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.white,
+    fontWeight: "600",
+  },
+  teamAgencyFallbackWorkerButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    gap: 6,
+  },
+  teamAgencyFallbackWorkerText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
+  agencyModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  agencyModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  agencyModalTitle: {
+    ...Typography.heading.h3,
+    color: Colors.textPrimary,
+  },
+  agencySearchInput: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+  },
+  agencyPickerLoading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  agencyPickerEmpty: {
+    padding: Spacing.xl,
+    alignItems: "center",
+  },
+  agencyPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  agencyPickerIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+  },
+  agencyPickerName: {
+    ...Typography.body.medium,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  agencyPickerMeta: {
+    ...Typography.body.small,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   applicationDetails: {
     flexDirection: "row",
