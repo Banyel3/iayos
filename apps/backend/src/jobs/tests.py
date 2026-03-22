@@ -22,6 +22,7 @@ from accounts.models import (
 )
 from adminpanel.models import ContentModerationTerm
 from jobs.team_job_services import (
+    confirm_team_employee_arrival,
     confirm_team_worker_arrival,
     create_team_job,
     early_complete_single_project_job,
@@ -520,6 +521,114 @@ class AgencyHybridInviteCompatibilityTests(TestCase):
         assignment.refresh_from_db()
         self.assertTrue(assignment.dispatched)
         self.assertTrue(assignment.clientConfirmedArrival)
+
+    def test_confirm_project_employee_arrival_is_idempotent(self):
+        job = Job.objects.create(
+            clientID=self.client_record,
+            title="Direct agency project idempotent",
+            description="desc",
+            categoryID=self.specialization,
+            budget=Decimal("1000.00"),
+            escrowAmount=Decimal("500.00"),
+            escrowPaid=True,
+            location="Test",
+            jobType="INVITE",
+            inviteStatus="ACCEPTED",
+            status="IN_PROGRESS",
+            payment_model="PROJECT",
+            is_team_job=True,
+            assignedAgencyFK=self.agency,
+        )
+
+        employee = AgencyEmployee.objects.create(
+            agency=self.agency_account,
+            name="Meg Griffin",
+            firstName="Meg",
+            lastName="Griffin",
+            specializations='["Masonry"]',
+            isActive=True,
+        )
+
+        assignment = JobEmployeeAssignment.objects.create(
+            job=job,
+            employee=employee,
+            status="ASSIGNED",
+            dispatched=False,
+            clientConfirmedArrival=False,
+        )
+
+        request = self.factory.post(
+            f"/api/jobs/{job.jobID}/employees/{employee.employeeID}/confirm-arrival-project"
+        )
+        request.auth = self.client_account
+
+        first_result = confirm_project_employee_arrival(
+            request, job.jobID, employee.employeeID
+        )
+        self.assertIsInstance(first_result, dict)
+        self.assertTrue(first_result.get("success"), msg=first_result)
+
+        second_result = confirm_project_employee_arrival(
+            request, job.jobID, employee.employeeID
+        )
+        self.assertIsInstance(second_result, dict)
+        self.assertTrue(second_result.get("success"), msg=second_result)
+        self.assertTrue(second_result.get("already_confirmed"), msg=second_result)
+        self.assertEqual(
+            second_result.get("updated_assignment_ids"), [assignment.assignmentID]
+        )
+
+    def test_confirm_team_employee_arrival_is_idempotent(self):
+        job = self._create_direct_agency_team_job(
+            invite_status="ACCEPTED",
+            status="IN_PROGRESS",
+        )
+
+        employee = AgencyEmployee.objects.create(
+            agency=self.agency_account,
+            name="Stewie Employee",
+            firstName="Stewie",
+            lastName="Employee",
+            specializations='["Masonry"]',
+            isActive=True,
+        )
+
+        slot = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1000.00"),
+            skill_level_required="ENTRY",
+            status="OPEN",
+        )
+
+        assignment = JobEmployeeAssignment.objects.create(
+            job=job,
+            employee=employee,
+            skill_slot=slot,
+            status="ASSIGNED",
+            dispatched=True,
+            clientConfirmedArrival=False,
+        )
+
+        first_result = confirm_team_employee_arrival(
+            job_id=job.jobID,
+            assignment_id=assignment.assignmentID,
+            client_user=self.client_account,
+        )
+        self.assertTrue(first_result.get("success"), msg=first_result)
+
+        second_result = confirm_team_employee_arrival(
+            job_id=job.jobID,
+            assignment_id=assignment.assignmentID,
+            client_user=self.client_account,
+        )
+        self.assertTrue(second_result.get("success"), msg=second_result)
+        self.assertTrue(second_result.get("already_confirmed"), msg=second_result)
+        self.assertEqual(second_result.get("updated_count"), 1)
+        self.assertEqual(
+            second_result.get("updated_assignment_ids"), [assignment.assignmentID]
+        )
 
     def test_confirm_team_worker_arrival_is_idempotent(self):
         job = self._create_direct_agency_team_job(
