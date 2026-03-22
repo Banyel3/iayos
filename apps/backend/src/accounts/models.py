@@ -1613,6 +1613,18 @@ class Job(models.Model):
     # ============================================================
     # TEAM MODE FIELDS - Multi-Skill/Multi-Worker Support
     # ============================================================
+    class AgencyFlowMode(models.TextChoices):
+        DIRECT = "DIRECT", "Direct agency hire"
+        TEAM_SLOT = "TEAM_SLOT", "Team slot agency workflow"
+
+    agency_flow_mode = models.CharField(
+        max_length=20,
+        choices=AgencyFlowMode.choices,
+        null=True,
+        blank=True,
+        help_text="Agency flow mode: DIRECT for single-agency runtime, TEAM_SLOT for slot-based team workflow",
+    )
+
     is_team_job = models.BooleanField(
         default=False,
         help_text="True if this job requires multiple workers/skills (team mode)",
@@ -1643,6 +1655,39 @@ class Job(models.Model):
         """Check if this job has skill slots (unified hiring model).
         This replaces is_team_job flag as the source of truth."""
         return self.skill_slots.exists()
+
+    def infer_agency_flow_mode(self):
+        """Infer agency flow mode for legacy rows where agency_flow_mode is null."""
+        if not self.assignedAgencyFK_id:
+            return None
+
+        if self.is_team_job:
+            # Legacy direct agency jobs were sometimes persisted as team jobs with
+            # a single slot and no worker/team assignments. Treat that shape as DIRECT.
+            slot_count = self.skill_slots.count()
+            has_worker_assignments = self.worker_assignments.exists()
+            has_employee_slot_assignments = self.employee_assignments.filter(
+                skill_slot__isnull=False
+            ).exists()
+            if slot_count <= 1 and not has_worker_assignments and not has_employee_slot_assignments:
+                return self.AgencyFlowMode.DIRECT
+            return self.AgencyFlowMode.TEAM_SLOT
+
+        return self.AgencyFlowMode.DIRECT
+
+    def get_effective_agency_flow_mode(self):
+        """Return explicit mode when set, else infer from legacy fields."""
+        flow_mode = (self.agency_flow_mode or "").upper().strip()
+        if flow_mode in {
+            self.AgencyFlowMode.DIRECT,
+            self.AgencyFlowMode.TEAM_SLOT,
+        }:
+            return flow_mode
+        return self.infer_agency_flow_mode()
+
+    @property
+    def is_team_slot_flow(self):
+        return self.get_effective_agency_flow_mode() == self.AgencyFlowMode.TEAM_SLOT
 
     @property
     def total_workers_needed(self):

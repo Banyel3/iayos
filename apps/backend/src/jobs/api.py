@@ -1446,6 +1446,36 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
         # Force project payment model for agency direct hires.
         payment_model = "PROJECT" if data.agency_id else requested_payment_model
 
+        requested_agency_flow_mode = (data.agency_hire_mode or "").upper().strip()
+        agency_flow_mode = None
+        if data.agency_id:
+            valid_agency_modes = {
+                JobPosting.AgencyFlowMode.DIRECT,
+                JobPosting.AgencyFlowMode.TEAM_SLOT,
+            }
+            if requested_agency_flow_mode and requested_agency_flow_mode not in valid_agency_modes:
+                return Response(
+                    {
+                        "error": "agency_hire_mode must be DIRECT or TEAM_SLOT for agency jobs"
+                    },
+                    status=400,
+                )
+
+            agency_flow_mode = (
+                requested_agency_flow_mode or JobPosting.AgencyFlowMode.DIRECT
+            )
+
+            if (
+                agency_flow_mode == JobPosting.AgencyFlowMode.TEAM_SLOT
+                and not data.skill_slots
+            ):
+                return Response(
+                    {
+                        "error": "skill_slots are required when agency_hire_mode is TEAM_SLOT"
+                    },
+                    status=400,
+                )
+
         if payment_model == "DAILY":
             rate_error = validate_daily_rate_for_specialization(
                 daily_rate=Decimal(str(data.daily_rate or 0)),
@@ -1595,9 +1625,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                         f"💸 Deducted ₱{total_to_charge} from wallet (₱{downpayment} escrow + ₱{platform_fee} fee). New balance: ₱{wallet.balance}"
                     )
 
-                # Determine if this is a team job (agency with skill slots)
+                # Team workflow is now controlled by explicit agency_flow_mode.
                 is_team_job = bool(
-                    data.agency_id and data.skill_slots and len(data.skill_slots) > 0
+                    agency_flow_mode == JobPosting.AgencyFlowMode.TEAM_SLOT
                 )
 
                 # Support frontend field aliases: urgency_level → urgency
@@ -1629,6 +1659,7 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                     assignedWorkerID=worker_profile if data.worker_id else None,
                     assignedAgencyFK=assigned_agency if data.agency_id else None,
                     status=JobPosting.JobStatus.ACTIVE,
+                    agency_flow_mode=agency_flow_mode,
                     is_team_job=is_team_job,
                     payment_model=payment_model,
                     daily_rate_agreed=float(data.daily_rate)
