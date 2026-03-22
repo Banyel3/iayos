@@ -1444,6 +1444,28 @@ def accept_job_invite(request, job_id: int):
         job.inviteStatus = "ACCEPTED"
         job.inviteRespondedAt = timezone.now()
 
+        # Legacy/direct team-invite compatibility:
+        # If this team job was accepted via job-level invite flow, normalize slot-level
+        # invite state so downstream assignment APIs can resolve accepted slots.
+        if job.is_team_job and job.assignedAgencyFK_id == agency.agencyId:
+            team_slots_to_normalize = JobSkillSlot.objects.filter(jobID=job).filter(
+                _Q(invited_agency=agency) | _Q(invited_agency__isnull=True)
+            )
+            team_slots_to_normalize = team_slots_to_normalize.filter(
+                _Q(agency_invite_status__isnull=True)
+                | _Q(agency_invite_status="PENDING")
+                | _Q(agency_invite_status="ACCEPTED")
+            )
+            normalized_slot_count = team_slots_to_normalize.update(
+                invited_agency=agency,
+                agency_invite_status="ACCEPTED",
+                agency_invite_responded_at=timezone.now(),
+            )
+            if normalized_slot_count:
+                print(
+                    f"🔧 Normalized {normalized_slot_count} slot invite(s) to ACCEPTED for direct agency team job {job.jobID}"
+                )
+
         # Multi-day parity initialization for PROJECT invite jobs.
         payment_model = str(
             getattr(job, "payment_model", "PROJECT") or "PROJECT"
