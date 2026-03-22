@@ -3799,11 +3799,26 @@ export default function ChatScreen() {
   const clientAttendanceRows =
     conversation.my_role === "CLIENT" && isTeamAttendanceFlow
       ? (() => {
-          const assignments = Array.isArray(
+          const freelancerAssignments = Array.isArray(
             conversation.team_worker_assignments,
           )
             ? conversation.team_worker_assignments
             : [];
+          const teamAgencyAssignments =
+            conversation.is_team_job &&
+            Array.isArray(conversation.team_agency_employees)
+              ? conversation.team_agency_employees.map((employee: any) => ({
+                  assignment_id: employee?.assignment_id,
+                  worker_id: employee?.id ?? employee?.employee_id,
+                  account_id: employee?.account_id ?? null,
+                  name: employee?.name,
+                  avatar: employee?.avatar,
+                }))
+              : [];
+          const assignments = [
+            ...freelancerAssignments,
+            ...teamAgencyAssignments,
+          ];
           const consumedAttendanceIndexes = new Set<number>();
 
           const merged = assignments.map((assignment) => {
@@ -3918,9 +3933,16 @@ export default function ChatScreen() {
 
   const pendingAgencyDispatchNames =
     conversation.my_role === "CLIENT" &&
-    conversation.is_agency_job &&
-    (conversation.job?.payment_model === "DAILY" || isProjectMultiDayJob)
-      ? (conversation.assigned_employees || [])
+    (conversation.is_agency_job ||
+      (conversation.is_team_job &&
+        (conversation.team_agency_employees?.length ?? 0) > 0)) &&
+    (conversation.job?.payment_model === "DAILY" ||
+      isProjectMultiDayJob ||
+      isTeamProjectAttendance)
+      ? (conversation.is_team_job
+          ? conversation.team_agency_employees || []
+          : conversation.assigned_employees || []
+        )
           .filter((employee: any) => {
             const employeeId = getEmployeeId(employee);
             if (employeeId === null) {
@@ -5399,8 +5421,8 @@ export default function ChatScreen() {
                     conversation.my_role === "CLIENT" && (
                       <>
                         {(conversation.job?.payment_model === "DAILY" ||
-                          (conversation.is_agency_job &&
-                            isProjectMultiDayJob)) &&
+                          isProjectMultiDayJob ||
+                          isTeamProjectAttendance) &&
                           (clientAttendanceRows.length > 0 ||
                             pendingAgencyDispatchNames.length > 0) &&
                           clientAttendanceRows.every(
