@@ -140,6 +140,58 @@ function patchConversationTeamAgencyEmployeesState(
   );
 }
 
+function patchTeamJobAgencyAssignmentsState(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+  assignmentIds: number[],
+  assignmentPatch: Record<string, any>,
+) {
+  const assignmentIdSet = new Set(
+    (assignmentIds || [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id)),
+  );
+  if (assignmentIdSet.size === 0) {
+    return;
+  }
+
+  queryClient.setQueryData(["team-job", jobId], (previous: any) => {
+    if (!previous) {
+      return previous;
+    }
+
+    const patchAgencyRow = (row: any) => {
+      if (!assignmentIdSet.has(Number(row?.assignment_id))) {
+        return row;
+      }
+
+      return {
+        ...row,
+        ...assignmentPatch,
+      };
+    };
+
+    const agencyAssignments = Array.isArray(previous?.agency_employee_assignments)
+      ? previous.agency_employee_assignments.map(patchAgencyRow)
+      : previous?.agency_employee_assignments;
+
+    const skillSlots = Array.isArray(previous?.skill_slots)
+      ? previous.skill_slots.map((slot: any) => ({
+          ...slot,
+          employee_assignments: Array.isArray(slot?.employee_assignments)
+            ? slot.employee_assignments.map(patchAgencyRow)
+            : slot?.employee_assignments,
+        }))
+      : previous?.skill_slots;
+
+    return {
+      ...previous,
+      agency_employee_assignments: agencyAssignments,
+      skill_slots: skillSlots,
+    };
+  });
+}
+
 /**
  * Client confirms worker has arrived — simplified single-tap flow.
  * Calls the new /confirm-worker-arrived endpoint (idempotent, no prerequisites).
@@ -550,17 +602,27 @@ export function useConfirmTeamEmployeeArrival() {
             .filter((id: number) => Number.isFinite(id))
         : [assignmentId];
 
+      const confirmedAt = data?.confirmed_at || nowIso;
+      const teamPatch = {
+        client_confirmed_arrival: true,
+        client_confirmed_arrival_at: confirmedAt,
+        clientConfirmedArrival: true,
+        clientConfirmedArrivalAt: confirmedAt,
+        status: "IN_PROGRESS",
+      };
+
       patchConversationTeamAgencyEmployeesState(
         queryClient,
         jobId,
         updatedAssignmentIds,
-        {
-          client_confirmed_arrival: true,
-          client_confirmed_arrival_at: data?.confirmed_at || nowIso,
-          clientConfirmedArrival: true,
-          clientConfirmedArrivalAt: data?.confirmed_at || nowIso,
-          status: "IN_PROGRESS",
-        },
+        teamPatch,
+      );
+
+      patchTeamJobAgencyAssignmentsState(
+        queryClient,
+        jobId,
+        updatedAssignmentIds,
+        teamPatch,
       );
 
       Toast.show({
@@ -584,6 +646,17 @@ export function useConfirmTeamEmployeeArrival() {
         normalizedMessage.includes("already arrived");
 
       if (isAlreadyConfirmed && variables?.jobId) {
+        patchTeamJobAgencyAssignmentsState(
+          queryClient,
+          variables.jobId,
+          [variables.assignmentId],
+          {
+            client_confirmed_arrival: true,
+            clientConfirmedArrival: true,
+            status: "IN_PROGRESS",
+          },
+        );
+
         queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
         queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
         queryClient.invalidateQueries({ queryKey: ["myJobs"] });
