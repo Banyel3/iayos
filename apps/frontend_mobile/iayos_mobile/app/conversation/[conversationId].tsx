@@ -3889,7 +3889,10 @@ export default function ChatScreen() {
             }
 
             return {
-              attendance_id: `awaiting-${assignment.assignment_id}`,
+              attendance_id:
+                assignment.account_id == null
+                  ? `awaiting-employee-${assignment.assignment_id}`
+                  : `awaiting-worker-${assignment.assignment_id}`,
               worker_id: assignment.worker_id,
               worker_account_id: assignment.account_id,
               worker_name: assignment.name,

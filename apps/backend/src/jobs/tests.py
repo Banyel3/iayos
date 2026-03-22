@@ -3,14 +3,17 @@ from decimal import Decimal
 from django.test import TestCase
 from django.test.client import RequestFactory
 from django.core.management import call_command
+from django.utils import timezone
 
 from accounts.models import (
     Accounts,
     Agency,
     ClientProfile,
+    DailyAttendance,
     Job,
     JobEmployeeAssignment,
     JobSkillSlot,
+    JobWorkerAssignment,
     Profile,
     Specializations,
     Wallet,
@@ -512,6 +515,129 @@ class AgencyHybridInviteCompatibilityTests(TestCase):
         assignment.refresh_from_db()
         self.assertTrue(assignment.dispatched)
         self.assertTrue(assignment.clientConfirmedArrival)
+
+    def test_verify_arrival_accepts_awaiting_worker_reference(self):
+        job = Job.objects.create(
+            clientID=self.client_record,
+            title="Hybrid team daily job",
+            description="desc",
+            categoryID=self.specialization,
+            budget=Decimal("1000.00"),
+            escrowAmount=Decimal("500.00"),
+            escrowPaid=True,
+            location="Test",
+            status="IN_PROGRESS",
+            payment_model="DAILY",
+            is_team_job=True,
+        )
+
+        worker_account = Accounts.objects.create_user(
+            email="hybrid-worker@test.com",
+            password="password123",
+            isVerified=True,
+            verification_level=2,
+            KYCVerified=True,
+        )
+        worker_profile = Profile.objects.create(
+            accountFK=worker_account,
+            profileType="WORKER",
+            firstName="Peter",
+            lastName="Worker",
+        )
+        worker = WorkerProfile.objects.create(
+            profileID=worker_profile,
+            yearsOfExperience=2,
+            nbiClearance="NBI-12345",
+            certification="Basic",
+        )
+
+        slot = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1000.00"),
+            skill_level_required="ENTRY",
+            status="OPEN",
+        )
+
+        assignment = JobWorkerAssignment.objects.create(
+            jobID=job,
+            skillSlotID=slot,
+            workerID=worker,
+            assignment_status="ACTIVE",
+        )
+
+        request = self.factory.post(
+            f"/api/jobs/{job.jobID}/daily/attendance/awaiting-worker-{assignment.assignmentID}/verify-arrival"
+        )
+        request.auth = self.client_account
+
+        from jobs.api import verify_employee_arrival
+
+        result = verify_employee_arrival(
+            request,
+            job.jobID,
+            f"awaiting-worker-{assignment.assignmentID}",
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("success"), msg=result)
+
+        attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            assignmentID=assignment,
+            date=timezone.now().date(),
+        ).first()
+        self.assertIsNotNone(attendance)
+        self.assertIsNotNone(attendance.time_in)
+
+    def test_verify_arrival_accepts_awaiting_employee_reference(self):
+        job = self._create_direct_agency_team_job(
+            invite_status="ACCEPTED", status="IN_PROGRESS"
+        )
+        job.payment_model = "DAILY"
+        job.save(update_fields=["payment_model", "updatedAt"])
+
+        employee = AgencyEmployee.objects.create(
+            agency=self.agency_account,
+            name="Meg Griffin",
+            firstName="Meg",
+            lastName="Griffin",
+            specializations='["Masonry"]',
+            isActive=True,
+        )
+
+        assignment = JobEmployeeAssignment.objects.create(
+            job=job,
+            employee=employee,
+            status="ASSIGNED",
+            dispatched=False,
+            clientConfirmedArrival=False,
+        )
+
+        request = self.factory.post(
+            f"/api/jobs/{job.jobID}/daily/attendance/awaiting-employee-{assignment.assignmentID}/verify-arrival"
+        )
+        request.auth = self.client_account
+
+        from jobs.api import verify_employee_arrival
+
+        result = verify_employee_arrival(
+            request,
+            job.jobID,
+            f"awaiting-employee-{assignment.assignmentID}",
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("success"), msg=result)
+
+        attendance = DailyAttendance.objects.filter(
+            jobID=job,
+            employeeID=employee,
+            date=timezone.now().date(),
+        ).first()
+        self.assertIsNotNone(attendance)
+        self.assertIsNotNone(attendance.time_in)
 
 
 class JobContentModerationTests(TestCase):

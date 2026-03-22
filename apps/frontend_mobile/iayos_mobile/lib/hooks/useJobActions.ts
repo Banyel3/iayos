@@ -219,7 +219,7 @@ export function useMarkDayComplete() {
       cashProofImage,
     }: {
       jobId: number;
-      attendanceId: number;
+      attendanceId: number | string;
       paymentMethod?: "WALLET" | "CASH";
       cashProofImage?: string;
     }) => {
