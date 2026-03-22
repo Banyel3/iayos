@@ -15,6 +15,7 @@ import {
 export type AgencyConversationJob = {
   id: number;
   title: string;
+  is_team_job?: boolean;
   status: string;
   budget: number;
   location: string;
@@ -72,6 +73,30 @@ export type AssignedEmployee = {
   agencyMarkedCompleteAt?: string | null;
 };
 
+export type TeamWorkerAssignment = {
+  workerId: number;
+  name: string;
+  avatar: string | null;
+  skill?: string | null;
+  status?: string;
+};
+
+export type TeamAgencyEmployeeAssignment = {
+  id: number;
+  assignment_id: number;
+  name: string;
+  avatar: string | null;
+  skill?: string | null;
+  status?: string;
+  clientConfirmedArrival?: boolean;
+  clientConfirmedArrivalAt?: string | null;
+  agencyMarkedComplete?: boolean;
+  agencyMarkedCompleteAt?: string | null;
+  employeeMarkedComplete?: boolean;
+  employeeMarkedCompleteAt?: string | null;
+  marked_complete?: boolean;
+};
+
 // Backjob info returned from conversations API
 export type BackjobInfo = {
   has_backjob: boolean;
@@ -98,6 +123,8 @@ export type AgencyConversation = {
   client: AgencyConversationParticipant;
   assigned_employee: AgencyEmployee | null;
   assigned_employees: AssignedEmployee[]; // Multi-employee support
+  team_worker_assignments?: TeamWorkerAssignment[];
+  team_agency_employees?: TeamAgencyEmployeeAssignment[];
   last_message: string | null;
   last_message_time: string | null;
   unread_count: number;
@@ -145,6 +172,8 @@ export type AgencyConversationDetail = {
   client: AgencyConversationParticipant;
   assigned_employee: AgencyEmployee | null;
   assigned_employees: AssignedEmployee[]; // Multi-employee support
+  team_worker_assignments?: TeamWorkerAssignment[];
+  team_agency_employees?: TeamAgencyEmployeeAssignment[];
   messages: AgencyMessage[];
   total_messages: number;
   status: string;
@@ -476,6 +505,50 @@ export function useAgencyMarkComplete() {
       // Invalidate messages cache to refresh job status
       queryClient.invalidateQueries({ queryKey: ["agency-messages"] });
       queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+    },
+  });
+}
+
+/**
+ * Mark a specific team agency employee assignment as complete.
+ */
+export function useAgencyMarkTeamEmployeeComplete() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      jobId,
+      assignmentId,
+      conversationId,
+    }: {
+      jobId: number;
+      assignmentId: number;
+      conversationId?: number;
+    }) => {
+      const response = await fetch(
+        `${API_BASE}/api/jobs/${jobId}/team/employees/${assignmentId}/mark-complete`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(error, `Failed to mark employee complete: ${response.statusText}`),
+        );
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+      if (variables.conversationId) {
+        queryClient.invalidateQueries({
+          queryKey: ["agency-messages", variables.conversationId],
+        });
+      }
     },
   });
 }

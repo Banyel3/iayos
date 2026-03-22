@@ -11,7 +11,7 @@ from .schemas import (
     ConversationParticipantSchema,
     MarkAsReadSchema,
 )
-from .models import Conversation, Message, MessageAttachment
+from .models import Conversation, Message, MessageAttachment, ConversationParticipant
 from decimal import Decimal
 from django.utils import timezone
 from django.db import transaction as db_transaction
@@ -1149,6 +1149,78 @@ def get_conversations(request, filter: str = "all"):
                             }
                         )
 
+                # Fallback for legacy/misaligned team conversations where
+                # participant rows may be missing despite active assignments.
+                if len(team_members) == 0:
+                    from accounts.models import (
+                        JobWorkerAssignment,
+                        JobEmployeeAssignment,
+                    )
+
+                    fallback_members = []
+
+                    worker_assignments = JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        assignment_status__in=["ACTIVE", "COMPLETED"],
+                    ).select_related(
+                        "workerID__profileID", "skillSlotID__specializationID"
+                    )
+
+                    for assignment in worker_assignments:
+                        profile = assignment.workerID.profileID
+                        if user_profile and profile.profileID == user_profile.profileID:
+                            continue
+
+                        fallback_members.append(
+                            {
+                                "profile_id": profile.profileID,
+                                "name": f"{profile.firstName} {profile.lastName}".strip(),
+                                "avatar": profile.profileImg or None,
+                                "role": "WORKER",
+                                "skill": assignment.skillSlotID.specializationID.specializationName
+                                if assignment.skillSlotID
+                                and assignment.skillSlotID.specializationID
+                                else None,
+                            }
+                        )
+
+                    employee_assignments = JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                        skill_slot__isnull=False,
+                    ).select_related("employee", "skill_slot__specializationID")
+
+                    for assignment in employee_assignments:
+                        employee = assignment.employee
+                        fallback_members.append(
+                            {
+                                "profile_id": -int(employee.employeeID),
+                                "name": employee.name,
+                                "avatar": employee.avatar or None,
+                                "role": "AGENCY_EMPLOYEE",
+                                "skill": assignment.skill_slot.specializationID.specializationName
+                                if assignment.skill_slot
+                                and assignment.skill_slot.specializationID
+                                else None,
+                            }
+                        )
+
+                    # Deduplicate by (name, role, skill) for safety.
+                    seen_member_keys = set()
+                    deduped_members = []
+                    for member in fallback_members:
+                        member_key = (
+                            (member.get("name") or "").strip().lower(),
+                            member.get("role"),
+                            member.get("skill"),
+                        )
+                        if member_key in seen_member_keys:
+                            continue
+                        seen_member_keys.add(member_key)
+                        deduped_members.append(member)
+
+                    team_members = deduped_members
+
                 unread_count = participant.unread_count if participant else 0
                 is_archived = participant.is_archived if participant else False
                 cancellation_snapshot = _get_job_cancellation_snapshot(job)
@@ -1418,6 +1490,8 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         except Job.DoesNotExist:
             return Response({"error": "Job not found"}, status=404)
 
+        client_profile = job.clientID.profileID if job.clientID else None
+
         # Check if user is a participant of this job
         is_client = bool(
             user_profile and job.clientID and job.clientID.profileID == user_profile
@@ -1443,6 +1517,41 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             return Response(
                 {"error": "You are not a participant of this job"}, status=403
             )
+
+        # Auto-heal edge case: mixed/team DAILY jobs where all assignments were
+        # early-completed but lifecycle flags remained stuck pre-completion.
+        if is_client and job.is_team_job:
+            try:
+                from jobs.team_job_services import (
+                    autoheal_hybrid_daily_all_early_completed,
+                )
+
+                heal_result = autoheal_hybrid_daily_all_early_completed(
+                    job, request.user
+                )
+                if heal_result.get("success") and heal_result.get("healed"):
+                    print(
+                        f"[get_conversation_by_job] Auto-healed fully early-completed team DAILY job {job.jobID}"
+                    )
+                    job.refresh_from_db()
+            except Exception as heal_err:
+                print(
+                    f"[get_conversation_by_job] Early-completion auto-heal skipped: {heal_err}"
+                )
+
+        # Auto-heal legacy team jobs that are fully staffed but still marked ACTIVE.
+        # This keeps job/chat workflow gates consistent for existing hybrid jobs.
+        if job.is_team_job and job.status == "ACTIVE" and job.can_start_team_job:
+            try:
+                job.status = "IN_PROGRESS"
+                job.save(update_fields=["status", "updatedAt"])
+                print(
+                    f"[get_conversation_by_job] Auto-transitioned team job {job.jobID} to IN_PROGRESS"
+                )
+            except Exception as status_err:
+                print(
+                    f"[get_conversation_by_job] Team status auto-transition skipped: {status_err}"
+                )
 
         # Try to find existing conversation
         conversation = Conversation.objects.filter(relatedJobPosting=job).first()
@@ -1568,6 +1677,55 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             }
 
         if conversation:
+            # Auto-heal legacy team conversations that were created as ONE_ON_ONE.
+            if job.is_team_job:
+                conversation_fields_to_update = []
+                if (
+                    conversation.conversation_type
+                    != Conversation.ConversationType.TEAM_GROUP
+                ):
+                    conversation.conversation_type = (
+                        Conversation.ConversationType.TEAM_GROUP
+                    )
+                    conversation_fields_to_update.append("conversation_type")
+
+                if conversation.worker_id is not None:
+                    conversation.worker = None
+                    conversation_fields_to_update.append("worker")
+
+                if conversation.client_id is None and client_profile:
+                    conversation.client = client_profile
+                    conversation_fields_to_update.append("client")
+
+                if conversation_fields_to_update:
+                    conversation_fields_to_update.append("updatedAt")
+                    conversation.save(update_fields=conversation_fields_to_update)
+                    print(
+                        f"[get_conversation_by_job] Auto-healed team conversation shape for job {job.jobID}"
+                    )
+
+                if client_profile:
+                    ConversationParticipant.objects.get_or_create(
+                        conversation=conversation,
+                        profile=client_profile,
+                        defaults={"participant_type": "CLIENT"},
+                    )
+
+                team_assignments = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                ).select_related("workerID__profileID", "skillSlotID")
+
+                for assignment in team_assignments:
+                    ConversationParticipant.objects.get_or_create(
+                        conversation=conversation,
+                        profile=assignment.workerID.profileID,
+                        defaults={
+                            "participant_type": "WORKER",
+                            "skill_slot": assignment.skillSlotID,
+                        },
+                    )
+
             reopened = False
             system_message_added = False
 
@@ -1622,7 +1780,6 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             }
 
         # If no conversation exists and user is a valid participant, create one
-        client_profile = job.clientID.profileID if job.clientID else None
         worker_profile = (
             job.assignedWorkerID.profileID if job.assignedWorkerID else None
         )
@@ -1631,18 +1788,40 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         if not client_profile:
             return Response({"error": "Job has no client"}, status=400)
 
-        if not worker_profile and not agency:
+        if not worker_profile and not agency and not job.is_team_job:
             return Response(
                 {"error": "Job has no assigned worker or agency"}, status=400
             )
 
-        conversation = Conversation.objects.create(
-            client=client_profile,
-            worker=worker_profile,
-            agency=agency,
-            relatedJobPosting=job,
-            status=ConversationStatus.ACTIVE,
-        )
+        if job.is_team_job:
+            conversation, created = Conversation.create_team_conversation(
+                job_posting=job,
+                client_profile=client_profile,
+            )
+
+            # Ensure existing team assignments are represented in participants.
+            team_assignments = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+            ).select_related("workerID__profileID", "skillSlotID")
+
+            for assignment in team_assignments:
+                conversation.add_team_worker(
+                    assignment.workerID.profileID,
+                    assignment.skillSlotID,
+                )
+
+            print(
+                f"[get_conversation_by_job] {'Created' if created else 'Resolved'} TEAM_GROUP conversation {conversation.conversationID} for team job {job_id}"
+            )
+        else:
+            conversation = Conversation.objects.create(
+                client=client_profile,
+                worker=worker_profile,
+                agency=agency,
+                relatedJobPosting=job,
+                status=ConversationStatus.ACTIVE,
+            )
 
         print(
             f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}"
@@ -1705,6 +1884,7 @@ def get_conversation_messages(request, conversation_id: int):
         if (
             not is_agency_conversation
             and job_ref
+            and not getattr(job_ref, "is_team_job", False)
             and getattr(job_ref, "assignedAgencyFK_id", None)
         ):
             print(
@@ -1724,6 +1904,30 @@ def get_conversation_messages(request, conversation_id: int):
                 print(f"❌ [AGENCY FIX] Failed to repair conversation: {repair_err}")
                 # Still set is_agency_conversation based on job, even if DB repair fails
                 is_agency_conversation = True
+
+        # Hybrid/team conversations should follow team workflow payloads.
+        if job_ref and getattr(job_ref, "is_team_job", False):
+            is_agency_conversation = False
+
+            # Auto-heal edge case: DAILY team/hybrid jobs that are fully
+            # early-completed but remained in-progress should be finalized.
+            try:
+                from jobs.team_job_services import (
+                    autoheal_hybrid_daily_all_early_completed,
+                )
+
+                heal_result = autoheal_hybrid_daily_all_early_completed(
+                    job_ref, request.auth
+                )
+                if heal_result.get("success") and heal_result.get("healed"):
+                    print(
+                        f"[get_conversation_messages] Auto-healed fully early-completed DAILY team job {job_ref.jobID}"
+                    )
+                    job_ref.refresh_from_db()
+            except Exception as heal_err:
+                print(
+                    f"[get_conversation_messages] Early-completion auto-heal skipped: {heal_err}"
+                )
 
         # Verify user is a participant (either client, worker, team participant, or agency owner)
         is_client = conversation.client == user_profile
@@ -2437,7 +2641,11 @@ def get_conversation_messages(request, conversation_id: int):
         # Populate team_worker_assignments for BOTH clients AND workers
         # Workers need this to see their own assignment status (Phase 2 banners)
         if is_team_job:
-            from accounts.models import JobWorkerAssignment, JobReview
+            from accounts.models import (
+                JobWorkerAssignment,
+                JobEmployeeAssignment,
+                JobReview,
+            )
 
             # Get all assigned workers for this team job
             assignments = JobWorkerAssignment.objects.filter(
@@ -2446,7 +2654,7 @@ def get_conversation_messages(request, conversation_id: int):
                 "workerID__profileID__accountFK", "skillSlotID__specializationID"
             )
 
-            # Get list of worker accounts already reviewed by the client (needed for both client and worker views)
+            # Get list of freelancer worker accounts already reviewed by the client.
             reviewed_worker_accounts = set(
                 JobReview.objects.filter(
                     jobID=job,
@@ -2454,6 +2662,16 @@ def get_conversation_messages(request, conversation_id: int):
                     reviewerType="CLIENT",
                     revieweeID__isnull=False,
                 ).values_list("revieweeID", flat=True)
+            )
+
+            # Get list of team agency employees already reviewed by the client.
+            reviewed_employee_ids = set(
+                JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT",
+                    revieweeEmployeeID__isnull=False,
+                ).values_list("revieweeEmployeeID", flat=True)
             )
 
             for assignment in assignments:
@@ -2530,15 +2748,16 @@ def get_conversation_messages(request, conversation_id: int):
 
                 # Pending list remains client-facing, but aggregate completion must be role-agnostic.
                 if is_client and worker_account_id not in reviewed_worker_accounts:
-                    team_workers_pending_review.append(worker_info)
+                    team_workers_pending_review.append(
+                        {
+                            **worker_info,
+                            "target_type": "WORKER",
+                        }
+                    )
 
-            total_team_workers = len(team_worker_assignments)
-            reviewed_by_client_count = sum(
+            total_freelancer_workers = len(team_worker_assignments)
+            reviewed_freelancers_count = sum(
                 1 for worker in team_worker_assignments if worker["is_reviewed"]
-            )
-            all_team_workers_reviewed = (
-                total_team_workers > 0
-                and reviewed_by_client_count >= total_team_workers
             )
 
             # Also populate agency employees filling skill slots in this team job
@@ -2628,6 +2847,31 @@ def get_conversation_messages(request, conversation_id: int):
                         else None,
                     }
                 )
+
+                if is_client and emp.employeeID not in reviewed_employee_ids:
+                    team_workers_pending_review.append(
+                        {
+                            "target_type": "EMPLOYEE",
+                            "employee_id": emp.employeeID,
+                            "assignment_id": sea.assignmentID,
+                            "worker_id": None,
+                            "account_id": None,
+                            "name": emp.name,
+                            "avatar": emp.avatar or "/worker-default.jpg",
+                            "skill": slot_name,
+                        }
+                    )
+
+            total_team_workers = total_freelancer_workers + len(team_agency_employees)
+            reviewed_by_client_count = reviewed_freelancers_count + sum(
+                1
+                for employee in team_agency_employees
+                if employee["id"] in reviewed_employee_ids
+            )
+            all_team_workers_reviewed = (
+                total_team_workers > 0
+                and reviewed_by_client_count >= total_team_workers
+            )
 
         # Check for active backjob/dispute
         from accounts.models import JobDispute
@@ -3604,20 +3848,28 @@ def send_message(request, data: SendMessageSchema):
         is_client = sender_profile and conversation.client == sender_profile
         is_worker = sender_profile and conversation.worker == sender_profile
 
-        # For team conversations, also check ConversationParticipant table
+        # For team/hybrid conversations, also check ConversationParticipant table.
+        # Do not rely solely on conversation_type because some legacy rows can be
+        # mis-typed while still having valid participant records.
         is_team_participant = False
-        if sender_profile and conversation.conversation_type == "TEAM_GROUP":
+        if sender_profile:
             from profiles.models import ConversationParticipant
 
             is_team_participant = ConversationParticipant.objects.filter(
                 conversation=conversation, profile=sender_profile
             ).exists()
 
-        # Check agency-based access (conversation.agency field)
-        is_agency = (
-            sender_agency is not None
-            and conversation.agency is not None
-            and conversation.agency.agencyId == sender_agency.agencyId
+        # Check agency-based access.
+        is_agency = sender_agency is not None and (
+            (
+                conversation.agency is not None
+                and conversation.agency.agencyId == sender_agency.agencyId
+            )
+            or (
+                conversation.relatedJobPosting is not None
+                and getattr(conversation.relatedJobPosting, "assignedAgencyFK_id", None)
+                == sender_agency.agencyId
+            )
         )
 
         if not (is_client or is_worker or is_team_participant or is_agency):
@@ -3715,31 +3967,44 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         # Verify user is a participant
         is_client = user_profile and conversation.client == user_profile
         is_worker = user_profile and conversation.worker == user_profile
-        is_agency = (
-            user_agency is not None
-            and conversation.agency is not None
-            and conversation.agency.agencyId == user_agency.agencyId
+        is_team_participant = False
+        participant = None
+        if user_profile:
+            from profiles.models import ConversationParticipant
+
+            participant = ConversationParticipant.objects.filter(
+                conversation=conversation, profile=user_profile
+            ).first()
+            is_team_participant = participant is not None
+        is_agency = user_agency is not None and (
+            (
+                conversation.agency is not None
+                and conversation.agency.agencyId == user_agency.agencyId
+            )
+            or (
+                conversation.relatedJobPosting is not None
+                and getattr(conversation.relatedJobPosting, "assignedAgencyFK_id", None)
+                == user_agency.agencyId
+            )
         )
 
-        if not (is_client or is_worker or is_agency):
+        if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"}, status=403
             )
 
-        # Mark messages as read - for agency users, mark all messages not sent by agency
+        # Mark messages as read.
         if is_agency:
-            # Agency user: mark all messages from non-agency senders as read
+            # Agency user: mark all messages from non-agency senders as read.
             query = Message.objects.filter(
                 conversationID=conversation, senderAgency__isnull=True, isRead=False
             )
         else:
-            # Profile user: mark messages from the other participant
-            other_participant = (
-                conversation.worker if is_client else conversation.client
-            )
+            # Profile user (client/worker/team participant): mark all unread
+            # messages not authored by the current profile.
             query = Message.objects.filter(
-                conversationID=conversation, sender=other_participant, isRead=False
-            )
+                conversationID=conversation, isRead=False
+            ).exclude(sender=user_profile)
 
         if data.message_id:
             # Mark up to specific message
@@ -3748,16 +4013,21 @@ def mark_messages_as_read(request, data: MarkAsReadSchema):
         updated_count = query.update(isRead=True, readAt=timezone.now())
 
         # Reset unread count
-        if is_client:
+        if participant is not None:
+            participant.mark_as_read()
+        elif is_client:
             conversation.unreadCountClient = 0
         elif is_worker:
             conversation.unreadCountWorker = 0
         # Agency users - reset client unread (agency acts as the service provider side)
         elif is_agency:
             conversation.unreadCountWorker = 0
-        conversation.save(
-            update_fields=["unreadCountClient" if is_client else "unreadCountWorker"]
-        )
+        if participant is None:
+            conversation.save(
+                update_fields=[
+                    "unreadCountClient" if is_client else "unreadCountWorker"
+                ]
+            )
 
         return {"success": True, "marked_count": updated_count}
 
@@ -3825,14 +4095,27 @@ def toggle_conversation_archive(request, conversation_id: int):
         # Verify user is a participant
         is_client = conversation.client == user_profile
         is_worker = conversation.worker == user_profile
+        participant = None
+        if user_profile:
+            from profiles.models import ConversationParticipant
 
-        if not (is_client or is_worker):
+            participant = ConversationParticipant.objects.filter(
+                conversation=conversation, profile=user_profile
+            ).first()
+        is_team_participant = participant is not None
+
+        if not (is_client or is_worker or is_team_participant):
             return Response(
                 {"error": "You are not a participant in this conversation"}, status=403
             )
 
-        # Toggle archive status based on user role
-        if is_client:
+        # Toggle archive status based on user role.
+        # Team conversation participants use participant-level archive state.
+        if participant is not None:
+            participant.is_archived = not participant.is_archived
+            participant.save(update_fields=["is_archived"])
+            is_archived = participant.is_archived
+        elif is_client:
             conversation.archivedByClient = not conversation.archivedByClient
             is_archived = conversation.archivedByClient
             conversation.save(update_fields=["archivedByClient"])
@@ -3900,9 +4183,9 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         is_client = conversation.client == sender_profile
         is_worker = conversation.worker == sender_profile
 
-        # For team conversations, also check ConversationParticipant table
+        # For team/hybrid conversations, also check ConversationParticipant table.
         is_team_participant = False
-        if sender_profile and conversation.conversation_type == "TEAM_GROUP":
+        if sender_profile:
             from profiles.models import ConversationParticipant
 
             is_team_participant = ConversationParticipant.objects.filter(

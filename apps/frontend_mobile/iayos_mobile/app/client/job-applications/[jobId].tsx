@@ -23,6 +23,7 @@ import {
   RefreshControl,
   Alert,
   Modal,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -56,6 +57,7 @@ export default function JobApplicationsScreen() {
     workerName: string;
     action: "ACCEPTED" | "REJECTED";
   } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   // Fetch job applications
   const {
@@ -99,19 +101,33 @@ export default function JobApplicationsScreen() {
       workerName,
       action: "REJECTED",
     });
+    setRejectionReason("");
   };
 
   const confirmAction = async () => {
     if (!selectedApplication) return;
 
     try {
+      if (
+        selectedApplication.action === "REJECTED" &&
+        !rejectionReason.trim()
+      ) {
+        Alert.alert("Reason Required", "Please provide a rejection reason.");
+        return;
+      }
+
       await manageMutation.mutateAsync({
         jobId,
         applicationId: selectedApplication.id,
         action: selectedApplication.action,
+        reason:
+          selectedApplication.action === "REJECTED"
+            ? rejectionReason.trim()
+            : undefined,
       });
 
       setSelectedApplication(null);
+      setRejectionReason("");
 
       Alert.alert(
         "Success",
@@ -128,6 +144,7 @@ export default function JobApplicationsScreen() {
   const cancelAction = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedApplication(null);
+    setRejectionReason("");
   };
 
   return (
@@ -243,6 +260,16 @@ export default function JobApplicationsScreen() {
                 ? `Are you sure you want to accept ${selectedApplication?.workerName}'s application? They will be notified immediately.`
                 : `Are you sure you want to reject ${selectedApplication?.workerName}'s application? This action cannot be undone.`}
             </Text>
+
+            {selectedApplication?.action === "REJECTED" && (
+              <TextInput
+                style={styles.reasonInput}
+                placeholder="Reason for rejection"
+                value={rejectionReason}
+                onChangeText={setRejectionReason}
+                multiline
+              />
+            )}
 
             <View style={styles.modalActions}>
               <Button
@@ -380,6 +407,17 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: Spacing.md,
+  },
+  reasonInput: {
+    minHeight: 88,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+    textAlignVertical: "top",
   },
   modalButton: {
     flex: 1,

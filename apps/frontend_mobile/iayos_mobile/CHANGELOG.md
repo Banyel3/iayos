@@ -41,6 +41,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Hybrid Conversation Stability + Visibility (Agency/Web/Mobile)**
+  - Fixed agency conversations backend crash caused by queryset filtering on non-DB model properties (`total_workers_needed` / `total_workers_assigned`).
+  - Reworked agency conversation team-slot gating to run in Python per conversation/job, preserving lock behavior without invalid ORM lookups.
+  - Improved hybrid team conversation classification so team workflows/actions are not suppressed when an agency is also involved.
+  - Added fallback team-member synthesis for legacy conversations missing participant rows, preventing "Team Chat (0 workers)" for active hybrid jobs.
+  - Updated mobile hybrid chat header to show team/job context with combined freelancer + agency headcount badges.
+  - Extended agency conversation payloads to include freelancer team assignments, then updated web agency messages list/detail to display both agency employees and freelance workers.
+  - **Impact**: Agency conversations endpoint no longer crashes; hybrid chats show correct participants and action context across agency/client/worker surfaces.
+
+- **Worker Pending + In-Progress Visibility for Hybrid Team Jobs**
+  - Updated worker `/jobs/my-jobs` backend filtering to include slot-level team assignments (`JobWorkerAssignment`) in addition to legacy direct assignment and applied-job linkage.
+  - Added `.distinct()` to worker my-jobs query to avoid duplicate rows from assignment joins.
+  - Normalized worker-side per-job `application_status` selection to prioritize active records (`ACCEPTED`, `PENDING`) over historical states when multiple application records exist.
+  - Enabled **Pending** tab on worker jobs screen and added worker-specific pending filter for accepted hybrid team jobs that are still `ACTIVE` (not started yet).
+  - Kept worker invite Requests isolated to Requests tab (excluded from worker Pending tab).
+  - **Impact**: Hybrid team jobs now surface correctly for workers while waiting to start (Pending) and after start (In Progress), without tab overlap confusion.
+
+- **Hybrid Application Visibility + Agency Slot Count Accuracy**
+  - Fixed worker hybrid slot apply-state detection on job detail to robustly map application/job/slot IDs across payload shapes.
+  - Team slot badges/actions now rely on active applications only (`PENDING`/`ACCEPTED`) for "Already Applied" state, preventing stale rejected/withdrawn states from blocking re-apply UX.
+  - Updated worker mobile home exclusion logic to hide only jobs with active applications, allowing previously rejected/withdrawn hybrid jobs to reappear when eligible.
+  - Updated agency accepted-jobs team assignment progress to use agency invited-slot totals instead of full-job totals in hybrid flows.
+  - Hardened agency assign-modal fallback worker count to use agency accepted-slot headcount (not global team headcount), preventing incorrect "needs 2" prompts when the agency slot needs 1.
+  - **Impact**: Existing hybrid jobs now show correct apply-state and applied-tab behavior for workers, and agency accepted cards/modals show correct slot-scoped worker expectations.
+
+- **Agency Accepted Tab Chat Lock Until Team Slots Are Filled**
+  - Disabled **View Chat** in Agency > Job Management > Accepted for team jobs whose slots are not fully assigned yet.
+  - Added locked button state and helper message: chat unlocks once all team slots are filled.
+  - Preserved existing chat behavior for non-team jobs and fully-filled team jobs.
+  - **Impact**: Prevents premature chat access that bypasses incomplete-slot gating and makes progression clearer for agencies.
+
+- **Agency Messages Tab Enforces Team Slot Completion Before Chat Visibility**
+  - Updated agency conversations API to exclude team-job conversations until `total_workers_assigned >= total_workers_needed`.
+  - Added direct conversation endpoint guard to block opening `/agency/messages/{id}` while team slots are still incomplete.
+  - **Impact**: Team chats are now consistently hidden/locked across both Job Management and Messages tabs until all required slots are filled.
+
 - **Hybrid Team Invite Card Misrouting (Worker Job Detail)**
   - Fixed worker invite action card visibility so team hybrid jobs no longer render direct `Accept/Decline Invitation` controls.
   - Worker invitation card is now limited to non-team direct worker invites assigned to the current worker.

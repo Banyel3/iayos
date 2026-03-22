@@ -257,9 +257,15 @@ def get_mobile_job_list(
             print(f"⚠️ [LOCATION] Could not fetch user location: {e}")
             pass
 
-        # Exclude jobs this worker has already applied to
+        # Exclude only jobs with active applications so REJECTED/WITHDRAWN
+        # applications can still reappear in worker home feeds.
         applied_job_ids = JobApplication.objects.filter(
-            workerID__profileID__accountFK=user
+            workerID__profileID__accountFK=user,
+            status__in=[
+                JobApplication.ApplicationStatus.PENDING,
+                JobApplication.ApplicationStatus.ACCEPTED,
+                JobApplication.ApplicationStatus.REJECTED,
+            ],
         ).values_list("jobID", flat=True)
 
         # Base query - ACTIVE jobs excluding own posts and already-applied jobs.
@@ -1215,10 +1221,24 @@ def create_mobile_job(user: Accounts, job_data: Dict[str, Any]) -> Dict[str, Any
                         "Unable to parse duration_days from job_data: %r",
                         job_data.get("duration_days"),
                     )
-            if not resolved_duration_days and job_data.get("preferred_start_date") and job_data.get("scheduled_end_date"):
+            if (
+                not resolved_duration_days
+                and job_data.get("preferred_start_date")
+                and job_data.get("scheduled_end_date")
+            ):
                 try:
-                    start_d = datetime.fromisoformat(job_data["preferred_start_date"]).date() if isinstance(job_data["preferred_start_date"], str) else job_data["preferred_start_date"]
-                    end_d = datetime.strptime(job_data["scheduled_end_date"], "%Y-%m-%d").date() if isinstance(job_data["scheduled_end_date"], str) else job_data["scheduled_end_date"]
+                    start_d = (
+                        datetime.fromisoformat(job_data["preferred_start_date"]).date()
+                        if isinstance(job_data["preferred_start_date"], str)
+                        else job_data["preferred_start_date"]
+                    )
+                    end_d = (
+                        datetime.strptime(
+                            job_data["scheduled_end_date"], "%Y-%m-%d"
+                        ).date()
+                        if isinstance(job_data["scheduled_end_date"], str)
+                        else job_data["scheduled_end_date"]
+                    )
                     if end_d >= start_d:
                         resolved_duration_days = max(1, (end_d - start_d).days + 1)
                 except (TypeError, ValueError):
@@ -1744,7 +1764,9 @@ def create_mobile_invite_job(
                 wallet.save()
 
                 # Resolve payment model for invite jobs
-                invite_payment_model = (job_data.get("payment_model") or "PROJECT").upper()
+                invite_payment_model = (
+                    job_data.get("payment_model") or "PROJECT"
+                ).upper()
                 if invite_payment_model not in ("PROJECT", "DAILY"):
                     invite_payment_model = "PROJECT"
 
@@ -1756,6 +1778,11 @@ def create_mobile_invite_job(
                         pass
 
                 invite_shift_type = str(job_data.get("shift_type") or "ANY").upper()
+                if invite_shift_type not in {"ANY", "MORNING", "NIGHT"}:
+                    return {
+                        "success": False,
+                        "error": f"Invalid shift_type: {invite_shift_type}",
+                    }
 
                 job = Job.objects.create(
                     clientID=client_profile,
@@ -3838,9 +3865,13 @@ def get_my_jobs_mobile(user, status=None, page=1, limit=20):
             except WorkerProfile.DoesNotExist:
                 return {"success": False, "error": "Worker profile not found"}
 
-            # Get job IDs worker applied to
+            # Get job IDs worker applied to (active applications only)
             applied_job_ids = JobApplication.objects.filter(
-                workerID=worker_profile
+                workerID=worker_profile,
+                status__in=[
+                    JobApplication.ApplicationStatus.PENDING,
+                    JobApplication.ApplicationStatus.ACCEPTED,
+                ],
             ).values_list("jobID", flat=True)
 
             # Get jobs worker is assigned to OR applied to
@@ -4010,9 +4041,13 @@ def get_available_jobs_mobile(user, page=1, limit=20):
         except WorkerProfile.DoesNotExist:
             return {"success": False, "error": "Worker profile not found"}
 
-        # Get job IDs worker already applied to
+        # Get job IDs worker already applied to (active applications only)
         applied_job_ids = JobApplication.objects.filter(
-            workerID=worker_profile
+            workerID=worker_profile,
+            status__in=[
+                JobApplication.ApplicationStatus.PENDING,
+                JobApplication.ApplicationStatus.ACCEPTED,
+            ],
         ).values_list("jobID", flat=True)
 
         # Get ACTIVE jobs that worker hasn't applied to and are LISTING type (exclude INVITE jobs)

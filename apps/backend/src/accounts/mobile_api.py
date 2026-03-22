@@ -1268,7 +1268,15 @@ def mobile_my_jobs(
 
             jobs_qs = (
                 JobPosting.objects.filter(
-                    Q(assignedWorkerID=worker_profile) | Q(jobID__in=applied_job_ids)
+                    Q(assignedWorkerID=worker_profile)
+                    | Q(jobID__in=applied_job_ids)
+                    | Q(
+                        worker_assignments__workerID=worker_profile,
+                        worker_assignments__assignment_status__in=[
+                            "ACTIVE",
+                            "COMPLETED",
+                        ],
+                    )
                 )
                 .select_related(
                     "clientID__profileID__accountFK",
@@ -1276,6 +1284,7 @@ def mobile_my_jobs(
                     "assignedAgencyFK__accountFK",
                 )
                 .prefetch_related("photos")
+                .distinct()
             )
             print(f"      Jobs query created for worker")
         else:
@@ -1535,9 +1544,36 @@ def mobile_my_jobs(
                 job_data["agency_logo"] = getattr(assigned_agency, "logo", "")
 
             if profile.profileType == "WORKER":
-                application = JobApplication.objects.filter(
-                    jobID=job, workerID=worker_profile
-                ).first()
+                from django.db.models import Case, IntegerField, Value, When
+
+                application = (
+                    JobApplication.objects.filter(jobID=job, workerID=worker_profile)
+                    .order_by(
+                        Case(
+                            When(
+                                status=JobApplication.ApplicationStatus.ACCEPTED,
+                                then=Value(0),
+                            ),
+                            When(
+                                status=JobApplication.ApplicationStatus.PENDING,
+                                then=Value(1),
+                            ),
+                            When(
+                                status=JobApplication.ApplicationStatus.REJECTED,
+                                then=Value(2),
+                            ),
+                            When(
+                                status=JobApplication.ApplicationStatus.WITHDRAWN,
+                                then=Value(3),
+                            ),
+                            default=Value(4),
+                            output_field=IntegerField(),
+                        ),
+                        "-updatedAt",
+                        "-createdAt",
+                    )
+                    .first()
+                )
                 if application:
                     job_data["application_status"] = application.status
 
@@ -2821,6 +2857,12 @@ def mobile_accept_application(request, job_id: int, application_id: int):
         except JobApplication.DoesNotExist:
             return Response({"error": "Application not found"}, status=404)
 
+        if application.status != JobApplication.ApplicationStatus.PENDING:
+            return Response(
+                {"error": f"Application is already {application.status.lower()}"},
+                status=400,
+            )
+
         # Check if application is still pending
         if application.status != "PENDING":
             return Response(
@@ -3211,7 +3253,7 @@ def mobile_accept_application(request, job_id: int, application_id: int):
     "/jobs/{job_id}/applications/{application_id}/reject", auth=jwt_auth
 )
 @require_kyc
-def mobile_reject_application(request, job_id: int, application_id: int):
+def mobile_reject_application(request, job_id: int, application_id: int, payload: dict = None):
     """
     Reject a job application (mobile version)
     """
@@ -3258,13 +3300,31 @@ def mobile_reject_application(request, job_id: int, application_id: int):
         except JobApplication.DoesNotExist:
             return Response({"error": "Application not found"}, status=404)
 
-        # Reject the application
+        # Reject the application (worker can still re-propose through negotiation
+        # while staying in Applied tab).
+        rejection_reason = (payload or {}).get("reason", "")
         application.status = "REJECTED"
+        application.clientRejectionReason = rejection_reason.strip() or None
         application.save()
+
+        # Create notification for worker including proposal allowance context.
+        Notification.objects.create(
+            accountFK=application.workerID.profileID.accountFK,
+            notificationType="APPLICATION_REJECTED",
+            title="Application Not Selected",
+            message=_application_rejection_message(application, rejection_reason),
+            relatedJobID=job.jobID,
+            relatedApplicationID=application.applicationID,
+        )
 
         print(f"✅ [MOBILE] Application {application_id} rejected")
 
-        return {"success": True, "message": "Application rejected"}
+        return {
+            "success": True,
+            "message": "Application rejected",
+            "proposals_remaining": _proposals_remaining_for_application(application),
+            "max_proposals": MAX_WORKER_PROPOSALS,
+        }
 
     except Exception as e:
         print(f"❌ [MOBILE] Error rejecting application: {str(e)}")
@@ -3367,17 +3427,17 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "This job is no longer accepting applications"}, status=400
             )
 
-        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
+        # Single-row application policy (mobile): reuse REJECTED/WITHDRAWN row
+        # instead of creating duplicate application records.
         existing_application = JobApplication.objects.filter(
             jobID=job,
             workerID=worker_profile,
-            status__in=[
-                JobApplication.ApplicationStatus.PENDING,
-                JobApplication.ApplicationStatus.ACCEPTED,
-            ],
         ).first()
 
-        if existing_application:
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.PENDING,
+            JobApplication.ApplicationStatus.ACCEPTED,
+        ]:
             return Response(
                 {"error": "You have already applied for this job"}, status=400
             )
@@ -3460,21 +3520,59 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
             )
             _proposed_days = payload.proposed_days or None
 
-        # Create the application
-        application = JobApplication.objects.create(
-            jobID=job,
-            workerID=worker_profile,
-            proposalMessage=payload.proposal_message,
-            proposedBudget=payload.proposed_budget or 0,
-            estimatedDuration=payload.estimated_duration or "",
-            budgetOption=payload.budget_option,
-            selected_materials=payload.selected_materials or [],
-            proposed_daily_rate=_proposed_daily_rate,
-            proposed_days=_proposed_days,
-            applied_shift=_applied_shift,
-            status=JobApplication.ApplicationStatus.PENDING,
-            negotiation_count=1 if payload.budget_option == "NEGOTIATE" else 0,
-        )
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.REJECTED,
+            JobApplication.ApplicationStatus.WITHDRAWN,
+        ]:
+            application = existing_application
+            application.proposalMessage = payload.proposal_message
+            application.proposedBudget = payload.proposed_budget or 0
+            application.estimatedDuration = payload.estimated_duration or ""
+            application.budgetOption = payload.budget_option
+            application.selected_materials = payload.selected_materials or []
+            application.proposed_daily_rate = _proposed_daily_rate
+            application.proposed_days = _proposed_days
+            application.applied_shift = _applied_shift
+            application.status = JobApplication.ApplicationStatus.PENDING
+            application.negotiation_count = (
+                1 if payload.budget_option == "NEGOTIATE" else 0
+            )
+            application.clientRejectionReason = None
+            application.save(
+                update_fields=[
+                    "proposalMessage",
+                    "proposedBudget",
+                    "estimatedDuration",
+                    "budgetOption",
+                    "selected_materials",
+                    "proposed_daily_rate",
+                    "proposed_days",
+                    "applied_shift",
+                    "status",
+                    "negotiation_count",
+                    "clientRejectionReason",
+                    "updatedAt",
+                ]
+            )
+            from accounts.models import PriceNegotiation
+
+            PriceNegotiation.objects.filter(application=application).delete()
+        else:
+            # Create the application
+            application = JobApplication.objects.create(
+                jobID=job,
+                workerID=worker_profile,
+                proposalMessage=payload.proposal_message,
+                proposedBudget=payload.proposed_budget or 0,
+                estimatedDuration=payload.estimated_duration or "",
+                budgetOption=payload.budget_option,
+                selected_materials=payload.selected_materials or [],
+                proposed_daily_rate=_proposed_daily_rate,
+                proposed_days=_proposed_days,
+                applied_shift=_applied_shift,
+                status=JobApplication.ApplicationStatus.PENDING,
+                negotiation_count=1 if payload.budget_option == "NEGOTIATE" else 0,
+            )
 
         # Seed the first PriceNegotiation row when worker negotiates
         if payload.budget_option == "NEGOTIATE":
@@ -3560,14 +3658,16 @@ def mobile_get_my_applications(request):
 
         # Applied tab shows:
         # 1. Pending applications (waiting for client decision)
-        # 2. Accepted applications on team jobs still ACTIVE (team not yet fully filled —
-        #    these are invisible everywhere else until the job moves to IN_PROGRESS)
+        # 2. Rejected applications (worker can still re-negotiate/re-propose)
+        # 3. Accepted applications on team jobs still ACTIVE (team not yet fully filled —
+        #    these are invisible elsewhere until the job moves to IN_PROGRESS)
         from django.db.models import Q
 
         applications = (
             JobApplication.objects.filter(workerID=worker_profile)
             .filter(
                 Q(status=JobApplication.ApplicationStatus.PENDING)
+                | Q(status=JobApplication.ApplicationStatus.REJECTED)
                 | Q(
                     status=JobApplication.ApplicationStatus.ACCEPTED,
                     jobID__status="ACTIVE",
@@ -3601,6 +3701,11 @@ def mobile_get_my_applications(request):
                     else None,
                     "estimated_duration": app.estimatedDuration,
                     "budget_option": app.budgetOption,
+                    "response_message": app.clientRejectionReason,
+                    "negotiation_count": app.negotiation_count,
+                    "max_proposals": MAX_WORKER_PROPOSALS,
+                    "proposals_remaining": _proposals_remaining_for_application(app),
+                    "client_rejection_reason": app.clientRejectionReason,
                     "created_at": app.createdAt.isoformat(),
                     "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
                     "client_img": (
@@ -3719,6 +3824,10 @@ def mobile_get_application_detail(request, application_id: int):
             "estimated_duration": application.estimatedDuration,
             "budget_option": application.budgetOption,
             "negotiation_count": application.negotiation_count,
+            "max_proposals": MAX_WORKER_PROPOSALS,
+            "proposals_remaining": _proposals_remaining_for_application(application),
+            "client_rejection_reason": application.clientRejectionReason,
+            "response_message": application.clientRejectionReason,
             "created_at": application.createdAt.isoformat(),
             "updated_at": application.updatedAt.isoformat(),
             "client_name": f"{client_profile.firstName} {client_profile.lastName}".strip(),
@@ -3846,6 +3955,26 @@ def mobile_withdraw_application(request, application_id: int):
 # ===========================================================================
 
 MAX_WORKER_PROPOSALS = 3
+
+
+def _proposals_remaining_for_application(application) -> int:
+    return max(MAX_WORKER_PROPOSALS - int(application.negotiation_count or 0), 0)
+
+
+def _application_rejection_message(application, reason: str = "") -> str:
+    proposals_remaining = _proposals_remaining_for_application(application)
+    reason_text = (reason or "").strip()
+    base = f"Your proposal for '{application.jobID.title}' was not selected."
+    if reason_text:
+        base += f" Reason: {reason_text}."
+    if proposals_remaining > 0:
+        base += (
+            f" You have {proposals_remaining} proposal"
+            f"{'s' if proposals_remaining != 1 else ''} remaining out of {MAX_WORKER_PROPOSALS}."
+        )
+    else:
+        base += " You have no proposals remaining for this application."
+    return base
 
 
 @mobile_router.get("/applications/{application_id}/negotiations", auth=dual_auth)

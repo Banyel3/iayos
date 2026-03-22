@@ -12,8 +12,11 @@ import {
   useAgencyMessages,
   useAgencySendMessage,
   useAgencyMarkComplete,
+  useAgencyMarkTeamEmployeeComplete,
   useAgencySubmitReview,
   AssignedEmployee,
+  TeamAgencyEmployeeAssignment,
+  TeamWorkerAssignment,
 } from "@/lib/hooks/useAgencyConversations";
 import {
   useAgencyDailyAttendance,
@@ -138,6 +141,7 @@ export default function AgencyChatScreen() {
 
   // Job action mutations
   const markCompleteMutation = useAgencyMarkComplete();
+  const markTeamEmployeeCompleteMutation = useAgencyMarkTeamEmployeeComplete();
   const submitReviewMutation = useAgencySubmitReview();
 
   // Backjob action mutations
@@ -703,8 +707,70 @@ export default function AgencyChatScreen() {
   }
 
   // Agency conversation uses client, assigned_employee(s), and job
-  const { client, assigned_employee, assigned_employees, job, messages } =
+  const {
+    client,
+    assigned_employee,
+    assigned_employees,
+    team_worker_assignments,
+    team_agency_employees,
+    job,
+    messages,
+  } =
     conversation;
+
+  const isTeamConversation =
+    Boolean(job.is_team_job) ||
+    (team_worker_assignments?.length ?? 0) > 0 ||
+    (team_agency_employees?.length ?? 0) > 0;
+
+  const effectiveAgencyAssignments: AssignedEmployee[] = isTeamConversation
+    ? (team_agency_employees || []).map(
+        (employee: TeamAgencyEmployeeAssignment) => ({
+          employeeId: employee.id,
+          name: employee.name,
+          email: "",
+          role: "",
+          avatar: employee.avatar,
+          rating: null,
+          isPrimaryContact: false,
+          status: employee.status || "ASSIGNED",
+          dispatched: true,
+          dispatchedAt: employee.clientConfirmedArrivalAt || null,
+          clientConfirmedArrival: employee.clientConfirmedArrival,
+          clientConfirmedArrivalAt: employee.clientConfirmedArrivalAt,
+          agencyMarkedComplete:
+            employee.agencyMarkedComplete ||
+            employee.employeeMarkedComplete ||
+            employee.marked_complete,
+          agencyMarkedCompleteAt:
+            employee.agencyMarkedCompleteAt ||
+            employee.employeeMarkedCompleteAt ||
+            null,
+        }),
+      )
+    : assigned_employees;
+
+  const workerRoster = [
+    ...(effectiveAgencyAssignments || []).map((emp: AssignedEmployee) => ({
+      key: `agency-${emp.employeeId}`,
+      name: emp.name,
+      avatar: emp.avatar,
+      rating: emp.rating,
+      isPrimaryContact: emp.isPrimaryContact,
+      source: "AGENCY",
+    })),
+    ...((team_worker_assignments || []).map((worker: TeamWorkerAssignment) => ({
+      key: `freelance-${worker.workerId}`,
+      name: worker.name,
+      avatar: worker.avatar || null,
+      rating: null,
+      isPrimaryContact: false,
+      source: "FREELANCE",
+    })) || []),
+  ];
+  const hasFreelanceAssignments = (team_worker_assignments?.length ?? 0) > 0;
+  const supportsAgencyDispatchWorkflow =
+    !isTeamConversation || (effectiveAgencyAssignments?.length ?? 0) > 0;
 
   const myReview = reviewViewData.myReview;
   const clientReview = reviewViewData.clientReview;
@@ -768,12 +834,15 @@ export default function AgencyChatScreen() {
   const shouldShowProjectWorkflow =
     (hasProjectWorkflowProgressState || hasReadyBackjobProjectCycle) &&
     job.payment_model === "PROJECT" &&
-    assigned_employees?.length > 0;
+    effectiveAgencyAssignments?.length > 0 &&
+    supportsAgencyDispatchWorkflow;
 
   // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
   const shouldShowDispatchWorkflow =
     shouldShowProjectWorkflow ||
-    (hasReadyBackjobDispatchCycle && (assigned_employees?.length ?? 0) > 0);
+    (hasReadyBackjobDispatchCycle &&
+      (effectiveAgencyAssignments?.length ?? 0) > 0 &&
+      supportsAgencyDispatchWorkflow);
 
   const configuredDurationDays = Number(job.duration_days || 0);
   const fallbackDurationDays = parseExpectedDurationDays(job.expectedDuration);
@@ -819,13 +888,13 @@ export default function AgencyChatScreen() {
   };
 
   const allEmployeesDispatched = shouldShowDispatchWorkflow
-    ? assigned_employees.every((e: AssignedEmployee) =>
+    ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
         isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
       )
     : false;
 
   const allEmployeesArrived = shouldShowDispatchWorkflow
-    ? assigned_employees.every((e: AssignedEmployee) =>
+    ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
         isStatusInActiveBackjobCycle(
           e.clientConfirmedArrival,
           e.clientConfirmedArrivalAt,
@@ -839,7 +908,8 @@ export default function AgencyChatScreen() {
       job.clientMarkedComplete ||
       job.workerMarkedComplete) &&
     job.payment_model === "DAILY" &&
-    assigned_employees?.length > 0;
+    effectiveAgencyAssignments?.length > 0 &&
+    supportsAgencyDispatchWorkflow;
 
   const isProjectMultiDayAttendanceFlow =
     shouldShowProjectWorkflow && isProjectMultiDayFlow;
@@ -854,7 +924,7 @@ export default function AgencyChatScreen() {
   );
 
   const dailyDispatchedCount = shouldShowDailyWorkflow
-    ? assigned_employees.filter((e: AssignedEmployee) =>
+    ? effectiveAgencyAssignments.filter((e: AssignedEmployee) =>
         dailyAttendanceDispatchedIds.has(e.employeeId),
       ).length
     : 0;
@@ -1049,7 +1119,7 @@ export default function AgencyChatScreen() {
             {shouldShowDispatchWorkflow &&
               (() => {
                 const allDispatched = isProjectMultiDayAttendanceFlow
-                  ? assigned_employees.every((e: AssignedEmployee) =>
+                  ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
                       projectAttendanceDispatchedIds.has(e.employeeId),
                     )
                   : allEmployeesDispatched;
@@ -1057,11 +1127,11 @@ export default function AgencyChatScreen() {
                 const allArrived = isBackjobProjectFlow
                   ? true
                   : isProjectMultiDayAttendanceFlow
-                    ? assigned_employees.every((e: AssignedEmployee) =>
+                    ? effectiveAgencyAssignments.every((e: AssignedEmployee) =>
                         projectAttendanceArrivedIds.has(e.employeeId),
                       )
                     : allEmployeesArrived;
-                const allComplete = assigned_employees.every(
+                const allComplete = effectiveAgencyAssignments.every(
                   (e: AssignedEmployee) =>
                     isStatusInActiveBackjobCycle(
                       e.agencyMarkedComplete,
@@ -1071,13 +1141,13 @@ export default function AgencyChatScreen() {
                 const agencyMarkedComplete =
                   allComplete ||
                   (job.workerMarkedComplete && !hasActiveBackjobCycle);
-                const dispatchedCount = assigned_employees.filter(
+                const dispatchedCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
                     isProjectMultiDayAttendanceFlow
                       ? projectAttendanceDispatchedIds.has(e.employeeId)
                       : isStatusInActiveBackjobCycle(e.dispatched, e.dispatchedAt),
                 ).length;
-                const arrivedCount = assigned_employees.filter(
+                const arrivedCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
                     isProjectMultiDayAttendanceFlow
                       ? projectAttendanceArrivedIds.has(e.employeeId)
@@ -1086,7 +1156,7 @@ export default function AgencyChatScreen() {
                           e.clientConfirmedArrivalAt,
                         ),
                 ).length;
-                const totalCount = assigned_employees.length;
+                const totalCount = effectiveAgencyAssignments.length;
 
                 if (job.clientMarkedComplete && !hasActiveBackjobCycle) {
                   return null;
@@ -1109,7 +1179,15 @@ export default function AgencyChatScreen() {
                 }
 
                 if (!allDispatched) {
-                  const pendingDispatchEmployees = assigned_employees.filter(
+                  if (isTeamConversation) {
+                    return (
+                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-xs text-blue-800 font-medium">
+                        Team hybrid flow is arrival-first. Waiting for client to confirm team member arrivals.
+                      </div>
+                    );
+                  }
+
+                  const pendingDispatchEmployees = effectiveAgencyAssignments.filter(
                     (e: AssignedEmployee) =>
                       isProjectMultiDayAttendanceFlow
                         ? !projectAttendanceDispatchedIds.has(e.employeeId)
@@ -1238,6 +1316,73 @@ export default function AgencyChatScreen() {
                     );
                   }
 
+                  if (isTeamConversation) {
+                    const pendingTeamCompletions = (team_agency_employees || []).filter(
+                      (employee: TeamAgencyEmployeeAssignment) =>
+                        Boolean(employee.clientConfirmedArrival) &&
+                        !(
+                          employee.agencyMarkedComplete ||
+                          employee.employeeMarkedComplete ||
+                          employee.marked_complete
+                        ),
+                    );
+
+                    if (pendingTeamCompletions.length === 0) {
+                      return (
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-medium">
+                          Waiting for team completion updates.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                        <CardContent className="py-2 px-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-black">
+                              Mark Work Complete ({pendingTeamCompletions.length} on site)
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {pendingTeamCompletions.map((employee: TeamAgencyEmployeeAssignment) => (
+                              <div
+                                key={`team-complete-${employee.assignment_id}`}
+                                className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                              >
+                                <span>{employee.name}</span>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      await markTeamEmployeeCompleteMutation.mutateAsync({
+                                        jobId: job.id,
+                                        assignmentId: employee.assignment_id,
+                                        conversationId,
+                                      });
+                                      toast.success(`${employee.name} marked complete`);
+                                      refetch();
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Failed to mark team employee complete",
+                                      );
+                                    }
+                                  }}
+                                  disabled={markTeamEmployeeCompleteMutation.isPending}
+                                >
+                                  Mark Complete
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
                   return (
                     <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
                       <span className="text-xs font-bold text-black">
@@ -1258,14 +1403,94 @@ export default function AgencyChatScreen() {
 
             {shouldShowDailyWorkflow &&
               (() => {
-                const totalCount = assigned_employees.length;
-                const pendingDispatch = assigned_employees.filter(
+                const totalCount = effectiveAgencyAssignments.length;
+                const pendingDispatch = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
                     !dailyAttendanceDispatchedIds.has(e.employeeId),
                 );
 
                 if (job.clientMarkedComplete && !hasActiveBackjobCycle) {
                   return null;
+                }
+
+                if (isTeamConversation) {
+                  const arrivedTeamEmployees = (team_agency_employees || []).filter(
+                    (employee: TeamAgencyEmployeeAssignment) =>
+                      Boolean(employee.clientConfirmedArrival),
+                  );
+
+                  const pendingTeamCompletions = arrivedTeamEmployees.filter(
+                    (employee: TeamAgencyEmployeeAssignment) =>
+                      !(
+                        employee.agencyMarkedComplete ||
+                        employee.employeeMarkedComplete ||
+                        employee.marked_complete
+                      ),
+                  );
+
+                  if (pendingTeamCompletions.length > 0) {
+                    return (
+                      <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                        <CardContent className="py-2 px-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-black">
+                              Mark Work Complete ({pendingTeamCompletions.length} on site)
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {pendingTeamCompletions.map((employee: TeamAgencyEmployeeAssignment) => (
+                              <div
+                                key={`daily-team-complete-${employee.assignment_id}`}
+                                className="flex items-center justify-between bg-white p-2 rounded-lg border border-blue-100"
+                              >
+                                <span>{employee.name}</span>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      await markTeamEmployeeCompleteMutation.mutateAsync({
+                                        jobId: job.id,
+                                        assignmentId: employee.assignment_id,
+                                        conversationId,
+                                      });
+                                      toast.success(`${employee.name} marked complete`);
+                                      refetch();
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Failed to mark team employee complete",
+                                      );
+                                    }
+                                  }}
+                                  disabled={markTeamEmployeeCompleteMutation.isPending}
+                                >
+                                  Mark Complete
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+
+                  if (arrivedTeamEmployees.length < (team_agency_employees || []).length) {
+                    return (
+                      <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
+                        Client is still confirming team arrivals ({arrivedTeamEmployees.length}/
+                        {(team_agency_employees || []).length})
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-medium">
+                      Waiting for client approval and payment.
+                    </div>
+                  );
                 }
 
                 if (pendingDispatch.length === 0) {
@@ -1507,14 +1732,23 @@ export default function AgencyChatScreen() {
               Assigned Workers
             </h3>
             <div className="space-y-3">
-              {(assigned_employees?.length > 0
-                ? assigned_employees
+              {(workerRoster.length > 0
+                ? workerRoster
                 : assigned_employee
-                  ? [assigned_employee]
+                  ? [
+                      {
+                        key: "legacy-assigned",
+                        name: assigned_employee.name,
+                        avatar: null,
+                        rating: assigned_employee.rating,
+                        isPrimaryContact: true,
+                        source: "AGENCY",
+                      },
+                    ]
                   : []
               ).map((emp: any, i: number) => (
                 <div
-                  key={i}
+                  key={emp.key || i}
                   className="flex items-center gap-3 p-3 bg-gray-50/50 rounded-2xl border border-transparent hover:border-gray-100 transition-colors"
                 >
                   <Avatar className="h-9 w-9 border-2 border-white ">
@@ -1525,6 +1759,9 @@ export default function AgencyChatScreen() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-gray-900 truncate">
                       {emp.name} {emp.isPrimaryContact && "★"}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {emp.source === "FREELANCE" ? "Freelance" : "Agency"}
                     </p>
                     {emp.rating && (
                       <div className="flex items-center gap-1 mt-0.5">

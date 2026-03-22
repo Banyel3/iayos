@@ -24,10 +24,18 @@ def _q(value: Decimal) -> Decimal:
 
 
 def _actor_role_for_job(job: Job, actor_account) -> Optional[str]:
-    if job.clientID and job.clientID.profileID and job.clientID.profileID.accountFK == actor_account:
+    if (
+        job.clientID
+        and job.clientID.profileID
+        and job.clientID.profileID.accountFK == actor_account
+    ):
         return "CLIENT"
 
-    if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK == actor_account:
+    if (
+        job.assignedWorkerID
+        and job.assignedWorkerID.profileID
+        and job.assignedWorkerID.profileID.accountFK == actor_account
+    ):
         return "WORKER"
 
     if job.assignedAgencyFK and job.assignedAgencyFK.accountFK == actor_account:
@@ -44,7 +52,11 @@ def _worker_recipient_accounts(job: Job) -> List:
     """
     recipients = []
 
-    if job.assignedWorkerID and job.assignedWorkerID.profileID and job.assignedWorkerID.profileID.accountFK:
+    if (
+        job.assignedWorkerID
+        and job.assignedWorkerID.profileID
+        and job.assignedWorkerID.profileID.accountFK
+    ):
         recipients.append(job.assignedWorkerID.profileID.accountFK)
 
     if job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
@@ -54,10 +66,14 @@ def _worker_recipient_accounts(job: Job) -> List:
         team_assignments = JobWorkerAssignment.objects.filter(
             jobID=job,
             assignment_status=JobWorkerAssignment.AssignmentStatus.ACTIVE,
-        ).select_related('workerID__profileID__accountFK')
+        ).select_related("workerID__profileID__accountFK")
 
         for assignment in team_assignments:
-            account = assignment.workerID.profileID.accountFK if assignment.workerID and assignment.workerID.profileID else None
+            account = (
+                assignment.workerID.profileID.accountFK
+                if assignment.workerID and assignment.workerID.profileID
+                else None
+            )
             if account:
                 recipients.append(account)
 
@@ -69,7 +85,11 @@ def _worker_recipient_accounts(job: Job) -> List:
             JobEmployeeAssignment.AssignmentStatus.COMPLETED,
         ],
     ).exists()
-    if has_active_employee_assignment and job.assignedAgencyFK and job.assignedAgencyFK.accountFK:
+    if (
+        has_active_employee_assignment
+        and job.assignedAgencyFK
+        and job.assignedAgencyFK.accountFK
+    ):
         recipients.append(job.assignedAgencyFK.accountFK)
 
     deduped = {}
@@ -78,7 +98,9 @@ def _worker_recipient_accounts(job: Job) -> List:
     return list(deduped.values())
 
 
-def _credit_wallet(account, amount: Decimal, tx_type: str, description: str, job: Job, reference: str) -> None:
+def _credit_wallet(
+    account, amount: Decimal, tx_type: str, description: str, job: Job, reference: str
+) -> None:
     if amount <= 0:
         return
 
@@ -98,7 +120,26 @@ def _credit_wallet(account, amount: Decimal, tx_type: str, description: str, job
     )
 
 
-def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = None) -> Dict:
+def _is_escrow_collected(job: Job) -> bool:
+    """
+    Determine whether escrow principal was actually collected from client balance.
+
+    Some team/hybrid creation paths historically deducted funds and created a
+    completed PAYMENT transaction but did not persist job.escrowPaid=True.
+    """
+    if bool(getattr(job, "escrowPaid", False)):
+        return True
+
+    return Transaction.objects.filter(
+        relatedJobPosting=job,
+        transactionType=Transaction.TransactionType.PAYMENT,
+        status=Transaction.TransactionStatus.COMPLETED,
+    ).exists()
+
+
+def cancel_job_with_scenarios(
+    job: Job, actor_account, reason: Optional[str] = None
+) -> Dict:
     """
     Centralized cancellation logic for project jobs.
 
@@ -126,13 +167,21 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
     if job.status not in [Job.JobStatus.ACTIVE, Job.JobStatus.IN_PROGRESS]:
         raise ValueError(f"Cannot cancel job with status: {job.status}")
 
-    if not job.clientID or not job.clientID.profileID or not job.clientID.profileID.accountFK:
+    if (
+        not job.clientID
+        or not job.clientID.profileID
+        or not job.clientID.profileID.accountFK
+    ):
         raise ValueError("Job is missing a valid client account reference")
 
     client_account = job.clientID.profileID.accountFK
     worker_recipients = _worker_recipient_accounts(job)
 
-    escrow_pool = _q(job.escrowAmount if job.escrowAmount and job.escrowAmount > 0 else (job.budget * Decimal("0.5")))
+    escrow_pool = _q(
+        job.escrowAmount
+        if job.escrowAmount and job.escrowAmount > 0
+        else (job.budget * Decimal("0.5"))
+    )
     platform_fee = _q(Decimal(str(job.budget)) * Decimal("0.10"))
 
     cancellation_stage = "BEFORE_ARRIVAL"
@@ -186,7 +235,9 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
     reference_suffix = now.strftime("%Y%m%d%H%M%S")
 
     with db_transaction.atomic():
-        if job.escrowPaid:
+        escrow_collected = _is_escrow_collected(job)
+
+        if escrow_collected:
             _credit_wallet(
                 account=client_account,
                 amount=client_refund,
@@ -197,7 +248,9 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
             )
 
             if worker_compensation > 0 and worker_recipients:
-                per_recipient = _q(worker_compensation / Decimal(len(worker_recipients)))
+                per_recipient = _q(
+                    worker_compensation / Decimal(len(worker_recipients))
+                )
                 distributed_total = _q(per_recipient * Decimal(len(worker_recipients)))
                 adjustment = _q(worker_compensation - distributed_total)
 
@@ -215,12 +268,40 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
                         reference=f"CANCEL-WORKER-{job.jobID}-{reference_suffix}-{idx + 1}",
                     )
 
+            # Release escrow hold from reserved balance for flows that reserved
+            # principal even after collecting (e.g., team/hybrid wallet posting).
+            client_wallet_for_release, _ = Wallet.objects.get_or_create(
+                accountFK=client_account
+            )
+            reserved_release = min(
+                client_wallet_for_release.reservedBalance, escrow_pool
+            )
+            if reserved_release > 0:
+                client_wallet_for_release.reservedBalance = _q(
+                    client_wallet_for_release.reservedBalance - reserved_release
+                )
+                client_wallet_for_release.save(
+                    update_fields=["reservedBalance", "updatedAt"]
+                )
+
+            # Backfill escrowPaid state for legacy mismatched records.
+            if not job.escrowPaid:
+                job.escrowPaid = True
+                if not job.escrowPaidAt:
+                    job.escrowPaidAt = now
+
             # Keep platform-fee visibility in transaction history for cancelled jobs.
-            existing_fee_txn = Transaction.objects.filter(
-                relatedJobPosting=job,
-                transactionType=Transaction.TransactionType.FEE,
-            ).order_by('-createdAt').first()
-            client_wallet_for_fee, _ = Wallet.objects.get_or_create(accountFK=client_account)
+            existing_fee_txn = (
+                Transaction.objects.filter(
+                    relatedJobPosting=job,
+                    transactionType=Transaction.TransactionType.FEE,
+                )
+                .order_by("-createdAt")
+                .first()
+            )
+            client_wallet_for_fee, _ = Wallet.objects.get_or_create(
+                accountFK=client_account
+            )
 
             if existing_fee_txn:
                 if existing_fee_txn.status != Transaction.TransactionStatus.COMPLETED:
@@ -231,7 +312,15 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
                         existing_fee_txn.description
                         or f"Platform fee retained for cancelled job - Job #{job.jobID}"
                     )
-                    existing_fee_txn.save(update_fields=["status", "completedAt", "amount", "description", "updatedAt"])
+                    existing_fee_txn.save(
+                        update_fields=[
+                            "status",
+                            "completedAt",
+                            "amount",
+                            "description",
+                            "updatedAt",
+                        ]
+                    )
             else:
                 Transaction.objects.create(
                     walletID=client_wallet_for_fee,
@@ -242,7 +331,7 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
                     description=f"Platform fee retained for cancelled job - Job #{job.jobID}",
                     relatedJobPosting=job,
                     referenceNumber=f"CANCEL-FEE-{job.jobID}-{reference_suffix}",
-                    paymentMethod='WALLET',
+                    paymentMethod="WALLET",
                     completedAt=now,
                 )
         else:
@@ -279,10 +368,10 @@ def cancel_job_with_scenarios(job: Job, actor_account, reason: Optional[str] = N
             suspension_until = now + timedelta(days=1)
             client_account.is_suspended = True
             client_account.suspended_until = suspension_until
-            client_account.suspended_reason = (
-                "Account temporarily suspended for 1 day due to cancellation after worker marked job done."
+            client_account.suspended_reason = "Account temporarily suspended for 1 day due to cancellation after worker marked job done."
+            client_account.save(
+                update_fields=["is_suspended", "suspended_until", "suspended_reason"]
             )
-            client_account.save(update_fields=["is_suspended", "suspended_until", "suspended_reason"])
             suspension_applied = True
 
         JobLog.objects.create(

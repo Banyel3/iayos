@@ -852,7 +852,8 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                     status=JobPosting.JobStatus.ACTIVE,
                     payment_model=getattr(data, "payment_model", None) or "PROJECT",
                     daily_rate_agreed=float(data.daily_rate)
-                    if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                    if getattr(data, "daily_rate", None)
+                    and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                     else None,
                     duration_days=_resolve_project_duration_days_from_payload(data),
                     shift_type=str(getattr(data, "shift_type", None) or "ANY").upper(),
@@ -969,7 +970,8 @@ def create_job_posting(request, data: CreateJobPostingSchema):
                 status=JobPosting.JobStatus.ACTIVE,
                 payment_model=getattr(data, "payment_model", None) or "PROJECT",
                 daily_rate_agreed=float(data.daily_rate)
-                if getattr(data, "daily_rate", None) and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
+                if getattr(data, "daily_rate", None)
+                and (getattr(data, "payment_model", None) or "PROJECT") == "DAILY"
                 else None,
                 duration_days=_resolve_project_duration_days_from_payload(data),
                 shift_type=str(getattr(data, "shift_type", None) or "ANY").upper(),
@@ -3330,17 +3332,17 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 {"error": "This job is no longer accepting applications"}, status=400
             )
 
-        # Check if worker already has an active application (allow re-apply if REJECTED/WITHDRAWN)
+        # Single-row application policy (non-team):
+        # reuse REJECTED/WITHDRAWN rows instead of creating new duplicates.
         existing_application = JobApplication.objects.filter(
             jobID=job,
             workerID=worker_profile,
-            status__in=[
-                JobApplication.ApplicationStatus.PENDING,
-                JobApplication.ApplicationStatus.ACCEPTED,
-            ],
         ).first()
 
-        if existing_application:
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.PENDING,
+            JobApplication.ApplicationStatus.ACCEPTED,
+        ]:
             return Response(
                 {"error": "You have already applied for this job"}, status=400
             )
@@ -3385,25 +3387,86 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                     status=400,
                 )
 
-        # Create the application
-        application = JobApplication.objects.create(
-            jobID=job,
-            workerID=worker_profile,
-            proposalMessage=data.proposal_message,
-            proposedBudget=data.proposed_budget,
-            estimatedDuration=data.estimated_duration or "",
-            budgetOption=data.budget_option,
-            proposed_daily_rate=Decimal(str(data.proposed_daily_rate))
-            if data.proposed_daily_rate is not None
-            else None,
-            proposed_days=data.proposed_days,
-            status=JobApplication.ApplicationStatus.PENDING,
-            applied_shift=(
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.REJECTED,
+            JobApplication.ApplicationStatus.WITHDRAWN,
+        ]:
+            application = existing_application
+            application.proposalMessage = data.proposal_message
+            application.proposedBudget = data.proposed_budget
+            application.estimatedDuration = data.estimated_duration or ""
+            application.budgetOption = data.budget_option
+            application.proposed_daily_rate = (
+                Decimal(str(data.proposed_daily_rate))
+                if data.proposed_daily_rate is not None
+                else None
+            )
+            application.proposed_days = data.proposed_days
+            application.status = JobApplication.ApplicationStatus.PENDING
+            application.applied_shift = (
                 job.shift_type
                 if job.shift_type in ("MORNING", "NIGHT")
                 else (getattr(data, "applied_shift", None) or None)
-            ),
-        )
+            )
+            application.negotiation_count = 1 if data.budget_option == "NEGOTIATE" else 0
+            application.clientRejectionReason = None
+            application.save(
+                update_fields=[
+                    "proposalMessage",
+                    "proposedBudget",
+                    "estimatedDuration",
+                    "budgetOption",
+                    "proposed_daily_rate",
+                    "proposed_days",
+                    "status",
+                    "applied_shift",
+                    "negotiation_count",
+                    "clientRejectionReason",
+                    "updatedAt",
+                ]
+            )
+            from accounts.models import PriceNegotiation
+
+            PriceNegotiation.objects.filter(application=application).delete()
+        else:
+            # Create the application
+            application = JobApplication.objects.create(
+                jobID=job,
+                workerID=worker_profile,
+                proposalMessage=data.proposal_message,
+                proposedBudget=data.proposed_budget,
+                estimatedDuration=data.estimated_duration or "",
+                budgetOption=data.budget_option,
+                proposed_daily_rate=Decimal(str(data.proposed_daily_rate))
+                if data.proposed_daily_rate is not None
+                else None,
+                proposed_days=data.proposed_days,
+                status=JobApplication.ApplicationStatus.PENDING,
+                applied_shift=(
+                    job.shift_type
+                    if job.shift_type in ("MORNING", "NIGHT")
+                    else (getattr(data, "applied_shift", None) or None)
+                ),
+                negotiation_count=1 if data.budget_option == "NEGOTIATE" else 0,
+            )
+
+        if data.budget_option == "NEGOTIATE":
+            from accounts.models import PriceNegotiation
+
+            PriceNegotiation.objects.create(
+                application=application,
+                actor=PriceNegotiation.Actor.WORKER,
+                round_number=1,
+                proposed_budget=Decimal(str(data.proposed_budget or 0)),
+                proposed_daily_rate=(
+                    Decimal(str(data.proposed_daily_rate))
+                    if data.proposed_daily_rate is not None
+                    else None
+                ),
+                proposed_days=data.proposed_days,
+                message=data.proposal_message,
+                status=PriceNegotiation.NegotiationStatus.PENDING,
+            )
 
         print(f"✅ Application {application.applicationID} created successfully")
 
@@ -3866,7 +3929,7 @@ def accept_application(request, job_id: int, application_id: int):
 
 @router.post("/{job_id}/applications/{application_id}/reject", auth=cookie_auth)
 @require_kyc
-def reject_application(request, job_id: int, application_id: int):
+def reject_application(request, job_id: int, application_id: int, payload: dict = None):
     """
     Reject a job application
     Only the client who owns the job can reject applications
@@ -3917,18 +3980,33 @@ def reject_application(request, job_id: int, application_id: int):
                 status=400,
             )
 
-        # Update application status
+        # Update application status and persist optional client rejection note.
+        rejection_reason = ((payload or {}).get("reason") or "").strip()
         application.status = JobApplication.ApplicationStatus.REJECTED
+        application.clientRejectionReason = rejection_reason or None
         application.save()
 
         # Create notification for the worker
         from accounts.models import Notification
 
+        max_proposals = 3
+        proposals_remaining = max(max_proposals - int(application.negotiation_count or 0), 0)
+        rejection_message = f"Your proposal for '{job.title}' was not selected."
+        if rejection_reason:
+            rejection_message += f" Reason: {rejection_reason}."
+        if proposals_remaining > 0:
+            rejection_message += (
+                f" You have {proposals_remaining} proposal"
+                f"{'s' if proposals_remaining != 1 else ''} remaining out of {max_proposals}."
+            )
+        else:
+            rejection_message += " You have no proposals remaining for this application."
+
         Notification.objects.create(
             accountFK=application.workerID.profileID.accountFK,
             notificationType="APPLICATION_REJECTED",
             title=f"Application Not Selected",
-            message=f"Your application for '{job.title}' was not selected. Don't worry, there are more opportunities waiting!",
+            message=rejection_message,
             relatedJobID=job.jobID,
             relatedApplicationID=application.applicationID,
         )
@@ -3941,6 +4019,8 @@ def reject_application(request, job_id: int, application_id: int):
         return {
             "success": True,
             "message": "Application rejected successfully",
+            "proposals_remaining": proposals_remaining,
+            "max_proposals": max_proposals,
             "application": {
                 "id": application.applicationID,
                 "status": application.status,
@@ -6571,83 +6651,161 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             if is_client:
                 # Team job client review - must specify which worker to review
                 if job.is_team_job:
-                    from accounts.models import JobWorkerAssignment
+                    from accounts.models import (
+                        JobWorkerAssignment,
+                        JobEmployeeAssignment,
+                    )
 
-                    if not data.worker_id:
-                        # Get list of workers that can be reviewed
-                        assignments = JobWorkerAssignment.objects.filter(
+                    if not data.worker_id and not data.employee_id:
+                        # Get list of assignees that can be reviewed
+                        worker_assignments = JobWorkerAssignment.objects.filter(
                             jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
                         ).select_related("workerID__profileID")
 
-                        # Check which workers haven't been reviewed yet
+                        employee_assignments = JobEmployeeAssignment.objects.filter(
+                            job=job,
+                            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                            skill_slot__isnull=False,
+                        ).select_related("employee", "skill_slot__specializationID")
+
+                        # Check which assignees haven't been reviewed yet
                         reviewed_worker_ids = JobReview.objects.filter(
                             jobID=job, reviewerID=request.auth, reviewerType="CLIENT"
                         ).values_list("revieweeID", flat=True)
 
+                        reviewed_employee_ids = JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=request.auth,
+                            reviewerType="CLIENT",
+                            revieweeEmployeeID__isnull=False,
+                        ).values_list("revieweeEmployeeID", flat=True)
+
                         pending_workers = []
-                        for assignment in assignments:
+                        for assignment in worker_assignments:
                             worker_account = assignment.workerID.profileID.accountFK
                             worker_account_id = worker_account.accountID
                             if worker_account_id not in reviewed_worker_ids:
                                 pending_workers.append(
                                     {
+                                        "target_type": "WORKER",
                                         "worker_id": assignment.workerID.pk,
                                         "name": f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}",
                                     }
                                 )
 
+                        for assignment in employee_assignments:
+                            employee = assignment.employee
+                            if employee.employeeID not in reviewed_employee_ids:
+                                pending_workers.append(
+                                    {
+                                        "target_type": "EMPLOYEE",
+                                        "employee_id": employee.employeeID,
+                                        "worker_id": None,
+                                        "account_id": None,
+                                        "name": employee.name,
+                                        "skill": assignment.skill_slot.specializationID.specializationName
+                                        if assignment.skill_slot
+                                        and assignment.skill_slot.specializationID
+                                        else None,
+                                    }
+                                )
+
                         return Response(
                             {
-                                "error": "Team job requires worker_id to specify which worker to review",
+                                "error": "Team job requires worker_id or employee_id to specify who to review",
                                 "pending_worker_reviews": pending_workers,
                             },
                             status=400,
                         )
 
-                    # Find the assignment for the specified worker
-                    try:
-                        assignment = JobWorkerAssignment.objects.select_related(
-                            "workerID__profileID__accountFK"
-                        ).get(
-                            jobID=job,
-                            workerID_id=data.worker_id,
-                            assignment_status__in=["ACTIVE", "COMPLETED"],
-                        )
-                        reviewee_profile = assignment.workerID.profileID
-                    except JobWorkerAssignment.DoesNotExist:
-                        return Response(
-                            {
-                                "error": f"Worker {data.worker_id} is not assigned to this team job"
-                            },
-                            status=400,
-                        )
+                    # Find the assignment for the specified target
+                    if data.employee_id:
+                        try:
+                            assignment = JobEmployeeAssignment.objects.select_related(
+                                "employee"
+                            ).get(
+                                job=job,
+                                employee_id=data.employee_id,
+                                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                                skill_slot__isnull=False,
+                            )
+                            reviewee_profile = None
+                            reviewee_employee = assignment.employee
+                        except JobEmployeeAssignment.DoesNotExist:
+                            return Response(
+                                {
+                                    "error": f"Employee {data.employee_id} is not assigned to this team job"
+                                },
+                                status=400,
+                            )
+                    else:
+                        try:
+                            assignment = JobWorkerAssignment.objects.select_related(
+                                "workerID__profileID__accountFK"
+                            ).get(
+                                jobID=job,
+                                workerID_id=data.worker_id,
+                                assignment_status__in=["ACTIVE", "COMPLETED"],
+                            )
+                            reviewee_profile = assignment.workerID.profileID
+                            reviewee_employee = None
+                        except JobWorkerAssignment.DoesNotExist:
+                            return Response(
+                                {
+                                    "error": f"Worker {data.worker_id} is not assigned to this team job"
+                                },
+                                status=400,
+                            )
 
                     reviewer_type = "CLIENT"
                 else:
                     reviewee_profile = job.assignedWorkerID.profileID
+                    reviewee_employee = None
                     reviewer_type = "CLIENT"
             else:
                 reviewee_profile = job.clientID.profileID
+                reviewee_employee = None
                 reviewer_type = "WORKER"
 
             # Check if review already exists for this specific reviewee
             # For team jobs, clients can review multiple workers, so we must check revieweeID
-            existing_review = JobReview.objects.filter(
-                jobID=job,
-                reviewerID=request.auth,
-                revieweeID=reviewee_profile.accountFK,
-            ).first()
+            if (
+                job.is_team_job
+                and is_client
+                and data.employee_id
+                and reviewee_employee is not None
+            ):
+                existing_review = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    reviewerType="CLIENT",
+                    revieweeEmployeeID=reviewee_employee,
+                ).first()
+            else:
+                existing_review = JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=request.auth,
+                    revieweeID=reviewee_profile.accountFK,
+                ).first()
 
             if existing_review:
-                return Response(
-                    {
-                        "error": "You have already submitted a review for this person on this job",
-                        "error_code": "REVIEW_ALREADY_EXISTS",
-                        "existing_review_id": existing_review.reviewID,
-                        "reviewee_account_id": reviewee_profile.accountFK.accountID,
-                    },
-                    status=400,
-                )
+                payload = {
+                    "error": "You have already submitted a review for this person on this job",
+                    "error_code": "REVIEW_ALREADY_EXISTS",
+                    "existing_review_id": existing_review.reviewID,
+                }
+                if reviewee_profile is not None:
+                    payload["reviewee_account_id"] = (
+                        reviewee_profile.accountFK.accountID
+                    )
+                if (
+                    job.is_team_job
+                    and is_client
+                    and data.employee_id
+                    and reviewee_employee is not None
+                ):
+                    payload["employee_id"] = reviewee_employee.employeeID
+                return Response(payload, status=400)
 
             # Create the review
             # Calculate overall rating as average of criteria
@@ -6665,8 +6823,13 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             review = JobReview.objects.create(
                 jobID=job,
                 reviewerID=request.auth,
-                revieweeID=reviewee_profile.accountFK,
+                revieweeID=reviewee_profile.accountFK
+                if reviewee_profile is not None
+                else None,
                 revieweeProfileID=reviewee_profile,
+                revieweeEmployeeID=reviewee_employee
+                if job.is_team_job and is_client and data.employee_id
+                else None,
                 reviewerType=reviewer_type,
                 rating=overall_rating,
                 rating_quality=Decimal(str(data.rating_quality)),
@@ -6708,7 +6871,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             total_team_workers = job.total_workers_assigned
 
             if job.is_team_job and is_client:
-                from accounts.models import JobWorkerAssignment
+                from accounts.models import JobWorkerAssignment, JobEmployeeAssignment
 
                 # Get all assignments
                 all_assignments = JobWorkerAssignment.objects.filter(
@@ -6717,11 +6880,26 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     "workerID__profileID__accountFK", "skillSlotID__specializationID"
                 )
 
+                all_employee_assignments = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    skill_slot__isnull=False,
+                ).select_related("employee", "skill_slot__specializationID")
+
                 # Get reviewed worker IDs
                 reviewed_worker_account_ids = set(
                     JobReview.objects.filter(
                         jobID=job, reviewerID=request.auth, reviewerType="CLIENT"
                     ).values_list("revieweeID", flat=True)
+                )
+
+                reviewed_employee_ids = set(
+                    JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=request.auth,
+                        reviewerType="CLIENT",
+                        revieweeEmployeeID__isnull=False,
+                    ).values_list("revieweeEmployeeID", flat=True)
                 )
 
                 for a in all_assignments:
@@ -6739,6 +6917,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     if worker_account_id not in reviewed_worker_account_ids:
                         pending_team_workers.append(
                             {
+                                "target_type": "WORKER",
                                 "worker_id": a.workerID.pk,
                                 "account_id": worker_account_id,
                                 "name": worker_name,
@@ -6749,7 +6928,26 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             }
                         )
 
-                total_team_workers = len(all_assignments)
+                for a in all_employee_assignments:
+                    employee = a.employee
+                    if employee.employeeID not in reviewed_employee_ids:
+                        pending_team_workers.append(
+                            {
+                                "target_type": "EMPLOYEE",
+                                "employee_id": employee.employeeID,
+                                "worker_id": None,
+                                "account_id": None,
+                                "name": employee.name,
+                                "avatar": employee.avatar,
+                                "skill": a.skill_slot.specializationID.specializationName
+                                if a.skill_slot and a.skill_slot.specializationID
+                                else None,
+                            }
+                        )
+
+                total_team_workers = len(all_assignments) + len(
+                    all_employee_assignments
+                )
                 all_team_workers_reviewed = len(pending_team_workers) == 0
 
             # Check if both parties have now submitted reviews
@@ -13013,7 +13211,48 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
 
     with db_transaction.atomic():
         job.qa_day_offset = new_offset
-        job.save(update_fields=["qa_day_offset", "updatedAt"])
+        job_changed_fields = ["qa_day_offset", "updatedAt"]
+
+        # DAILY team QA skip should advance to a fresh effective day. Reset
+        # non-early-completed per-assignment completion flags so the next day
+        # does not inherit stale "completed" UI state.
+        if is_daily and job.is_team_job and not job.clientMarkedComplete:
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+                early_completed=False,
+                worker_marked_complete=True,
+            ).update(worker_marked_complete=False, worker_marked_complete_at=None)
+
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status="COMPLETED",
+                early_completed=False,
+            ).update(assignment_status="ACTIVE")
+
+            JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot__isnull=False,
+                status__in=["IN_PROGRESS", "COMPLETED"],
+                early_completed=False,
+            ).update(
+                status="ASSIGNED",
+                agencyMarkedComplete=False,
+                agencyMarkedCompleteAt=None,
+                employeeMarkedComplete=False,
+                employeeMarkedCompleteAt=None,
+                clientApproved=False,
+                clientApprovedAt=None,
+            )
+
+            if job.workerMarkedComplete:
+                job.workerMarkedComplete = False
+                job.workerMarkedCompleteAt = None
+                job_changed_fields.extend(
+                    ["workerMarkedComplete", "workerMarkedCompleteAt"]
+                )
+
+        job.save(update_fields=job_changed_fields)
 
         JobLog.objects.create(
             jobID=job,

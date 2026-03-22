@@ -183,6 +183,10 @@ interface JobApplication {
   budget_option: "ACCEPT" | "NEGOTIATE";
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   negotiation_count: number;
+  max_proposals?: number;
+  proposals_remaining?: number;
+  client_rejection_reason?: string | null;
+  response_message?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -354,6 +358,17 @@ export default function JobDetailScreen() {
   const [showRejectInviteModal, setShowRejectInviteModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showRejectApplicationModal, setShowRejectApplicationModal] =
+    useState(false);
+  const [rejectApplicationId, setRejectApplicationId] = useState<number | null>(
+    null,
+  );
+  const [rejectApplicationTarget, setRejectApplicationTarget] = useState<
+    "STANDARD" | "TEAM"
+  >("STANDARD");
+  const [rejectApplicationWorkerName, setRejectApplicationWorkerName] =
+    useState("");
+  const [rejectApplicationReason, setRejectApplicationReason] = useState("");
   const submitReportMutation = useSubmitReport();
 
   // Application form state
@@ -619,6 +634,35 @@ export default function JobDetailScreen() {
       hasAcceptedApplication: boolean;
       appliedSlotIds: number[];
     }> => {
+      const normalizeId = (value: unknown): number | null => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+      };
+
+      const resolveAppStatus = (app: any): string =>
+        String(app?.status ?? app?.application_status ?? "")
+          .trim()
+          .toUpperCase();
+
+      const resolveJobId = (app: any): number | null =>
+        normalizeId(
+          app?.job_id ??
+            app?.jobId ??
+            app?.job?.id ??
+            app?.job?.job_id ??
+            app?.job?.jobID,
+        );
+
+      const resolveSlotId = (app: any): number | null =>
+        normalizeId(
+          app?.applied_skill_slot_id ??
+            app?.appliedSkillSlotId ??
+            app?.skill_slot_id ??
+            app?.skillSlotId ??
+            app?.applied_skill_slot?.skill_slot_id ??
+            app?.applied_skill_slot?.skillSlotID,
+        );
+
       const response = await apiRequest(ENDPOINTS.MY_APPLICATIONS, {
         method: "GET",
       });
@@ -636,20 +680,25 @@ export default function JobDetailScreen() {
         data?.applications || data?.data?.applications || [];
 
       if (Array.isArray(rawApplications)) {
+        const currentJobId = normalizeId(id);
         const jobApplications = rawApplications.filter((app: any) => {
-          const appJobId =
-            app?.job_id ?? app?.jobId ?? app?.job?.id ?? app?.job?.job_id;
-          return String(appJobId) === String(id);
+          if (currentJobId === null) return false;
+          return resolveJobId(app) === currentJobId;
         });
-        const hasApplied = jobApplications.length > 0;
-        const hasAcceptedApplication = jobApplications.some(
-          (app: any) =>
-            String(app?.status || app?.application_status || "").toUpperCase() ===
-            "ACCEPTED",
+        const activeJobApplications = jobApplications.filter((app: any) =>
+          ["PENDING", "ACCEPTED"].includes(resolveAppStatus(app)),
         );
-        const appliedSlotIds = jobApplications
-          .filter((app: any) => app.applied_skill_slot_id !== null)
-          .map((app: any) => app.applied_skill_slot_id);
+        const hasApplied = activeJobApplications.length > 0;
+        const hasAcceptedApplication = jobApplications.some(
+          (app: any) => resolveAppStatus(app) === "ACCEPTED",
+        );
+        const appliedSlotIds = Array.from(
+          new Set(
+            activeJobApplications
+              .map((app: any) => resolveSlotId(app))
+              .filter((slotId): slotId is number => slotId !== null),
+          ),
+        );
         return { hasApplied, hasAcceptedApplication, appliedSlotIds };
       }
       return {
@@ -969,7 +1018,7 @@ export default function JobDetailScreen() {
         throw new Error("Failed to fetch applications");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       // Handle potential nested data structure e.g. { success: true, applications: [] }
       const apps =
         data.applications || (data.data && data.data.applications) || [];
@@ -997,7 +1046,7 @@ export default function JobDetailScreen() {
           method: "POST",
         },
       );
-      const data = await response.json();
+      const data = (await response.json()) as any;
       if (!response.ok) {
         throw new Error(
           String(data?.error || data?.detail || "Failed to accept application"),
@@ -1018,17 +1067,26 @@ export default function JobDetailScreen() {
 
   // Reject application mutation
   const rejectApplicationMutation = useMutation({
-    mutationFn: async (applicationId: number) => {
+    mutationFn: async ({ applicationId, reason }: { applicationId: number; reason: string }) => {
       const response = await apiRequest(
         ENDPOINTS.REJECT_APPLICATION(parseInt(id), applicationId),
         {
           method: "POST",
+          body: JSON.stringify({ reason }),
         },
       );
-      return response.json();
+      const data = (await response.json()) as any;
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data, "Failed to reject application"));
+      }
+      return data;
     },
     onSuccess: () => {
       Alert.alert("Success", "Application rejected.");
+      setShowRejectApplicationModal(false);
+      setRejectApplicationId(null);
+      setRejectApplicationWorkerName("");
+      setRejectApplicationReason("");
       queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
     },
     onError: (error: Error) => {
@@ -1057,16 +1115,42 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    setCountdownConfig({
-      visible: true,
-      title: "Reject Application",
-      message: `Are you sure you want to reject ${workerName}'s application?`,
-      confirmLabel: "Reject",
-      confirmStyle: "destructive",
-      countdownSeconds: 3,
-      onConfirm: () => rejectApplicationMutation.mutate(applicationId),
-      icon: "close-circle",
-      iconColor: Colors.error,
+    setRejectApplicationTarget("STANDARD");
+    setRejectApplicationId(applicationId);
+    setRejectApplicationWorkerName(workerName);
+    setRejectApplicationReason("");
+    setShowRejectApplicationModal(true);
+  };
+
+  const handleSubmitRejectApplication = () => {
+    if (!rejectApplicationId) return;
+    if (!rejectApplicationReason.trim()) {
+      Alert.alert("Reason Required", "Please provide a rejection reason.");
+      return;
+    }
+    if (rejectApplicationTarget === "TEAM") {
+      rejectTeamApplication.mutate(
+        {
+          jobId: parseInt(id),
+          applicationId: rejectApplicationId,
+          reason: rejectApplicationReason.trim(),
+        },
+        {
+          onSuccess: () => {
+            setShowRejectApplicationModal(false);
+            setRejectApplicationId(null);
+            setRejectApplicationWorkerName("");
+            setRejectApplicationReason("");
+            setRejectApplicationTarget("STANDARD");
+          },
+        },
+      );
+      return;
+    }
+
+    rejectApplicationMutation.mutate({
+      applicationId: rejectApplicationId,
+      reason: rejectApplicationReason.trim(),
     });
   };
 
@@ -1225,7 +1309,7 @@ export default function JobDetailScreen() {
       ]);
     };
 
-    chooseCancellationReason((reason) => {
+    chooseCancellationReason((reason: string) => {
       setCountdownConfig({
         visible: true,
         title: "Cancel Job",
@@ -1485,14 +1569,14 @@ export default function JobDetailScreen() {
     !!currentWorkerAssignment;
 
   const canWorkerViewFullAddress =
-    isWorker &&
-    (hasAcceptedApplication ||
-      job?.inviteStatus === "ACCEPTED" ||
-      isCurrentWorkerAssigned ||
-      job?.status === "IN_PROGRESS" ||
-      job?.status === "COMPLETED" ||
-      (job?.status === "CANCELLED" &&
-        (hasAcceptedApplication || job?.inviteStatus === "ACCEPTED" || isCurrentWorkerAssigned)));
+      isWorker &&
+      (hasAcceptedApplication ||
+        job?.inviteStatus === "ACCEPTED" ||
+        isCurrentWorkerAssigned ||
+        job?.status === "IN_PROGRESS" ||
+        job?.status === "COMPLETED" ||
+        (job?.status === "CANCELLED" &&
+          (hasAcceptedApplication || isCurrentWorkerAssigned)));
 
   const locationDisplayText = isWorker
     ? canWorkerViewFullAddress
@@ -1530,13 +1614,36 @@ export default function JobDetailScreen() {
   // Team job applications list for client view
   const teamApplications = (teamApplicationsData as any)?.applications || [];
 
+  // Normalize slot id across API payload variants.
+  const resolveApplicationSlotId = (app: any): number | null => {
+    const slotId = Number(
+      app?.applied_skill_slot_id ??
+        app?.skill_slot_id ??
+        app?.appliedSkillSlotId ??
+        app?.skillSlotId ??
+        app?.applied_skill_slot?.skill_slot_id ??
+        app?.applied_skill_slot?.skillSlotID,
+    );
+    return Number.isFinite(slotId) && slotId > 0 ? slotId : null;
+  };
+
+  const getWorkerSlotKey = (app: any): string | null => {
+    const workerId = Number(app?.worker_id);
+    const slotId = resolveApplicationSlotId(app);
+    if (!Number.isFinite(workerId) || workerId <= 0 || slotId === null) {
+      return null;
+    }
+    return `${workerId}:${slotId}`;
+  };
+
   // Track (worker_id, skill_slot_id) pairs that are already accepted on this job.
   // A worker CAN be accepted on a DIFFERENT slot (multi-slot), so we gate per pair,
   // not per worker. The key is `${worker_id}:${skill_slot_id}`.
   const acceptedWorkerSlotKeys = new Set(
     teamApplications
       .filter((a: any) => a.status === "ACCEPTED")
-      .map((a: any) => `${a.worker_id}:${a.applied_skill_slot_id}`),
+      .map((a: any) => getWorkerSlotKey(a))
+      .filter((key: string | null): key is string => key !== null),
   );
 
   const handleTeamSlotApply = (slot: SkillSlot) => {
@@ -1703,7 +1810,7 @@ export default function JobDetailScreen() {
     setCountdownConfig({
       visible: true,
       title: "Accept Team Application",
-      message: `Assign ${workerName} to this team job? This can auto-reject other pending applications for this worker on this and other jobs.`,
+      message: `Assign ${workerName} to this team job slot? They can still be accepted for other slots on this same team job.`,
       confirmLabel: "Accept",
       confirmStyle: "default",
       countdownSeconds: 3,
@@ -1721,15 +1828,11 @@ export default function JobDetailScreen() {
     applicationId: number,
     workerName: string,
   ) => {
-    Alert.alert("Reject Application", `Reject ${workerName}'s application?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reject",
-        style: "destructive",
-        onPress: () =>
-          rejectTeamApplication.mutate({ jobId: parseInt(id), applicationId }),
-      },
-    ]);
+    setRejectApplicationTarget("TEAM");
+    setRejectApplicationId(applicationId);
+    setRejectApplicationWorkerName(workerName);
+    setRejectApplicationReason("");
+    setShowRejectApplicationModal(true);
   };
 
   const getSlotStatusColor = (status: string) => {
@@ -3018,7 +3121,7 @@ export default function JobDetailScreen() {
                 </View>
 
                 {app.status === "PENDING" &&
-                  !acceptedWorkerSlotKeys.has(`${app.worker_id}:${app.applied_skill_slot_id}`) && (
+                  !acceptedWorkerSlotKeys.has(getWorkerSlotKey(app) || "") && (
                     <View style={styles.applicationActions}>
                       <TouchableOpacity
                         style={styles.acceptButton}
@@ -3075,7 +3178,7 @@ export default function JobDetailScreen() {
                     </View>
                   )}
                 {app.status === "PENDING" &&
-                  acceptedWorkerSlotKeys.has(`${app.worker_id}:${app.applied_skill_slot_id}`) && (
+                  acceptedWorkerSlotKeys.has(getWorkerSlotKey(app) || "") && (
                     <View
                       style={[
                         styles.applicationActions,
@@ -3364,6 +3467,23 @@ export default function JobDetailScreen() {
                         <Text style={styles.proposalText} numberOfLines={3}>
                           {application.proposal_message}
                         </Text>
+                      </View>
+                    )}
+
+                    {application.status === "REJECTED" && (
+                      <View style={styles.rejectedInfoBox}>
+                        <Text style={styles.rejectedInfoText}>
+                          {typeof application.proposals_remaining === "number"
+                            ? application.proposals_remaining > 0
+                              ? `Rejected. Worker can still re-propose ${application.proposals_remaining} more time${application.proposals_remaining !== 1 ? "s" : ""}.`
+                              : "Rejected. Worker has no proposal attempts remaining."
+                            : "Rejected application."}
+                        </Text>
+                        {!!(application.client_rejection_reason || application.response_message) && (
+                          <Text style={styles.rejectedInfoReason} numberOfLines={2}>
+                            Reason: {application.client_rejection_reason || application.response_message}
+                          </Text>
+                        )}
                       </View>
                     )}
 
@@ -4425,6 +4545,79 @@ export default function JobDetailScreen() {
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Reject Application Modal */}
+      <Modal
+        visible={showRejectApplicationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRejectApplicationModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.rejectModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowRejectApplicationModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.rejectModalContent}>
+              <View style={styles.rejectModalHeader}>
+                <Text style={styles.rejectModalTitle}>Reject Application</Text>
+                <TouchableOpacity
+                  onPress={() => setShowRejectApplicationModal(false)}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.rejectModalLabel}>
+                Reason for rejecting {rejectApplicationWorkerName || "this worker"}
+              </Text>
+              <TextInput
+                style={styles.rejectModalInput}
+                placeholder="Please explain why this proposal was rejected..."
+                placeholderTextColor={Colors.textHint}
+                value={rejectApplicationReason}
+                onChangeText={setRejectApplicationReason}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+
+              <View style={styles.rejectModalButtons}>
+                <TouchableOpacity
+                  style={styles.rejectModalCancelButton}
+                  onPress={() => {
+                    setShowRejectApplicationModal(false);
+                    setRejectApplicationReason("");
+                    setRejectApplicationId(null);
+                    setRejectApplicationWorkerName("");
+                  }}
+                >
+                  <Text style={styles.rejectModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.rejectModalSubmitButton}
+                  onPress={handleSubmitRejectApplication}
+                  disabled={rejectApplicationMutation.isPending}
+                >
+                  {rejectApplicationMutation.isPending ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.rejectModalSubmitText}>Reject</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Reject Invite Modal */}
@@ -5582,6 +5775,24 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     color: Colors.textPrimary,
     lineHeight: 20,
+  },
+  rejectedInfoBox: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  rejectedInfoText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: "700",
+    color: Colors.warning,
+  },
+  rejectedInfoReason: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 4,
   },
   applicationDetails: {
     flexDirection: "row",

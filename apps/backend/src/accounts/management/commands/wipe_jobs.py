@@ -17,6 +17,7 @@ SET_NULL on Job.delete() (handled explicitly before Job.delete()):
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Q
 from decimal import Decimal
 
 
@@ -30,21 +31,65 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from accounts.models import (
+            BackjobScheduleConfirmation,
+            DailyAttendance,
+            DailyJobExtension,
+            DailyRateChange,
+            DailySkipDayRequest,
+            DisputeEvidence,
             Job,
-            Wallet,
+            JobApplication,
+            JobDispute,
+            JobEmployeeAssignment,
+            JobLog,
+            JobMaterial,
+            JobPhoto,
+            JobReview,
+            JobSkillSlot,
+            JobWorkerAssignment,
+            PriceNegotiation,
+            ReviewSkillTag,
+            SavedJob,
             Transaction,
+            Wallet,
         )  # local import to avoid circular refs
+        from profiles.models import (
+            Conversation,
+            ConversationParticipant,
+            Message,
+            MessageAttachment,
+        )
+
+        job_reference_prefixes = (
+            "ESCROW-",
+            "INVITE-ESCROW-",
+            "ESCROW-INC-",
+            "ESCROW-DEC-",
+            "FEE-",
+            "DAILY-FEE-RET-",
+            "CANCEL-FEE-",
+            "REFUND-",
+            "JOB-",
+            "CANCEL-CLIENT-",
+            "CANCEL-WORKER-",
+        )
 
         self.stdout.write("Starting job wipe and wallet reset...")
 
         with transaction.atomic():
-            # Delete job-related transactions FIRST, before Job.delete() sets relatedJobPosting to NULL.
-            # Transaction.relatedJobPosting uses SET_NULL (not CASCADE), so they survive job deletion
-            # and become impossible to filter by job after the fact.
-            txn_count, _ = Transaction.objects.filter(
-                relatedJobPosting__isnull=False
-            ).delete()
-            self.stdout.write(f"  Deleted {txn_count} job-related transaction(s).")
+            # Delete job-origin transactions BEFORE deleting jobs.
+            # Transaction.relatedJobPosting uses SET_NULL, so linked rows can become
+            # orphaned. We also match known job transaction reference prefixes so
+            # historical orphan records are removed as part of a job-data-clean wipe.
+            job_txn_filter = Q(relatedJobPosting__isnull=False)
+            for prefix in job_reference_prefixes:
+                job_txn_filter |= Q(referenceNumber__istartswith=prefix)
+
+            txn_count, _ = Transaction.objects.filter(job_txn_filter).delete()
+            self.stdout.write(
+                f"  Deleted {txn_count} job-origin transaction(s) "
+                f"(linked + orphan reference-matched)."
+            )
 
             job_count, deleted_detail = Job.objects.all().delete()
             wallet_count = Wallet.objects.update(
@@ -55,6 +100,37 @@ class Command(BaseCommand):
                 preferredPaymentMethodID=None,
                 lastAutoWithdrawAt=None,
             )
+
+        verification_counts = {
+            "jobs": Job.objects.count(),
+            "job_photos": JobPhoto.objects.count(),
+            "job_logs": JobLog.objects.count(),
+            "job_applications": JobApplication.objects.count(),
+            "saved_jobs": SavedJob.objects.count(),
+            "price_negotiations": PriceNegotiation.objects.count(),
+            "job_disputes": JobDispute.objects.count(),
+            "backjob_schedule_confirmations": BackjobScheduleConfirmation.objects.count(),
+            "dispute_evidence": DisputeEvidence.objects.count(),
+            "job_reviews": JobReview.objects.count(),
+            "review_skill_tags": ReviewSkillTag.objects.count(),
+            "job_skill_slots": JobSkillSlot.objects.count(),
+            "job_worker_assignments": JobWorkerAssignment.objects.count(),
+            "job_employee_assignments": JobEmployeeAssignment.objects.count(),
+            "daily_attendance": DailyAttendance.objects.count(),
+            "daily_job_extensions": DailyJobExtension.objects.count(),
+            "daily_rate_changes": DailyRateChange.objects.count(),
+            "daily_skip_day_requests": DailySkipDayRequest.objects.count(),
+            "job_materials": JobMaterial.objects.count(),
+            "conversations": Conversation.objects.count(),
+            "conversation_participants": ConversationParticipant.objects.count(),
+            "messages": Message.objects.count(),
+            "message_attachments": MessageAttachment.objects.count(),
+        }
+
+        verification_lines = [
+            f"  {name}: {count}" for name, count in sorted(verification_counts.items())
+        ]
+        verification_str = "\n".join(verification_lines)
 
         # Build a readable breakdown
         detail_lines = [
@@ -68,6 +144,7 @@ class Command(BaseCommand):
                 f"Deleted {job_count} total records:\n{detail_str}\n"
                 f"Reset {wallet_count} wallet(s) to ₱0.00 "
                 f"(balance, reservedBalance, pendingEarnings, "
-                f"autoWithdrawEnabled, preferredPaymentMethodID, lastAutoWithdrawAt)."
+                f"autoWithdrawEnabled, preferredPaymentMethodID, lastAutoWithdrawAt).\n"
+                f"Post-wipe verification counts:\n{verification_str}"
             )
         )

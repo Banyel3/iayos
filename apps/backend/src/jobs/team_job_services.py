@@ -24,8 +24,177 @@ from accounts.models import (
     Wallet,
     workerSpecialization,
     JobDispute,
+    PriceNegotiation,
 )
-from profiles.models import Conversation, ConversationParticipant
+from profiles.models import Conversation, ConversationParticipant, Message
+
+
+def _post_team_arrival_system_update(job: Job):
+    """Post a conversation system update when team arrival status changes."""
+    conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+    if not conversation:
+        return
+
+    total_workers = JobWorkerAssignment.objects.filter(
+        jobID=job, assignment_status="ACTIVE"
+    ).count()
+    arrived_workers = JobWorkerAssignment.objects.filter(
+        jobID=job, assignment_status="ACTIVE", client_confirmed_arrival=True
+    ).count()
+
+    total_employees = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).count()
+    arrived_employees = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        clientConfirmedArrival=True,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).count()
+
+    total_count = total_workers + total_employees
+    arrived_count = arrived_workers + arrived_employees
+
+    if total_count <= 0:
+        return
+
+    if arrived_count >= total_count:
+        Message.create_system_message(
+            conversation=conversation,
+            message_text=f"✅ All {total_count} team members on site! Work can begin.",
+        )
+    else:
+        remaining = total_count - arrived_count
+        Message.create_system_message(
+            conversation=conversation,
+            message_text=(
+                f"✅ Team arrival confirmed ({arrived_count}/{total_count}). "
+                f"Waiting for {remaining} more member(s)."
+            ),
+        )
+
+
+def _count_active_team_members(job: Job) -> int:
+    worker_count = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status__in=["ACTIVE", "COMPLETED"],
+    ).count()
+    employee_count = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).count()
+    return int(worker_count + employee_count)
+
+
+def _are_all_team_assignments_early_completed(job: Job) -> bool:
+    total_members = _count_active_team_members(job)
+    if total_members <= 0:
+        return False
+
+    pending_worker_early = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status__in=["ACTIVE", "COMPLETED"],
+    ).exclude(early_completed=True)
+
+    pending_employee_early = JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+    ).exclude(early_completed=True)
+
+    return (not pending_worker_early.exists()) and (not pending_employee_early.exists())
+
+
+@transaction.atomic
+def autoheal_hybrid_daily_all_early_completed(job: Job, changed_by=None) -> dict:
+    """Auto-heal mixed DAILY team jobs that are fully early-completed but stuck.
+
+    This finalizes job state and review/payment flags so existing records can
+    proceed to post-completion flow without manual intervention.
+    """
+    if not job or not job.is_team_job:
+        return {"success": False, "reason": "not_team_job"}
+
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "DAILY":
+        return {"success": False, "reason": "not_daily"}
+
+    if str(getattr(job, "status", "")).upper() == "COMPLETED":
+        return {"success": True, "already_done": True, "job_id": job.jobID}
+
+    if not _are_all_team_assignments_early_completed(job):
+        return {"success": False, "reason": "not_all_early_completed"}
+
+    now = timezone.now()
+    old_status = job.status
+
+    job.status = "COMPLETED"
+    job.clientMarkedComplete = True
+    job.clientMarkedCompleteAt = job.clientMarkedCompleteAt or now
+    job.workerMarkedComplete = True
+    job.workerMarkedCompleteAt = job.workerMarkedCompleteAt or now
+    job.remainingPaymentPaid = True
+    job.remainingPaymentPaidAt = job.remainingPaymentPaidAt or now
+    job.is_early_completed = True
+    job.early_completed_at = job.early_completed_at or now
+    job.save(
+        update_fields=[
+            "status",
+            "clientMarkedComplete",
+            "clientMarkedCompleteAt",
+            "workerMarkedComplete",
+            "workerMarkedCompleteAt",
+            "remainingPaymentPaid",
+            "remainingPaymentPaidAt",
+            "is_early_completed",
+            "early_completed_at",
+            "updatedAt",
+        ]
+    )
+
+    JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status="ACTIVE",
+    ).update(
+        assignment_status="COMPLETED",
+        worker_marked_complete=True,
+        worker_marked_complete_at=now,
+    )
+
+    JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS"],
+    ).update(
+        status="COMPLETED",
+        agencyMarkedComplete=True,
+        agencyMarkedCompleteAt=now,
+        clientApproved=True,
+        clientApprovedAt=now,
+    )
+
+    try:
+        from accounts.models import JobLog
+
+        JobLog.objects.create(
+            jobID=job,
+            notes=(
+                f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Auto-healed DAILY hybrid/team job "
+                "to COMPLETED after all assignments were early-completed."
+            ),
+            changedBy=changed_by
+            if changed_by is not None
+            else job.clientID.profileID.accountFK,
+            oldStatus=old_status,
+            newStatus="COMPLETED",
+        )
+    except Exception:
+        pass
+
+    return {"success": True, "job_id": job.jobID, "healed": True}
 
 
 def _build_agency_fallback_slots(skill_slots_data: list, payment_model: str) -> list:
@@ -1005,8 +1174,12 @@ def create_team_job(
         if payment_model_upper == "DAILY"
         else (
             max(1, (scheduled_end_date_obj - preferred_start_date_obj).days + 1)
-            if preferred_start_date_obj and scheduled_end_date_obj and scheduled_end_date_obj >= preferred_start_date_obj
-            else (int(duration_days) if duration_days and int(duration_days) > 0 else None)
+            if preferred_start_date_obj
+            and scheduled_end_date_obj
+            and scheduled_end_date_obj >= preferred_start_date_obj
+            else (
+                int(duration_days) if duration_days and int(duration_days) > 0 else None
+            )
         ),
         shift_type=shift_type_upper,
         budget_allocation_type=allocation_type,
@@ -1105,6 +1278,12 @@ def create_team_job(
                     "Please deposit more funds or wait for an active job to complete."
                 ),
             }
+
+        # Escrow principal is now collected from wallet.
+        if not job.escrowPaid:
+            job.escrowPaid = True
+            job.escrowPaidAt = timezone.now()
+            job.save(update_fields=["escrowPaid", "escrowPaidAt", "updatedAt"])
 
         # Create transaction record
         Transaction.objects.create(
@@ -1496,42 +1675,98 @@ def apply_to_skill_slot(
             "category": skill_slot.specializationID.specializationName,
         }
 
-    # Check if worker already has an active application for this slot
-    # (allow re-apply when previous application was REJECTED or WITHDRAWN)
-    existing = JobApplication.objects.filter(
-        jobID=job,
-        workerID=worker_profile,
-        applied_skill_slot=skill_slot,
-        status__in=[
-            JobApplication.ApplicationStatus.PENDING,
-            JobApplication.ApplicationStatus.ACCEPTED,
-        ],
-    ).exists()
+    # Single-row policy per (job, worker, skill_slot): reuse rejected/withdrawn
+    # row, block active row, and avoid unique-constraint crashes.
+    existing_application = (
+        JobApplication.objects.filter(
+            jobID=job,
+            workerID=worker_profile,
+            applied_skill_slot=skill_slot,
+        )
+        .order_by("-updatedAt", "-createdAt")
+        .first()
+    )
 
-    if existing:
+    if existing_application and existing_application.status in [
+        JobApplication.ApplicationStatus.PENDING,
+        JobApplication.ApplicationStatus.ACCEPTED,
+    ]:
         return {
             "success": False,
             "error": "You have already applied to this skill slot",
         }
 
-    # Create application
-    application = JobApplication.objects.create(
-        jobID=job,
-        workerID=worker_profile,
-        applied_skill_slot=skill_slot,
-        proposalMessage=proposal_message,
-        proposedBudget=proposed_budget,
-        budgetOption=budget_option,
-        estimatedDuration=estimated_duration,
-        proposed_daily_rate=proposed_daily_rate,
-        proposed_days=proposed_days,
-        status="PENDING",
-        applied_shift=(
-            job.shift_type
-            if job.shift_type in ("MORNING", "NIGHT")
-            else (applied_shift or None)
-        ),
+    normalized_applied_shift = (
+        job.shift_type
+        if job.shift_type in ("MORNING", "NIGHT")
+        else (applied_shift or None)
     )
+    new_negotiation_count = 1 if budget_option == "NEGOTIATE" else 0
+
+    try:
+        if existing_application and existing_application.status in [
+            JobApplication.ApplicationStatus.REJECTED,
+            JobApplication.ApplicationStatus.WITHDRAWN,
+        ]:
+            application = existing_application
+            application.proposalMessage = proposal_message
+            application.proposedBudget = proposed_budget
+            application.budgetOption = budget_option
+            application.estimatedDuration = estimated_duration
+            application.proposed_daily_rate = proposed_daily_rate
+            application.proposed_days = proposed_days
+            application.applied_shift = normalized_applied_shift
+            application.status = JobApplication.ApplicationStatus.PENDING
+            application.negotiation_count = new_negotiation_count
+            application.save(
+                update_fields=[
+                    "proposalMessage",
+                    "proposedBudget",
+                    "budgetOption",
+                    "estimatedDuration",
+                    "proposed_daily_rate",
+                    "proposed_days",
+                    "applied_shift",
+                    "status",
+                    "negotiation_count",
+                    "updatedAt",
+                ]
+            )
+
+            # Fresh re-application starts a fresh negotiation cycle.
+            PriceNegotiation.objects.filter(application=application).delete()
+        else:
+            application = JobApplication.objects.create(
+                jobID=job,
+                workerID=worker_profile,
+                applied_skill_slot=skill_slot,
+                proposalMessage=proposal_message,
+                proposedBudget=proposed_budget,
+                budgetOption=budget_option,
+                estimatedDuration=estimated_duration,
+                proposed_daily_rate=proposed_daily_rate,
+                proposed_days=proposed_days,
+                status=JobApplication.ApplicationStatus.PENDING,
+                applied_shift=normalized_applied_shift,
+                negotiation_count=new_negotiation_count,
+            )
+
+        if budget_option == "NEGOTIATE":
+            PriceNegotiation.objects.create(
+                application=application,
+                actor=PriceNegotiation.Actor.WORKER,
+                round_number=1,
+                proposed_budget=proposed_budget,
+                proposed_daily_rate=proposed_daily_rate,
+                proposed_days=proposed_days,
+                message=proposal_message,
+                status=PriceNegotiation.NegotiationStatus.PENDING,
+            )
+    except IntegrityError:
+        return {
+            "success": False,
+            "error": "You already have an application for this skill slot. Please wait for the client response or withdraw first.",
+        }
 
     # Notify client
     client_account = job.clientID.profileID.accountFK if job.clientID else None
@@ -1772,15 +2007,17 @@ def accept_team_application(
 
     # AUTO-CREATE CONVERSATION when all slots are filled
     if can_start:
+        # CRITICAL: Team jobs must transition out of ACTIVE once staffing
+        # threshold is met, even if a conversation already exists.
+        if job.status == "ACTIVE":
+            job.status = "IN_PROGRESS"
+            job.save(update_fields=["status", "updatedAt"])
+
         # Check if conversation already exists
         existing_conversation = Conversation.objects.filter(
             relatedJobPosting=job
         ).first()
         if not existing_conversation:
-            # CRITICAL: Change job status to IN_PROGRESS (like regular jobs)
-            job.status = "IN_PROGRESS"
-            job.save()
-
             # Create team conversation
             conversation = Conversation.objects.create(
                 client=job.clientID.profileID if job.clientID else None,
@@ -1971,20 +2208,29 @@ def reject_team_application(
     application.status = "REJECTED"
     application.save()
 
-    # Notify worker
-    worker_name = f"{application.workerID.profileID.firstName}"
+    # Notify worker with proposal allowance context
+    max_proposals = 3
+    proposals_remaining = max(max_proposals - int(application.negotiation_count or 0), 0)
     rejection_message = (
         f"Your application for {slot_name} position in '{job.title}' was not accepted."
     )
     if reason:
-        rejection_message += f" Reason: {reason}"
+        rejection_message += f" Reason: {reason.strip()}"
+    if proposals_remaining > 0:
+        rejection_message += (
+            f" You have {proposals_remaining} proposal"
+            f"{'s' if proposals_remaining != 1 else ''} remaining out of {max_proposals}."
+        )
+    else:
+        rejection_message += " You have no proposal attempts remaining for this application."
 
     Notification.objects.create(
         accountFK=application.workerID.profileID.accountFK,
-        notificationType="TEAM_APPLICATION_REJECTED",
+        notificationType="APPLICATION_REJECTED",
         title="Application Not Accepted",
         message=rejection_message,
         relatedJobID=job.jobID,
+        relatedApplicationID=application.applicationID,
     )
 
     print(f"❌ Rejected team application #{application_id} for job #{job_id}")
@@ -1994,6 +2240,8 @@ def reject_team_application(
         "application_id": application_id,
         "worker_name": f"{application.workerID.profileID.firstName} {application.workerID.profileID.lastName}",
         "skill_slot": slot_name,
+        "proposals_remaining": proposals_remaining,
+        "max_proposals": max_proposals,
         "message": f"Application rejected for {slot_name} position",
     }
 
@@ -2507,6 +2755,8 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
 
     all_arrived = arrived_workers == total_workers
 
+    _post_team_arrival_system_update(job)
+
     return {
         "success": True,
         "assignment_id": assignment.assignmentID,
@@ -2767,7 +3017,9 @@ def client_approve_team_job(
             if additional_charge > Decimal("0.00"):
                 client_wallet.balance -= additional_charge
             try:
-                client_wallet.save(update_fields=["balance", "reservedBalance", "updatedAt"])
+                client_wallet.save(
+                    update_fields=["balance", "reservedBalance", "updatedAt"]
+                )
             except IntegrityError:
                 return {
                     "success": False,
@@ -2787,7 +3039,11 @@ def client_approve_team_job(
                     transactionType="PAYMENT",
                     status="COMPLETED",
                     description=f"Final payment for team job: {job.title}"
-                    + (" (cash proof uploaded)" if payment_method_upper == "CASH" else ""),
+                    + (
+                        " (cash proof uploaded)"
+                        if payment_method_upper == "CASH"
+                        else ""
+                    ),
                     balanceAfter=client_wallet.balance,
                     relatedJobPosting=job,
                     paymentMethod=payment_method_upper,
@@ -3450,11 +3706,24 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
         }
 
     # Mark arrival as confirmed
+    # Hybrid/team flow is arrival-first; auto-mark dispatched for compatibility
+    # with legacy workflow checks that still inspect dispatched flags.
+    if not getattr(assignment, "dispatched", False):
+        assignment.dispatched = True
+        if not getattr(assignment, "dispatchedAt", None):
+            assignment.dispatchedAt = timezone.now()
+
     assignment.clientConfirmedArrival = True
     assignment.clientConfirmedArrivalAt = timezone.now()
     assignment.status = "IN_PROGRESS"
     assignment.save(
-        update_fields=["clientConfirmedArrival", "clientConfirmedArrivalAt", "status"]
+        update_fields=[
+            "dispatched",
+            "dispatchedAt",
+            "clientConfirmedArrival",
+            "clientConfirmedArrivalAt",
+            "status",
+        ]
     )
 
     employee_name = assignment.employee.fullName
@@ -3503,6 +3772,8 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     all_arrived = (arrived_workers == total_workers) and (
         arrived_employees == total_employees
     )
+
+    _post_team_arrival_system_update(job)
 
     return {
         "success": True,
@@ -3828,8 +4099,39 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
     if not assignment.clientConfirmedArrival:
         return {"success": False, "error": "Client must confirm employee arrival first"}
 
-    # Payout = full paymentAmount (works for both DAILY and PROJECT)
-    payout = Decimal(str(assignment.paymentAmount or "0.00"))
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+
+    # Payout computation parity:
+    # - DAILY team jobs: full contracted employee amount for planned duration
+    #   minus already credited amount (paymentAmount)
+    # - PROJECT team jobs: full assignment share (paymentAmount fallback to slot budget)
+    payout = Decimal("0.00")
+    contracted_amount = Decimal("0.00")
+    already_credited = Decimal(str(assignment.paymentAmount or "0.00"))
+
+    if payment_model == "DAILY":
+        planned_days = int(getattr(job, "duration_days", 0) or 0)
+        if planned_days <= 0:
+            planned_days = 1
+
+        daily_rate = Decimal("0.00")
+        employee_daily_rate = getattr(assignment.employee, "daily_rate", None)
+        if employee_daily_rate:
+            daily_rate = Decimal(str(employee_daily_rate))
+        else:
+            daily_rate = Decimal(str(getattr(job, "daily_rate_agreed", None) or "0.00"))
+
+        contracted_amount = daily_rate * Decimal(planned_days)
+        payout = contracted_amount - already_credited
+        if payout < Decimal("0.00"):
+            payout = Decimal("0.00")
+    else:
+        if getattr(assignment, "paymentAmount", None) is not None:
+            contracted_amount = Decimal(str(assignment.paymentAmount or "0.00"))
+            payout = contracted_amount
+        elif assignment.skill_slot and assignment.skill_slot.budget_per_worker:
+            contracted_amount = Decimal(str(assignment.skill_slot.budget_per_worker))
+            payout = contracted_amount
 
     now = timezone.now()
     employee_name = assignment.employee.name
@@ -3912,6 +4214,9 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
         "assignment_id": assignment.assignmentID,
         "employee_name": employee_name,
         "payout": float(payout),
+        "contracted_amount": float(contracted_amount),
+        "already_credited": float(already_credited),
+        "payment_model": payment_model,
         "all_team_complete": all_complete,
         "message": f"{employee_name} early-completed. PHP {float(payout):,.2f} to agency pending earnings.",
     }

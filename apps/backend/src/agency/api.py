@@ -2343,6 +2343,23 @@ def get_agency_conversations(request, filter: str = "all"):
                     relatedJobPosting__status="ACTIVE",
                     relatedJobPosting__assignedEmployeeID__isnull=False,
                 )
+                | Q(  # Team/hybrid jobs with any accepted assignment should remain visible
+                    relatedJobPosting__status="ACTIVE",
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__employee_assignments__status__in=[
+                        "ASSIGNED",
+                        "IN_PROGRESS",
+                        "COMPLETED",
+                    ],
+                )
+                | Q(  # Team/hybrid jobs with freelancer team assignments should remain visible
+                    relatedJobPosting__status="ACTIVE",
+                    relatedJobPosting__is_team_job=True,
+                    relatedJobPosting__worker_assignments__assignment_status__in=[
+                        "ACTIVE",
+                        "COMPLETED",
+                    ],
+                )
                 | Q(  # Backjob pipeline - keep conversation visible in active tab
                     relatedJobPosting__disputes__status__in=[
                         "OPEN",
@@ -2388,7 +2405,7 @@ def get_agency_conversations(request, filter: str = "all"):
                 }
 
             # Get ALL assigned employees from M2M (multi-employee support)
-            from accounts.models import JobEmployeeAssignment
+            from accounts.models import JobEmployeeAssignment, JobWorkerAssignment
 
             assigned_employees = []
             assignments = (
@@ -2466,6 +2483,98 @@ def get_agency_conversations(request, filter: str = "all"):
                     }
                 )
 
+            # For hybrid/team jobs, include freelancer assignments too
+            team_worker_assignments = []
+            team_agency_employees = []
+            if job.is_team_job:
+                worker_assignments = (
+                    JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        assignment_status__in=["ACTIVE", "COMPLETED"],
+                    )
+                    .select_related(
+                        "workerID__profileID__accountFK",
+                        "skillSlotID__specializationID",
+                    )
+                    .order_by("assignedAt")
+                )
+
+                for assignment in worker_assignments:
+                    profile = assignment.workerID.profileID
+                    worker_account_id = (
+                        profile.accountFK.accountID
+                        if profile and profile.accountFK
+                        else None
+                    )
+                    team_worker_assignments.append(
+                        {
+                            "workerId": assignment.workerID_id,
+                            "worker_id": assignment.workerID_id,
+                            "account_id": worker_account_id,
+                            "assignment_id": assignment.assignmentID,
+                            "name": f"{profile.firstName} {profile.lastName}".strip(),
+                            "avatar": profile.profileImg,
+                            "skill": assignment.skillSlotID.specializationID.specializationName
+                            if assignment.skillSlotID
+                            and assignment.skillSlotID.specializationID
+                            else None,
+                            "status": assignment.assignment_status,
+                        }
+                    )
+
+                slot_employee_assignments = (
+                    JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                        skill_slot__isnull=False,
+                    )
+                    .select_related("employee", "skill_slot__specializationID")
+                    .order_by("-isPrimaryContact", "assignedAt")
+                )
+
+                for sea in slot_employee_assignments:
+                    emp = sea.employee
+                    slot_name = None
+                    if sea.skill_slot and sea.skill_slot.specializationID:
+                        slot_name = sea.skill_slot.specializationID.specializationName
+
+                    team_agency_employees.append(
+                        {
+                            "id": emp.employeeID,
+                            "assignment_id": sea.assignmentID,
+                            "name": emp.name,
+                            "avatar": emp.avatar,
+                            "status": sea.status,
+                            "skill": slot_name,
+                            "dispatched": getattr(sea, "dispatched", False),
+                            "dispatchedAt": sea.dispatchedAt.isoformat()
+                            if getattr(sea, "dispatchedAt", None)
+                            else None,
+                            "clientConfirmedArrival": getattr(
+                                sea, "clientConfirmedArrival", False
+                            ),
+                            "clientConfirmedArrivalAt": sea.clientConfirmedArrivalAt.isoformat()
+                            if getattr(sea, "clientConfirmedArrivalAt", None)
+                            else None,
+                            "agencyMarkedComplete": getattr(
+                                sea, "agencyMarkedComplete", False
+                            ),
+                            "agencyMarkedCompleteAt": sea.agencyMarkedCompleteAt.isoformat()
+                            if getattr(sea, "agencyMarkedCompleteAt", None)
+                            else None,
+                            "employeeMarkedComplete": getattr(
+                                sea, "employeeMarkedComplete", False
+                            ),
+                            "employeeMarkedCompleteAt": sea.employeeMarkedCompleteAt.isoformat()
+                            if getattr(sea, "employeeMarkedCompleteAt", None)
+                            else None,
+                            "marked_complete": getattr(
+                                sea, "agencyMarkedComplete", False
+                            )
+                            or getattr(sea, "employeeMarkedComplete", False),
+                        }
+                    )
+
             # Get client info
             client_info = {
                 "name": f"{client_profile.firstName} {client_profile.lastName}".strip()
@@ -2521,6 +2630,7 @@ def get_agency_conversations(request, filter: str = "all"):
                     "job": {
                         "id": job.jobID,
                         "title": job.title,
+                        "is_team_job": bool(getattr(job, "is_team_job", False)),
                         "status": job.status,
                         "budget": float(job.budget),
                         "location": job.location,
@@ -2538,6 +2648,8 @@ def get_agency_conversations(request, filter: str = "all"):
                     "client": client_info,
                     "assigned_employee": assigned_employee,
                     "assigned_employees": assigned_employees,  # Multi-employee support
+                    "team_worker_assignments": team_worker_assignments,
+                    "team_agency_employees": team_agency_employees,
                     "last_message": conv.lastMessageText,
                     "last_message_time": conv.updatedAt.isoformat()
                     if conv.updatedAt
@@ -2610,6 +2722,20 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
+
+        # Team-job conversation access is locked until all required slots are filled.
+        if job.is_team_job:
+            total_needed = int(job.total_workers_needed or 0)
+            total_assigned = int(job.total_workers_assigned or 0)
+            if total_assigned < total_needed:
+                return Response(
+                    {
+                        "error": "Conversation is locked until all team slots are filled",
+                        "can_send_message": False,
+                        "can_send_reason": "Chat unlocks once all team slots are assigned.",
+                    },
+                    status=403,
+                )
 
         # Backjob chat lock: keep conversation visible but lock messaging until admin opens negotiation.
         from accounts.models import JobDispute
@@ -2696,7 +2822,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
             }
 
         # Get ALL assigned employees from M2M (multi-employee support)
-        from accounts.models import JobEmployeeAssignment
+        from accounts.models import JobEmployeeAssignment, JobWorkerAssignment
 
         assigned_employees = []
         assignments = (
@@ -2773,6 +2899,96 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     "marked_complete": False,
                 }
             )
+
+        # For hybrid/team jobs, include freelancer assignments too
+        team_worker_assignments = []
+        team_agency_employees = []
+        if job.is_team_job:
+            worker_assignments = (
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                )
+                .select_related(
+                    "workerID__profileID__accountFK",
+                    "skillSlotID__specializationID",
+                )
+                .order_by("assignedAt")
+            )
+
+            for assignment in worker_assignments:
+                profile = assignment.workerID.profileID
+                worker_account_id = (
+                    profile.accountFK.accountID
+                    if profile and profile.accountFK
+                    else None
+                )
+                team_worker_assignments.append(
+                    {
+                        "workerId": assignment.workerID_id,
+                        "worker_id": assignment.workerID_id,
+                        "account_id": worker_account_id,
+                        "assignment_id": assignment.assignmentID,
+                        "name": f"{profile.firstName} {profile.lastName}".strip(),
+                        "avatar": profile.profileImg,
+                        "skill": assignment.skillSlotID.specializationID.specializationName
+                        if assignment.skillSlotID
+                        and assignment.skillSlotID.specializationID
+                        else None,
+                        "status": assignment.assignment_status,
+                    }
+                )
+
+            slot_employee_assignments = (
+                JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    skill_slot__isnull=False,
+                )
+                .select_related("employee", "skill_slot__specializationID")
+                .order_by("-isPrimaryContact", "assignedAt")
+            )
+
+            for sea in slot_employee_assignments:
+                emp = sea.employee
+                slot_name = None
+                if sea.skill_slot and sea.skill_slot.specializationID:
+                    slot_name = sea.skill_slot.specializationID.specializationName
+
+                team_agency_employees.append(
+                    {
+                        "id": emp.employeeID,
+                        "assignment_id": sea.assignmentID,
+                        "name": emp.name,
+                        "avatar": emp.avatar,
+                        "status": sea.status,
+                        "skill": slot_name,
+                        "dispatched": getattr(sea, "dispatched", False),
+                        "dispatchedAt": sea.dispatchedAt.isoformat()
+                        if getattr(sea, "dispatchedAt", None)
+                        else None,
+                        "clientConfirmedArrival": getattr(
+                            sea, "clientConfirmedArrival", False
+                        ),
+                        "clientConfirmedArrivalAt": sea.clientConfirmedArrivalAt.isoformat()
+                        if getattr(sea, "clientConfirmedArrivalAt", None)
+                        else None,
+                        "agencyMarkedComplete": getattr(
+                            sea, "agencyMarkedComplete", False
+                        ),
+                        "agencyMarkedCompleteAt": sea.agencyMarkedCompleteAt.isoformat()
+                        if getattr(sea, "agencyMarkedCompleteAt", None)
+                        else None,
+                        "employeeMarkedComplete": getattr(
+                            sea, "employeeMarkedComplete", False
+                        ),
+                        "employeeMarkedCompleteAt": sea.employeeMarkedCompleteAt.isoformat()
+                        if getattr(sea, "employeeMarkedCompleteAt", None)
+                        else None,
+                        "marked_complete": getattr(sea, "agencyMarkedComplete", False)
+                        or getattr(sea, "employeeMarkedComplete", False),
+                    }
+                )
 
         # Check review status and include review payloads for agency chat details.
         from accounts.models import JobReview
@@ -3014,6 +3230,7 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "job": {
                     "id": job.jobID,
                     "title": job.title,
+                    "is_team_job": bool(getattr(job, "is_team_job", False)),
                     "status": job.status,
                     "budget": float(job.budget),
                     "location": job.location,
@@ -3055,6 +3272,8 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "client": client_info,
                 "assigned_employee": assigned_employee,
                 "assigned_employees": assigned_employees,  # Multi-employee support
+                "team_worker_assignments": team_worker_assignments,
+                "team_agency_employees": team_agency_employees,
                 "daily_skip_requests_today": daily_skip_requests_today,
                 "effective_work_date": effective_work_date.isoformat(),
                 "qa_day_offset": qa_day_offset,
@@ -3512,7 +3731,7 @@ def toggle_agency_archive(request, conversation_id: int):
     """Toggle archive status for a conversation."""
     try:
         from profiles.models import Conversation
-        from accounts.models import Profile
+        from accounts.models import Profile, Agency
         from .models import AgencyKYC
 
         account = request.auth
@@ -3523,11 +3742,27 @@ def toggle_agency_archive(request, conversation_id: int):
             return Response({"error": "Agency account not found"}, status=400)
 
         agency_profile = Profile.objects.filter(accountFK=account).first()
+        agency = Agency.objects.filter(accountFK=account).first()
+        if not agency:
+            return Response({"error": "Agency profile not found"}, status=404)
 
         # Get conversation
         conv = Conversation.objects.filter(conversationID=conversation_id).first()
         if not conv:
             return Response({"error": "Conversation not found"}, status=404)
+
+        job = getattr(conv, "relatedJobPosting", None)
+        has_access = (
+            (conv.agency and conv.agency == agency)
+            or (conv.worker and agency_profile and conv.worker == agency_profile)
+            or (job and job.assignedAgencyFK and job.assignedAgencyFK == agency)
+        )
+
+        if not has_access:
+            return Response(
+                {"error": "You are not authorized to access this conversation"},
+                status=403,
+            )
 
         # Toggle archive (agency is worker side)
         conv.archivedByWorker = not conv.archivedByWorker
