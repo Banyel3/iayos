@@ -731,7 +731,9 @@ export default function ActiveJobDetailScreen() {
 
     Alert.alert(
       "Select Payment Method",
-      "All workers are complete. Choose how you want to pay the final amount.",
+      isTeamDaily
+        ? "All workers are complete. Choose how you want to approve and pay for today."
+        : "All workers are complete. Choose how you want to pay the final amount.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -743,7 +745,9 @@ export default function ActiveJobDetailScreen() {
                 onSuccess: () => {
                   Alert.alert(
                     "Success",
-                    "Team job completed! Payment processed.",
+                    isTeamDaily
+                      ? "Workers approved and paid for today."
+                      : "Team job completed! Payment processed.",
                     [
                       {
                         text: "OK",
@@ -1405,11 +1409,22 @@ export default function ActiveJobDetailScreen() {
                             color={Colors.white}
                           />
                           <Text style={styles.approveAllText}>
-                            Approve All & Complete Job
+                            {isTeamDaily
+                              ? "Approve and Pay"
+                              : "Approve All & Complete Job"}
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
+                  )}
+
+                {isTeamDaily &&
+                  (job.duration_days ?? 0) > 1 &&
+                  !job.client_marked_complete && (
+                    <Text style={styles.dailyHelperText}>
+                      Workers paid for today. Come back tomorrow to proceed with
+                      the next work day.
+                    </Text>
                   )}
 
                 {/* Client waiting message */}
@@ -2283,6 +2298,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.white,
+  },
+  dailyHelperText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+    fontStyle: "italic",
   },
   waitingMessage: {
     flexDirection: "row",
