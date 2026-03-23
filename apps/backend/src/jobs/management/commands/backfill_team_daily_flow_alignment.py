@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import DailyAttendance
@@ -67,8 +68,13 @@ class Command(BaseCommand):
             jobID__payment_model="DAILY",
             jobID__status__in=["ACTIVE", "IN_PROGRESS"],
             worker_confirmed=True,
-            worker_marked_complete=True,
             payment_processed=False,
+            status__in=["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"],
+        ).filter(
+            Q(time_out__isnull=False)
+            | Q(client_confirmed=True)
+            | Q(assignmentID__worker_marked_complete=True)
+            | Q(assignmentID__assignment_status="COMPLETED")
         ).select_related(
             "jobID",
             "jobID__clientID__profileID__accountFK",
@@ -123,10 +129,15 @@ class Command(BaseCommand):
             try:
                 with transaction.atomic():
                     update_fields = []
+                    assignment_completed_at = (
+                        attendance.assignmentID.worker_marked_complete_at
+                        if attendance.assignmentID
+                        else None
+                    )
 
                     if needs_timeout:
                         attendance.time_out = (
-                            attendance.worker_marked_complete_at
+                            assignment_completed_at
                             or attendance.worker_confirmed_at
                             or now
                         )
