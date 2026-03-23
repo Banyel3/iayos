@@ -13594,6 +13594,15 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 worker_marked_complete=True,
             ).update(worker_marked_complete=False, worker_marked_complete_at=None)
 
+            # Reset arrival flags for the next effective QA day. Arrival must be
+            # explicitly reconfirmed by the client in the new cycle.
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+                early_completed=False,
+                client_confirmed_arrival=True,
+            ).update(client_confirmed_arrival=False, client_confirmed_arrival_at=None)
+
             JobWorkerAssignment.objects.filter(
                 jobID=job,
                 assignment_status="COMPLETED",
@@ -13607,6 +13616,10 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 early_completed=False,
             ).update(
                 status="ASSIGNED",
+                dispatched=False,
+                dispatchedAt=None,
+                clientConfirmedArrival=False,
+                clientConfirmedArrivalAt=None,
                 agencyMarkedComplete=False,
                 agencyMarkedCompleteAt=None,
                 employeeMarkedComplete=False,

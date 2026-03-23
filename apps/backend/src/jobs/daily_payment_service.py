@@ -1034,13 +1034,27 @@ class DailyPaymentService:
             jobID=job, status="PENDING"
         ).count()
 
+        duration_days = int(getattr(job, "duration_days", 0) or 0)
+        actual_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+        qa_day_offset = max(0, int(getattr(job, "qa_day_offset", 0) or 0))
+        effective_days_worked = actual_days_worked + qa_day_offset
+        if duration_days > 0:
+            effective_days_worked = min(duration_days, effective_days_worked)
+        remaining_days = (
+            max(0, duration_days - effective_days_worked)
+            if duration_days > 0
+            else 0
+        )
+
         return {
             "job_id": job.jobID,
             "payment_model": "DAILY",
             "daily_rate": float(job.daily_rate_agreed or 0),
-            "duration_days": job.duration_days,
-            "days_worked": job.total_days_worked,
-            "remaining_days": (job.duration_days or 0) - job.total_days_worked,
+            "duration_days": duration_days,
+            "days_worked": effective_days_worked,
+            "remaining_days": remaining_days,
+            "actual_days_worked": actual_days_worked,
+            "qa_day_offset": qa_day_offset,
             "attendance": {
                 "total_records": attendance_records.count(),
                 "pending_confirmation": pending_confirmation,
