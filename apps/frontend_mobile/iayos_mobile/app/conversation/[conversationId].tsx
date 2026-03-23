@@ -8303,10 +8303,7 @@ export default function ChatScreen() {
                     allFreelancersComplete;
 
                   const showApprovePayButton = isDailyAgencyFlow
-                    ?
-                        allComplete &&
-                        allFreelancersComplete &&
-                        !isTodayWorkdaySettled
+                    ? allComplete && allFreelancersComplete
                     : allWorkflowComplete;
 
                   return (

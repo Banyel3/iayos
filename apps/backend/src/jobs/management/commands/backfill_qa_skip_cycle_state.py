@@ -37,6 +37,14 @@ class Command(BaseCommand):
                 "(useful for stale jobs already at 100% progress)."
             ),
         )
+        parser.add_argument(
+            "--preserve-qa-offset",
+            action="store_true",
+            help=(
+                "Do not reset qa_day_offset to 0. By default this command rewinds "
+                "stale QA-shifted jobs back to day 1 for clean retesting."
+            ),
+        )
 
     @staticmethod
     def _effective_days(job: Job) -> int:
@@ -53,6 +61,7 @@ class Command(BaseCommand):
         job_ids = list(options.get("job_id") or [])
         limit = int(options.get("limit") or 0)
         reached_duration_only = bool(options.get("reached_duration_only"))
+        reset_qa_offset = not bool(options.get("preserve_qa_offset"))
         mode_label = "EXECUTE" if execute else "DRY-RUN"
 
         self.stdout.write(
@@ -84,6 +93,7 @@ class Command(BaseCommand):
 
         total_employee_rows = 0
         total_job_completion_rows = 0
+        total_jobs_qa_offset_reset = 0
 
         for job in jobs_qs:
             inspected_jobs += 1
@@ -118,6 +128,9 @@ class Command(BaseCommand):
             employee_reset_count = employee_scope.count()
 
             job_completion_flag_count = int(bool(getattr(job, "workerMarkedComplete", False)))
+            qa_offset_reset_needed = reset_qa_offset and int(
+                getattr(job, "qa_day_offset", 0) or 0
+            ) > 0
 
             has_changes = any(
                 [
@@ -126,6 +139,7 @@ class Command(BaseCommand):
                     worker_completed_status_count,
                     employee_reset_count,
                     job_completion_flag_count,
+                    qa_offset_reset_needed,
                 ]
             )
 
@@ -143,6 +157,7 @@ class Command(BaseCommand):
                         f"worker_status_completed={worker_completed_status_count}, "
                         f"employee_rows={employee_reset_count}, "
                         f"job_workerMarkedComplete={job_completion_flag_count}, "
+                        f"qa_offset_reset_needed={int(qa_offset_reset_needed)}, "
                         f"effective_days={effective_days}/{configured_days or '?'}"
                     )
                 )
@@ -193,6 +208,11 @@ class Command(BaseCommand):
                     )
                     total_job_completion_rows += 1
 
+                if qa_offset_reset_needed:
+                    job.qa_day_offset = 0
+                    job.save(update_fields=["qa_day_offset", "updatedAt"])
+                    total_jobs_qa_offset_reset += 1
+
             updated_jobs += 1
 
         self.stdout.write(
@@ -204,6 +224,7 @@ class Command(BaseCommand):
                 f"worker_status_rows_reset={total_worker_status_rows}, "
                 f"employee_rows_reset={total_employee_rows}, "
                 f"job_completion_flags_reset={total_job_completion_rows}, "
+                f"jobs_qa_offset_reset={total_jobs_qa_offset_reset}, "
                 f"mode={mode_label}"
             )
         )
