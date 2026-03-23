@@ -14237,9 +14237,36 @@ def finish_daily_job(request, job_id: int):
         recipient_accounts.update(account for account in employee_accounts if account)
 
     if total_paid > Decimal("0.00") and recipient_accounts:
+        recipients_to_validate = set(recipient_accounts)
+
+        # TEAM DAILY settlement is attendance-driven per recipient. For final-day
+        # close, validate ledger presence only for recipients who actually earned
+        # a positive amount. Assigned recipients with 0 earned should not block
+        # completion/review transition.
+        if job.is_team_job and str(getattr(job, "payment_model", "") or "").upper() == "DAILY":
+            paid_worker_accounts = DailyAttendance.objects.filter(
+                jobID=job,
+                payment_processed=True,
+                amount_earned__gt=Decimal("0.00"),
+                workerID__isnull=False,
+            ).values_list("workerID__profileID__accountFK", flat=True)
+
+            paid_employee_accounts = DailyAttendance.objects.filter(
+                jobID=job,
+                payment_processed=True,
+                amount_earned__gt=Decimal("0.00"),
+                employeeID__isnull=False,
+            ).values_list("employeeID__agency", flat=True)
+
+            recipients_to_validate = {
+                account
+                for account in list(paid_worker_accounts) + list(paid_employee_accounts)
+                if account
+            }
+
         missing_recipients = [
             account
-            for account in recipient_accounts
+            for account in recipients_to_validate
             if not has_receivable_ledger_for_account(job, account)
         ]
         if missing_recipients:
