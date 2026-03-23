@@ -278,6 +278,16 @@ export default function ActiveJobDetailScreen() {
     (a) => a.worker_marked_complete,
   ).length;
 
+  const myActiveAssignments = myAssignments.filter(
+    (a) => a.assignment_status === "ACTIVE",
+  );
+  const hasPendingMyTeamAssignments = myActiveAssignments.some(
+    (a) => !a.worker_marked_complete && !a.early_completed,
+  );
+  const showWorkerMarkCompleteButton = job?.is_team_job
+    ? !isTeamDaily && hasPendingMyTeamAssignments
+    : !job?.worker_marked_complete;
+
   // Upload photos helper function
   const uploadPhotos = async (jobId: string): Promise<boolean> => {
     if (uploadedPhotos.length === 0) return true;
@@ -656,6 +666,12 @@ export default function ActiveJobDetailScreen() {
                   refetch();
                   queryClient.invalidateQueries({
                     queryKey: ["team-job", Number(id)],
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ["jobs", "active", id],
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ["jobs", "active"],
                   });
                 },
                 onError: (error: any) => {
@@ -1499,7 +1515,7 @@ export default function ActiveJobDetailScreen() {
             )}
           </TouchableOpacity>
 
-          {!job.worker_marked_complete && (
+          {showWorkerMarkCompleteButton && (
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={openCompletionModal}
