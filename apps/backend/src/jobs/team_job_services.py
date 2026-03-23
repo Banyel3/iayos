@@ -4304,8 +4304,6 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
             healed_fields.extend(["clientConfirmedArrival", "clientConfirmedArrivalAt"])
 
         if healed_fields:
-            if "updatedAt" not in healed_fields:
-                healed_fields.append("updatedAt")
             assignment.save(update_fields=list(dict.fromkeys(healed_fields)))
 
     # Idempotent success if already confirmed.
