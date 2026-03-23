@@ -6922,11 +6922,19 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 # Team job client review - must specify which worker to review
                 if job.is_team_job:
                     from accounts.models import (
+                        Agency,
                         JobWorkerAssignment,
                         JobEmployeeAssignment,
                     )
 
-                    if not data.worker_id and not data.employee_id:
+                    team_review_target = str(data.review_target or "").upper()
+                    reviewee_agency = None
+
+                    if (
+                        not data.worker_id
+                        and not data.employee_id
+                        and team_review_target != "AGENCY"
+                    ):
                         # Get list of assignees that can be reviewed
                         worker_assignments = JobWorkerAssignment.objects.filter(
                             jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
@@ -6949,6 +6957,15 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             reviewerType="CLIENT",
                             revieweeEmployeeID__isnull=False,
                         ).values_list("revieweeEmployeeID", flat=True)
+
+                        reviewed_agency_ids = set(
+                            JobReview.objects.filter(
+                                jobID=job,
+                                reviewerID=request.auth,
+                                reviewerType="CLIENT",
+                                revieweeAgencyID__isnull=False,
+                            ).values_list("revieweeAgencyID", flat=True)
+                        )
 
                         pending_workers = []
                         for assignment in worker_assignments:
@@ -6980,6 +6997,34 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                                     }
                                 )
 
+                        # Team hybrid jobs may also require agency-level review.
+                        agency_account_ids = set(
+                            employee_assignments.values_list(
+                                "employee__agency_id", flat=True
+                            )
+                        )
+                        agency_account_ids.discard(None)
+                        if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                            agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+                        if agency_account_ids:
+                            for agency in Agency.objects.filter(
+                                accountFK_id__in=agency_account_ids
+                            ):
+                                if agency.agencyId not in reviewed_agency_ids:
+                                    pending_workers.append(
+                                        {
+                                            "target_type": "AGENCY",
+                                            "agency_id": agency.agencyId,
+                                            "agency_account_id": agency.accountFK_id,
+                                            "worker_id": None,
+                                            "employee_id": None,
+                                            "account_id": agency.accountFK_id,
+                                            "name": agency.businessName,
+                                            "skill": None,
+                                        }
+                                    )
+
                         return Response(
                             {
                                 "error": "Team job requires worker_id or employee_id to specify who to review",
@@ -6988,8 +7033,66 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             status=400,
                         )
 
-                    # Find the assignment for the specified target
-                    if data.employee_id:
+                    # Find the assignment/target for the specified review target
+                    if team_review_target == "AGENCY":
+                        agency_account_ids = set(
+                            JobEmployeeAssignment.objects.filter(
+                                job=job,
+                                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                                skill_slot__isnull=False,
+                            ).values_list("employee__agency_id", flat=True)
+                        )
+                        agency_account_ids.discard(None)
+                        if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                            agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+                        if not agency_account_ids:
+                            return Response(
+                                {
+                                    "error": "No agency found for this team job"
+                                },
+                                status=400,
+                            )
+
+                        if len(agency_account_ids) > 1:
+                            return Response(
+                                {
+                                    "error": "Multiple agencies found. Please review agency employees first to determine target agency."
+                                },
+                                status=400,
+                            )
+
+                        reviewee_agency = Agency.objects.filter(
+                            accountFK_id=next(iter(agency_account_ids))
+                        ).first()
+                        if not reviewee_agency:
+                            return Response(
+                                {
+                                    "error": "Agency not found for this team job"
+                                },
+                                status=400,
+                            )
+
+                        existing_agency_review = JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=request.auth,
+                            reviewerType="CLIENT",
+                            revieweeAgencyID=reviewee_agency,
+                        ).first()
+                        if existing_agency_review:
+                            return Response(
+                                {
+                                    "error": "You have already reviewed this agency",
+                                    "error_code": "REVIEW_ALREADY_EXISTS",
+                                    "existing_review_id": existing_agency_review.reviewID,
+                                    "review_target": "AGENCY",
+                                },
+                                status=400,
+                            )
+
+                        reviewee_profile = None
+                        reviewee_employee = None
+                    elif data.employee_id:
                         try:
                             assignment = JobEmployeeAssignment.objects.select_related(
                                 "employee"
@@ -7097,6 +7200,9 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 if reviewee_profile is not None
                 else None,
                 revieweeProfileID=reviewee_profile,
+                revieweeAgencyID=reviewee_agency
+                if job.is_team_job and is_client and reviewee_agency is not None
+                else None,
                 revieweeEmployeeID=reviewee_employee
                 if job.is_team_job and is_client and data.employee_id
                 else None,
@@ -7172,6 +7278,15 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     ).values_list("revieweeEmployeeID", flat=True)
                 )
 
+                reviewed_agency_ids = set(
+                    JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=request.auth,
+                        reviewerType="CLIENT",
+                        revieweeAgencyID__isnull=False,
+                    ).values_list("revieweeAgencyID", flat=True)
+                )
+
                 for a in all_assignments:
                     worker_profile = a.workerID.profileID
                     worker_account_id = worker_profile.accountFK.accountID
@@ -7215,9 +7330,41 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             }
                         )
 
+                agency_account_ids = set(
+                    all_employee_assignments.values_list("employee__agency_id", flat=True)
+                )
+                agency_account_ids.discard(None)
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                    agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+                if agency_account_ids:
+                    from accounts.models import Agency
+
+                    for agency in Agency.objects.filter(accountFK_id__in=agency_account_ids):
+                        if agency.agencyId not in reviewed_agency_ids:
+                            pending_team_workers.append(
+                                {
+                                    "target_type": "AGENCY",
+                                    "agency_id": agency.agencyId,
+                                    "agency_account_id": agency.accountFK_id,
+                                    "worker_id": None,
+                                    "employee_id": None,
+                                    "account_id": agency.accountFK_id,
+                                    "name": agency.businessName,
+                                    "avatar": None,
+                                    "skill": None,
+                                }
+                            )
+
+                if reviewee_agency is not None:
+                    reviewed_worker_name = reviewee_agency.businessName
+                elif reviewee_employee is not None:
+                    reviewed_worker_name = reviewee_employee.name
+
                 total_team_workers = len(all_assignments) + len(
                     all_employee_assignments
                 )
+                total_team_workers += len(agency_account_ids)
                 all_team_workers_reviewed = len(pending_team_workers) == 0
 
             # Check if both parties have now submitted reviews

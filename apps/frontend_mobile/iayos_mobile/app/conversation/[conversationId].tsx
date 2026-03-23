@@ -3094,9 +3094,13 @@ export default function ChatScreen() {
         return;
       }
 
+      const targetType = String(
+        currentWorker.target_type || "WORKER",
+      ).toUpperCase();
+      const isAgencyTarget = targetType === "AGENCY";
+
       const isEmployeeTarget =
-        String(currentWorker.target_type || "WORKER").toUpperCase() ===
-          "EMPLOYEE" ||
+        targetType === "EMPLOYEE" ||
         Boolean(currentWorker.employee_id);
 
       const overallRating =
@@ -3110,7 +3114,10 @@ export default function ChatScreen() {
         {
           job_id: conversation.job.id,
           reviewee_id: Number(
-            currentWorker.account_id ?? conversation.job.clientId ?? 0,
+            currentWorker.account_id ??
+              currentWorker.agency_account_id ??
+              conversation.job.clientId ??
+              0,
           ),
           rating_quality: ratingQuality,
           rating_communication: ratingCommunication,
@@ -3118,7 +3125,15 @@ export default function ChatScreen() {
           rating_professionalism: ratingProfessionalism,
           comment: reviewComment,
           reviewer_type: "CLIENT",
-          worker_id: isEmployeeTarget ? undefined : currentWorker.worker_id,
+          review_target: isAgencyTarget
+            ? "AGENCY"
+            : isEmployeeTarget
+              ? "EMPLOYEE"
+              : "TEAM_WORKER",
+          worker_id:
+            isEmployeeTarget || isAgencyTarget
+              ? undefined
+              : currentWorker.worker_id,
           employee_id: isEmployeeTarget ? currentWorker.employee_id : undefined,
         },
         {
@@ -3132,12 +3147,13 @@ export default function ChatScreen() {
             const reviewedName =
               data.reviewed_worker_name || currentWorker.name;
             const remaining = data.pending_team_workers || [];
+            const reviewedTargetLabel = isAgencyTarget ? "Agency" : "Worker";
 
             if (remaining.length > 0) {
               // More workers to review
               const nextWorker = remaining[0];
               Alert.alert(
-                "Worker Rated!",
+                `${reviewedTargetLabel} Rated!`,
                 `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nNow please rate ${nextWorker.name}.`,
               );
               setCurrentTeamWorkerIndex((prev) => prev + 1);
@@ -3149,7 +3165,7 @@ export default function ChatScreen() {
               refetch();
               Alert.alert(
                 "All Done!",
-                `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nThank you for reviewing all ${data.total_team_workers || allWorkers.length} team workers!`,
+                `You gave ${reviewedName} a ${overallRating.toFixed(1)}-star rating.\n\nThank you for submitting all required team reviews!`,
               );
             }
           },
@@ -9515,6 +9531,11 @@ export default function ChatScreen() {
                           const currentWorkerName =
                             currentWorker?.name || "Worker";
                           const currentWorkerSkill = currentWorker?.skill || "";
+                          const currentTargetType = String(
+                            currentWorker?.target_type || "WORKER",
+                          ).toUpperCase();
+                          const currentTargetLabel =
+                            currentTargetType === "AGENCY" ? "agency" : "worker";
 
                           return (
                             <>
@@ -9522,7 +9543,9 @@ export default function ChatScreen() {
                                 Rate {currentWorkerName}
                               </Text>
                               <Text style={styles.reviewSubtitle}>
-                                How did {currentWorkerName} perform on this job?
+                                {currentTargetType === "AGENCY"
+                                  ? `How was your experience with ${currentWorkerName}?`
+                                  : `How did ${currentWorkerName} perform on this job?`}
                                 {currentWorkerSkill
                                   ? ` (${currentWorkerSkill})`
                                   : ""}
@@ -9551,7 +9574,8 @@ export default function ChatScreen() {
                                         color={Colors.primary}
                                       />
                                       <Text style={styles.stepIndicatorText}>
-                                        Worker {reviewedCount + 1} of {totalWorkers}
+                                        {currentTargetLabel.charAt(0).toUpperCase() +
+                                          currentTargetLabel.slice(1)} {reviewedCount + 1} of {totalWorkers}
                                       </Text>
                                     </View>
                                   </View>
