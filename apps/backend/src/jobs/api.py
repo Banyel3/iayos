@@ -13729,11 +13729,14 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     with db_transaction.atomic():
         job.qa_day_offset = new_offset
         job_changed_fields = ["qa_day_offset", "updatedAt"]
+        reset_next_day_attendance_rows = 0
 
         # DAILY team QA skip should advance to a fresh effective day. Reset
         # non-early-completed per-assignment completion flags so the next day
         # does not inherit stale "completed" UI state.
         if is_daily and job.is_team_job and not job.clientMarkedComplete:
+            from accounts.models import DailyAttendance
+
             JobWorkerAssignment.objects.filter(
                 jobID=job,
                 assignment_status__in=["ACTIVE", "COMPLETED"],
@@ -13775,6 +13778,57 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 clientApprovedAt=None,
             )
 
+            # If this effective date was already exercised in prior QA runs,
+            # normalize existing attendance rows so the new cycle starts unpaid.
+            active_worker_assignment_ids = list(
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                    early_completed=False,
+                ).values_list("assignmentID", flat=True)
+            )
+            active_worker_ids = list(
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                    early_completed=False,
+                ).values_list("workerID_id", flat=True)
+            )
+            active_employee_ids = list(
+                JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    skill_slot__isnull=False,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    early_completed=False,
+                ).values_list("employee_id", flat=True)
+            )
+
+            stale_next_day_attendance = DailyAttendance.objects.filter(
+                jobID=job,
+                date=new_effective_date,
+            ).filter(
+                Q(assignmentID_id__in=active_worker_assignment_ids)
+                | Q(workerID_id__in=active_worker_ids)
+                | Q(employeeID_id__in=active_employee_ids)
+            )
+
+            reset_next_day_attendance_rows = stale_next_day_attendance.update(
+                status="DISPATCHED",
+                worker_confirmed=False,
+                worker_confirmed_at=None,
+                client_confirmed=False,
+                client_confirmed_at=None,
+                payment_processed=False,
+                payment_processed_at=None,
+                payment_method=None,
+                cash_payment_proof_url=None,
+                cash_proof_uploaded_at=None,
+                cash_payment_verified=False,
+                cash_payment_verified_at=None,
+                time_in=None,
+                time_out=None,
+            )
+
             if job.workerMarkedComplete:
                 job.workerMarkedComplete = False
                 job.workerMarkedCompleteAt = None
@@ -13811,6 +13865,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
             "day_offset": new_offset,
             "max_offset": max_offset,
             "effective_work_date": new_effective_date.isoformat(),
+            "reset_next_day_attendance_rows": int(reset_next_day_attendance_rows),
         },
     }
 
