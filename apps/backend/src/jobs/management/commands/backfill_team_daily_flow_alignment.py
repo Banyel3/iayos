@@ -66,6 +66,7 @@ class Command(BaseCommand):
         rows = DailyAttendance.objects.filter(
             jobID__is_team_job=True,
             jobID__payment_model="DAILY",
+            jobID__duration_days__gt=1,
             jobID__status__in=["ACTIVE", "IN_PROGRESS", "COMPLETED"],
             payment_processed=False,
             status__in=["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"],
