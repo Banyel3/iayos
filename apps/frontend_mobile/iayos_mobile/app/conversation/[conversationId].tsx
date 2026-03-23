@@ -1884,6 +1884,10 @@ export default function ChatScreen() {
               jobId: conversation.job.id,
               assignmentId,
               notes: undefined,
+            }, {
+              onSuccess: async () => {
+                await refetch();
+              },
             });
           },
         },
