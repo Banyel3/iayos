@@ -185,6 +185,7 @@ export default function ChatScreen() {
     "submit" | "view" | "edit"
   >("submit");
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [teamArrivalExpanded, setTeamArrivalExpanded] = useState(true);
   const submitReportMutation = useSubmitReport();
   const [countdownConfig, setCountdownConfig] = useState<{
     visible: boolean;
@@ -6704,23 +6705,27 @@ export default function ChatScreen() {
 
                   return (
                     <View style={styles.teamProjectArrivalSection}>
-                      <View style={styles.teamArrivalHeader}>
+                      <TouchableOpacity
+                        style={styles.teamArrivalHeader}
+                        onPress={() => setTeamArrivalExpanded((prev) => !prev)}
+                        activeOpacity={0.7}
+                      >
                         <Text style={styles.teamArrivalTitle}>
                           Team Arrival Status
                         </Text>
-                        <Text style={styles.teamArrivalProgress}>
-                          {arrivedCount}/{assignments.length} arrived
-                        </Text>
-                      </View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text style={styles.teamArrivalProgress}>
+                            {arrivedCount}/{assignments.length} arrived
+                          </Text>
+                          <Ionicons
+                            name={teamArrivalExpanded ? "chevron-up" : "chevron-down"}
+                            size={16}
+                            color={Colors.primary}
+                          />
+                        </View>
+                      </TouchableOpacity>
 
-                      <Text style={styles.teamProjectArrivalSubtext}>
-                        Confirm each worker arrival to unlock completion
-                        flow.
-                        {completedCount > 0
-                          ? ` ${completedCount}/${assignments.length} marked complete.`
-                          : ""}
-                      </Text>
-
+                      {teamArrivalExpanded && (
                       <View style={styles.teamProjectArrivalList}>
                         {assignments.map((assignment) => {
                           const firstName =
@@ -6971,6 +6976,7 @@ export default function ChatScreen() {
                           );
                         })}
                       </View>
+                      )}
                     </View>
                   );
                 })()}
@@ -7056,7 +7062,7 @@ export default function ChatScreen() {
                               color={Colors.white}
                             />
                             <Text style={styles.actionButtonText}>
-                              Mark My Work Complete (All Assigned Roles)
+                              Mark My Work Complete
                             </Text>
                           </>
                         )}
@@ -8307,17 +8313,26 @@ export default function ChatScreen() {
                     <>
                       {/* Single agency-level approve & pay button */}
                       {showApprovePayButton &&
-                        !conversation.job.clientMarkedComplete && (
+                        !conversation.job.clientMarkedComplete &&
+                        teamArrivalExpanded && (
                           <View style={styles.employeeActionsSection}>
-                            <Text style={styles.actionSectionTitle}>
-                              {isTeamAgencyJob
-                                ? "Approve & Pay Team + Agency"
-                                : "Approve & Pay Agency"}
-                            </Text>
+                            {!(isTeamAgencyJob && isDailyAgencyFlow) && (
+                              <Text style={styles.actionSectionTitle}>
+                                {isTeamAgencyJob
+                                  ? "Approve & Pay Team + Agency"
+                                  : "Approve & Pay Agency"}
+                              </Text>
+                            )}
                             <TouchableOpacity
                               style={[
                                 styles.actionButton,
-                                styles.approveCompletionButton,
+                                isTeamAgencyJob && isDailyAgencyFlow
+                                  ? {
+                                      backgroundColor: "#FFFFFF",
+                                      borderWidth: 2,
+                                      borderColor: "#00BAF1",
+                                    }
+                                  : styles.approveCompletionButton,
                               ]}
                               onPress={
                                 isTeamAgencyJob
@@ -8343,19 +8358,25 @@ export default function ChatScreen() {
                                 : approveAgencyProjectJobMutation.isPending) ? (
                                 <ActivityIndicator
                                   size="small"
-                                  color={Colors.white}
+                                  color={isTeamAgencyJob && isDailyAgencyFlow ? "#00BAF1" : Colors.white}
                                 />
                               ) : (
                                 <>
                                   <Ionicons
                                     name="wallet"
                                     size={20}
-                                    color={Colors.white}
+                                    color={isTeamAgencyJob && isDailyAgencyFlow ? "#00BAF1" : Colors.white}
                                   />
-                                  <Text style={styles.actionButtonText}>
+                                  <Text
+                                    style={
+                                      isTeamAgencyJob && isDailyAgencyFlow
+                                        ? [styles.actionButtonText, { color: "#00BAF1" }]
+                                        : styles.actionButtonText
+                                    }
+                                  >
                                     {isTeamAgencyJob
                                       ? isDailyAgencyFlow
-                                        ? `Approve & Pay (For the Day)`
+                                        ? `Approve & Pay For Today`
                                         : `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
                                       : `Approve & Pay Agency (₱${(
                                           (conversation.job.remainingPayment ??
