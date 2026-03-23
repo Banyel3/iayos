@@ -3238,7 +3238,7 @@ def get_conversation_messages(request, conversation_id: int):
                                 employee=record.employeeID,
                                 status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
                             )
-                            .order_by("-updatedAt")
+                            .order_by("-assignedAt", "-assignmentID")
                             .values_list("assignmentID", flat=True)
                             .first()
                         )
