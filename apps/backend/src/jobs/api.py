@@ -63,11 +63,13 @@ from django.db.models import Q, Sum
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional, Dict, Any
+from zoneinfo import ZoneInfo
 import os
 import re
 from django.conf import settings
 
 router = Router()
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
 
 
 def _content_policy_violation_response(field_errors: dict):
@@ -194,7 +196,7 @@ def is_testing_mode_enabled() -> bool:
 
 def get_effective_work_date(job: Job):
     """Get effective work date with TESTING-only QA offset applied."""
-    base_date = timezone.now().date()
+    base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
 
     if not is_testing_mode_enabled():
         return base_date
@@ -13783,7 +13785,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                     "day_offset": old_offset,
                     "max_offset": max_offset,
                     "effective_work_date": (
-                        timezone.now().date()
+                        timezone.localtime(timezone.now(), PH_TIMEZONE).date()
                         + timedelta(days=min(old_offset, max_offset))
                     ).isoformat(),
                 },
@@ -13795,8 +13797,9 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     if max_offset is not None:
         new_offset = min(new_offset, max_offset)
 
-    old_effective_date = timezone.now().date() + timedelta(days=old_offset)
-    new_effective_date = timezone.now().date() + timedelta(days=new_offset)
+    ph_today = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
+    old_effective_date = ph_today + timedelta(days=old_offset)
+    new_effective_date = ph_today + timedelta(days=new_offset)
 
     with db_transaction.atomic():
         job.qa_day_offset = new_offset

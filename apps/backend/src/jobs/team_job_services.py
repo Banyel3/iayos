@@ -5,6 +5,7 @@
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
+from zoneinfo import ZoneInfo
 from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.db.models import Sum, Count, Q
@@ -35,9 +36,12 @@ from jobs.rate_validation import (
 )
 
 
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
+
+
 def _get_effective_work_date(job: Job):
     """Get effective work date with TESTING-only QA offset applied."""
-    base_date = timezone.now().date()
+    base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
 
     if not bool(getattr(settings, "TESTING", False)):
         return base_date
