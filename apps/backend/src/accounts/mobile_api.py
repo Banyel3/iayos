@@ -9572,6 +9572,56 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
 
             synced_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
 
+        settlement_rows_qs = DailyAttendance.objects.filter(
+            jobID=job,
+            date=attendance.date,
+        ).exclude(status="DISPUTED")
+        payable_rows_total = settlement_rows_qs.count()
+        payable_rows_processed = settlement_rows_qs.filter(
+            payment_processed=True
+        ).count()
+        workday_settled = (
+            payable_rows_total > 0 and payable_rows_processed >= payable_rows_total
+        )
+        configured_duration_days = _derive_duration_days(job)
+        can_advance_day = (
+            configured_duration_days <= 0
+            or int(synced_days_worked or 0) < configured_duration_days
+        )
+        next_effective_work_date = (
+            attendance.date + timedelta(days=1)
+            if workday_settled and can_advance_day
+            else attendance.date
+        )
+
+        try:
+            from jobs.api import broadcast_job_status_update
+
+            broadcast_job_status_update(
+                job.jobID,
+                {
+                    "job_id": job.jobID,
+                    "event": (
+                        "daily_workday_settled"
+                        if workday_settled
+                        else "daily_attendance_confirmed"
+                    ),
+                    "attendance_id": attendance.attendanceID,
+                    "work_date": str(attendance.date),
+                    "workday_settled": bool(workday_settled),
+                    "payable_rows_total": int(payable_rows_total),
+                    "payable_rows_processed": int(payable_rows_processed),
+                    "total_days_worked": int(synced_days_worked or 0),
+                    "next_effective_work_date": str(next_effective_work_date),
+                    "timestamp": timezone.now().isoformat(),
+                },
+            )
+        except Exception as ws_error:
+            print(
+                "⚠️ [MOBILE] Client confirm attendance websocket broadcast failed: "
+                f"{str(ws_error)}"
+            )
+
         # Enhance response with worker info
         worker_name = None
         if (
@@ -9604,6 +9654,11 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
             "payment_method": attendance.payment_method,
             "cash_payment_proof_url": attendance.cash_payment_proof_url,
             "total_days_worked": synced_days_worked,
+            "workday_settled": bool(workday_settled),
+            "payable_rows_total": int(payable_rows_total),
+            "payable_rows_processed": int(payable_rows_processed),
+            "next_effective_work_date": str(next_effective_work_date),
+            "duration_days": int(configured_duration_days),
             "message": (
                 "Attendance confirmed. Day recorded for final project payout."
                 if is_project_multiday

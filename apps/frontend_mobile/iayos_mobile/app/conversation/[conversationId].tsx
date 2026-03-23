@@ -2004,6 +2004,12 @@ export default function ChatScreen() {
               }
             }
 
+            // Harden cache sync so day-state transitions render immediately.
+            await refetch();
+            setTimeout(() => {
+              void refetch();
+            }, 1200);
+
             if (settledCount > 0) {
               Toast.show({
                 type: "success",
@@ -4080,6 +4086,18 @@ export default function ChatScreen() {
   const hasAnyClientConfirmedToday = Boolean(
     conversation.attendance_today?.some((a) => Boolean(a.client_confirmed)),
   );
+  const attendanceRowsToday = Array.isArray(conversation.attendance_today)
+    ? conversation.attendance_today
+    : [];
+  const payableAttendanceRowsToday = attendanceRowsToday.filter((row: any) => {
+    const status = String(row?.status || "").toUpperCase();
+    return status !== "DISPUTED";
+  });
+  const unpaidAttendanceRowsToday = payableAttendanceRowsToday.filter(
+    (row: any) => !Boolean(row?.payment_processed),
+  );
+  const isTodayWorkdaySettled =
+    payableAttendanceRowsToday.length > 0 && unpaidAttendanceRowsToday.length === 0;
   const hasNoWorkMarkedToday = Boolean(
     myWorkerAttendanceToday &&
       myWorkerAttendanceToday.client_confirmed &&
@@ -7046,6 +7064,29 @@ export default function ChatScreen() {
                   }
 
                   // Show waiting for client approval
+                  if (
+                    conversation.job?.payment_model === "DAILY" &&
+                    isTodayWorkdaySettled
+                  ) {
+                    return (
+                      <View style={[styles.actionButton, styles.completedAction]}>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={Colors.success}
+                        />
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            { color: Colors.success },
+                          ]}
+                        >
+                          ✓ Workday settled. Waiting for next day dispatch.
+                        </Text>
+                      </View>
+                    );
+                  }
+
                   return (
                     <View style={[styles.actionButton, styles.waitingButton]}>
                       <Ionicons
@@ -8149,7 +8190,27 @@ export default function ChatScreen() {
 
                       {/* All complete - waiting for client approval */}
                       {allComplete &&
-                        !conversation.job.clientMarkedComplete && (
+                        !conversation.job.clientMarkedComplete &&
+                        (conversation.job?.payment_model === "DAILY" &&
+                        isTodayWorkdaySettled ? (
+                          <View
+                            style={[styles.actionButton, styles.completedAction]}
+                          >
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={20}
+                              color={Colors.success}
+                            />
+                            <Text
+                              style={[
+                                styles.actionButtonText,
+                                { color: Colors.success },
+                              ]}
+                            >
+                              ✓ Workday settled. Waiting for next day dispatch.
+                            </Text>
+                          </View>
+                        ) : (
                           <View
                             style={[styles.actionButton, styles.waitingButton]}
                           >
@@ -8163,7 +8224,7 @@ export default function ChatScreen() {
                               approve & pay
                             </Text>
                           </View>
-                        )}
+                        ))}
                     </>
                   );
                 })()}
@@ -8235,7 +8296,10 @@ export default function ChatScreen() {
                     allFreelancersComplete;
 
                   const showApprovePayButton = isDailyAgencyFlow
-                    ? allComplete && allFreelancersComplete
+                    ?
+                        allComplete &&
+                        allFreelancersComplete &&
+                        !isTodayWorkdaySettled
                     : allWorkflowComplete;
 
                   return (
