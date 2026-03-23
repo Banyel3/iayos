@@ -1658,11 +1658,18 @@ class Job(models.Model):
 
     def infer_agency_flow_mode(self):
         """Infer agency flow mode for legacy rows where agency_flow_mode is null."""
+        # Structural detection for legacy rows where is_team_job can be stale:
+        # if this job has skill slots or slot assignments, it behaves as TEAM_SLOT.
+        has_team_structure = (
+            self.skill_slots.exists()
+            or self.worker_assignments.exists()
+            or self.employee_assignments.filter(skill_slot__isnull=False).exists()
+        )
+
+        if has_team_structure or self.is_team_job:
+            return self.AgencyFlowMode.TEAM_SLOT
+
         if not self.assignedAgencyFK_id:
-            # Pure freelancer team jobs (no agency assigned) still use team-slot
-            # lifecycle and must be classified as TEAM_SLOT.
-            if self.is_team_job:
-                return self.AgencyFlowMode.TEAM_SLOT
             return None
 
         if self.is_team_job:
