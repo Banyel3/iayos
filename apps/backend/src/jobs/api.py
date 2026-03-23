@@ -14225,8 +14225,12 @@ def finish_daily_job(request, job_id: int):
             jobID=job,
             payment_processed=False,
             worker_confirmed=True,
-            worker_marked_complete=True,
             status__in=["PENDING", "PRESENT", "HALF_DAY"],
+        ).filter(
+            Q(time_out__isnull=False)
+            | Q(client_confirmed=True)
+            | Q(assignmentID__worker_marked_complete=True)
+            | Q(assignmentID__assignment_status="COMPLETED")
         ).order_by("date", "attendanceID")
 
         for attendance in completion_unprocessed_rows:

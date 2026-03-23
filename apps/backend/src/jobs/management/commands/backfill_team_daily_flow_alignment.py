@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from accounts.models import DailyAttendance
+from accounts.models import DailyAttendance, JobEmployeeAssignment
 from jobs.daily_payment_service import DailyPaymentService
 
 
@@ -66,15 +66,9 @@ class Command(BaseCommand):
         rows = DailyAttendance.objects.filter(
             jobID__is_team_job=True,
             jobID__payment_model="DAILY",
-            jobID__status__in=["ACTIVE", "IN_PROGRESS"],
-            worker_confirmed=True,
+            jobID__status__in=["ACTIVE", "IN_PROGRESS", "COMPLETED"],
             payment_processed=False,
             status__in=["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"],
-        ).filter(
-            Q(time_out__isnull=False)
-            | Q(client_confirmed=True)
-            | Q(assignmentID__worker_marked_complete=True)
-            | Q(assignmentID__assignment_status="COMPLETED")
         ).select_related(
             "jobID",
             "jobID__clientID__profileID__accountFK",
@@ -100,8 +94,43 @@ class Command(BaseCommand):
         for attendance in rows:
             inspected += 1
 
+            assignment_complete_signal = bool(
+                attendance.assignmentID
+                and (
+                    attendance.assignmentID.worker_marked_complete
+                    or attendance.assignmentID.assignment_status == "COMPLETED"
+                )
+            )
+
+            employee_complete_signal = False
+            if attendance.employeeID_id:
+                employee_complete_signal = JobEmployeeAssignment.objects.filter(
+                    job=attendance.jobID,
+                    employee=attendance.employeeID,
+                ).filter(
+                    Q(employeeMarkedComplete=True) | Q(status="COMPLETED")
+                ).exists()
+
+            completion_signal = bool(
+                attendance.time_out
+                or attendance.client_confirmed
+                or assignment_complete_signal
+                or employee_complete_signal
+            )
+
+            if not completion_signal:
+                if not execute:
+                    self.stdout.write(
+                        (
+                            f"attendance#{attendance.attendanceID} job#{attendance.jobID_id} "
+                            "skipped=no_completion_signal"
+                        )
+                    )
+                continue
+
             needs_timeout = attendance.time_out is None
             needs_status_normalize = attendance.status in ["PENDING", "DISPATCHED"]
+            needs_worker_confirm = not attendance.worker_confirmed
             needs_client_confirm = not attendance.client_confirmed
             needs_amount = (
                 needs_status_normalize
@@ -111,6 +140,7 @@ class Command(BaseCommand):
             if (
                 needs_timeout
                 or needs_status_normalize
+                or needs_worker_confirm
                 or needs_client_confirm
                 or needs_amount
             ):
@@ -121,6 +151,7 @@ class Command(BaseCommand):
                     (
                         f"attendance#{attendance.attendanceID} job#{attendance.jobID_id} "
                         f"status={attendance.status} needs_timeout={needs_timeout} "
+                        f"needs_worker_confirm={needs_worker_confirm} "
                         f"needs_client_confirm={needs_client_confirm}"
                     )
                 )
@@ -142,6 +173,15 @@ class Command(BaseCommand):
                             or now
                         )
                         update_fields.append("time_out")
+
+                    if needs_worker_confirm:
+                        attendance.worker_confirmed = True
+                        if attendance.worker_confirmed_at is None:
+                            attendance.worker_confirmed_at = now
+                        update_fields.extend([
+                            "worker_confirmed",
+                            "worker_confirmed_at",
+                        ])
 
                     if needs_status_normalize:
                         attendance.status = "PRESENT"
