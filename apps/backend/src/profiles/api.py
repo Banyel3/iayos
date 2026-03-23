@@ -67,6 +67,12 @@ def _get_job_agency_flow_mode(job):
     if raw_mode in {"DIRECT", "TEAM_SLOT"}:
         return raw_mode
 
+    # Fallback for legacy rows where agency_flow_mode is not persisted yet.
+    # Team jobs must always be treated as TEAM_SLOT, including pure freelancer
+    # team jobs that do not have an assigned agency.
+    if getattr(job, "is_team_job", False):
+        return "TEAM_SLOT"
+
     if getattr(job, "assignedAgencyFK_id", None) and getattr(job, "is_team_job", False):
         return "TEAM_SLOT"
     if getattr(job, "assignedAgencyFK_id", None):
