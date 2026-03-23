@@ -6814,6 +6814,24 @@ export default function ChatScreen() {
                                       </Text>
                                     </View>
 
+                                    {/* Paid early inline status */}
+                                    {assignment.early_completed && (
+                                      <Text
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: "600",
+                                          color: Colors.success,
+                                          marginTop: 3,
+                                        }}
+                                      >
+                                        Paid early (₱
+                                        {Number(
+                                          assignment.early_completion_payout ?? 0,
+                                        ).toLocaleString()}
+                                        )
+                                      </Text>
+                                    )}
+
                                     {/* Finish & Pay button below Completed badge */}
                                     {isAnyMultiDayFlow &&
                                       isComplete &&
@@ -6949,35 +6967,6 @@ export default function ChatScreen() {
                                 )}
                               </View>
 
-                              {/* Already early-completed badge */}
-                              {assignment.early_completed && (
-                                <View
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                    { marginTop: 4 },
-                                  ]}
-                                >
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={16}
-                                    color={Colors.success}
-                                  />
-                                  <Text
-                                    style={[
-                                      styles.waitingButtonText,
-                                      { color: Colors.success },
-                                    ]}
-                                  >
-                                    {assignment.name?.split(" ")[0]} — Paid
-                                    early (₱
-                                    {Number(
-                                      assignment.early_completion_payout ?? 0,
-                                    ).toLocaleString()}
-                                    )
-                                  </Text>
-                                </View>
-                              )}
                             </View>
                           );
                         })}
