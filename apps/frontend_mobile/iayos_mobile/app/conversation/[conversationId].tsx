@@ -6780,37 +6780,143 @@ export default function ChatScreen() {
                                 </View>
 
                                 {isArrived ? (
-                                  <View
-                                    style={[
-                                      styles.teamProjectStatusBadge,
-                                      isComplete
-                                        ? styles.teamProjectStatusBadgeComplete
-                                        : styles.teamProjectStatusBadgeArrived,
-                                    ]}
-                                  >
-                                    <Ionicons
-                                      name={
-                                        isComplete
-                                          ? "checkmark-done-circle"
-                                          : "checkmark-circle"
-                                      }
-                                      size={14}
-                                      color={
-                                        isComplete
-                                          ? Colors.success
-                                          : Colors.primary
-                                      }
-                                    />
-                                    <Text
+                                  <View style={{ alignItems: "flex-end" }}>
+                                    <View
                                       style={[
-                                        styles.teamProjectStatusText,
+                                        styles.teamProjectStatusBadge,
                                         isComplete
-                                          ? styles.teamProjectStatusTextComplete
-                                          : styles.teamProjectStatusTextArrived,
+                                          ? styles.teamProjectStatusBadgeComplete
+                                          : styles.teamProjectStatusBadgeArrived,
                                       ]}
                                     >
-                                      {statusLabel}
-                                    </Text>
+                                      <Ionicons
+                                        name={
+                                          isComplete
+                                            ? "checkmark-done-circle"
+                                            : "checkmark-circle"
+                                        }
+                                        size={14}
+                                        color={
+                                          isComplete
+                                            ? Colors.success
+                                            : Colors.primary
+                                        }
+                                      />
+                                      <Text
+                                        style={[
+                                          styles.teamProjectStatusText,
+                                          isComplete
+                                            ? styles.teamProjectStatusTextComplete
+                                            : styles.teamProjectStatusTextArrived,
+                                        ]}
+                                      >
+                                        {statusLabel}
+                                      </Text>
+                                    </View>
+
+                                    {/* Paid early inline status */}
+                                    {assignment.early_completed && (
+                                      <Text
+                                        style={{
+                                          fontSize: 10,
+                                          fontWeight: "600",
+                                          color: Colors.success,
+                                          marginTop: 3,
+                                        }}
+                                      >
+                                        Paid early (₱
+                                        {Number(
+                                          assignment.early_completion_payout ?? 0,
+                                        ).toLocaleString()}
+                                        )
+                                      </Text>
+                                    )}
+
+                                    {/* Finish & Pay button below Completed badge */}
+                                    {isAnyMultiDayFlow &&
+                                      isComplete &&
+                                      assignment.can_early_finish &&
+                                      !assignment.early_completed && (
+                                        <TouchableOpacity
+                                          style={{
+                                            backgroundColor: "#00BAF1",
+                                            borderRadius: 6,
+                                            paddingVertical: 4,
+                                            paddingHorizontal: 10,
+                                            marginTop: 4,
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                          }}
+                                          onPress={() => {
+                                            const quote =
+                                              assignment.early_finish_quote != null
+                                                ? `₱${Number(assignment.early_finish_quote).toLocaleString()}`
+                                                : "full contracted amount";
+                                            Alert.alert(
+                                              "Finish & Pay",
+                                              `Release ${quote} to ${assignment.name?.split(" ")[0] || "this worker"} now and mark them done?`,
+                                              [
+                                                { text: "Cancel", style: "cancel" },
+                                                {
+                                                  text: "Confirm",
+                                                  style: "destructive",
+                                                  onPress: () => {
+                                                    const jobId = conversation.job.id;
+                                                    const assignmentId = Number(
+                                                      assignment.assignment_id,
+                                                    );
+                                                    if (!Number.isFinite(assignmentId)) {
+                                                      return;
+                                                    }
+                                                    if (assignment.type === "AGENCY") {
+                                                      earlyCompleteTeamEmployeeMutation.mutate({
+                                                        jobId,
+                                                        assignmentId,
+                                                      });
+                                                    } else {
+                                                      if (
+                                                        conversation.job?.payment_model === "DAILY"
+                                                      ) {
+                                                        earlyCompleteTeamWorkerDailyMutation.mutate(
+                                                          { jobId, assignmentId },
+                                                        );
+                                                      } else {
+                                                        earlyCompleteTeamWorkerProjectMutation.mutate(
+                                                          { jobId, assignmentId },
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                },
+                                              ],
+                                            );
+                                          }}
+                                          disabled={
+                                            earlyCompleteTeamEmployeeMutation.isPending ||
+                                            earlyCompleteTeamWorkerDailyMutation.isPending ||
+                                            earlyCompleteTeamWorkerProjectMutation.isPending
+                                          }
+                                        >
+                                          {earlyCompleteTeamEmployeeMutation.isPending ||
+                                          earlyCompleteTeamWorkerDailyMutation.isPending ||
+                                          earlyCompleteTeamWorkerProjectMutation.isPending ? (
+                                            <ActivityIndicator
+                                              size="small"
+                                              color="#fff"
+                                            />
+                                          ) : (
+                                            <Text
+                                              style={{
+                                                color: "#fff",
+                                                fontSize: 11,
+                                                fontWeight: "600",
+                                              }}
+                                            >
+                                              Finish & Pay
+                                            </Text>
+                                          )}
+                                        </TouchableOpacity>
+                                      )}
                                   </View>
                                 ) : (
                                   <TouchableOpacity
@@ -6861,127 +6967,6 @@ export default function ChatScreen() {
                                 )}
                               </View>
 
-                              {/* Per-worker Complete Job Early & Pay button */}
-                              {/* Per-assignment early finish & pay button for both freelancer and agency rows */}
-                              {isAnyMultiDayFlow &&
-                                assignment.can_early_finish &&
-                                assignment.marked_complete &&
-                                !assignment.early_completed && (
-                                  <TouchableOpacity
-                                    style={[
-                                      styles.actionButton,
-                                      styles.approveCompletionButton,
-                                      { marginTop: 6 },
-                                    ]}
-                                    onPress={() => {
-                                      const quote =
-                                        assignment.early_finish_quote != null
-                                          ? `₱${Number(assignment.early_finish_quote).toLocaleString()}`
-                                          : "full contracted amount";
-                                      Alert.alert(
-                                        "Complete Job Early & Pay",
-                                        `Release ${quote} to ${assignment.name?.split(" ")[0] || "this worker"} now and mark them done?`,
-                                        [
-                                          { text: "Cancel", style: "cancel" },
-                                          {
-                                            text: "Confirm",
-                                            style: "destructive",
-                                            onPress: () => {
-                                              const jobId =
-                                                conversation.job.id;
-                                              const assignmentId = Number(
-                                                assignment.assignment_id,
-                                              );
-                                              if (
-                                                !Number.isFinite(assignmentId)
-                                              ) {
-                                                return;
-                                              }
-                                              if (assignment.type === "AGENCY") {
-                                                earlyCompleteTeamEmployeeMutation.mutate({
-                                                  jobId,
-                                                  assignmentId,
-                                                });
-                                              } else {
-                                                if (
-                                                  conversation.job
-                                                    ?.payment_model === "DAILY"
-                                                ) {
-                                                  earlyCompleteTeamWorkerDailyMutation.mutate(
-                                                    { jobId, assignmentId },
-                                                  );
-                                                } else {
-                                                  earlyCompleteTeamWorkerProjectMutation.mutate(
-                                                    { jobId, assignmentId },
-                                                  );
-                                                }
-                                              }
-                                            },
-                                          },
-                                        ],
-                                      );
-                                    }}
-                                    disabled={
-                                      earlyCompleteTeamEmployeeMutation.isPending ||
-                                      earlyCompleteTeamWorkerDailyMutation.isPending ||
-                                      earlyCompleteTeamWorkerProjectMutation.isPending
-                                    }
-                                  >
-                                    {earlyCompleteTeamEmployeeMutation.isPending ||
-                                    earlyCompleteTeamWorkerDailyMutation.isPending ||
-                                    earlyCompleteTeamWorkerProjectMutation.isPending ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <>
-                                        <Ionicons
-                                          name="flash"
-                                          size={16}
-                                          color={Colors.white}
-                                        />
-                                        <Text style={styles.actionButtonText}>
-                                          Complete Job Early & Pay (
-                                          {assignment.early_finish_quote != null
-                                            ? `₱${Number(assignment.early_finish_quote).toLocaleString()}`
-                                            : "full amount"}
-                                          )
-                                        </Text>
-                                      </>
-                                    )}
-                                  </TouchableOpacity>
-                                )}
-
-                              {/* Already early-completed badge */}
-                              {assignment.early_completed && (
-                                <View
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                    { marginTop: 4 },
-                                  ]}
-                                >
-                                  <Ionicons
-                                    name="checkmark-circle"
-                                    size={16}
-                                    color={Colors.success}
-                                  />
-                                  <Text
-                                    style={[
-                                      styles.waitingButtonText,
-                                      { color: Colors.success },
-                                    ]}
-                                  >
-                                    {assignment.name?.split(" ")[0]} — Paid
-                                    early (₱
-                                    {Number(
-                                      assignment.early_completion_payout ?? 0,
-                                    ).toLocaleString()}
-                                    )
-                                  </Text>
-                                </View>
-                              )}
                             </View>
                           );
                         })}
@@ -11797,7 +11782,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#E3F2FD",
   },
   teamProjectStatusBadgeComplete: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "transparent",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   teamProjectStatusText: {
     ...Typography.body.small,
