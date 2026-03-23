@@ -2,6 +2,7 @@
 // 1-on-1 messaging with real-time updates, image uploads, and offline support
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "../../lib/utils/parse-api-error";
 import {
   View,
@@ -121,6 +122,7 @@ import {
 import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import Toast from "react-native-toast-message";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
 
 type EditableReviewTarget = {
@@ -802,6 +804,7 @@ export default function ChatScreen() {
   }, []);
 
   // Send message mutation
+  const queryClient = useQueryClient();
   const sendMutation = useSendMessageMutation();
 
   // Job action mutations
@@ -2015,6 +2018,13 @@ export default function ChatScreen() {
                 // Keep going so one bad row does not block settling other workers.
               }
             }
+
+            queryClient.invalidateQueries({
+              queryKey: ["messages"],
+              exact: false,
+            });
+            queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
+            queryClient.invalidateQueries({ queryKey: ["wallet"] });
 
             // Harden cache sync so day-state transitions render immediately.
             const refreshed = await refetch();
