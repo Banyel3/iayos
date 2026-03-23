@@ -528,6 +528,72 @@ class DailyPaymentService:
             relatedJobID=job.jobID,
         )
 
+        # Post-payment: create a system message in the job conversation so all
+        # participants know the day has been settled and whether more days remain.
+        # Uses a savepoint so any failure here never rolls back the payment.
+        try:
+            with transaction.atomic():
+                from profiles.models import (  # lazy import — avoids circular dependency
+                    Conversation,
+                    Message as ConversationMessage,
+                )
+
+                conversation = Conversation.objects.filter(relatedJobPosting=job).first()
+                if conversation:
+                    paid_dates_count = (
+                        DailyAttendance.objects.filter(jobID=job, payment_processed=True)
+                        .values("date")
+                        .distinct()
+                        .count()
+                    )
+                    planned_days = int(getattr(job, "duration_days", 0) or 1)
+                    remaining_days = max(0, planned_days - paid_dates_count)
+
+                    # Resolve worker display name
+                    worker_name = "Worker"
+                    try:
+                        if attendance.workerID:
+                            p = attendance.workerID.profileID
+                            worker_name = (
+                                f"{p.firstName} {p.lastName}".strip() or "Worker"
+                            )
+                        elif attendance.employeeID:
+                            agency_acc = attendance.employeeID.agency
+                            worker_name = (
+                                f"{agency_acc.first_name} {agency_acc.last_name}".strip()
+                                or "Agency"
+                            )
+                    except Exception:
+                        pass
+
+                    amount_str = f"₱{amount:,.2f}"
+                    date_str = attendance.date.strftime("%B %d, %Y")
+
+                    if remaining_days == 0:
+                        msg_text = (
+                            f"✅ Day {paid_dates_count} payment of {amount_str} processed"
+                            f" for {worker_name} ({date_str}). All {planned_days} planned"
+                            f" day(s) have been paid — once all workers are confirmed,"
+                            f" the client can finalize and close the job."
+                        )
+                    else:
+                        msg_text = (
+                            f"✅ Day {paid_dates_count} payment of {amount_str} processed"
+                            f" for {worker_name} ({date_str}). {remaining_days} day(s)"
+                            f" remaining — workers will be able to check in on the next"
+                            f" scheduled work day."
+                        )
+
+                    ConversationMessage.objects.create(
+                        conversationID=conversation,
+                        sender=None,
+                        senderAgency=None,
+                        messageText=msg_text,
+                        messageType="SYSTEM",
+                    )
+        except Exception:
+            pass  # Never let message creation block payment processing
+
         return {
             "success": True,
             "amount": float(amount),
