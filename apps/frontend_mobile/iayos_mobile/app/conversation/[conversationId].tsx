@@ -2053,29 +2053,11 @@ export default function ChatScreen() {
                 });
               }
 
-              // On the final day of the job, automatically finish/close it.
-              if (reachedConfiguredDuration || reachedQaOffsetLimit) {
-                try {
-                  await dailyFinishJobMutation.mutateAsync({
-                    jobId: conversation.job.id,
-                  });
-                } catch (finishError) {
-                  const errorMsg =
-                    finishError instanceof Error
-                      ? finishError.message
-                      : "Failed to close job after settlement.";
-                  Alert.alert(
-                    "Settlement OK, Job Close Failed",
-                    `Attendance was paid but the job could not be closed:\n\n${errorMsg}\n\nPlease try again or contact support.`,
-                  );
-                }
-              } else {
-                Toast.show({
-                  type: "success",
-                  text1: "Workday Settled",
-                  text2: `${settledCount} attendance row(s) confirmed and paid`,
-                });
-              }
+              Toast.show({
+                type: "success",
+                text1: "Workday Settled",
+                text2: `${settledCount} attendance row(s) confirmed and paid`,
+              });
             } else if (settledCount > 0) {
               const failedCount = failedAttendanceIds.length;
               Alert.alert(
