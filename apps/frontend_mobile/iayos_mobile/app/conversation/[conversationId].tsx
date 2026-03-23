@@ -94,7 +94,6 @@ import MessageBubble from "../../components/MessageBubble";
 import MessageInput from "../../components/MessageInput";
 import { ImageMessage } from "../../components/ImageMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
-import { EstimatedTimeCard } from "../../components";
 import JobReceiptModal from "../../components/JobReceiptModal";
 import {
   useApproveMaterialPurchase,
@@ -4689,21 +4688,14 @@ export default function ChatScreen() {
                 <Text style={styles.jobBudget}>
                   ₱{conversation.job.budget.toLocaleString()}
                 </Text>
-                {/* ML Estimated Completion Time - Compact mode */}
-                {(isLoading ||
-                  (conversation.job.estimatedCompletion &&
-                    !isJobCompleted)) && (
-                  <EstimatedTimeCard
-                    prediction={conversation?.job?.estimatedCompletion || null}
-                    compact={true}
-                    countdownMode={isJobInProgress}
-                    jobStartTime={
-                      conversation?.job?.clientConfirmedWorkStarted
-                        ? new Date().toISOString()
-                        : undefined
-                    }
-                    isLoading={isLoading}
-                  />
+                {/* Day indicator for multi-day jobs */}
+                {isAnyMultiDayFlow && (
+                  <View style={styles.dayIndicator}>
+                    <Ionicons name="calendar-outline" size={13} color={Colors.primary} />
+                    <Text style={styles.dayIndicatorText}>
+                      Day {Math.min(effectiveWorkedDays + 1, effectiveDurationDays)}/{effectiveDurationDays}
+                    </Text>
+                  </View>
                 )}
               </View>
             </TouchableOpacity>
@@ -11570,6 +11562,17 @@ const styles = StyleSheet.create({
     ...Typography.body.small,
     fontSize: 13,
     fontWeight: "700",
+    color: Colors.primary,
+  },
+  dayIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  dayIndicatorText: {
+    ...Typography.body.small,
+    fontSize: 13,
+    fontWeight: "600",
     color: Colors.primary,
   },
   jobRole: {
