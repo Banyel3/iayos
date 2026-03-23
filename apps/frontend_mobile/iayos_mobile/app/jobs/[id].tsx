@@ -14,6 +14,9 @@ import {
   Platform,
   ActionSheetIOS,
   Linking,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -333,6 +336,106 @@ const WORKER_PAYMENT_INFO_ITEMS = [
   },
 ];
 
+// Inline negotiation thread for client's application cards
+function ClientNegotiationThread({ applicationId, paymentModel }: { applicationId: number; paymentModel?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data, isLoading } = useQuery<{
+    thread: Array<{
+      negotiation_id: number;
+      actor: "WORKER" | "CLIENT";
+      proposed_budget: number;
+      proposed_daily_rate: number | null;
+      proposed_days: number | null;
+      message: string;
+      status: string;
+      created_at: string;
+    }>;
+  }>({
+    queryKey: ["negotiation-thread", applicationId],
+    queryFn: async () => {
+      const response = await apiRequest(ENDPOINTS.NEGOTIATION_THREAD(applicationId));
+      if (!response.ok) throw new Error("Failed to fetch");
+      return response.json() as Promise<{ thread: Array<any> }>;
+    },
+    enabled: expanded,
+  });
+
+  const thread = data?.thread ?? [];
+
+  return (
+    <View style={{ marginTop: 8 }}>
+      <TouchableOpacity
+        onPress={() => setExpanded(!expanded)}
+        activeOpacity={0.7}
+        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 }}
+      >
+        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={Colors.primary} />
+        <Text style={{ fontSize: 13, color: Colors.primary, fontWeight: "600" }}>
+          {expanded ? "Hide" : "View"} Negotiation History
+        </Text>
+      </TouchableOpacity>
+
+      {expanded && (
+        isLoading ? (
+          <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 8 }} />
+        ) : thread.length === 0 ? (
+          <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 4 }}>No negotiation entries yet.</Text>
+        ) : (
+          <View style={{ marginTop: 6, backgroundColor: Colors.background, borderRadius: 8, padding: 10 }}>
+            {thread.map((round, index) => (
+              <View
+                key={round.negotiation_id}
+                style={{
+                  paddingBottom: index < thread.length - 1 ? 8 : 0,
+                  marginBottom: index < thread.length - 1 ? 8 : 0,
+                  borderBottomWidth: index < thread.length - 1 ? 1 : 0,
+                  borderBottomColor: Colors.border,
+                }}
+              >
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                  <View style={{
+                    flexDirection: "row", alignItems: "center", gap: 4,
+                    backgroundColor: round.actor === "CLIENT" ? "#E8F4FD" : "#FFF3CD",
+                    paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8,
+                  }}>
+                    <Ionicons
+                      name={round.actor === "CLIENT" ? "person" : "construct"}
+                      size={10}
+                      color={round.actor === "CLIENT" ? Colors.primary : Colors.warning}
+                    />
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: round.actor === "CLIENT" ? Colors.primary : Colors.warning }}>
+                      {round.actor === "CLIENT" ? "You" : "Worker"}
+                    </Text>
+                  </View>
+                  <Text style={{
+                    fontSize: 10, fontWeight: "600",
+                    color: round.status === "PENDING" ? Colors.warning
+                      : round.status === "ACCEPTED" ? Colors.success
+                      : round.status === "COUNTERED" ? Colors.primary
+                      : Colors.textSecondary,
+                  }}>
+                    {round.status}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: "700", color: Colors.textPrimary }}>
+                  {paymentModel === "DAILY" && round.proposed_daily_rate && round.proposed_days
+                    ? `₱${round.proposed_daily_rate.toLocaleString()}/day × ${round.proposed_days} days`
+                    : `₱${round.proposed_budget.toLocaleString()}`}
+                </Text>
+                {round.message ? (
+                  <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }} numberOfLines={2}>
+                    {round.message}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        )
+      )}
+    </View>
+  );
+}
+
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, switchProfile, checkAuth } = useAuth();
@@ -398,6 +501,13 @@ export default function JobDetailScreen() {
   const [counterOfferRate, setCounterOfferRate] = useState("");
   const [counterOfferDays, setCounterOfferDays] = useState("");
   const [counterOfferAmount, setCounterOfferAmount] = useState("");
+
+  // Worker propose/re-propose state
+  const [showWorkerProposeModal, setShowWorkerProposeModal] = useState(false);
+  const [workerProposeAmount, setWorkerProposeAmount] = useState("");
+  const [workerProposeDailyRate, setWorkerProposeDailyRate] = useState("");
+  const [workerProposeDays, setWorkerProposeDays] = useState("");
+  const [workerProposeMessage, setWorkerProposeMessage] = useState("");
 
   // Team Job state
   const [showTeamApplyModal, setShowTeamApplyModal] = useState(false);
@@ -636,12 +746,22 @@ export default function JobDetailScreen() {
     hasApplied: boolean;
     hasAcceptedApplication: boolean;
     appliedSlotIds: number[];
+    applicationId: number | null;
+    negotiationCount: number;
+    proposalsRemaining: number;
+    budgetOption: string | null;
+    hasPendingCounter: boolean;
   }>({
     queryKey: ["jobs", id, "applied"],
     queryFn: async (): Promise<{
       hasApplied: boolean;
       hasAcceptedApplication: boolean;
       appliedSlotIds: number[];
+      applicationId: number | null;
+      negotiationCount: number;
+      proposalsRemaining: number;
+      budgetOption: string | null;
+      hasPendingCounter: boolean;
     }> => {
       const normalizeId = (value: unknown): number | null => {
         const parsed = Number(value);
@@ -681,6 +801,11 @@ export default function JobDetailScreen() {
           hasApplied: false,
           hasAcceptedApplication: false,
           appliedSlotIds: [],
+          applicationId: null,
+          negotiationCount: 0,
+          proposalsRemaining: 0,
+          budgetOption: null,
+          hasPendingCounter: false,
         };
       }
 
@@ -708,12 +833,26 @@ export default function JobDetailScreen() {
               .filter((slotId): slotId is number => slotId !== null),
           ),
         );
-        return { hasApplied, hasAcceptedApplication, appliedSlotIds };
+        // Extract the first active application's details for negotiation navigation
+        const firstActive = activeJobApplications[0];
+        const applicationId = firstActive
+          ? normalizeId(firstActive.application_id ?? firstActive.applicationId)
+          : null;
+        const negotiationCount = Number(firstActive?.negotiation_count ?? firstActive?.negotiationCount ?? 0);
+        const proposalsRemaining = Number(firstActive?.proposals_remaining ?? firstActive?.proposalsRemaining ?? 0);
+        const budgetOption = firstActive?.budget_option ?? firstActive?.budgetOption ?? null;
+        const hasPendingCounter = !!firstActive?.has_pending_counter;
+        return { hasApplied, hasAcceptedApplication, appliedSlotIds, applicationId, negotiationCount, proposalsRemaining, budgetOption, hasPendingCounter };
       }
       return {
         hasApplied: false,
         hasAcceptedApplication: false,
         appliedSlotIds: [],
+        applicationId: null,
+        negotiationCount: 0,
+        proposalsRemaining: 0,
+        budgetOption: null,
+        hasPendingCounter: false,
       };
     },
     enabled: isWorker,
@@ -724,6 +863,118 @@ export default function JobDetailScreen() {
   const hasAcceptedApplication =
     applicationStatus?.hasAcceptedApplication ?? false;
   const appliedSlotIds = applicationStatus?.appliedSlotIds ?? [];
+  const myApplicationId = applicationStatus?.applicationId ?? null;
+  const negotiationCount = applicationStatus?.negotiationCount ?? 0;
+  const proposalsRemaining = applicationStatus?.proposalsRemaining ?? 0;
+  const myBudgetOption = applicationStatus?.budgetOption ?? null;
+  const hasPendingCounter = applicationStatus?.hasPendingCounter ?? false;
+
+  // Worker negotiation thread query
+  type NegotiationThread = {
+    thread: Array<{
+      negotiation_id: number;
+      actor: "WORKER" | "CLIENT";
+      round_number: number;
+      proposed_budget: number;
+      proposed_daily_rate: number | null;
+      proposed_days: number | null;
+      message: string;
+      status: string;
+      created_at: string;
+    }>;
+    proposals_remaining: number;
+  };
+
+  const { data: workerNegotiationData, isLoading: workerNegotiationLoading } = useQuery<NegotiationThread>({
+    queryKey: ["negotiation-thread", myApplicationId],
+    queryFn: async (): Promise<NegotiationThread> => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_THREAD(myApplicationId!)
+      );
+      if (!response.ok) throw new Error("Failed to fetch negotiation thread");
+      return response.json() as Promise<NegotiationThread>;
+    },
+    enabled: isWorker && !!myApplicationId && negotiationCount > 0,
+  });
+
+  const workerThread = workerNegotiationData?.thread ?? [];
+  const workerLastRound = workerThread.length > 0 ? workerThread[workerThread.length - 1] : null;
+  const workerClientCountered = workerLastRound?.actor === "CLIENT" && workerLastRound?.status === "PENDING";
+  const workerAwaitingResponse = workerLastRound?.actor === "WORKER" && workerLastRound?.status === "PENDING";
+  const workerProposalsRemaining = workerNegotiationData?.proposals_remaining ?? proposalsRemaining;
+  const workerProposalsExhausted = workerProposalsRemaining === 0 && negotiationCount > 0;
+  const workerCanPropose = hasApplied && !workerAwaitingResponse && !workerClientCountered && !workerProposalsExhausted;
+
+  // Worker accept counter mutation
+  const workerAcceptCounterMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_ACCEPT_COUNTER(myApplicationId!),
+        { method: "POST", body: JSON.stringify({}) }
+      );
+      if (!response.ok) {
+        const err = await response.json() as { error?: string };
+        throw new Error(err.error || "Failed to accept counter-offer");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      Alert.alert("Success", "You have accepted the client's counter-offer!");
+      queryClient.invalidateQueries({ queryKey: ["negotiation-thread", myApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
+    },
+    onError: (error: Error) => Alert.alert("Error", error.message),
+  });
+
+  // Worker propose mutation
+  const workerProposeMutation = useMutation({
+    mutationFn: async (payload: {
+      proposed_budget?: number;
+      proposed_daily_rate?: number;
+      proposed_days?: number;
+      message: string;
+    }) => {
+      const response = await apiRequest(
+        ENDPOINTS.NEGOTIATION_PROPOSE(myApplicationId!),
+        { method: "POST", body: JSON.stringify(payload) }
+      );
+      if (!response.ok) {
+        const err = await response.json() as { error?: string };
+        throw new Error(err.error || "Failed to submit proposal");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowWorkerProposeModal(false);
+      setWorkerProposeAmount("");
+      setWorkerProposeDailyRate("");
+      setWorkerProposeDays("");
+      setWorkerProposeMessage("");
+      Alert.alert("Success", "Your proposal has been submitted!");
+      queryClient.invalidateQueries({ queryKey: ["negotiation-thread", myApplicationId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
+    },
+    onError: (error: Error) => Alert.alert("Error", error.message),
+  });
+
+  const handleWorkerSubmitProposal = () => {
+    if (!workerProposeMessage.trim()) {
+      Alert.alert("Error", "Please enter a message with your proposal");
+      return;
+    }
+    const isDaily = job?.payment_model === "DAILY";
+    if (isDaily) {
+      const rate = parseFloat(workerProposeDailyRate);
+      const days = parseInt(workerProposeDays);
+      if (!rate || rate <= 0) { Alert.alert("Error", "Please enter a valid daily rate"); return; }
+      if (!days || days <= 0) { Alert.alert("Error", "Please enter a valid number of days"); return; }
+      workerProposeMutation.mutate({ proposed_daily_rate: rate, proposed_days: days, proposed_budget: rate * days, message: workerProposeMessage.trim() });
+    } else {
+      const amount = parseFloat(workerProposeAmount);
+      if (!amount || amount <= 0) { Alert.alert("Error", "Please enter a valid amount"); return; }
+      workerProposeMutation.mutate({ proposed_budget: amount, message: workerProposeMessage.trim() });
+    }
+  };
 
   // Submit application mutation
   const submitApplication = useMutation({
@@ -3689,6 +3940,14 @@ export default function JobDetailScreen() {
                       )}
                     </View>
 
+                    {/* Negotiation History (expandable) */}
+                    {application.budget_option === "NEGOTIATE" && application.negotiation_count > 0 && (
+                      <ClientNegotiationThread
+                        applicationId={application.id}
+                        paymentModel={job?.payment_model}
+                      />
+                    )}
+
                     {/* View Chat Button for Accepted Applications */}
                     {application.status === "ACCEPTED" && !job?.is_team_job && (
                       <TouchableOpacity
@@ -3755,11 +4014,11 @@ export default function JobDetailScreen() {
                               )}
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={[styles.acceptButton, { flex: 1, backgroundColor: Colors.textSecondary }]}
+                              style={[styles.rejectButton, { flex: 1, borderColor: Colors.textSecondary }]}
                               onPress={() => handleCounterOffer(application)}
                             >
-                              <Ionicons name="swap-horizontal-outline" size={16} color="#FFF" />
-                              <Text style={styles.acceptButtonText}>Counter</Text>
+                              <Ionicons name="swap-horizontal-outline" size={16} color={Colors.textSecondary} />
+                              <Text style={[styles.rejectButtonText, { color: Colors.textSecondary }]}>Counter</Text>
                             </TouchableOpacity>
                           </View>
                         )}
@@ -4423,6 +4682,206 @@ export default function JobDetailScreen() {
               </TouchableOpacity>
             </View>
           )}
+
+        {/* Worker Negotiation Section - Inline in scroll view */}
+        {isWorker && hasApplied && myApplicationId && negotiationCount > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Negotiation</Text>
+
+            {/* Proposals remaining banner */}
+            <View style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              backgroundColor: workerProposalsExhausted ? "#FFF3CD" : "#E8F4FD",
+              padding: 10,
+              borderRadius: 8,
+              marginBottom: 12,
+            }}>
+              <Ionicons
+                name={workerProposalsExhausted ? "warning-outline" : "information-circle-outline"}
+                size={16}
+                color={workerProposalsExhausted ? Colors.warning : Colors.primary}
+              />
+              <Text style={{ fontSize: 13, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontWeight: "500", flex: 1 }}>
+                {workerProposalsExhausted
+                  ? "No more proposals allowed."
+                  : `${workerProposalsRemaining} of 3 proposals remaining`}
+              </Text>
+            </View>
+
+            {/* Awaiting response banner */}
+            {workerAwaitingResponse && (
+              <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                backgroundColor: "#FFF8E1",
+                padding: 10,
+                borderRadius: 8,
+                marginBottom: 12,
+              }}>
+                <ActivityIndicator size="small" color={Colors.warning} />
+                <Text style={{ fontSize: 13, color: Colors.warning, fontWeight: "500" }}>
+                  Awaiting client response...
+                </Text>
+              </View>
+            )}
+
+            {/* Negotiation Thread */}
+            {workerNegotiationLoading ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 12 }} />
+            ) : (
+              <View style={{
+                backgroundColor: Colors.white,
+                borderRadius: 12,
+                padding: 12,
+                ...Shadows.small,
+              }}>
+                {workerThread.map((round, index) => (
+                  <View
+                    key={round.negotiation_id}
+                    style={{
+                      paddingBottom: index < workerThread.length - 1 ? 12 : 0,
+                      marginBottom: index < workerThread.length - 1 ? 12 : 0,
+                      borderBottomWidth: index < workerThread.length - 1 ? 1 : 0,
+                      borderBottomColor: Colors.border,
+                    }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: round.actor === "WORKER" ? "#E8F4FD" : "#FFF3CD", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                        <Ionicons
+                          name={round.actor === "WORKER" ? "person" : "business"}
+                          size={12}
+                          color={round.actor === "WORKER" ? Colors.primary : Colors.warning}
+                        />
+                        <Text style={{ fontSize: 12, fontWeight: "600", color: round.actor === "WORKER" ? Colors.primary : Colors.warning }}>
+                          {round.actor === "WORKER" ? "You" : "Client"}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: Colors.textSecondary }}>
+                        {new Date(round.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: round.message ? 4 : 0 }}>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: Colors.textPrimary }}>
+                        {job?.payment_model === "DAILY" && round.proposed_daily_rate && round.proposed_days
+                          ? `₱${round.proposed_daily_rate.toLocaleString()}/day × ${round.proposed_days} days`
+                          : `₱${round.proposed_budget.toLocaleString()}`}
+                      </Text>
+                      <Text style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: round.status === "PENDING" ? Colors.warning
+                          : round.status === "ACCEPTED" ? Colors.success
+                          : round.status === "COUNTERED" ? Colors.primary
+                          : Colors.textSecondary,
+                      }}>
+                        {round.status}
+                      </Text>
+                    </View>
+
+                    {round.message ? (
+                      <Text style={{ fontSize: 13, color: Colors.textSecondary, lineHeight: 18 }} numberOfLines={2}>
+                        {round.message}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Client countered — action buttons */}
+            {workerClientCountered && workerLastRound && (
+              <View style={{
+                backgroundColor: "#FFF8E1",
+                borderRadius: 12,
+                padding: 16,
+                marginTop: 12,
+                borderWidth: 1,
+                borderColor: Colors.warning,
+              }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: Colors.textPrimary, marginBottom: 4 }}>
+                  Client&apos;s Counter-Offer
+                </Text>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.warning, marginBottom: 12 }}>
+                  {job?.payment_model === "DAILY" && workerLastRound.proposed_daily_rate && workerLastRound.proposed_days
+                    ? `₱${workerLastRound.proposed_daily_rate.toLocaleString()}/day × ${workerLastRound.proposed_days} days`
+                    : `₱${workerLastRound.proposed_budget.toLocaleString()}`}
+                </Text>
+
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: Colors.success,
+                    borderRadius: 8,
+                    paddingVertical: 12,
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    gap: 6,
+                    marginBottom: 8,
+                  }}
+                  onPress={() => workerAcceptCounterMutation.mutate()}
+                  disabled={workerAcceptCounterMutation.isPending}
+                  activeOpacity={0.8}
+                >
+                  {workerAcceptCounterMutation.isPending ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                      <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 15 }}>Accept Counter-Offer</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {!workerProposalsExhausted && (
+                  <TouchableOpacity
+                    style={{
+                      borderWidth: 1,
+                      borderColor: Colors.primary,
+                      borderRadius: 8,
+                      paddingVertical: 12,
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: 6,
+                    }}
+                    onPress={() => setShowWorkerProposeModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="refresh" size={18} color={Colors.primary} />
+                    <Text style={{ color: Colors.primary, fontWeight: "600", fontSize: 15 }}>Re-Propose</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Worker can propose (no counter pending) */}
+            {workerCanPropose && !workerClientCountered && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.primary,
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 6,
+                  marginTop: 12,
+                }}
+                onPress={() => setShowWorkerProposeModal(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="cash-outline" size={18} color="#FFF" />
+                <Text style={{ color: "#FFF", fontWeight: "600", fontSize: 15 }}>
+                  {negotiationCount === 0 ? "Propose Price" : "Re-Propose"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -5254,15 +5713,123 @@ export default function JobDetailScreen() {
         items={WORKER_PAYMENT_INFO_ITEMS}
       />
 
+      {/* Worker Propose/Re-Propose Modal */}
+      <Modal
+        visible={showWorkerProposeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowWorkerProposeModal(false);
+        }}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+              <View style={{ backgroundColor: Colors.white, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24 }}>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.textPrimary, marginBottom: 16 }}>
+                  Submit Price Proposal
+                </Text>
+
+                {job?.payment_model === "DAILY" ? (
+                  <>
+                    <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Daily Rate (₱)</Text>
+                    <TextInput
+                      style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
+                      placeholder="e.g. 1200"
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      value={workerProposeDailyRate}
+                      onChangeText={setWorkerProposeDailyRate}
+                    />
+                    <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Number of Days</Text>
+                    <TextInput
+                      style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
+                      placeholder="e.g. 5"
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      value={workerProposeDays}
+                      onChangeText={setWorkerProposeDays}
+                    />
+                    {workerProposeDailyRate && workerProposeDays && parseFloat(workerProposeDailyRate) > 0 && parseInt(workerProposeDays) > 0 && (
+                      <Text style={{ fontSize: 14, fontWeight: "600", color: Colors.primary, marginBottom: 12 }}>
+                        Total: ₱{(parseFloat(workerProposeDailyRate) * parseInt(workerProposeDays)).toLocaleString()}
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Proposed Amount (₱)</Text>
+                    <TextInput
+                      style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
+                      placeholder="e.g. 5000"
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                      value={workerProposeAmount}
+                      onChangeText={setWorkerProposeAmount}
+                    />
+                  </>
+                )}
+
+                <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>Message</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 16, color: Colors.textPrimary, minHeight: 80 }}
+                  placeholder="Explain your proposed price..."
+                  multiline
+                  blurOnSubmit
+                  returnKeyType="done"
+                  value={workerProposeMessage}
+                  onChangeText={setWorkerProposeMessage}
+                />
+
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: "center" }}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowWorkerProposeModal(false);
+                    }}
+                  >
+                    <Text style={{ color: Colors.textSecondary, fontWeight: "600" }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1, padding: 14, borderRadius: 8, backgroundColor: Colors.primary, alignItems: "center" }}
+                    onPress={handleWorkerSubmitProposal}
+                    disabled={workerProposeMutation.isPending}
+                  >
+                    {workerProposeMutation.isPending ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={{ color: "#FFF", fontWeight: "600" }}>Submit Proposal</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Client Counter-Offer Modal */}
       <Modal
         visible={counterModalApplicationId !== null}
         transparent
         animationType="slide"
-        onRequestClose={() => setCounterModalApplicationId(null)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setCounterModalApplicationId(null);
+        }}
       >
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: Colors.white, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+              <View style={{ backgroundColor: Colors.white, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 24 }}>
             <Text style={{ fontSize: 18, fontWeight: "700", color: Colors.textPrimary, marginBottom: 16 }}>
               Send Counter-Offer
             </Text>
@@ -5274,6 +5841,7 @@ export default function JobDetailScreen() {
                   style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
                   placeholder="e.g. 1200"
                   keyboardType="numeric"
+                  returnKeyType="done"
                   value={counterOfferRate}
                   onChangeText={setCounterOfferRate}
                 />
@@ -5282,6 +5850,7 @@ export default function JobDetailScreen() {
                   style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
                   placeholder="e.g. 5"
                   keyboardType="numeric"
+                  returnKeyType="done"
                   value={counterOfferDays}
                   onChangeText={setCounterOfferDays}
                 />
@@ -5293,6 +5862,7 @@ export default function JobDetailScreen() {
                   style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 12, color: Colors.textPrimary }}
                   placeholder="e.g. 5000"
                   keyboardType="numeric"
+                  returnKeyType="done"
                   value={counterOfferAmount}
                   onChangeText={setCounterOfferAmount}
                 />
@@ -5304,6 +5874,8 @@ export default function JobDetailScreen() {
               style={{ borderWidth: 1, borderColor: Colors.border, borderRadius: 8, padding: 10, marginBottom: 16, color: Colors.textPrimary, minHeight: 80 }}
               placeholder="Explain your counter-offer..."
               multiline
+              blurOnSubmit
+              returnKeyType="done"
               value={counterOfferMessage}
               onChangeText={setCounterOfferMessage}
             />
@@ -5311,7 +5883,10 @@ export default function JobDetailScreen() {
             <View style={{ flexDirection: "row", gap: 12 }}>
               <TouchableOpacity
                 style={{ flex: 1, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: "center" }}
-                onPress={() => setCounterModalApplicationId(null)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setCounterModalApplicationId(null);
+                }}
               >
                 <Text style={{ color: Colors.textSecondary, fontWeight: "600" }}>Cancel</Text>
               </TouchableOpacity>
@@ -5327,8 +5902,10 @@ export default function JobDetailScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
