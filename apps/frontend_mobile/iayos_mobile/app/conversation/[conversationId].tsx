@@ -7374,18 +7374,18 @@ export default function ChatScreen() {
                           ]}
                           onPress={
                             conversation.job.payment_model === "DAILY"
-                              ? handleFinishDailyTeamJob
+                              ? handleApproveDailyTeamWorkday
                               : handleApproveTeamJobCompletion
                           }
                           disabled={
                             conversation.job.payment_model === "DAILY"
-                              ? dailyFinishJobMutation.isPending
+                              ? isBulkDailySettlementInFlight
                               : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight
                           }
                         >
                           {(conversation.job.payment_model === "DAILY"
-                            ? dailyFinishJobMutation.isPending
+                            ? isBulkDailySettlementInFlight
                             : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight) ? (
                             <ActivityIndicator
@@ -7397,7 +7397,7 @@ export default function ChatScreen() {
                               <Ionicons
                                 name={
                                   conversation.job.payment_model === "DAILY"
-                                    ? "flag"
+                                    ? "wallet"
                                     : conversation.job.remainingPaymentPaid
                                       ? "checkmark-circle"
                                       : "wallet"
@@ -7407,7 +7407,7 @@ export default function ChatScreen() {
                               />
                                 <Text style={styles.actionButtonText}>
                                   {conversation.job.payment_model === "DAILY"
-                                    ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                    ? "Approve and Pay"
                                     : conversation.job.remainingPaymentPaid ||
                                         allAssignmentsEarlyCompleted
                                       ? "Approve Team Completion"
