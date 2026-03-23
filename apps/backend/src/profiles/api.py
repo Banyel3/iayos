@@ -3257,6 +3257,99 @@ def get_conversation_messages(request, conversation_id: int):
                         f"   🔧 [ATTENDANCE AUTO-HEAL] Created {healed_rows} missing PROJECT multi-day attendance rows"
                     )
 
+            # DAILY team auto-heal: on Day 2+, client_confirmed_arrival stays True
+            # from Day 1 but no DailyAttendance rows exist for today's date yet.
+            # Create them now so attendance_today is non-empty and "Approve and Pay"
+            # succeeds without requiring a redundant confirm-arrival tap.
+            if is_daily_job:
+                from accounts.models import JobWorkerAssignment as _JWA_Daily
+
+                existing_assignment_ids_daily = {
+                    record.assignmentID_id
+                    for record in attendance_records
+                    if record.assignmentID_id is not None
+                }
+                existing_employee_ids_daily = {
+                    record.employeeID_id
+                    for record in attendance_records
+                    if record.employeeID_id is not None
+                }
+                healed_daily = 0
+                now_daily = timezone.now()
+
+                # Freelance worker slots
+                for wa in _JWA_Daily.objects.filter(
+                    jobID=job,
+                    assignment_status="ACTIVE",
+                    client_confirmed_arrival=True,
+                ).exclude(assignmentID__in=existing_assignment_ids_daily):
+                    daily_rate_wa = Decimal(
+                        str(
+                            getattr(wa, "daily_rate_at_assignment", None)
+                            or getattr(job, "daily_rate_agreed", None)
+                            or 0
+                        )
+                    )
+                    new_row, created = DailyAttendance.objects.get_or_create(
+                        assignmentID=wa,
+                        date=today,
+                        defaults={
+                            "jobID": job,
+                            "workerID": wa.workerID,
+                            "status": "PENDING",
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": now_daily,
+                            "time_in": now_daily,
+                            "amount_earned": daily_rate_wa,
+                            "notes": "Auto-healed: DAILY team attendance row for new work day",
+                        },
+                    )
+                    if created:
+                        attendance_records.append(new_row)
+                        healed_daily += 1
+
+                # Agency employee slots
+                for ea in (
+                    JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        skill_slot__isnull=False,
+                        status__in=["ASSIGNED", "IN_PROGRESS"],
+                        clientConfirmedArrival=True,
+                    )
+                    .select_related("employee")
+                    .exclude(employee__employeeID__in=existing_employee_ids_daily)
+                ):
+                    daily_rate_ea = Decimal(
+                        str(
+                            getattr(ea.employee, "daily_rate", None)
+                            or getattr(job, "daily_rate_agreed", None)
+                            or 0
+                        )
+                    )
+                    new_row, created = DailyAttendance.objects.get_or_create(
+                        jobID=job,
+                        employeeID=ea.employee,
+                        date=today,
+                        defaults={
+                            "workerID": None,
+                            "assignmentID": None,
+                            "status": "PENDING",
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": now_daily,
+                            "time_in": now_daily,
+                            "amount_earned": daily_rate_ea,
+                            "notes": "Auto-healed: DAILY team attendance row for new work day (employee)",
+                        },
+                    )
+                    if created:
+                        attendance_records.append(new_row)
+                        healed_daily += 1
+
+                if healed_daily > 0:
+                    print(
+                        f"   🔧 [DAILY AUTO-HEAL] Created {healed_daily} missing DAILY team attendance rows for {today}"
+                    )
+
             for record in attendance_records:
                 # Determine worker info based on worker type
                 worker_name = "Unknown Worker"
