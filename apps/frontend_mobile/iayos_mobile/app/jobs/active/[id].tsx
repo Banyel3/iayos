@@ -672,6 +672,38 @@ export default function ActiveJobDetailScreen() {
     );
   };
 
+  const openCompletionModal = () => {
+    if (!job?.is_team_job) {
+      setShowCompletionModal(true);
+      return;
+    }
+
+    if (!isWorker) {
+      return;
+    }
+
+    const fallbackAssignment =
+      myAssignments.find(
+        (a) =>
+          a.assignment_status === "ACTIVE" &&
+          !a.worker_marked_complete &&
+          !a.early_completed,
+      ) ||
+      myAssignments.find((a) => a.assignment_status === "ACTIVE") ||
+      myAssignment;
+
+    if (!fallbackAssignment) {
+      Alert.alert(
+        "No Active Assignment",
+        "You do not have an active team assignment to complete.",
+      );
+      return;
+    }
+
+    setSelectedAssignment(fallbackAssignment);
+    setShowCompletionModal(true);
+  };
+
   const handleTeamApproveCompletion = () => {
     if (!allWorkersComplete) {
       Alert.alert(
@@ -1470,7 +1502,7 @@ export default function ActiveJobDetailScreen() {
           {!job.worker_marked_complete && (
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => setShowCompletionModal(true)}
+            onPress={openCompletionModal}
             activeOpacity={0.8}
           >
             <Ionicons
@@ -1614,14 +1646,23 @@ export default function ActiveJobDetailScreen() {
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (markCompleteMutation.isPending || isUploading) &&
+                ((job?.is_team_job
+                  ? workerCompleteMutation.isPending
+                  : markCompleteMutation.isPending) ||
+                  isUploading) &&
                   styles.submitButtonDisabled,
               ]}
-              onPress={handleMarkComplete}
-              disabled={markCompleteMutation.isPending || isUploading}
+              onPress={job?.is_team_job ? handleTeamMarkComplete : handleMarkComplete}
+              disabled={
+                (job?.is_team_job
+                  ? workerCompleteMutation.isPending
+                  : markCompleteMutation.isPending) || isUploading
+              }
               activeOpacity={0.8}
             >
-              {markCompleteMutation.isPending || isUploading ? (
+              {(job?.is_team_job
+                ? workerCompleteMutation.isPending
+                : markCompleteMutation.isPending) || isUploading ? (
                 <View style={styles.buttonLoadingContainer}>
                   <ActivityIndicator size="small" color={Colors.white} />
                   <Text style={[styles.submitButtonText, { marginLeft: 8 }]}>
