@@ -2664,6 +2664,7 @@ def get_conversation_messages(request, conversation_id: int):
         # Workers need this to see their own assignment status (Phase 2 banners)
         if is_team_job:
             from accounts.models import (
+                Agency,
                 JobWorkerAssignment,
                 JobEmployeeAssignment,
                 JobReview,
@@ -2694,6 +2695,15 @@ def get_conversation_messages(request, conversation_id: int):
                     reviewerType="CLIENT",
                     revieweeEmployeeID__isnull=False,
                 ).values_list("revieweeEmployeeID", flat=True)
+            )
+
+            reviewed_agency_ids = set(
+                JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT",
+                    revieweeAgencyID__isnull=False,
+                ).values_list("revieweeAgencyID", flat=True)
             )
 
             for assignment in assignments:
@@ -2884,12 +2894,44 @@ def get_conversation_messages(request, conversation_id: int):
                         }
                     )
 
-            total_team_workers = total_freelancer_workers + len(team_agency_employees)
+            agency_account_ids = set(
+                slot_employee_assignments.values_list("employee__agency_id", flat=True)
+            )
+            agency_account_ids.discard(None)
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+            team_agencies = list(Agency.objects.filter(accountFK_id__in=agency_account_ids))
+            reviewed_team_agencies_count = 0
+            for agency in team_agencies:
+                agency_reviewed = agency.agencyId in reviewed_agency_ids
+                if agency_reviewed:
+                    reviewed_team_agencies_count += 1
+                elif is_client:
+                    team_workers_pending_review.append(
+                        {
+                            "target_type": "AGENCY",
+                            "agency_id": agency.agencyId,
+                            "agency_account_id": agency.accountFK_id,
+                            "worker_id": None,
+                            "account_id": agency.accountFK_id,
+                            "name": agency.businessName,
+                            "avatar": None,
+                            "skill": None,
+                        }
+                    )
+
+            total_team_workers = (
+                total_freelancer_workers
+                + len(team_agency_employees)
+                + len(team_agencies)
+            )
             reviewed_by_client_count = reviewed_freelancers_count + sum(
                 1
                 for employee in team_agency_employees
                 if employee["id"] in reviewed_employee_ids
             )
+            reviewed_by_client_count += reviewed_team_agencies_count
             all_team_workers_reviewed = (
                 total_team_workers > 0
                 and reviewed_by_client_count >= total_team_workers
