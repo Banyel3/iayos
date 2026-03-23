@@ -373,6 +373,8 @@ export interface DailySummary {
   duration_days: number;
   days_worked: number;
   remaining_days: number;
+  actual_days_worked?: number;
+  qa_day_offset?: number;
   attendance: {
     total_records: number;
     pending_confirmation: number;
@@ -1368,9 +1370,10 @@ export const useClientMarkNoWork = () => {
       }
       return response.json() as Promise<ClientMarkNoWorkResponse>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["dailyAttendance"] });
       queryClient.invalidateQueries({ queryKey: ["dailySummary"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-job-detail", variables.jobId] });
       queryClient.invalidateQueries({ queryKey: ["messages"] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
