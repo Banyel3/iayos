@@ -5320,6 +5320,64 @@ def worker_mark_job_complete(request, job_id: int):
                     status=403,
                 )
         else:
+            if getattr(job, "is_team_job", False):
+                from jobs.team_job_services import worker_complete_team_assignment
+
+                representative_assignment = (
+                    JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        workerID__profileID__accountFK=request.auth,
+                        assignment_status="ACTIVE",
+                    )
+                    .order_by("assignmentID")
+                    .first()
+                )
+
+                # Idempotent fallback when worker already completed all active slots.
+                if representative_assignment is None:
+                    representative_assignment = (
+                        JobWorkerAssignment.objects.filter(
+                            jobID=job,
+                            workerID__profileID__accountFK=request.auth,
+                        )
+                        .order_by("assignmentID")
+                        .first()
+                    )
+
+                if representative_assignment is None:
+                    return Response(
+                        {"error": "You are not assigned to this job"}, status=403
+                    )
+
+                completion_notes = None
+                if hasattr(request, "body") and request.body:
+                    try:
+                        payload = json.loads(request.body.decode("utf-8"))
+                        completion_notes = payload.get("completion_notes") or payload.get(
+                            "notes"
+                        )
+                    except json.JSONDecodeError:
+                        completion_notes = None
+
+                result = worker_complete_team_assignment(
+                    representative_assignment.assignmentID,
+                    request.auth,
+                    completion_notes,
+                )
+
+                if not result.get("success"):
+                    error_message = str(result.get("error") or "Failed to mark complete")
+                    lowered_error = error_message.lower()
+                    status_code = (
+                        403
+                        if "not authorized" in lowered_error
+                        or "not assigned" in lowered_error
+                        else 400
+                    )
+                    return Response({"error": error_message}, status=status_code)
+
+                return result
+
             # Regular worker job - verify worker is assigned
             profile_type = getattr(request.auth, "profile_type", "WORKER")
             try:
