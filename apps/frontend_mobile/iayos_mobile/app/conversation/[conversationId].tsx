@@ -2051,12 +2051,36 @@ export default function ChatScreen() {
                   expiresAt: Date.now() + 15000,
                 });
               }
+              const isFinalWorkday =
+                reachedConfiguredDuration || reachedQaOffsetLimit;
 
-              Toast.show({
-                type: "success",
-                text1: "Workday Settled",
-                text2: `${settledCount} attendance row(s) confirmed and paid`,
-              });
+              if (isFinalWorkday) {
+                try {
+                  await dailyFinishJobMutation.mutateAsync({
+                    jobId: conversation.job.id,
+                  });
+                  Toast.show({
+                    type: "success",
+                    text1: "Workday Settled",
+                    text2: "Final day paid. Job closed and moved to reviews.",
+                  });
+                } catch (finishError) {
+                  const finishMessage =
+                    finishError instanceof Error
+                      ? finishError.message
+                      : "Attendance settled, but auto-close failed.";
+                  Alert.alert(
+                    "Settlement Complete",
+                    `${finishMessage}\n\nAttendance payment was successful. Please tap Finish Daily Team Job to close manually.`,
+                  );
+                }
+              } else {
+                Toast.show({
+                  type: "success",
+                  text1: "Workday Settled",
+                  text2: `${settledCount} attendance row(s) confirmed and paid`,
+                });
+              }
             } else if (settledCount > 0) {
               const failedCount = failedAttendanceIds.length;
               Alert.alert(
