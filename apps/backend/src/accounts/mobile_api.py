@@ -3697,6 +3697,17 @@ def mobile_get_my_applications(request):
             .order_by("-createdAt")
         )
 
+        # Prefetch latest negotiation entries to detect pending counter-offers
+        from accounts.models import PriceNegotiation
+        app_ids = [app.applicationID for app in applications]
+        pending_counters = set(
+            PriceNegotiation.objects.filter(
+                application__applicationID__in=app_ids,
+                actor="CLIENT",
+                status="PENDING",
+            ).values_list("application__applicationID", flat=True)
+        )
+
         # Format the response
         applications_data = []
         for app in applications:
@@ -3744,6 +3755,7 @@ def mobile_get_my_applications(request):
                     "payment_model": job.payment_model,
                     "applied_shift": getattr(app, "applied_shift", None),
                     "shift_type": getattr(job, "shift_type", "ANY") or "ANY",
+                    "has_pending_counter": app.applicationID in pending_counters,
                 }
             )
 
