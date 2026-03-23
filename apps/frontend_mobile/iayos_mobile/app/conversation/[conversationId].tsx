@@ -8388,42 +8388,6 @@ export default function ChatScreen() {
                               )}
                             </TouchableOpacity>
 
-                            {isTeamAgencyJob &&
-                              isDailyAgencyFlow &&
-                              (reachedConfiguredDuration || reachedQaOffsetLimit) && (
-                                <TouchableOpacity
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                    { marginTop: 8 },
-                                  ]}
-                                  onPress={handleFinishDailyTeamJob}
-                                  disabled={dailyFinishJobMutation.isPending}
-                                >
-                                  {dailyFinishJobMutation.isPending ? (
-                                    <ActivityIndicator
-                                      size="small"
-                                      color={Colors.textPrimary}
-                                    />
-                                  ) : (
-                                    <>
-                                      <Ionicons
-                                        name="flag"
-                                        size={20}
-                                        color={Colors.textPrimary}
-                                      />
-                                      <Text
-                                        style={[
-                                          styles.waitingButtonText,
-                                          { color: Colors.textPrimary },
-                                        ]}
-                                      >
-                                        Finish Entire Job
-                                      </Text>
-                                    </>
-                                  )}
-                                </TouchableOpacity>
-                              )}
                           </View>
                         )}
 
