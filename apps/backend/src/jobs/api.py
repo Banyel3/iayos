@@ -14234,6 +14234,7 @@ def finish_daily_job(request, job_id: int):
             | Q(client_confirmed=True)
             | Q(assignmentID__worker_marked_complete=True)
             | Q(assignmentID__assignment_status="COMPLETED")
+            | Q(employeeID__isnull=False)
         ).order_by("date", "attendanceID")
 
         for attendance in completion_unprocessed_rows:
@@ -14369,6 +14370,7 @@ def finish_daily_job(request, job_id: int):
                 jobID=job,
                 payment_processed=True,
                 amount_earned__gt=Decimal("0.00"),
+                status__in=["PRESENT", "HALF_DAY"],
                 workerID__isnull=False,
             ).values_list("workerID__profileID__accountFK", flat=True)
 
@@ -14376,6 +14378,7 @@ def finish_daily_job(request, job_id: int):
                 jobID=job,
                 payment_processed=True,
                 amount_earned__gt=Decimal("0.00"),
+                status__in=["PRESENT", "HALF_DAY"],
                 employeeID__isnull=False,
             ).values_list("employeeID__agency", flat=True)
 
