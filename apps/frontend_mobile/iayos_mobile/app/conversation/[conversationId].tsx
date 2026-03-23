@@ -4161,6 +4161,7 @@ export default function ChatScreen() {
   const unpaidAttendanceRowsToday = payableAttendanceRowsToday.filter(
     (row: any) => !Boolean(row?.payment_processed),
   );
+  const hasUnpaidAttendanceRowsToday = unpaidAttendanceRowsToday.length > 0;
   const payableAttendanceDateKeysToday = Array.from(
     new Set(
       payableAttendanceRowsToday
@@ -8265,7 +8266,7 @@ export default function ChatScreen() {
                       {allComplete &&
                         !conversation.job.clientMarkedComplete &&
                         (conversation.job?.payment_model === "DAILY" &&
-                        isTodayWorkdaySettled ? (
+                        (isTodayWorkdaySettled || !hasUnpaidAttendanceRowsToday) ? (
                           <View
                             style={[styles.actionButton, styles.completedAction]}
                           >
@@ -8369,7 +8370,9 @@ export default function ChatScreen() {
                     allFreelancersComplete;
 
                   const showApprovePayButton = isDailyAgencyFlow
-                    ? allComplete && allFreelancersComplete
+                    ? allComplete &&
+                      allFreelancersComplete &&
+                      hasUnpaidAttendanceRowsToday
                     : allWorkflowComplete;
 
                   return (
