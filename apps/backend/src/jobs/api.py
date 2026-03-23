@@ -4344,12 +4344,24 @@ def invite_worker_to_job(request, job_id: int, data: dict = None):
                 {"error": "You can only invite workers to your own jobs"}, status=403
             )
 
-        # Job must be ACTIVE and be a LISTING type
+        # Job must be ACTIVE and either:
+        # - LISTING (classic open listing flow), or
+        # - TEAM_SLOT hybrid team flow (worker can still be invited to apply)
         if job.status != "ACTIVE":
             return Response({"error": "Job is no longer active"}, status=400)
-        if job.jobType != "LISTING":
+
+        agency_flow_mode = str(getattr(job, "agency_flow_mode", "") or "").upper()
+        is_team_slot_hybrid = bool(getattr(job, "is_team_job", False)) and (
+            agency_flow_mode == JobPosting.AgencyFlowMode.TEAM_SLOT
+            or agency_flow_mode == "TEAM_SLOT"
+        )
+
+        if job.jobType != "LISTING" and not is_team_slot_hybrid:
             return Response(
-                {"error": "Can only invite workers to LISTING jobs"}, status=400
+                {
+                    "error": "Can only invite workers to LISTING jobs or TEAM_SLOT hybrid team jobs"
+                },
+                status=400,
             )
 
         # Get the worker
