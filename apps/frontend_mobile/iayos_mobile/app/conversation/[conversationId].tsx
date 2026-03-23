@@ -7056,7 +7056,7 @@ export default function ChatScreen() {
                               color={Colors.white}
                             />
                             <Text style={styles.actionButtonText}>
-                              Mark My Work Complete (All Assigned Roles)
+                              Mark My Work Complete
                             </Text>
                           </>
                         )}
