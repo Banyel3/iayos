@@ -8372,10 +8372,15 @@ export default function ChatScreen() {
                     allComplete &&
                     allFreelancersComplete;
 
+                  const canAttemptDailySettlement =
+                    hasUnpaidAttendanceRowsToday ||
+                    payableAttendanceRowsToday.length === 0;
+
                   const showApprovePayButton = isDailyAgencyFlow
                     ? allComplete &&
                       allFreelancersComplete &&
-                      hasUnpaidAttendanceRowsToday
+                      canAttemptDailySettlement &&
+                      !isTodayWorkdaySettled
                     : allWorkflowComplete;
 
                   return (
