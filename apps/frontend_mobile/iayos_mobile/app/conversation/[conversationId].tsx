@@ -6713,14 +6713,6 @@ export default function ChatScreen() {
                         </Text>
                       </View>
 
-                      <Text style={styles.teamProjectArrivalSubtext}>
-                        Confirm each worker arrival to unlock completion
-                        flow.
-                        {completedCount > 0
-                          ? ` ${completedCount}/${assignments.length} marked complete.`
-                          : ""}
-                      </Text>
-
                       <View style={styles.teamProjectArrivalList}>
                         {assignments.map((assignment) => {
                           const firstName =
