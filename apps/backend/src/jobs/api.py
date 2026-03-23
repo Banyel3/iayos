@@ -14204,6 +14204,8 @@ def finish_daily_job(request, job_id: int):
     from jobs.payment_buffer_service import has_receivable_ledger_for_account
     from jobs.daily_payment_service import DailyPaymentService
 
+    is_team_daily = bool(job.is_team_job and str(job.payment_model or "").upper() == "DAILY")
+
     # Settle any fully confirmed and still-unprocessed attendance first.
     confirmed_unprocessed_rows = DailyAttendance.objects.filter(
         jobID=job,
@@ -14215,6 +14217,60 @@ def finish_daily_job(request, job_id: int):
 
     for attendance in confirmed_unprocessed_rows:
         DailyPaymentService.process_day_payment(attendance)
+
+    # Team DAILY alignment: do not require legacy checkout/confirm-client sequence
+    # when the worker already marked the day complete.
+    if is_team_daily:
+        completion_unprocessed_rows = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=False,
+            worker_confirmed=True,
+            worker_marked_complete=True,
+            status__in=["PENDING", "PRESENT", "HALF_DAY"],
+        ).order_by("date", "attendanceID")
+
+        for attendance in completion_unprocessed_rows:
+            if attendance.payment_processed:
+                continue
+
+            if not attendance.client_confirmed:
+                approved_status = (
+                    "PRESENT" if attendance.status in ["PENDING", "DISPATCHED"] else None
+                )
+                result = DailyPaymentService.confirm_attendance_client(
+                    attendance,
+                    request.auth,
+                    approved_status=approved_status,
+                    payment_method="WALLET",
+                )
+                if not result.get("success"):
+                    return Response(
+                        {
+                            "error": "Failed to settle a completed team attendance row",
+                            "attendance_id": attendance.attendanceID,
+                            "details": result.get("error", "Unknown error"),
+                        },
+                        status=400,
+                    )
+                continue
+
+            if attendance.status in ["PENDING", "DISPATCHED"]:
+                attendance.status = "PRESENT"
+                attendance.save(update_fields=["status", "updatedAt"])
+
+            result = DailyPaymentService.process_day_payment(
+                attendance,
+                payment_method="WALLET",
+            )
+            if not result.get("success"):
+                return Response(
+                    {
+                        "error": "Failed to process payment for a completed team attendance row",
+                        "attendance_id": attendance.attendanceID,
+                        "details": result.get("error", "Unknown error"),
+                    },
+                    status=400,
+                )
 
     # Compute unused daily escrow principal for refund to client.
     total_paid = DailyAttendance.objects.filter(
