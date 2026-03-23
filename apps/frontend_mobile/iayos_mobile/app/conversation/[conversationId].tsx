@@ -1951,6 +1951,9 @@ export default function ChatScreen() {
   const handleApproveDailyTeamWorkday = async () => {
     if (!conversation) return;
 
+    const isProjectTeamFlow =
+      conversation.is_team_job && conversation.job?.payment_model === "PROJECT";
+
     const preflightConversation = await runApprovePayArrivalPreflight();
     if (!preflightConversation) return;
 
@@ -1962,7 +1965,7 @@ export default function ChatScreen() {
       return (
         Number.isFinite(attendanceId) &&
         !isDisputedRow &&
-        !Boolean(row?.payment_processed)
+        (isProjectTeamFlow ? !Boolean(row?.client_confirmed) : !Boolean(row?.payment_processed))
       );
     }).map((row: any) => ({
       ...row,
@@ -2044,7 +2047,7 @@ export default function ChatScreen() {
                 return (
                   Number.isFinite(attendanceId) &&
                   status !== "DISPUTED" &&
-                  !Boolean(row?.payment_processed)
+                  (isProjectTeamFlow ? !Boolean(row?.client_confirmed) : !Boolean(row?.payment_processed))
                 );
               })
               .map((row: any) => ({
@@ -2068,7 +2071,7 @@ export default function ChatScreen() {
               const isFinalWorkday =
                 reachedConfiguredDuration || reachedQaOffsetLimit;
 
-              if (isFinalWorkday) {
+              if (isFinalWorkday && !isProjectTeamFlow) {
                 try {
                   await dailyFinishJobMutation.mutateAsync({
                     jobId: conversation.job.id,
@@ -2088,11 +2091,34 @@ export default function ChatScreen() {
                     `${finishMessage}\n\nAttendance payment was successful. Please tap Finish Daily Team Job to close manually.`,
                   );
                 }
+              } else if (isFinalWorkday && isProjectTeamFlow) {
+                try {
+                  await approveTeamJobCompletionMutation.mutateAsync({
+                    jobId: conversation.job.id,
+                    paymentMethod: "WALLET",
+                  });
+                  Toast.show({
+                    type: "success",
+                    text1: "Attendance Approved",
+                    text2: "Final day confirmed and project settlement processed.",
+                  });
+                } catch (finishError) {
+                  const finishMessage =
+                    finishError instanceof Error
+                      ? finishError.message
+                      : "Attendance confirmed, but final project settlement failed.";
+                  Alert.alert(
+                    "Attendance Confirmed",
+                    `${finishMessage}\n\nPlease tap Approve Team Completion to retry final settlement.`,
+                  );
+                }
               } else {
                 Toast.show({
                   type: "success",
-                  text1: "Workday Settled",
-                  text2: `${settledCount} attendance row(s) confirmed and paid`,
+                  text1: isProjectTeamFlow ? "Attendance Approved" : "Workday Settled",
+                  text2: isProjectTeamFlow
+                    ? `${settledCount} attendance row(s) confirmed`
+                    : `${settledCount} attendance row(s) confirmed and paid`,
                 });
               }
             } else if (settledCount > 0) {
@@ -4199,7 +4225,7 @@ export default function ChatScreen() {
     return status !== "DISPUTED";
   });
   const unpaidAttendanceRowsToday = payableAttendanceRowsToday.filter(
-    (row: any) => !Boolean(row?.payment_processed),
+    (row: any) => (conversation.job?.payment_model === "PROJECT" ? !Boolean(row?.client_confirmed) : !Boolean(row?.payment_processed)),
   );
   const hasUnpaidAttendanceRowsToday = unpaidAttendanceRowsToday.length > 0;
   const payableAttendanceDateKeysToday = Array.from(
@@ -7383,20 +7409,23 @@ export default function ChatScreen() {
                             styles.approveCompletionButton,
                           ]}
                           onPress={
-                            conversation.job.payment_model === "DAILY"
+                            (conversation.job.payment_model === "DAILY" ||
+                              conversation.job.payment_model === "PROJECT")
                               ? handleApproveDailyTeamWorkday
                               : handleApproveTeamJobCompletion
                           }
                           disabled={
-                            conversation.job.payment_model === "DAILY"
+                            (conversation.job.payment_model === "DAILY" ||
+                              conversation.job.payment_model === "PROJECT")
                               ? isBulkDailySettlementInFlight
                               : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight
                           }
                         >
-                          {(conversation.job.payment_model === "DAILY"
-                            ? isBulkDailySettlementInFlight
-                            : approveTeamJobCompletionMutation.isPending ||
+                          {((conversation.job.payment_model === "DAILY" ||
+                              conversation.job.payment_model === "PROJECT")
+                              ? isBulkDailySettlementInFlight
+                              : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight) ? (
                             <ActivityIndicator
                               size="small"
@@ -7406,7 +7435,8 @@ export default function ChatScreen() {
                             <>
                               <Ionicons
                                 name={
-                                  conversation.job.payment_model === "DAILY"
+                                  (conversation.job.payment_model === "DAILY" ||
+                                    conversation.job.payment_model === "PROJECT")
                                     ? "wallet"
                                     : conversation.job.remainingPaymentPaid
                                       ? "checkmark-circle"
@@ -7418,6 +7448,8 @@ export default function ChatScreen() {
                                 <Text style={styles.actionButtonText}>
                                   {conversation.job.payment_model === "DAILY"
                                     ? "Approve and Pay"
+                                    : conversation.job.payment_model === "PROJECT"
+                                      ? "Approve Attendance"
                                     : conversation.job.remainingPaymentPaid ||
                                         allAssignmentsEarlyCompleted
                                       ? "Approve Team Completion"

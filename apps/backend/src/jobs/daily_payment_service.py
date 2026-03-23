@@ -352,14 +352,31 @@ class DailyPaymentService:
         attendance.client_confirmed_at = timezone.now()
         attendance.save()
 
-        # Check if both confirmed
+        payment_model = str(
+            getattr(attendance.jobID, "payment_model", "PROJECT") or "PROJECT"
+        ).upper()
+
+        # Check if both confirmed.
         if attendance.is_confirmed():
-            # Auto-process payment if both confirmed
-            return DailyPaymentService.process_day_payment(
-                attendance,
-                payment_method=payment_method_upper,
-                cash_proof_url=cash_proof_url,
-            )
+            # DAILY settles immediately per attendance row.
+            if payment_model == "DAILY":
+                return DailyPaymentService.process_day_payment(
+                    attendance,
+                    payment_method=payment_method_upper,
+                    cash_proof_url=cash_proof_url,
+                )
+
+            # PROJECT mirrors attendance confirmation flow but settles only on
+            # final approve-completion.
+            return {
+                "success": True,
+                "attendance_id": attendance.attendanceID,
+                "client_confirmed": True,
+                "status": attendance.status,
+                "amount": float(attendance.amount_earned or 0),
+                "payment_processed": bool(attendance.payment_processed),
+                "message": "Attendance confirmed. Payment will settle at final completion.",
+            }
 
         return {
             "success": True,

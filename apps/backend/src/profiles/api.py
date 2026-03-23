@@ -3257,11 +3257,11 @@ def get_conversation_messages(request, conversation_id: int):
                         f"   🔧 [ATTENDANCE AUTO-HEAL] Created {healed_rows} missing PROJECT multi-day attendance rows"
                     )
 
-            # DAILY team auto-heal: on Day 2+, client_confirmed_arrival stays True
-            # from Day 1 but no DailyAttendance rows exist for today's date yet.
-            # Create them now so attendance_today is non-empty and "Approve and Pay"
-            # succeeds without requiring a redundant confirm-arrival tap.
-            if is_daily_job:
+            # DAILY/PROJECT team auto-heal: on Day 2+, client_confirmed_arrival
+            # can stay True from Day 1 while no row exists for today's date yet.
+            # Create the row now so attendance_today is non-empty without a
+            # redundant confirm-arrival tap.
+            if is_daily_job or is_team_project_attendance:
                 from accounts.models import JobWorkerAssignment as _JWA_Daily
 
                 existing_assignment_ids_daily = {
@@ -3283,12 +3283,16 @@ def get_conversation_messages(request, conversation_id: int):
                     assignment_status="ACTIVE",
                     client_confirmed_arrival=True,
                 ).exclude(assignmentID__in=existing_assignment_ids_daily):
-                    daily_rate_wa = Decimal(
-                        str(
-                            getattr(wa, "daily_rate_at_assignment", None)
-                            or getattr(job, "daily_rate_agreed", None)
-                            or 0
+                    daily_rate_wa = (
+                        Decimal(
+                            str(
+                                getattr(wa, "daily_rate_at_assignment", None)
+                                or getattr(job, "daily_rate_agreed", None)
+                                or 0
+                            )
                         )
+                        if is_daily_job
+                        else Decimal("0.00")
                     )
                     new_row, created = DailyAttendance.objects.get_or_create(
                         assignmentID=wa,
@@ -3301,7 +3305,11 @@ def get_conversation_messages(request, conversation_id: int):
                             "worker_confirmed_at": now_daily,
                             "time_in": now_daily,
                             "amount_earned": daily_rate_wa,
-                            "notes": "Auto-healed: DAILY team attendance row for new work day",
+                            "notes": (
+                                "Auto-healed: DAILY team attendance row for new work day"
+                                if is_daily_job
+                                else "Auto-healed: PROJECT team attendance row for new work day"
+                            ),
                         },
                     )
                     if created:
@@ -3319,12 +3327,16 @@ def get_conversation_messages(request, conversation_id: int):
                     .select_related("employee")
                     .exclude(employee__employeeID__in=existing_employee_ids_daily)
                 ):
-                    daily_rate_ea = Decimal(
-                        str(
-                            getattr(ea.employee, "daily_rate", None)
-                            or getattr(job, "daily_rate_agreed", None)
-                            or 0
+                    daily_rate_ea = (
+                        Decimal(
+                            str(
+                                getattr(ea.employee, "daily_rate", None)
+                                or getattr(job, "daily_rate_agreed", None)
+                                or 0
+                            )
                         )
+                        if is_daily_job
+                        else Decimal("0.00")
                     )
                     new_row, created = DailyAttendance.objects.get_or_create(
                         jobID=job,
@@ -3338,7 +3350,11 @@ def get_conversation_messages(request, conversation_id: int):
                             "worker_confirmed_at": now_daily,
                             "time_in": now_daily,
                             "amount_earned": daily_rate_ea,
-                            "notes": "Auto-healed: DAILY team attendance row for new work day (employee)",
+                            "notes": (
+                                "Auto-healed: DAILY team attendance row for new work day (employee)"
+                                if is_daily_job
+                                else "Auto-healed: PROJECT team attendance row for new work day (employee)"
+                            ),
                         },
                     )
                     if created:
@@ -3347,7 +3363,7 @@ def get_conversation_messages(request, conversation_id: int):
 
                 if healed_daily > 0:
                     print(
-                        f"   🔧 [DAILY AUTO-HEAL] Created {healed_daily} missing DAILY team attendance rows for {today}"
+                        f"   🔧 [{'DAILY' if is_daily_job else 'PROJECT'} AUTO-HEAL] Created {healed_daily} missing team attendance rows for {today}"
                     )
 
             for record in attendance_records:

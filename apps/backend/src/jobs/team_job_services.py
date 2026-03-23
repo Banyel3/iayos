@@ -65,12 +65,12 @@ def _ensure_daily_attendance_row_for_team_member(
     employee_assignment: Optional[JobEmployeeAssignment] = None,
     happened_at=None,
 ) -> Optional[DailyAttendance]:
-    """Create/update a DAILY team attendance row for the effective work date.
+    """Create/update a team attendance row for the effective work date.
 
     This keeps attendance-driven settlement in sync with arrival/complete actions.
     """
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
-    if payment_model != "DAILY":
+    if payment_model not in ["DAILY", "PROJECT"]:
         return None
 
     if worker_assignment is None and employee_assignment is None:
@@ -3150,7 +3150,7 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
     # return success so stale client state can converge without a hard failure.
     if all(a.client_confirmed_arrival for a in worker_assignments):
         payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
-        if payment_model == "DAILY":
+        if payment_model in ["DAILY", "PROJECT"]:
             confirmed_at = timezone.now()
             for row in worker_assignments:
                 _ensure_daily_attendance_row_for_team_member(
@@ -3212,7 +3212,7 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
         updated_assignment_ids.append(row.assignmentID)
 
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
-    if payment_model == "DAILY":
+    if payment_model in ["DAILY", "PROJECT"]:
         for row in worker_assignments:
             _ensure_daily_attendance_row_for_team_member(
                 job,
@@ -4313,7 +4313,7 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     # Idempotent success if already confirmed.
     if assignment.clientConfirmedArrival:
         payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
-        if payment_model == "DAILY":
+        if payment_model in ["DAILY", "PROJECT"]:
             _ensure_daily_attendance_row_for_team_member(
                 job,
                 employee_assignment=assignment,
@@ -4387,7 +4387,7 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     )
 
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
-    if payment_model == "DAILY":
+    if payment_model in ["DAILY", "PROJECT"]:
         _ensure_daily_attendance_row_for_team_member(
             job,
             employee_assignment=assignment,
@@ -4534,7 +4534,7 @@ def agency_complete_team_employee(
     # Safety net for DAILY team flow: completion should always have a
     # settleable attendance row for this employee.
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
-    if payment_model == "DAILY":
+    if payment_model in ["DAILY", "PROJECT"]:
         _ensure_daily_attendance_row_for_team_member(
             job,
             employee_assignment=assignment,
