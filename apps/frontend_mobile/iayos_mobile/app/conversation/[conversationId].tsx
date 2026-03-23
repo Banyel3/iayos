@@ -176,6 +176,10 @@ export default function ChatScreen() {
   const [showCashUploadModal, setShowCashUploadModal] = useState(false);
   const [isBulkDailySettlementInFlight, setIsBulkDailySettlementInFlight] =
     useState(false);
+  const [optimisticSettledWorkday, setOptimisticSettledWorkday] = useState<{
+    dateKey: string;
+    expiresAt: number;
+  } | null>(null);
   const [isApprovePayPreflightInFlight, setIsApprovePayPreflightInFlight] =
     useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -1992,6 +1996,7 @@ export default function ChatScreen() {
           setIsBulkDailySettlementInFlight(true);
           try {
             let settledCount = 0;
+            const failedAttendanceIds: number[] = [];
 
             for (const row of payableRows) {
               try {
@@ -2001,22 +2006,65 @@ export default function ChatScreen() {
                 });
                 settledCount += 1;
               } catch {
+                failedAttendanceIds.push(Number(row.attendance_id));
                 // Keep going so one bad row does not block settling other workers.
               }
             }
 
             // Harden cache sync so day-state transitions render immediately.
-            await refetch();
+            const refreshed = await refetch();
             setTimeout(() => {
               void refetch();
             }, 1200);
 
-            if (settledCount > 0) {
+            const refreshedConversation =
+              ((refreshed?.data as ConversationDetail | undefined) ??
+                conversation) as ConversationDetail;
+            const remainingPayableRows = (
+              refreshedConversation?.attendance_today ?? []
+            )
+              .filter((row: any) => {
+                const attendanceId = Number(row?.attendance_id ?? row?.id);
+                const status = String(row?.status || "").toUpperCase();
+                return (
+                  Number.isFinite(attendanceId) &&
+                  status !== "DISPUTED" &&
+                  !Boolean(row?.payment_processed)
+                );
+              })
+              .map((row: any) => ({
+                ...row,
+                attendance_id: Number(row?.attendance_id ?? row?.id),
+              }));
+
+            const settledDateKey = String(payableRows[0]?.date || "").slice(
+              0,
+              10,
+            );
+            const allRowsSettled = remainingPayableRows.length === 0;
+
+            if (settledCount > 0 && allRowsSettled) {
+              if (settledDateKey.length > 0) {
+                setOptimisticSettledWorkday({
+                  dateKey: settledDateKey,
+                  expiresAt: Date.now() + 15000,
+                });
+              }
               Toast.show({
                 type: "success",
                 text1: "Workday Settled",
                 text2: `${settledCount} attendance row(s) confirmed and paid`,
               });
+            } else if (settledCount > 0) {
+              const failedCount = failedAttendanceIds.length;
+              Alert.alert(
+                "Settlement Incomplete",
+                `Processed ${settledCount}/${payableRows.length} attendance row(s). ${remainingPayableRows.length} row(s) remain unpaid.${
+                  failedCount > 0
+                    ? `\n\n${failedCount} row(s) failed and need retry.`
+                    : ""
+                }`,
+              );
             } else {
               Alert.alert(
                 "Settlement Failed",
@@ -4113,8 +4161,26 @@ export default function ChatScreen() {
   const unpaidAttendanceRowsToday = payableAttendanceRowsToday.filter(
     (row: any) => !Boolean(row?.payment_processed),
   );
+  const payableAttendanceDateKeysToday = Array.from(
+    new Set(
+      payableAttendanceRowsToday
+        .map((row: any) => String(row?.date || "").slice(0, 10))
+        .filter((value: string) => value.length > 0),
+    ),
+  );
+  const currentPayableWorkDateKey =
+    payableAttendanceDateKeysToday.length === 1
+      ? payableAttendanceDateKeysToday[0]
+      : null;
+  const optimisticSettledActive =
+    optimisticSettledWorkday !== null &&
+    Date.now() <= optimisticSettledWorkday.expiresAt &&
+    currentPayableWorkDateKey !== null &&
+    optimisticSettledWorkday.dateKey === currentPayableWorkDateKey;
   const isTodayWorkdaySettled =
-    payableAttendanceRowsToday.length > 0 && unpaidAttendanceRowsToday.length === 0;
+    (payableAttendanceRowsToday.length > 0 &&
+      unpaidAttendanceRowsToday.length === 0) ||
+    optimisticSettledActive;
   const hasNoWorkMarkedToday = Boolean(
     myWorkerAttendanceToday &&
       myWorkerAttendanceToday.client_confirmed &&
