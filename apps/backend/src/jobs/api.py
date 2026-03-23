@@ -751,14 +751,28 @@ def _resolve_daily_required_days(job: JobPosting) -> int:
 
 
 def _get_elapsed_daily_days(job: JobPosting) -> int:
+    from accounts.models import DailyAttendance
+
     total_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
-    if total_days_worked > 0:
-        elapsed = total_days_worked
-    else:
+
+    # total_days_worked may lag behind actual confirmed attendance (e.g. just
+    # settled today). Cross-check with distinct paid attendance dates so the
+    # finish gate does not block on stale counters.
+    try:
+        distinct_confirmed_days = (
+            DailyAttendance.objects.filter(jobID=job, payment_processed=True)
+            .values("date")
+            .distinct()
+            .count()
+        )
+    except Exception:
+        distinct_confirmed_days = 0
+
+    elapsed = max(total_days_worked, distinct_confirmed_days)
+
+    if elapsed == 0:
         started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
-        if not started_at:
-            elapsed = 0
-        else:
+        if started_at:
             start_date = timezone.localtime(started_at).date()
             today = timezone.localdate()
             elapsed = max((today - start_date).days + 1, 0)

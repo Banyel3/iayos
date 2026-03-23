@@ -1982,7 +1982,9 @@ export default function ChatScreen() {
       message:
         `This will confirm ${payableRows.length} attendance row(s) and process wallet payouts for today.\n\n` +
         `Estimated total: ₱${totalAmount.toLocaleString()}\n\n` +
-        "The job will remain in progress.",
+        ((reachedConfiguredDuration || reachedQaOffsetLimit)
+          ? "This is the final day — the job will be completed and closed."
+          : "The job will remain in progress."),
       confirmLabel: "Approve Day",
       countdownSeconds: 3,
       onConfirm: () => {
@@ -2050,11 +2052,30 @@ export default function ChatScreen() {
                   expiresAt: Date.now() + 15000,
                 });
               }
-              Toast.show({
-                type: "success",
-                text1: "Workday Settled",
-                text2: `${settledCount} attendance row(s) confirmed and paid`,
-              });
+
+              // On the final day of the job, automatically finish/close it.
+              if (reachedConfiguredDuration || reachedQaOffsetLimit) {
+                try {
+                  await dailyFinishJobMutation.mutateAsync({
+                    jobId: conversation.job.id,
+                  });
+                } catch (finishError) {
+                  const errorMsg =
+                    finishError instanceof Error
+                      ? finishError.message
+                      : "Failed to close job after settlement.";
+                  Alert.alert(
+                    "Settlement OK, Job Close Failed",
+                    `Attendance was paid but the job could not be closed:\n\n${errorMsg}\n\nPlease try again or contact support.`,
+                  );
+                }
+              } else {
+                Toast.show({
+                  type: "success",
+                  text1: "Workday Settled",
+                  text2: `${settledCount} attendance row(s) confirmed and paid`,
+                });
+              }
             } else if (settledCount > 0) {
               const failedCount = failedAttendanceIds.length;
               Alert.alert(
@@ -8417,8 +8438,7 @@ export default function ChatScreen() {
                               }
                             >
                               {(isTeamAgencyJob
-                                ? isDailyAgencyFlow
-                                  ? isBulkDailySettlementInFlight
+                                ? isDailyAgencyFlow                                  ? isBulkDailySettlementInFlight
                                   : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight
                                 : approveAgencyProjectJobMutation.isPending) ? (
@@ -8454,42 +8474,6 @@ export default function ChatScreen() {
                               )}
                             </TouchableOpacity>
 
-                            {isTeamAgencyJob &&
-                              isDailyAgencyFlow &&
-                              (reachedConfiguredDuration || reachedQaOffsetLimit) && (
-                                <TouchableOpacity
-                                  style={[
-                                    styles.actionButton,
-                                    styles.waitingButton,
-                                    { marginTop: 8 },
-                                  ]}
-                                  onPress={handleFinishDailyTeamJob}
-                                  disabled={dailyFinishJobMutation.isPending}
-                                >
-                                  {dailyFinishJobMutation.isPending ? (
-                                    <ActivityIndicator
-                                      size="small"
-                                      color={Colors.textPrimary}
-                                    />
-                                  ) : (
-                                    <>
-                                      <Ionicons
-                                        name="flag"
-                                        size={20}
-                                        color={Colors.textPrimary}
-                                      />
-                                      <Text
-                                        style={[
-                                          styles.waitingButtonText,
-                                          { color: Colors.textPrimary },
-                                        ]}
-                                      >
-                                        Finish Entire Job
-                                      </Text>
-                                    </>
-                                  )}
-                                </TouchableOpacity>
-                              )}
                           </View>
                         )}
 
