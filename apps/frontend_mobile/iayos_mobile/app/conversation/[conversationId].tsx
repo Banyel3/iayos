@@ -6890,6 +6890,10 @@ export default function ChatScreen() {
                               {/* Per-worker Complete Job Early & Pay button */}
                               {/* Per-assignment early finish & pay button for both freelancer and agency rows */}
                               {isAnyMultiDayFlow &&
+                                !(
+                                  conversation.job?.payment_model === "DAILY" &&
+                                  isTodayWorkdaySettled
+                                ) &&
                                 assignment.can_early_finish &&
                                 assignment.marked_complete &&
                                 !assignment.early_completed && (
@@ -7297,6 +7301,30 @@ export default function ChatScreen() {
 
                   // Show approve button if all complete and not yet approved
                   if (!conversation.job.clientMarkedComplete) {
+                    if (
+                      conversation.job.payment_model === "DAILY" &&
+                      isTodayWorkdaySettled &&
+                      !shouldFinishDailyTeamJob
+                    ) {
+                      return (
+                        <View style={[styles.actionButton, styles.completedAction]}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={Colors.success}
+                          />
+                          <Text
+                            style={[
+                              styles.actionButtonText,
+                              { color: Colors.success },
+                            ]}
+                          >
+                            ✓ Workday settled. Waiting for next day dispatch.
+                          </Text>
+                        </View>
+                      );
+                    }
+
                     return (
                       <>
                         {conversation.job.payment_model !== "DAILY" &&
