@@ -7197,23 +7197,28 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                                 status=400,
                             )
                     else:
-                        try:
-                            assignment = JobWorkerAssignment.objects.select_related(
+                        assignment = (
+                            JobWorkerAssignment.objects.select_related(
                                 "workerID__profileID__accountFK"
-                            ).get(
+                            )
+                            .filter(
                                 jobID=job,
                                 workerID_id=data.worker_id,
                                 assignment_status__in=["ACTIVE", "COMPLETED"],
                             )
-                            reviewee_profile = assignment.workerID.profileID
-                            reviewee_employee = None
-                        except JobWorkerAssignment.DoesNotExist:
+                            .order_by("assignmentID")
+                            .first()
+                        )
+
+                        if not assignment:
                             return Response(
                                 {
                                     "error": f"Worker {data.worker_id} is not assigned to this team job"
                                 },
                                 status=400,
                             )
+                        reviewee_profile = assignment.workerID.profileID
+                        reviewee_employee = None
 
                     reviewer_type = "CLIENT"
                 else:
@@ -7311,18 +7316,19 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
             if job.is_team_job and is_client and data.worker_id:
                 from accounts.models import JobWorkerAssignment
 
-                try:
-                    assignment = JobWorkerAssignment.objects.get(
-                        jobID=job, workerID_id=data.worker_id
-                    )
-                    assignment.individual_rating = overall_rating
-                    assignment.save(update_fields=["individual_rating"])
-                    print(
-                        f"   ✅ Updated assignment #{assignment.assignmentID} individual_rating to {overall_rating}"
-                    )
-                except JobWorkerAssignment.DoesNotExist:
+                updated_count = JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    workerID_id=data.worker_id,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                ).update(individual_rating=overall_rating)
+
+                if updated_count == 0:
                     print(
                         f"   ⚠️ Could not update assignment rating - assignment not found"
+                    )
+                else:
+                    print(
+                        f"   ✅ Updated individual_rating for {updated_count} assignment(s) to {overall_rating}"
                     )
 
             # For team jobs: check pending workers and return info
