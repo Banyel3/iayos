@@ -687,9 +687,7 @@ export default function JobDetailScreen() {
         skill_level_required: jobData.skill_level_required,
         work_environment: jobData.work_environment,
         // Payment model fields
-        payment_model:
-          jobData.payment_model ||
-          (jobData.daily_rate_agreed ? "DAILY" : "PROJECT"),
+        payment_model: jobData.payment_model || "PROJECT",
         daily_rate_agreed: jobData.daily_rate_agreed ?? null,
         daily_rate:
           jobData.daily_rate_agreed ??
