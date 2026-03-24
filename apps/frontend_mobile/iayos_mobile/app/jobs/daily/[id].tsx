@@ -75,6 +75,8 @@ interface DailyJobDetail {
   location_city: string;
   location_barangay: string;
   status: string;
+  payment_model?: "PROJECT" | "DAILY" | string;
+  is_team_job?: boolean;
   urgency_level: string;
   start_date: string;
   client: {
@@ -432,6 +434,30 @@ export default function DailyJobDetailScreen() {
           <Text style={styles.errorText}>Job not found</Text>
           <TouchableOpacity style={styles.backButton} onPress={() => safeGoBack(router, "/(tabs)/jobs")}>
             <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const isSingleDailyJob =
+    String(job.payment_model || "").toUpperCase() === "DAILY" &&
+    !job.is_team_job;
+
+  if (!isSingleDailyJob) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color={Colors.warning} />
+          <Text style={styles.errorText}>Daily Workflow Not Available</Text>
+          <Text style={styles.errorSubtext}>
+            This screen is only for single daily-rate jobs.
+          </Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.replace(`/jobs/${jobId}` as any)}
+          >
+            <Text style={styles.backButtonText}>Open Job Details</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
