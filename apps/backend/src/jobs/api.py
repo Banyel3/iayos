@@ -14221,20 +14221,14 @@ def finish_daily_job(request, job_id: int):
     for attendance in confirmed_unprocessed_rows:
         DailyPaymentService.process_day_payment(attendance)
 
-    # Team DAILY alignment: do not require legacy checkout/confirm-client sequence
-    # when the worker already marked the day complete.
+    # Team DAILY alignment: settle every confirmed-but-unprocessed attendance row
+    # on explicit finish, including merged-worker secondary slots.
     if is_team_daily:
         completion_unprocessed_rows = DailyAttendance.objects.filter(
             jobID=job,
             payment_processed=False,
             worker_confirmed=True,
             status__in=["PENDING", "PRESENT", "HALF_DAY"],
-        ).filter(
-            Q(time_out__isnull=False)
-            | Q(client_confirmed=True)
-            | Q(assignmentID__worker_marked_complete=True)
-            | Q(assignmentID__assignment_status="COMPLETED")
-            | Q(employeeID__isnull=False)
         ).order_by("date", "attendanceID")
 
         for attendance in completion_unprocessed_rows:
