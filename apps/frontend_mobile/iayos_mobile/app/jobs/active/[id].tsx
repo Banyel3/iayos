@@ -269,13 +269,30 @@ export default function ActiveJobDetailScreen() {
     ? job.worker_assignments.filter((a) => a.assignment_status === "ACTIVE")
     : [];
 
+  // Merged flow support: one worker can occupy multiple active slots.
+  // Completion gating should be per unique worker, not per slot assignment.
+  const activeWorkerIds = Array.from(
+    new Set(
+      activeAssignments
+        .map((a) => a.worker_id)
+        .filter((workerId): workerId is number => Number.isFinite(workerId)),
+    ),
+  );
+
+  const completedWorkerIds = new Set(
+    activeAssignments
+      .filter((a) => a.worker_marked_complete)
+      .map((a) => a.worker_id)
+      .filter((workerId): workerId is number => Number.isFinite(workerId)),
+  );
+
   const allWorkersComplete =
-    job?.is_team_job && activeAssignments.length > 0
-      ? activeAssignments.every((a) => a.worker_marked_complete)
+    job?.is_team_job && activeWorkerIds.length > 0
+      ? activeWorkerIds.every((workerId) => completedWorkerIds.has(workerId))
       : false;
 
-  const completedWorkersCount = activeAssignments.filter(
-    (a) => a.worker_marked_complete,
+  const completedWorkersCount = activeWorkerIds.filter((workerId) =>
+    completedWorkerIds.has(workerId),
   ).length;
 
   const myActiveAssignments = myAssignments.filter(
@@ -724,7 +741,7 @@ export default function ActiveJobDetailScreen() {
     if (!allWorkersComplete) {
       Alert.alert(
         "Workers Not Complete",
-        `${completedWorkersCount}/${job?.total_workers_needed || 0} workers have marked their work complete. All workers must complete their work first.`,
+        `${completedWorkersCount}/${activeWorkerIds.length} workers have marked their work complete. All workers must complete their work first.`,
       );
       return;
     }
