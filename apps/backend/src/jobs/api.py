@@ -63,11 +63,13 @@ from django.db.models import Q, Sum
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from typing import List, Optional, Dict, Any
+from zoneinfo import ZoneInfo
 import os
 import re
 from django.conf import settings
 
 router = Router()
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
 
 
 def _content_policy_violation_response(field_errors: dict):
@@ -194,7 +196,7 @@ def is_testing_mode_enabled() -> bool:
 
 def get_effective_work_date(job: Job):
     """Get effective work date with TESTING-only QA offset applied."""
-    base_date = timezone.now().date()
+    base_date = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
 
     if not is_testing_mode_enabled():
         return base_date
@@ -751,14 +753,28 @@ def _resolve_daily_required_days(job: JobPosting) -> int:
 
 
 def _get_elapsed_daily_days(job: JobPosting) -> int:
+    from accounts.models import DailyAttendance
+
     total_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
-    if total_days_worked > 0:
-        elapsed = total_days_worked
-    else:
+
+    # total_days_worked may lag behind actual confirmed attendance (e.g. just
+    # settled today). Cross-check with distinct paid attendance dates so the
+    # finish gate does not block on stale counters.
+    try:
+        distinct_confirmed_days = (
+            DailyAttendance.objects.filter(jobID=job, payment_processed=True)
+            .values("date")
+            .distinct()
+            .count()
+        )
+    except Exception:
+        distinct_confirmed_days = 0
+
+    elapsed = max(total_days_worked, distinct_confirmed_days)
+
+    if elapsed == 0:
         started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
-        if not started_at:
-            elapsed = 0
-        else:
+        if started_at:
             start_date = timezone.localtime(started_at).date()
             today = timezone.localdate()
             elapsed = max((today - start_date).days + 1, 0)
@@ -5306,6 +5322,64 @@ def worker_mark_job_complete(request, job_id: int):
                     status=403,
                 )
         else:
+            if getattr(job, "is_team_job", False):
+                from jobs.team_job_services import worker_complete_team_assignment
+
+                representative_assignment = (
+                    JobWorkerAssignment.objects.filter(
+                        jobID=job,
+                        workerID__profileID__accountFK=request.auth,
+                        assignment_status="ACTIVE",
+                    )
+                    .order_by("assignmentID")
+                    .first()
+                )
+
+                # Idempotent fallback when worker already completed all active slots.
+                if representative_assignment is None:
+                    representative_assignment = (
+                        JobWorkerAssignment.objects.filter(
+                            jobID=job,
+                            workerID__profileID__accountFK=request.auth,
+                        )
+                        .order_by("assignmentID")
+                        .first()
+                    )
+
+                if representative_assignment is None:
+                    return Response(
+                        {"error": "You are not assigned to this job"}, status=403
+                    )
+
+                completion_notes = None
+                if hasattr(request, "body") and request.body:
+                    try:
+                        payload = json.loads(request.body.decode("utf-8"))
+                        completion_notes = payload.get("completion_notes") or payload.get(
+                            "notes"
+                        )
+                    except json.JSONDecodeError:
+                        completion_notes = None
+
+                result = worker_complete_team_assignment(
+                    representative_assignment.assignmentID,
+                    request.auth,
+                    completion_notes,
+                )
+
+                if not result.get("success"):
+                    error_message = str(result.get("error") or "Failed to mark complete")
+                    lowered_error = error_message.lower()
+                    status_code = (
+                        403
+                        if "not authorized" in lowered_error
+                        or "not assigned" in lowered_error
+                        else 400
+                    )
+                    return Response({"error": error_message}, status=status_code)
+
+                return result
+
             # Regular worker job - verify worker is assigned
             profile_type = getattr(request.auth, "profile_type", "WORKER")
             try:
@@ -6933,11 +7007,19 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 # Team job client review - must specify which worker to review
                 if job.is_team_job:
                     from accounts.models import (
+                        Agency,
                         JobWorkerAssignment,
                         JobEmployeeAssignment,
                     )
 
-                    if not data.worker_id and not data.employee_id:
+                    team_review_target = str(data.review_target or "").upper()
+                    reviewee_agency = None
+
+                    if (
+                        not data.worker_id
+                        and not data.employee_id
+                        and team_review_target != "AGENCY"
+                    ):
                         # Get list of assignees that can be reviewed
                         worker_assignments = JobWorkerAssignment.objects.filter(
                             jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
@@ -6960,6 +7042,15 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             reviewerType="CLIENT",
                             revieweeEmployeeID__isnull=False,
                         ).values_list("revieweeEmployeeID", flat=True)
+
+                        reviewed_agency_ids = set(
+                            JobReview.objects.filter(
+                                jobID=job,
+                                reviewerID=request.auth,
+                                reviewerType="CLIENT",
+                                revieweeAgencyID__isnull=False,
+                            ).values_list("revieweeAgencyID", flat=True)
+                        )
 
                         pending_workers = []
                         for assignment in worker_assignments:
@@ -6991,6 +7082,34 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                                     }
                                 )
 
+                        # Team hybrid jobs may also require agency-level review.
+                        agency_account_ids = set(
+                            employee_assignments.values_list(
+                                "employee__agency_id", flat=True
+                            )
+                        )
+                        agency_account_ids.discard(None)
+                        if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                            agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+                        if agency_account_ids:
+                            for agency in Agency.objects.filter(
+                                accountFK_id__in=agency_account_ids
+                            ):
+                                if agency.agencyId not in reviewed_agency_ids:
+                                    pending_workers.append(
+                                        {
+                                            "target_type": "AGENCY",
+                                            "agency_id": agency.agencyId,
+                                            "agency_account_id": agency.accountFK_id,
+                                            "worker_id": None,
+                                            "employee_id": None,
+                                            "account_id": agency.accountFK_id,
+                                            "name": agency.businessName,
+                                            "skill": None,
+                                        }
+                                    )
+
                         return Response(
                             {
                                 "error": "Team job requires worker_id or employee_id to specify who to review",
@@ -6999,8 +7118,66 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             status=400,
                         )
 
-                    # Find the assignment for the specified target
-                    if data.employee_id:
+                    # Find the assignment/target for the specified review target
+                    if team_review_target == "AGENCY":
+                        agency_account_ids = set(
+                            JobEmployeeAssignment.objects.filter(
+                                job=job,
+                                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                                skill_slot__isnull=False,
+                            ).values_list("employee__agency_id", flat=True)
+                        )
+                        agency_account_ids.discard(None)
+                        if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                            agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+                        if not agency_account_ids:
+                            return Response(
+                                {
+                                    "error": "No agency found for this team job"
+                                },
+                                status=400,
+                            )
+
+                        if len(agency_account_ids) > 1:
+                            return Response(
+                                {
+                                    "error": "Multiple agencies found. Please review agency employees first to determine target agency."
+                                },
+                                status=400,
+                            )
+
+                        reviewee_agency = Agency.objects.filter(
+                            accountFK_id=next(iter(agency_account_ids))
+                        ).first()
+                        if not reviewee_agency:
+                            return Response(
+                                {
+                                    "error": "Agency not found for this team job"
+                                },
+                                status=400,
+                            )
+
+                        existing_agency_review = JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=request.auth,
+                            reviewerType="CLIENT",
+                            revieweeAgencyID=reviewee_agency,
+                        ).first()
+                        if existing_agency_review:
+                            return Response(
+                                {
+                                    "error": "You have already reviewed this agency",
+                                    "error_code": "REVIEW_ALREADY_EXISTS",
+                                    "existing_review_id": existing_agency_review.reviewID,
+                                    "review_target": "AGENCY",
+                                },
+                                status=400,
+                            )
+
+                        reviewee_profile = None
+                        reviewee_employee = None
+                    elif data.employee_id:
                         try:
                             assignment = JobEmployeeAssignment.objects.select_related(
                                 "employee"
@@ -7108,6 +7285,9 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 if reviewee_profile is not None
                 else None,
                 revieweeProfileID=reviewee_profile,
+                revieweeAgencyID=reviewee_agency
+                if job.is_team_job and is_client and reviewee_agency is not None
+                else None,
                 revieweeEmployeeID=reviewee_employee
                 if job.is_team_job and is_client and data.employee_id
                 else None,
@@ -7183,6 +7363,15 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     ).values_list("revieweeEmployeeID", flat=True)
                 )
 
+                reviewed_agency_ids = set(
+                    JobReview.objects.filter(
+                        jobID=job,
+                        reviewerID=request.auth,
+                        reviewerType="CLIENT",
+                        revieweeAgencyID__isnull=False,
+                    ).values_list("revieweeAgencyID", flat=True)
+                )
+
                 for a in all_assignments:
                     worker_profile = a.workerID.profileID
                     worker_account_id = worker_profile.accountFK.accountID
@@ -7226,9 +7415,41 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                             }
                         )
 
+                agency_account_ids = set(
+                    all_employee_assignments.values_list("employee__agency_id", flat=True)
+                )
+                agency_account_ids.discard(None)
+                if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                    agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+                if agency_account_ids:
+                    from accounts.models import Agency
+
+                    for agency in Agency.objects.filter(accountFK_id__in=agency_account_ids):
+                        if agency.agencyId not in reviewed_agency_ids:
+                            pending_team_workers.append(
+                                {
+                                    "target_type": "AGENCY",
+                                    "agency_id": agency.agencyId,
+                                    "agency_account_id": agency.accountFK_id,
+                                    "worker_id": None,
+                                    "employee_id": None,
+                                    "account_id": agency.accountFK_id,
+                                    "name": agency.businessName,
+                                    "avatar": None,
+                                    "skill": None,
+                                }
+                            )
+
+                if reviewee_agency is not None:
+                    reviewed_worker_name = reviewee_agency.businessName
+                elif reviewee_employee is not None:
+                    reviewed_worker_name = reviewee_employee.name
+
                 total_team_workers = len(all_assignments) + len(
                     all_employee_assignments
                 )
+                total_team_workers += len(agency_account_ids)
                 all_team_workers_reviewed = len(pending_team_workers) == 0
 
             # Check if both parties have now submitted reviews
@@ -13563,7 +13784,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                     "day_offset": old_offset,
                     "max_offset": max_offset,
                     "effective_work_date": (
-                        timezone.now().date()
+                        timezone.localtime(timezone.now(), PH_TIMEZONE).date()
                         + timedelta(days=min(old_offset, max_offset))
                     ).isoformat(),
                 },
@@ -13575,17 +13796,21 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
     if max_offset is not None:
         new_offset = min(new_offset, max_offset)
 
-    old_effective_date = timezone.now().date() + timedelta(days=old_offset)
-    new_effective_date = timezone.now().date() + timedelta(days=new_offset)
+    ph_today = timezone.localtime(timezone.now(), PH_TIMEZONE).date()
+    old_effective_date = ph_today + timedelta(days=old_offset)
+    new_effective_date = ph_today + timedelta(days=new_offset)
 
     with db_transaction.atomic():
         job.qa_day_offset = new_offset
         job_changed_fields = ["qa_day_offset", "updatedAt"]
+        reset_next_day_attendance_rows = 0
 
         # DAILY team QA skip should advance to a fresh effective day. Reset
         # non-early-completed per-assignment completion flags so the next day
         # does not inherit stale "completed" UI state.
         if is_daily and job.is_team_job and not job.clientMarkedComplete:
+            from accounts.models import DailyAttendance
+
             JobWorkerAssignment.objects.filter(
                 jobID=job,
                 assignment_status__in=["ACTIVE", "COMPLETED"],
@@ -13627,6 +13852,57 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 clientApprovedAt=None,
             )
 
+            # If this effective date was already exercised in prior QA runs,
+            # normalize existing attendance rows so the new cycle starts unpaid.
+            active_worker_assignment_ids = list(
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                    early_completed=False,
+                ).values_list("assignmentID", flat=True)
+            )
+            active_worker_ids = list(
+                JobWorkerAssignment.objects.filter(
+                    jobID=job,
+                    assignment_status__in=["ACTIVE", "COMPLETED"],
+                    early_completed=False,
+                ).values_list("workerID_id", flat=True)
+            )
+            active_employee_ids = list(
+                JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    skill_slot__isnull=False,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    early_completed=False,
+                ).values_list("employee_id", flat=True)
+            )
+
+            stale_next_day_attendance = DailyAttendance.objects.filter(
+                jobID=job,
+                date=new_effective_date,
+            ).filter(
+                Q(assignmentID_id__in=active_worker_assignment_ids)
+                | Q(workerID_id__in=active_worker_ids)
+                | Q(employeeID_id__in=active_employee_ids)
+            )
+
+            reset_next_day_attendance_rows = stale_next_day_attendance.update(
+                status="DISPATCHED",
+                worker_confirmed=False,
+                worker_confirmed_at=None,
+                client_confirmed=False,
+                client_confirmed_at=None,
+                payment_processed=False,
+                payment_processed_at=None,
+                payment_method=None,
+                cash_payment_proof_url=None,
+                cash_proof_uploaded_at=None,
+                cash_payment_verified=False,
+                cash_payment_verified_at=None,
+                time_in=None,
+                time_out=None,
+            )
+
             if job.workerMarkedComplete:
                 job.workerMarkedComplete = False
                 job.workerMarkedCompleteAt = None
@@ -13663,6 +13939,7 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
             "day_offset": new_offset,
             "max_offset": max_offset,
             "effective_work_date": new_effective_date.isoformat(),
+            "reset_next_day_attendance_rows": int(reset_next_day_attendance_rows),
         },
     }
 
@@ -13929,6 +14206,8 @@ def finish_daily_job(request, job_id: int):
     from jobs.payment_buffer_service import has_receivable_ledger_for_account
     from jobs.daily_payment_service import DailyPaymentService
 
+    is_team_daily = bool(job.is_team_job and str(job.payment_model or "").upper() == "DAILY")
+
     # Settle any fully confirmed and still-unprocessed attendance first.
     confirmed_unprocessed_rows = DailyAttendance.objects.filter(
         jobID=job,
@@ -13940,6 +14219,59 @@ def finish_daily_job(request, job_id: int):
 
     for attendance in confirmed_unprocessed_rows:
         DailyPaymentService.process_day_payment(attendance)
+
+    # Team DAILY alignment: settle every confirmed-but-unprocessed attendance row
+    # on explicit finish, including merged-worker secondary slots.
+    if is_team_daily:
+        completion_unprocessed_rows = DailyAttendance.objects.filter(
+            jobID=job,
+            payment_processed=False,
+            worker_confirmed=True,
+            status__in=["PENDING", "PRESENT", "HALF_DAY"],
+        ).order_by("date", "attendanceID")
+
+        for attendance in completion_unprocessed_rows:
+            if attendance.payment_processed:
+                continue
+
+            if not attendance.client_confirmed:
+                approved_status = (
+                    "PRESENT" if attendance.status in ["PENDING", "DISPATCHED"] else None
+                )
+                result = DailyPaymentService.confirm_attendance_client(
+                    attendance,
+                    request.auth,
+                    approved_status=approved_status,
+                    payment_method="WALLET",
+                )
+                if not result.get("success"):
+                    return Response(
+                        {
+                            "error": "Failed to settle a completed team attendance row",
+                            "attendance_id": attendance.attendanceID,
+                            "details": result.get("error", "Unknown error"),
+                        },
+                        status=400,
+                    )
+                continue
+
+            if attendance.status in ["PENDING", "DISPATCHED"]:
+                attendance.status = "PRESENT"
+                attendance.save(update_fields=["status", "updatedAt"])
+
+            result = DailyPaymentService.process_day_payment(
+                attendance,
+                payment_method="WALLET",
+            )
+            if not result.get("success"):
+                return Response(
+                    {
+                        "error": "Failed to process payment for a completed team attendance row",
+                        "attendance_id": attendance.attendanceID,
+                        "details": result.get("error", "Unknown error"),
+                    },
+                    status=400,
+                )
 
     # Compute unused daily escrow principal for refund to client.
     total_paid = DailyAttendance.objects.filter(
@@ -14020,9 +14352,38 @@ def finish_daily_job(request, job_id: int):
         recipient_accounts.update(account for account in employee_accounts if account)
 
     if total_paid > Decimal("0.00") and recipient_accounts:
+        recipients_to_validate = set(recipient_accounts)
+
+        # TEAM DAILY settlement is attendance-driven per recipient. For final-day
+        # close, validate ledger presence only for recipients who actually earned
+        # a positive amount. Assigned recipients with 0 earned should not block
+        # completion/review transition.
+        if job.is_team_job and str(getattr(job, "payment_model", "") or "").upper() == "DAILY":
+            paid_worker_accounts = DailyAttendance.objects.filter(
+                jobID=job,
+                payment_processed=True,
+                amount_earned__gt=Decimal("0.00"),
+                status__in=["PRESENT", "HALF_DAY"],
+                workerID__isnull=False,
+            ).values_list("workerID__profileID__accountFK", flat=True)
+
+            paid_employee_accounts = DailyAttendance.objects.filter(
+                jobID=job,
+                payment_processed=True,
+                amount_earned__gt=Decimal("0.00"),
+                status__in=["PRESENT", "HALF_DAY"],
+                employeeID__isnull=False,
+            ).values_list("employeeID__agency", flat=True)
+
+            recipients_to_validate = {
+                account
+                for account in list(paid_worker_accounts) + list(paid_employee_accounts)
+                if account
+            }
+
         missing_recipients = [
             account
-            for account in recipient_accounts
+            for account in recipients_to_validate
             if not has_receivable_ledger_for_account(job, account)
         ]
         if missing_recipients:

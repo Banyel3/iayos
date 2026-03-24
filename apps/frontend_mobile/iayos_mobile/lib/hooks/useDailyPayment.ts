@@ -1479,9 +1479,14 @@ export const useClientVerifyArrival = () => {
         },
         (row) => ({
           ...row,
-          attendance_id: data.attendance_id || row?.attendance_id,
+          attendance_id:
+            String(row?.attendance_id ?? "") === sourceRef
+              ? data.attendance_id || row?.attendance_id
+              : row?.attendance_id,
           assignment_id:
-            data.assignment_id ?? row?.assignment_id ?? null,
+            String(row?.attendance_id ?? "") === sourceRef
+              ? data.assignment_id ?? row?.assignment_id ?? null
+              : row?.assignment_id,
           worker_id: data.worker_id ?? row?.worker_id ?? null,
           worker_account_id:
             data.worker_account_id ?? row?.worker_account_id ?? null,

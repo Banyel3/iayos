@@ -7,6 +7,7 @@ import {
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import Constants from "expo-constants";
 import * as SystemUI from "expo-system-ui";
 import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -172,9 +173,11 @@ export const unstable_settings = {
 function AppUpdateWrapper({ children }: { children: ReactNode }) {
   const appUpdate = useAppUpdateHook ? useAppUpdateHook() : null;
   const [dismissed, setDismissed] = useState(false);
+  const isExpoGo = Constants.appOwnership === "expo";
   if (__DEV__) console.log("[RootLayout] AppUpdateWrapper render", {
     hasUpdateHook: !!useAppUpdateHook,
     hasModal: !!UpdateRequiredModalComponent,
+    isExpoGo,
   });
 
   // If update modules failed to load, just render children
@@ -183,7 +186,7 @@ function AppUpdateWrapper({ children }: { children: ReactNode }) {
   }
 
   // Show modal if update is required (and not dismissed for optional updates)
-  const showModal = appUpdate.updateRequired && !dismissed;
+  const showModal = !__DEV__ && !isExpoGo && appUpdate.updateRequired && !dismissed;
 
   return (
     <>

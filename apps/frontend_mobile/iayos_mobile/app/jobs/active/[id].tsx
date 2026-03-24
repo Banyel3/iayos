@@ -278,6 +278,16 @@ export default function ActiveJobDetailScreen() {
     (a) => a.worker_marked_complete,
   ).length;
 
+  const myActiveAssignments = myAssignments.filter(
+    (a) => a.assignment_status === "ACTIVE",
+  );
+  const hasPendingMyTeamAssignments = myActiveAssignments.some(
+    (a) => !a.worker_marked_complete && !a.early_completed,
+  );
+  const showWorkerMarkCompleteButton = job?.is_team_job
+    ? !isTeamDaily && hasPendingMyTeamAssignments
+    : !job?.worker_marked_complete;
+
   // Upload photos helper function
   const uploadPhotos = async (jobId: string): Promise<boolean> => {
     if (uploadedPhotos.length === 0) return true;
@@ -657,6 +667,12 @@ export default function ActiveJobDetailScreen() {
                   queryClient.invalidateQueries({
                     queryKey: ["team-job", Number(id)],
                   });
+                  queryClient.invalidateQueries({
+                    queryKey: ["jobs", "active", id],
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: ["jobs", "active"],
+                  });
                 },
                 onError: (error: any) => {
                   Alert.alert(
@@ -672,6 +688,38 @@ export default function ActiveJobDetailScreen() {
     );
   };
 
+  const openCompletionModal = () => {
+    if (!job?.is_team_job) {
+      setShowCompletionModal(true);
+      return;
+    }
+
+    if (!isWorker) {
+      return;
+    }
+
+    const fallbackAssignment =
+      myAssignments.find(
+        (a) =>
+          a.assignment_status === "ACTIVE" &&
+          !a.worker_marked_complete &&
+          !a.early_completed,
+      ) ||
+      myAssignments.find((a) => a.assignment_status === "ACTIVE") ||
+      myAssignment;
+
+    if (!fallbackAssignment) {
+      Alert.alert(
+        "No Active Assignment",
+        "You do not have an active team assignment to complete.",
+      );
+      return;
+    }
+
+    setSelectedAssignment(fallbackAssignment);
+    setShowCompletionModal(true);
+  };
+
   const handleTeamApproveCompletion = () => {
     if (!allWorkersComplete) {
       Alert.alert(
@@ -683,7 +731,9 @@ export default function ActiveJobDetailScreen() {
 
     Alert.alert(
       "Select Payment Method",
-      "All workers are complete. Choose how you want to pay the final amount.",
+      isTeamDaily
+        ? "All workers are complete. Choose how you want to approve and pay for today."
+        : "All workers are complete. Choose how you want to pay the final amount.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -695,7 +745,9 @@ export default function ActiveJobDetailScreen() {
                 onSuccess: () => {
                   Alert.alert(
                     "Success",
-                    "Team job completed! Payment processed.",
+                    isTeamDaily
+                      ? "Workers approved and paid for today."
+                      : "Team job completed! Payment processed.",
                     [
                       {
                         text: "OK",
@@ -1357,11 +1409,22 @@ export default function ActiveJobDetailScreen() {
                             color={Colors.white}
                           />
                           <Text style={styles.approveAllText}>
-                            Approve All & Complete Job
+                            {isTeamDaily
+                              ? "Approve and Pay"
+                              : "Approve All & Complete Job"}
                           </Text>
                         </>
                       )}
                     </TouchableOpacity>
+                  )}
+
+                {isTeamDaily &&
+                  (job.duration_days ?? 0) > 1 &&
+                  !job.client_marked_complete && (
+                    <Text style={styles.dailyHelperText}>
+                      Workers paid for today. Come back tomorrow to proceed with
+                      the next work day.
+                    </Text>
                   )}
 
                 {/* Client waiting message */}
@@ -1467,10 +1530,10 @@ export default function ActiveJobDetailScreen() {
             )}
           </TouchableOpacity>
 
-          {!job.worker_marked_complete && (
+          {showWorkerMarkCompleteButton && (
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => setShowCompletionModal(true)}
+            onPress={openCompletionModal}
             activeOpacity={0.8}
           >
             <Ionicons
@@ -1614,14 +1677,23 @@ export default function ActiveJobDetailScreen() {
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (markCompleteMutation.isPending || isUploading) &&
+                ((job?.is_team_job
+                  ? workerCompleteMutation.isPending
+                  : markCompleteMutation.isPending) ||
+                  isUploading) &&
                   styles.submitButtonDisabled,
               ]}
-              onPress={handleMarkComplete}
-              disabled={markCompleteMutation.isPending || isUploading}
+              onPress={job?.is_team_job ? handleTeamMarkComplete : handleMarkComplete}
+              disabled={
+                (job?.is_team_job
+                  ? workerCompleteMutation.isPending
+                  : markCompleteMutation.isPending) || isUploading
+              }
               activeOpacity={0.8}
             >
-              {markCompleteMutation.isPending || isUploading ? (
+              {(job?.is_team_job
+                ? workerCompleteMutation.isPending
+                : markCompleteMutation.isPending) || isUploading ? (
                 <View style={styles.buttonLoadingContainer}>
                   <ActivityIndicator size="small" color={Colors.white} />
                   <Text style={[styles.submitButtonText, { marginLeft: 8 }]}>
@@ -2226,6 +2298,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     fontWeight: "600",
     color: Colors.white,
+  },
+  dailyHelperText: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    textAlign: "center",
+    marginTop: Spacing.xs,
+    fontStyle: "italic",
   },
   waitingMessage: {
     flexDirection: "row",

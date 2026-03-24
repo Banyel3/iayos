@@ -396,8 +396,13 @@ export function useMessages(
       const data = (await response.json()) as ConversationDetail;
       const flowMode =
         data.job?.agency_flow_mode ?? data.agency_flow_mode ?? null;
+      const hasTeamAssignmentPayload =
+        Array.isArray(data.team_worker_assignments) &&
+        data.team_worker_assignments.length > 0;
       const normalizedIsTeamJob =
-        flowMode === "TEAM_SLOT" ? true : Boolean(data.is_team_job);
+        flowMode === "TEAM_SLOT"
+          ? true
+          : Boolean(data.is_team_job) || hasTeamAssignmentPayload;
       const normalizedIsAgencyJob =
         flowMode === "DIRECT" ? true : Boolean(data.is_agency_job);
       // Transform avatar URLs to absolute URLs for local storage compatibility

@@ -32,6 +32,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from accounts.models import (
             BackjobScheduleConfirmation,
+            ClientProfile,
             DailyAttendance,
             DailyJobExtension,
             DailyRateChange,
@@ -52,7 +53,9 @@ class Command(BaseCommand):
             SavedJob,
             Transaction,
             Wallet,
+            WorkerProfile,
         )  # local import to avoid circular refs
+        from agency.models import AgencyEmployee
         from profiles.models import (
             Conversation,
             ConversationParticipant,
@@ -100,6 +103,23 @@ class Command(BaseCommand):
                 preferredPaymentMethodID=None,
                 lastAutoWithdrawAt=None,
             )
+            worker_profile_count = WorkerProfile.objects.update(
+                totalEarningGross=Decimal("0.00"),
+                workerRating=0,
+            )
+            client_profile_count = ClientProfile.objects.update(
+                totalJobsPosted=0,
+                activeJobsCount=0,
+                clientRating=0,
+            )
+            agency_employee_count = AgencyEmployee.objects.update(
+                totalJobsCompleted=0,
+                totalEarnings=Decimal("0.00"),
+                rating=None,
+                employeeOfTheMonth=False,
+                employeeOfTheMonthDate=None,
+                lastRatingUpdate=None,
+            )
 
         verification_counts = {
             "jobs": Job.objects.count(),
@@ -145,6 +165,13 @@ class Command(BaseCommand):
                 f"Reset {wallet_count} wallet(s) to ₱0.00 "
                 f"(balance, reservedBalance, pendingEarnings, "
                 f"autoWithdrawEnabled, preferredPaymentMethodID, lastAutoWithdrawAt).\n"
+                f"Reset {worker_profile_count} WorkerProfile(s) "
+                f"(totalEarningGross, workerRating).\n"
+                f"Reset {client_profile_count} ClientProfile(s) "
+                f"(totalJobsPosted, activeJobsCount, clientRating).\n"
+                f"Reset {agency_employee_count} AgencyEmployee(s) "
+                f"(totalJobsCompleted, totalEarnings, rating, employeeOfTheMonth, "
+                f"employeeOfTheMonthDate, lastRatingUpdate).\n"
                 f"Post-wipe verification counts:\n{verification_str}"
             )
         )

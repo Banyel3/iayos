@@ -67,6 +67,12 @@ def _get_job_agency_flow_mode(job):
     if raw_mode in {"DIRECT", "TEAM_SLOT"}:
         return raw_mode
 
+    # Fallback for legacy rows where agency_flow_mode is not persisted yet.
+    # Team jobs must always be treated as TEAM_SLOT, including pure freelancer
+    # team jobs that do not have an assigned agency.
+    if getattr(job, "is_team_job", False):
+        return "TEAM_SLOT"
+
     if getattr(job, "assignedAgencyFK_id", None) and getattr(job, "is_team_job", False):
         return "TEAM_SLOT"
     if getattr(job, "assignedAgencyFK_id", None):
@@ -2664,6 +2670,7 @@ def get_conversation_messages(request, conversation_id: int):
         # Workers need this to see their own assignment status (Phase 2 banners)
         if is_team_job:
             from accounts.models import (
+                Agency,
                 JobWorkerAssignment,
                 JobEmployeeAssignment,
                 JobReview,
@@ -2694,6 +2701,15 @@ def get_conversation_messages(request, conversation_id: int):
                     reviewerType="CLIENT",
                     revieweeEmployeeID__isnull=False,
                 ).values_list("revieweeEmployeeID", flat=True)
+            )
+
+            reviewed_agency_ids = set(
+                JobReview.objects.filter(
+                    jobID=job,
+                    reviewerID=client_account,
+                    reviewerType="CLIENT",
+                    revieweeAgencyID__isnull=False,
+                ).values_list("revieweeAgencyID", flat=True)
             )
 
             for assignment in assignments:
@@ -2884,12 +2900,44 @@ def get_conversation_messages(request, conversation_id: int):
                         }
                     )
 
-            total_team_workers = total_freelancer_workers + len(team_agency_employees)
+            agency_account_ids = set(
+                slot_employee_assignments.values_list("employee__agency_id", flat=True)
+            )
+            agency_account_ids.discard(None)
+            if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
+                agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
+
+            team_agencies = list(Agency.objects.filter(accountFK_id__in=agency_account_ids))
+            reviewed_team_agencies_count = 0
+            for agency in team_agencies:
+                agency_reviewed = agency.agencyId in reviewed_agency_ids
+                if agency_reviewed:
+                    reviewed_team_agencies_count += 1
+                elif is_client:
+                    team_workers_pending_review.append(
+                        {
+                            "target_type": "AGENCY",
+                            "agency_id": agency.agencyId,
+                            "agency_account_id": agency.accountFK_id,
+                            "worker_id": None,
+                            "account_id": agency.accountFK_id,
+                            "name": agency.businessName,
+                            "avatar": None,
+                            "skill": None,
+                        }
+                    )
+
+            total_team_workers = (
+                total_freelancer_workers
+                + len(team_agency_employees)
+                + len(team_agencies)
+            )
             reviewed_by_client_count = reviewed_freelancers_count + sum(
                 1
                 for employee in team_agency_employees
                 if employee["id"] in reviewed_employee_ids
             )
+            reviewed_by_client_count += reviewed_team_agencies_count
             all_team_workers_reviewed = (
                 total_team_workers > 0
                 and reviewed_by_client_count >= total_team_workers
@@ -3209,6 +3257,115 @@ def get_conversation_messages(request, conversation_id: int):
                         f"   🔧 [ATTENDANCE AUTO-HEAL] Created {healed_rows} missing PROJECT multi-day attendance rows"
                     )
 
+            # DAILY/PROJECT team auto-heal: on Day 2+, client_confirmed_arrival
+            # can stay True from Day 1 while no row exists for today's date yet.
+            # Create the row now so attendance_today is non-empty without a
+            # redundant confirm-arrival tap.
+            if is_daily_job or is_team_project_attendance:
+                from accounts.models import JobWorkerAssignment as _JWA_Daily
+
+                existing_assignment_ids_daily = {
+                    record.assignmentID_id
+                    for record in attendance_records
+                    if record.assignmentID_id is not None
+                }
+                existing_employee_ids_daily = {
+                    record.employeeID_id
+                    for record in attendance_records
+                    if record.employeeID_id is not None
+                }
+                healed_daily = 0
+                now_daily = timezone.now()
+
+                # Freelance worker slots
+                for wa in _JWA_Daily.objects.filter(
+                    jobID=job,
+                    assignment_status="ACTIVE",
+                    client_confirmed_arrival=True,
+                ).exclude(assignmentID__in=existing_assignment_ids_daily):
+                    daily_rate_wa = (
+                        Decimal(
+                            str(
+                                getattr(wa, "daily_rate_at_assignment", None)
+                                or getattr(job, "daily_rate_agreed", None)
+                                or 0
+                            )
+                        )
+                        if is_daily_job
+                        else Decimal("0.00")
+                    )
+                    new_row, created = DailyAttendance.objects.get_or_create(
+                        assignmentID=wa,
+                        date=today,
+                        defaults={
+                            "jobID": job,
+                            "workerID": wa.workerID,
+                            "status": "PENDING",
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": now_daily,
+                            "time_in": now_daily,
+                            "amount_earned": daily_rate_wa,
+                            "notes": (
+                                "Auto-healed: DAILY team attendance row for new work day"
+                                if is_daily_job
+                                else "Auto-healed: PROJECT team attendance row for new work day"
+                            ),
+                        },
+                    )
+                    if created:
+                        attendance_records.append(new_row)
+                        healed_daily += 1
+
+                # Agency employee slots
+                for ea in (
+                    JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        skill_slot__isnull=False,
+                        status__in=["ASSIGNED", "IN_PROGRESS"],
+                        clientConfirmedArrival=True,
+                    )
+                    .select_related("employee")
+                    .exclude(employee__employeeID__in=existing_employee_ids_daily)
+                ):
+                    daily_rate_ea = (
+                        Decimal(
+                            str(
+                                getattr(ea.employee, "daily_rate", None)
+                                or getattr(job, "daily_rate_agreed", None)
+                                or 0
+                            )
+                        )
+                        if is_daily_job
+                        else Decimal("0.00")
+                    )
+                    new_row, created = DailyAttendance.objects.get_or_create(
+                        jobID=job,
+                        employeeID=ea.employee,
+                        date=today,
+                        defaults={
+                            "workerID": None,
+                            "assignmentID": None,
+                            "status": "PENDING",
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": now_daily,
+                            "time_in": now_daily,
+                            "amount_earned": daily_rate_ea,
+                            "notes": (
+                                "Auto-healed: DAILY team attendance row for new work day (employee)"
+                                if is_daily_job
+                                else "Auto-healed: PROJECT team attendance row for new work day (employee)"
+                            ),
+                        },
+                    )
+                    if created:
+                        attendance_records.append(new_row)
+                        healed_daily += 1
+
+                if healed_daily > 0:
+                    print(
+                        f"   🔧 [{'DAILY' if is_daily_job else 'PROJECT'} AUTO-HEAL] Created {healed_daily} missing team attendance rows for {today}"
+                    )
+
             for record in attendance_records:
                 # Determine worker info based on worker type
                 worker_name = "Unknown Worker"
@@ -3238,7 +3395,7 @@ def get_conversation_messages(request, conversation_id: int):
                                 employee=record.employeeID,
                                 status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
                             )
-                            .order_by("-updatedAt")
+                            .order_by("-assignedAt", "-assignmentID")
                             .values_list("assignmentID", flat=True)
                             .first()
                         )

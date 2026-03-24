@@ -656,6 +656,7 @@ export function useClientApproveTeamJob() {
         "Job Completed!",
         data.message || "The team job has been marked as complete. Thank you!",
       );
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
       queryClient.invalidateQueries({
         queryKey: ["team-job", variables.jobId],
       });
