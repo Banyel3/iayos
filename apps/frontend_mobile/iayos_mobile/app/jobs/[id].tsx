@@ -751,6 +751,7 @@ export default function JobDetailScreen() {
     proposalsRemaining: number;
     budgetOption: string | null;
     hasPendingCounter: boolean;
+    hasNegotiationCapReached: boolean;
   }>({
     queryKey: ["jobs", id, "applied"],
     queryFn: async (): Promise<{
@@ -762,6 +763,7 @@ export default function JobDetailScreen() {
       proposalsRemaining: number;
       budgetOption: string | null;
       hasPendingCounter: boolean;
+      hasNegotiationCapReached: boolean;
     }> => {
       const normalizeId = (value: unknown): number | null => {
         const parsed = Number(value);
@@ -806,6 +808,7 @@ export default function JobDetailScreen() {
           proposalsRemaining: 0,
           budgetOption: null,
           hasPendingCounter: false,
+          hasNegotiationCapReached: false,
         };
       }
 
@@ -822,6 +825,40 @@ export default function JobDetailScreen() {
         const activeJobApplications = jobApplications.filter((app: any) =>
           ["PENDING", "ACCEPTED"].includes(resolveAppStatus(app)),
         );
+        const resolveTimestamp = (app: any): number => {
+          const rawTimestamp =
+            app?.created_at ??
+            app?.createdAt ??
+            app?.updated_at ??
+            app?.updatedAt ??
+            null;
+          const parsed = rawTimestamp ? new Date(rawTimestamp).getTime() : 0;
+          return Number.isFinite(parsed) ? parsed : 0;
+        };
+        const latestJobApplication =
+          jobApplications.length > 0
+            ? jobApplications.reduce((latest: any, current: any) =>
+                resolveTimestamp(current) > resolveTimestamp(latest)
+                  ? current
+                  : latest,
+              )
+            : null;
+        const latestStatus = latestJobApplication
+          ? resolveAppStatus(latestJobApplication)
+          : "";
+        const latestNegotiationCount = Number(
+          latestJobApplication?.negotiation_count ??
+            latestJobApplication?.negotiationCount ??
+            0,
+        );
+        const latestProposalsRemaining = Number(
+          latestJobApplication?.proposals_remaining ??
+            latestJobApplication?.proposalsRemaining ??
+            Math.max(3 - latestNegotiationCount, 0),
+        );
+        const hasNegotiationCapReached =
+          latestStatus === "REJECTED" &&
+          (latestProposalsRemaining <= 0 || latestNegotiationCount >= 3);
         const hasApplied = activeJobApplications.length > 0;
         const hasAcceptedApplication = jobApplications.some(
           (app: any) => resolveAppStatus(app) === "ACCEPTED",
@@ -842,7 +879,7 @@ export default function JobDetailScreen() {
         const proposalsRemaining = Number(firstActive?.proposals_remaining ?? firstActive?.proposalsRemaining ?? 0);
         const budgetOption = firstActive?.budget_option ?? firstActive?.budgetOption ?? null;
         const hasPendingCounter = !!firstActive?.has_pending_counter;
-        return { hasApplied, hasAcceptedApplication, appliedSlotIds, applicationId, negotiationCount, proposalsRemaining, budgetOption, hasPendingCounter };
+        return { hasApplied, hasAcceptedApplication, appliedSlotIds, applicationId, negotiationCount, proposalsRemaining, budgetOption, hasPendingCounter, hasNegotiationCapReached };
       }
       return {
         hasApplied: false,
@@ -853,6 +890,7 @@ export default function JobDetailScreen() {
         proposalsRemaining: 0,
         budgetOption: null,
         hasPendingCounter: false,
+        hasNegotiationCapReached: false,
       };
     },
     enabled: isWorker,
@@ -868,6 +906,8 @@ export default function JobDetailScreen() {
   const proposalsRemaining = applicationStatus?.proposalsRemaining ?? 0;
   const myBudgetOption = applicationStatus?.budgetOption ?? null;
   const hasPendingCounter = applicationStatus?.hasPendingCounter ?? false;
+  const hasNegotiationCapReached =
+    applicationStatus?.hasNegotiationCapReached ?? false;
 
   // Worker negotiation thread query
   type NegotiationThread = {
@@ -1643,6 +1683,15 @@ export default function JobDetailScreen() {
 
     const isDailyJob = job?.payment_model === "DAILY";
 
+    if (hasNegotiationCapReached && budgetOption === "NEGOTIATE") {
+      Alert.alert(
+        "Proposal Limit Reached",
+        "You have already used all 3 proposals for this job. Re-apply by accepting the listed budget.",
+      );
+      setBudgetOption("ACCEPT");
+      return;
+    }
+
     // Validate shift selection when job is open to any shift.
     if ((!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
       Alert.alert("Error", "Please select a shift (Anytime, Day Shift, or Night Shift)");
@@ -2052,6 +2101,15 @@ export default function JobDetailScreen() {
     }
 
     const isDailyJob = job?.payment_model === "DAILY";
+
+    if (hasNegotiationCapReached && budgetOption === "NEGOTIATE") {
+      Alert.alert(
+        "Proposal Limit Reached",
+        "You have already used all 3 proposals for this job. Re-apply by accepting the listed budget.",
+      );
+      setBudgetOption("ACCEPT");
+      return;
+    }
 
     // Validate shift selection for ANY-shift DAILY jobs
     if (isDailyJob && (!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
@@ -5019,8 +5077,20 @@ export default function JobDetailScreen() {
                 style={[
                   styles.budgetOption,
                   budgetOption === "NEGOTIATE" && styles.budgetOptionActive,
+                  hasNegotiationCapReached && { opacity: 0.5 },
                 ]}
-                onPress={() => setBudgetOption("NEGOTIATE")}
+                onPress={() => {
+                  if (hasNegotiationCapReached) {
+                    Alert.alert(
+                      "Proposal Limit Reached",
+                      "You have already used all 3 proposals for this job. Re-apply by accepting the listed budget.",
+                    );
+                    setBudgetOption("ACCEPT");
+                    return;
+                  }
+                  setBudgetOption("NEGOTIATE");
+                }}
+                disabled={hasNegotiationCapReached}
                 activeOpacity={0.7}
               >
                 <Ionicons
@@ -5040,7 +5110,13 @@ export default function JobDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {budgetOption === "NEGOTIATE" && (
+            {hasNegotiationCapReached && (
+              <Text style={[styles.termsText, { marginTop: 8, color: Colors.warning }]}>
+                Negotiation limit reached for this job. You can only apply using the listed budget.
+              </Text>
+            )}
+
+            {budgetOption === "NEGOTIATE" && !hasNegotiationCapReached && (
               job?.payment_model === "DAILY" ? (
                 <View>
                   <View style={styles.inputGroup}>
@@ -5519,8 +5595,20 @@ export default function JobDetailScreen() {
                 style={[
                   styles.budgetOption,
                   budgetOption === "NEGOTIATE" && styles.budgetOptionActive,
+                  hasNegotiationCapReached && { opacity: 0.5 },
                 ]}
-                onPress={() => setBudgetOption("NEGOTIATE")}
+                onPress={() => {
+                  if (hasNegotiationCapReached) {
+                    Alert.alert(
+                      "Proposal Limit Reached",
+                      "You have already used all 3 proposals for this job. Re-apply by accepting the listed budget.",
+                    );
+                    setBudgetOption("ACCEPT");
+                    return;
+                  }
+                  setBudgetOption("NEGOTIATE");
+                }}
+                disabled={hasNegotiationCapReached}
                 activeOpacity={0.7}
               >
                 <Ionicons
@@ -5540,7 +5628,13 @@ export default function JobDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {budgetOption === "NEGOTIATE" && (
+            {hasNegotiationCapReached && (
+              <Text style={[styles.termsText, { marginTop: 8, color: Colors.warning }]}>
+                Negotiation limit reached for this job. You can only apply using the listed budget.
+              </Text>
+            )}
+
+            {budgetOption === "NEGOTIATE" && !hasNegotiationCapReached && (
               job?.payment_model === "DAILY" ? (
                 <View>
                   <View style={styles.inputGroup}>

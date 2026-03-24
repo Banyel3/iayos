@@ -3474,6 +3474,24 @@ def mobile_apply_for_job(request, job_id: int, payload: ApplyJobMobileSchema):
                 {"error": "Proposed budget is required when negotiating"}, status=400
             )
 
+        if (
+            payload.budget_option == "NEGOTIATE"
+            and existing_application
+            and int(existing_application.negotiation_count or 0) >= MAX_WORKER_PROPOSALS
+        ):
+            return Response(
+                {
+                    "error": (
+                        f"You have used all {MAX_WORKER_PROPOSALS} proposals. "
+                        "You can still re-apply by accepting the listed budget."
+                    ),
+                    "code": "PROPOSAL_LIMIT_REACHED",
+                    "max_proposals": MAX_WORKER_PROPOSALS,
+                    "proposals_remaining": 0,
+                },
+                status=400,
+            )
+
         if payload.budget_option == "NEGOTIATE" and job.categoryID:
             if (
                 getattr(job, "payment_model", "PROJECT") == "DAILY"
