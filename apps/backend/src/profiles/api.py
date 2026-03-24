@@ -1349,27 +1349,37 @@ def get_conversations(request, filter: str = "all"):
                     jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
                 ).select_related("workerID__profileID__accountFK")
 
-                total_workers = team_assignments.count()
+                unique_worker_account_ids = {
+                    a.workerID.profileID.accountFK_id for a in team_assignments
+                }
+                total_workers = len(unique_worker_account_ids)
                 if total_workers > 0:
-                    worker_account_ids = [
-                        a.workerID.profileID.accountFK_id for a in team_assignments
-                    ]
                     workers_who_reviewed = (
                         JobReview.objects.filter(
                             jobID=job,
-                            reviewerID__in=worker_account_ids,
+                            reviewerID_id__in=unique_worker_account_ids,
                             reviewerType="WORKER",
                         )
-                        .values("reviewerID")
+                        .values("reviewerID_id")
                         .distinct()
                         .count()
                     )
                     worker_reviewed = workers_who_reviewed >= total_workers
 
                     # Check if client has reviewed ALL assigned workers
-                    client_reviews_count = JobReview.objects.filter(
-                        jobID=job, reviewerID=client_account, reviewerType="CLIENT"
-                    ).count()
+                    client_reviewed_worker_ids = set(
+                        JobReview.objects.filter(
+                            jobID=job,
+                            reviewerID=client_account,
+                            reviewerType="CLIENT",
+                            revieweeID__isnull=False,
+                        ).values_list("revieweeID_id", flat=True)
+                    )
+                    client_reviews_count = len(
+                        unique_worker_account_ids.intersection(
+                            client_reviewed_worker_ids
+                        )
+                    )
                     client_reviewed = client_reviews_count >= total_workers
                     all_team_workers_reviewed = client_reviewed
             elif worker_account and client_account:

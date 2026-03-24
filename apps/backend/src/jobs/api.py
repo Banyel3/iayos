@@ -7372,9 +7372,13 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                     ).values_list("revieweeAgencyID", flat=True)
                 )
 
+                seen_worker_account_ids = set()
+                unique_worker_account_ids = set()
+
                 for a in all_assignments:
                     worker_profile = a.workerID.profileID
                     worker_account_id = worker_profile.accountFK.accountID
+                    unique_worker_account_ids.add(worker_account_id)
                     worker_name = (
                         f"{worker_profile.firstName} {worker_profile.lastName}"
                     )
@@ -7384,7 +7388,10 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                         reviewed_worker_name = worker_name
 
                     # Check if still pending review
-                    if worker_account_id not in reviewed_worker_account_ids:
+                    if (
+                        worker_account_id not in reviewed_worker_account_ids
+                        and worker_account_id not in seen_worker_account_ids
+                    ):
                         pending_team_workers.append(
                             {
                                 "target_type": "WORKER",
@@ -7397,14 +7404,23 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                                 else None,
                             }
                         )
+                        seen_worker_account_ids.add(worker_account_id)
+
+                seen_employee_ids = set()
+                unique_employee_ids = set()
 
                 for a in all_employee_assignments:
                     employee = a.employee
-                    if employee.employeeID not in reviewed_employee_ids:
+                    employee_id = employee.employeeID
+                    unique_employee_ids.add(employee_id)
+                    if (
+                        employee_id not in reviewed_employee_ids
+                        and employee_id not in seen_employee_ids
+                    ):
                         pending_team_workers.append(
                             {
                                 "target_type": "EMPLOYEE",
-                                "employee_id": employee.employeeID,
+                                "employee_id": employee_id,
                                 "worker_id": None,
                                 "account_id": None,
                                 "name": employee.name,
@@ -7414,6 +7430,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                                 else None,
                             }
                         )
+                        seen_employee_ids.add(employee_id)
 
                 agency_account_ids = set(
                     all_employee_assignments.values_list("employee__agency_id", flat=True)
@@ -7446,8 +7463,8 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 elif reviewee_employee is not None:
                     reviewed_worker_name = reviewee_employee.name
 
-                total_team_workers = len(all_assignments) + len(
-                    all_employee_assignments
+                total_team_workers = len(unique_worker_account_ids) + len(
+                    unique_employee_ids
                 )
                 total_team_workers += len(agency_account_ids)
                 all_team_workers_reviewed = len(pending_team_workers) == 0
