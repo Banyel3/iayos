@@ -172,24 +172,36 @@ def _post_team_arrival_system_update(job: Job):
     if not conversation:
         return
 
-    total_workers = JobWorkerAssignment.objects.filter(
-        jobID=job, assignment_status="ACTIVE"
-    ).count()
-    arrived_workers = JobWorkerAssignment.objects.filter(
-        jobID=job, assignment_status="ACTIVE", client_confirmed_arrival=True
-    ).count()
+    # Count unique people, not slot assignments, so one worker filling
+    # multiple skills/slots is treated as one team member in system text.
+    worker_assignments = JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status="ACTIVE",
+    )
+    total_workers = (
+        worker_assignments.values_list("workerID_id", flat=True).distinct().count()
+    )
+    arrived_workers = (
+        worker_assignments.filter(client_confirmed_arrival=True)
+        .values_list("workerID_id", flat=True)
+        .distinct()
+        .count()
+    )
 
-    total_employees = JobEmployeeAssignment.objects.filter(
+    employee_assignments = JobEmployeeAssignment.objects.filter(
         job=job,
         skill_slot__isnull=False,
         status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
-    ).count()
-    arrived_employees = JobEmployeeAssignment.objects.filter(
-        job=job,
-        skill_slot__isnull=False,
-        clientConfirmedArrival=True,
-        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
-    ).count()
+    )
+    total_employees = (
+        employee_assignments.values_list("employee_id", flat=True).distinct().count()
+    )
+    arrived_employees = (
+        employee_assignments.filter(clientConfirmedArrival=True)
+        .values_list("employee_id", flat=True)
+        .distinct()
+        .count()
+    )
 
     total_count = total_workers + total_employees
     arrived_count = arrived_workers + arrived_employees
@@ -198,17 +210,28 @@ def _post_team_arrival_system_update(job: Job):
         return
 
     if arrived_count >= total_count:
+        if total_count == 1:
+            if total_workers == 1 and total_employees == 0:
+                arrival_text = "✅ Worker on site! Work can begin."
+            elif total_employees == 1 and total_workers == 0:
+                arrival_text = "✅ Employee on site! Work can begin."
+            else:
+                arrival_text = "✅ Team member on site! Work can begin."
+        else:
+            arrival_text = f"✅ All {total_count} team members on site! Work can begin."
+
         Message.create_system_message(
             conversation=conversation,
-            message_text=f"✅ All {total_count} team members on site! Work can begin.",
+            message_text=arrival_text,
         )
     else:
         remaining = total_count - arrived_count
+        member_label = "member" if remaining == 1 else "members"
         Message.create_system_message(
             conversation=conversation,
             message_text=(
                 f"✅ Team arrival confirmed ({arrived_count}/{total_count}). "
-                f"Waiting for {remaining} more member(s)."
+                f"Waiting for {remaining} more {member_label}."
             ),
         )
 
