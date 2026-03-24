@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Redirect } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
 
@@ -19,7 +18,7 @@ export default function Index() {
       .catch(() => setHasSeenWelcome(false));
   }, []);
 
-  // Wait for BOTH auth and welcome-flag to resolve before hiding splash
+  // Wait for BOTH auth and welcome-flag to resolve before redirecting.
   const isReady = !isLoading && hasSeenWelcome !== null;
   const forceReady = bootTimedOut && hasSeenWelcome !== null;
 
@@ -34,15 +33,8 @@ export default function Index() {
     return () => clearTimeout(timer);
   }, [isLoading]);
 
-  useEffect(() => {
-    if (isReady || forceReady) {
-      // Hide splash screen now that we know where to route
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [isReady, forceReady]);
-
   if (!isReady && !forceReady) {
-    // Keep splash screen visible — return nothing
+    // Root layout owns splash visibility; index just waits for boot state.
     return null;
   }
 

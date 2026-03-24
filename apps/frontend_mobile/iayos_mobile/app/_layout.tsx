@@ -38,6 +38,8 @@ try {
 const queryClient = new QueryClient();
 if (__DEV__) console.log("[RootLayout] query client initialized");
 
+let splashHidden = false;
+
 // Prevent splash screen from auto-hiding before app is ready
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore errors (e.g., splash screen already hidden)
@@ -215,9 +217,26 @@ export default function RootLayout() {
       console.warn("Failed to set system UI background", error);
     });
 
-    // NOTE: SplashScreen.hideAsync() is called in index.tsx AFTER auth state
-    // is resolved, preventing the blank flash between splash and content.
-    if (__DEV__) console.log("[RootLayout] mount effect done (splash hidden by index.tsx)");
+    // Hide splash from the root layout so restored/deep-linked routes do not
+    // depend on index.tsx to become visible.
+    const hideSplash = async () => {
+      if (splashHidden) return;
+      try {
+        await SplashScreen.hideAsync();
+        splashHidden = true;
+        if (__DEV__) console.log("[RootLayout] splash hidden");
+      } catch {
+        // Ignore if already hidden.
+      }
+    };
+
+    const timer = setTimeout(() => {
+      void hideSplash();
+    }, 120);
+
+    if (__DEV__) console.log("[RootLayout] mount effect done");
+
+    return () => clearTimeout(timer);
   }, []);
 
   return (

@@ -6447,11 +6447,10 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
         from accounts.models import JobReview, JobEmployeeAssignment
         from agency.models import AgencyEmployee
 
-        # Handle agency job reviews (client rates employee + agency separately)
-        if is_agency_job and is_client:
-            review_target = (
-                data.review_target or "EMPLOYEE"
-            )  # Default to employee first
+        # Handle pure agency job reviews (client rates employee + agency separately).
+        # Team/hybrid jobs are handled in the team branch below.
+        if is_agency_job and is_client and not job.is_team_job:
+            review_target = str(data.review_target or "EMPLOYEE").upper()
 
             if review_target == "EMPLOYEE":
                 # Get all assigned employees (multi-employee support)
