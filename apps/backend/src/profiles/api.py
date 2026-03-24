@@ -2187,7 +2187,6 @@ def get_conversation_messages(request, conversation_id: int):
 
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
-            from accounts.models import JobEmployeeAssignment
 
             agency_account_id = None
             if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
@@ -2552,7 +2551,6 @@ def get_conversation_messages(request, conversation_id: int):
         # Get ALL assigned employees for multi-employee jobs
         assigned_employees_list = []
         if is_agency_conversation:
-            from accounts.models import JobEmployeeAssignment
 
             assignments = (
                 JobEmployeeAssignment.objects.filter(
@@ -2682,7 +2680,6 @@ def get_conversation_messages(request, conversation_id: int):
             from accounts.models import (
                 Agency,
                 JobWorkerAssignment,
-                JobEmployeeAssignment,
                 JobReview,
             )
 

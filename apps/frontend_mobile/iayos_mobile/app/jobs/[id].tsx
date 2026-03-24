@@ -2244,20 +2244,6 @@ export default function JobDetailScreen() {
     }
   };
 
-  const shouldRouteToSingleDailyScreen =
-    Boolean(job) &&
-    job.payment_model === "DAILY" &&
-    !job.is_team_job &&
-    job.status === "IN_PROGRESS";
-
-  useEffect(() => {
-    if (!shouldRouteToSingleDailyScreen || !job?.id) {
-      return;
-    }
-
-    router.replace(`/jobs/daily/${job.id}` as any);
-  }, [job?.id, router, shouldRouteToSingleDailyScreen]);
-
   // Show skeleton while loading
   if (isLoading) {
     return (
@@ -2326,17 +2312,6 @@ export default function JobDetailScreen() {
           >
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (shouldRouteToSingleDailyScreen) {
-    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Opening daily workflow...</Text>
         </View>
       </SafeAreaView>
     );
