@@ -290,6 +290,11 @@ export default function JobsScreen() {
       .trim()
       .toUpperCase();
 
+  const normalizeApplicationStatus = (status?: string) =>
+    String(status || "")
+      .trim()
+      .toUpperCase();
+
   const isApplicationPastOrMovedForward = (app: MyApplication) => {
     const normalized = normalizeJobStatus(app.job_status);
     return [
@@ -309,14 +314,22 @@ export default function JobsScreen() {
   // 3. Accepted applications still ACTIVE (job not yet started — visible here until
   //    the job transitions to IN_PROGRESS, applies to both team and non-team jobs)
   const filteredApplications = applications.filter(
-    (app) =>
-      (app.application_status === "PENDING" ||
-        app.application_status === "REJECTED" ||
-        (app.application_status === "ACCEPTED" &&
-          app.job_status === "ACTIVE")) &&
+    (app) => {
+      const applicationStatus = normalizeApplicationStatus(app.application_status);
+      const jobStatus = normalizeJobStatus(app.job_status);
+
+      const shouldShowInApplied =
+        applicationStatus === "PENDING" ||
+        applicationStatus === "REJECTED" ||
+        (applicationStatus === "ACCEPTED" && jobStatus === "ACTIVE");
+
+      return (
+        shouldShowInApplied &&
       !inProgressJobIds.has(app.job_id) &&
       !pastJobIds.has(app.job_id) &&
-      !isApplicationPastOrMovedForward(app),
+        !isApplicationPastOrMovedForward(app)
+      );
+    },
   );
 
   if (__DEV__) {

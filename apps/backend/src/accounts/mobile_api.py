@@ -3655,12 +3655,15 @@ def mobile_get_my_applications(request):
 
         # Get user's profile using profile_type from JWT if available
         profile_type = getattr(request.auth, "profile_type", None)
+        profile = None
         if profile_type:
             profile = Profile.objects.filter(
                 accountFK=request.auth, profileType=profile_type
             ).first()
-        else:
-            # Fallback - assume WORKER for this endpoint
+
+        # This endpoint is worker-specific. If JWT profile_type is CLIENT (or stale),
+        # fallback to the account's WORKER profile so worker applications are still visible.
+        if not profile or profile.profileType != "WORKER":
             profile = Profile.objects.filter(
                 accountFK=request.auth, profileType="WORKER"
             ).first()
