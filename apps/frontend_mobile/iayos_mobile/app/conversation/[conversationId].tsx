@@ -2051,6 +2051,22 @@ export default function ChatScreen() {
 
     const remainingAmount = Number(conversation.job.remainingPayment ?? 0).toFixed(2);
 
+    const runDailyFinishJob = () => {
+      dailyFinishJobMutation.mutate(
+        {
+          jobId: conversation.job.id,
+        },
+        {
+          onSuccess: () => {
+            void refetch();
+            setTimeout(() => {
+              void refetch();
+            }, 1200);
+          },
+        },
+      );
+    };
+
     setCountdownConfig({
       visible: true,
       title: "Finish Daily Team Job",
@@ -2062,9 +2078,7 @@ export default function ChatScreen() {
       countdownSeconds: 3,
       onConfirm: () => {
         setCountdownConfig(null);
-        dailyFinishJobMutation.mutate({
-          jobId: conversation.job.id,
-        });
+        runDailyFinishJob();
       },
       icon: "flag",
       iconColor: Colors.error,
@@ -4179,6 +4193,10 @@ export default function ChatScreen() {
     conversation.is_team_job &&
     conversation.job?.payment_model === "PROJECT" &&
     (isProjectMultiDayJob || attendanceRows.length > 0);
+  const shouldFinishDailyTeamJob =
+    conversation.is_team_job === true &&
+    conversation.job?.payment_model === "DAILY" &&
+    (reachedConfiguredDuration || reachedQaOffsetLimit);
   const showProjectEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.status === "IN_PROGRESS" &&
@@ -5772,9 +5790,19 @@ export default function ChatScreen() {
                                   text: "Finish Job",
                                   style: "destructive",
                                   onPress: () =>
-                                    dailyFinishJobMutation.mutate({
-                                      jobId: conversation.job.id,
-                                    }),
+                                    dailyFinishJobMutation.mutate(
+                                      {
+                                        jobId: conversation.job.id,
+                                      },
+                                      {
+                                        onSuccess: () => {
+                                          void refetch();
+                                          setTimeout(() => {
+                                            void refetch();
+                                          }, 1200);
+                                        },
+                                      },
+                                    ),
                                 },
                               ],
                             )
@@ -7301,18 +7329,24 @@ export default function ChatScreen() {
                           ]}
                           onPress={
                             conversation.job.payment_model === "DAILY"
-                              ? handleFinishDailyTeamJob
+                              ? shouldFinishDailyTeamJob
+                                ? handleFinishDailyTeamJob
+                                : handleApproveDailyTeamWorkday
                               : handleApproveTeamJobCompletion
                           }
                           disabled={
                             conversation.job.payment_model === "DAILY"
-                              ? dailyFinishJobMutation.isPending
+                              ? shouldFinishDailyTeamJob
+                                ? dailyFinishJobMutation.isPending
+                                : isBulkDailySettlementInFlight
                               : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight
                           }
                         >
                           {(conversation.job.payment_model === "DAILY"
-                            ? dailyFinishJobMutation.isPending
+                            ? shouldFinishDailyTeamJob
+                              ? dailyFinishJobMutation.isPending
+                              : isBulkDailySettlementInFlight
                             : approveTeamJobCompletionMutation.isPending ||
                                       isApprovePayPreflightInFlight) ? (
                             <ActivityIndicator
@@ -7324,7 +7358,9 @@ export default function ChatScreen() {
                               <Ionicons
                                 name={
                                   conversation.job.payment_model === "DAILY"
-                                    ? "flag"
+                                    ? shouldFinishDailyTeamJob
+                                      ? "flag"
+                                      : "wallet"
                                     : conversation.job.remainingPaymentPaid
                                       ? "checkmark-circle"
                                       : "wallet"
@@ -7334,7 +7370,9 @@ export default function ChatScreen() {
                               />
                                 <Text style={styles.actionButtonText}>
                                   {conversation.job.payment_model === "DAILY"
-                                    ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                    ? shouldFinishDailyTeamJob
+                                      ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                      : "Approve & Pay for Today"
                                     : conversation.job.remainingPaymentPaid ||
                                         allAssignmentsEarlyCompleted
                                       ? "Approve Team Completion"
