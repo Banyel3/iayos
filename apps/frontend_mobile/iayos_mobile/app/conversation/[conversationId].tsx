@@ -7129,15 +7129,28 @@ export default function ChatScreen() {
                 conversation.team_worker_assignments &&
                 conversation.team_worker_assignments.length > 0 &&
                 (() => {
+                  const uniqueWorkerUnits =
+                    groupedTeamWorkerAssignments.length > 0
+                      ? groupedTeamWorkerAssignments
+                      : conversation.team_worker_assignments.map((a) => ({
+                          client_confirmed_arrival: Boolean(
+                            a.client_confirmed_arrival,
+                          ),
+                          worker_marked_complete: Boolean(
+                            a.worker_marked_complete,
+                          ),
+                        }));
+
+                  const totalWorkerUnits = uniqueWorkerUnits.length;
                   // Treat job-level workerMarkedComplete as a fallback for all-complete
                   // in case individual assignment flags are not yet set.
                   const allWorkersComplete =
                     conversation.job.workerMarkedComplete ||
-                    conversation.team_worker_assignments.every(
+                    uniqueWorkerUnits.every(
                       (a) => a.worker_marked_complete,
                     );
                   const allWorkersArrived =
-                    conversation.team_worker_assignments.every(
+                    uniqueWorkerUnits.every(
                       (a) => a.client_confirmed_arrival,
                     );
                   const allAssignmentsEarlyCompleted =
@@ -7146,17 +7159,15 @@ export default function ChatScreen() {
                     conversation.team_worker_assignments.every(
                       (a) => a.early_completed,
                     );
-                  const arrivedCount =
-                    conversation.team_worker_assignments.filter(
-                      (a) => a.client_confirmed_arrival,
-                    ).length;
+                  const arrivedCount = uniqueWorkerUnits.filter(
+                    (a) => a.client_confirmed_arrival,
+                  ).length;
                   // For agency jobs: when agency marks complete at job level,
                   // treat all assigned workers as having completed.
                   const completedCount = conversation.job.workerMarkedComplete
-                    ? conversation.team_worker_assignments.length
-                    : conversation.team_worker_assignments.filter(
-                        (a) => a.worker_marked_complete,
-                      ).length;
+                    ? totalWorkerUnits
+                    : uniqueWorkerUnits.filter((a) => a.worker_marked_complete)
+                        .length;
 
                   // Show waiting for arrivals if not all arrived
                   if (!allWorkersArrived) {
@@ -7169,7 +7180,7 @@ export default function ChatScreen() {
                         />
                         <Text style={styles.waitingButtonText}>
                           Confirm all worker arrivals first ({arrivedCount} of{" "}
-                          {conversation.team_worker_assignments.length} arrived)
+                          {totalWorkerUnits} arrived)
                         </Text>
                       </View>
                     );
@@ -7188,8 +7199,7 @@ export default function ChatScreen() {
                             color={Colors.textSecondary}
                           />
                           <Text style={styles.waitingButtonText}>
-                            {completedCount} of{" "}
-                            {conversation.team_worker_assignments.length}{" "}
+                            {completedCount} of {totalWorkerUnits}{" "}
                             workers marked complete...
                           </Text>
                         </View>
