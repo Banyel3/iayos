@@ -2712,6 +2712,8 @@ def get_conversation_messages(request, conversation_id: int):
                 ).values_list("revieweeAgencyID", flat=True)
             )
 
+            seen_freelancer_account_ids = set()
+
             for assignment in assignments:
                 worker_profile = assignment.workerID.profileID
                 worker_account_id = worker_profile.accountFK.accountID
@@ -2785,17 +2787,29 @@ def get_conversation_messages(request, conversation_id: int):
                 team_worker_assignments.append(worker_info)
 
                 # Pending list remains client-facing, but aggregate completion must be role-agnostic.
-                if is_client and worker_account_id not in reviewed_worker_accounts:
+                if (
+                    is_client
+                    and worker_account_id not in reviewed_worker_accounts
+                    and worker_account_id not in seen_freelancer_account_ids
+                ):
                     team_workers_pending_review.append(
                         {
                             **worker_info,
                             "target_type": "WORKER",
                         }
                     )
+                    seen_freelancer_account_ids.add(worker_account_id)
 
-            total_freelancer_workers = len(team_worker_assignments)
+            unique_freelancer_account_ids = {
+                worker["account_id"]
+                for worker in team_worker_assignments
+                if worker.get("account_id") is not None
+            }
+            total_freelancer_workers = len(unique_freelancer_account_ids)
             reviewed_freelancers_count = sum(
-                1 for worker in team_worker_assignments if worker["is_reviewed"]
+                1
+                for account_id in unique_freelancer_account_ids
+                if account_id in reviewed_worker_accounts
             )
 
             # Also populate agency employees filling skill slots in this team job
@@ -2811,6 +2825,8 @@ def get_conversation_messages(request, conversation_id: int):
                 .select_related("employee", "skill_slot__specializationID")
                 .order_by("-isPrimaryContact", "assignedAt")
             )
+
+            seen_employee_ids = set()
 
             for sea in slot_employee_assignments:
                 emp = sea.employee
@@ -2886,7 +2902,11 @@ def get_conversation_messages(request, conversation_id: int):
                     }
                 )
 
-                if is_client and emp.employeeID not in reviewed_employee_ids:
+                if (
+                    is_client
+                    and emp.employeeID not in reviewed_employee_ids
+                    and emp.employeeID not in seen_employee_ids
+                ):
                     team_workers_pending_review.append(
                         {
                             "target_type": "EMPLOYEE",
@@ -2899,6 +2919,7 @@ def get_conversation_messages(request, conversation_id: int):
                             "skill": slot_name,
                         }
                     )
+                    seen_employee_ids.add(emp.employeeID)
 
             agency_account_ids = set(
                 slot_employee_assignments.values_list("employee__agency_id", flat=True)
@@ -2927,15 +2948,20 @@ def get_conversation_messages(request, conversation_id: int):
                         }
                     )
 
+            unique_employee_ids = {
+                employee["id"]
+                for employee in team_agency_employees
+                if employee.get("id") is not None
+            }
             total_team_workers = (
                 total_freelancer_workers
-                + len(team_agency_employees)
+                + len(unique_employee_ids)
                 + len(team_agencies)
             )
             reviewed_by_client_count = reviewed_freelancers_count + sum(
                 1
-                for employee in team_agency_employees
-                if employee["id"] in reviewed_employee_ids
+                for employee_id in unique_employee_ids
+                if employee_id in reviewed_employee_ids
             )
             reviewed_by_client_count += reviewed_team_agencies_count
             all_team_workers_reviewed = (
