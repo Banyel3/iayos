@@ -492,8 +492,8 @@ export default function JobDetailScreen() {
   // Daily rate negotiation state (for DAILY payment_model jobs)
   const [proposedDailyRate, setProposedDailyRate] = useState("");
   const [proposedDays, setProposedDays] = useState("");
-  // Shift selection state (for DAILY jobs where job.shift_type === "ANY")
-  const [appliedShift, setAppliedShift] = useState<"MORNING" | "NIGHT" | null>(null);
+  // Shift selection state for worker applications.
+  const [appliedShift, setAppliedShift] = useState<"ANY" | "MORNING" | "NIGHT" | null>(null);
 
   // Client counter-offer state
   const [counterModalApplicationId, setCounterModalApplicationId] = useState<number | null>(null);
@@ -1612,6 +1612,13 @@ export default function JobDetailScreen() {
       setProposedDays("");
     }
 
+    // Preselect shift to keep Apply UX consistent with team applications.
+    if (job?.shift_type && job.shift_type !== "ANY") {
+      setAppliedShift(job.shift_type as "MORNING" | "NIGHT");
+    } else {
+      setAppliedShift("ANY");
+    }
+
     // Show payment education modal first (only the very first time)
     if (showWorkerPaymentInfo) {
       setPendingApply(true);
@@ -1636,9 +1643,9 @@ export default function JobDetailScreen() {
 
     const isDailyJob = job?.payment_model === "DAILY";
 
-    // Validate shift selection for ANY-shift DAILY jobs
-    if (isDailyJob && (!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
-      Alert.alert("Error", "Please select a shift (Day Shift or Night Shift)");
+    // Validate shift selection when job is open to any shift.
+    if ((!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
+      Alert.alert("Error", "Please select a shift (Anytime, Day Shift, or Night Shift)");
       return;
     }
 
@@ -1690,9 +1697,10 @@ export default function JobDetailScreen() {
       budget_option: budgetOption,
       proposed_daily_rate: dailyRateValue,
       proposed_days: daysValue,
-      applied_shift: job?.payment_model === "DAILY"
-        ? (job?.shift_type && job.shift_type !== "ANY" ? job.shift_type : appliedShift)
-        : undefined,
+      applied_shift:
+        (job?.shift_type && job.shift_type !== "ANY"
+          ? job.shift_type
+          : appliedShift) || null,
     });
   };
 
@@ -5080,23 +5088,25 @@ export default function JobDetailScreen() {
               )
             )}
 
-            {/* Shift picker for DAILY ANY-shift jobs */}
-            {job?.payment_model === "DAILY" && (!job?.shift_type || job.shift_type === "ANY") && (
+            {/* Shift picker for open-shift single jobs */}
+            {(!job?.shift_type || job.shift_type === "ANY") && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Shift *</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  {(["MORNING", "NIGHT"] as const).map((s) => (
+                  {(["ANY", "MORNING", "NIGHT"] as const).map((s) => (
                     <TouchableOpacity
                       key={s}
                       onPress={() => setAppliedShift(s)}
                       style={{
                         flex: 1,
+                        minHeight: 58,
                         paddingVertical: 10,
                         paddingHorizontal: 6,
                         borderRadius: 8,
                         borderWidth: 1.5,
                         borderColor: appliedShift === s ? Colors.primary : Colors.border,
                         backgroundColor: appliedShift === s ? Colors.primary + "15" : Colors.background,
+                        justifyContent: s === "ANY" ? "center" : "flex-start",
                         alignItems: "center",
                       }}
                       activeOpacity={0.7}
@@ -5105,19 +5115,22 @@ export default function JobDetailScreen() {
                         fontSize: 12,
                         fontWeight: appliedShift === s ? "700" : "400",
                         color: appliedShift === s ? Colors.primary : Colors.textSecondary,
+                        textAlign: "center",
                       }}>
-                        {s === "MORNING" ? "Day Shift" : "Night Shift"}
+                        {s === "ANY" ? "Anytime" : s === "MORNING" ? "Day Shift" : "Night Shift"}
                       </Text>
-                      <Text style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}>
-                        {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
-                      </Text>
+                      {s !== "ANY" && (
+                        <Text style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}>
+                          {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
             )}
-            {/* Shift banner for fixed-shift DAILY jobs */}
-            {job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY" && (
+            {/* Shift banner for fixed-shift jobs */}
+            {job?.shift_type && job.shift_type !== "ANY" && (
               <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}> 
                 <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
                   Shift:{" "}

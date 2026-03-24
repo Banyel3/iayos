@@ -662,6 +662,15 @@ export default function ChatScreen() {
       viewerHasReviewed &&
       counterpartyHasReviewed &&
       !hasApprovedBackjob &&
+      !hasActiveNegotiation) ||
+    // Team DAILY final-day fallback: once final payment is captured and both reviews
+    // are done, force post-completion conversation state even if status fields lag.
+    (conversation?.is_team_job &&
+      conversation?.job?.payment_model === "DAILY" &&
+      conversation?.job?.remainingPaymentPaid &&
+      viewerHasReviewed &&
+      counterpartyHasReviewed &&
+      !hasApprovedBackjob &&
       !hasActiveNegotiation);
   const isConversationClosed =
     isServerMarkedClosed ||
@@ -672,6 +681,11 @@ export default function ChatScreen() {
   const isJobTerminalForUI =
     isConversationClosed ||
     ((isJobCompleted || !!conversation?.job?.clientMarkedComplete) &&
+      !isJobCancelled) ||
+    // Team DAILY final-day fallback for stale completion flags.
+    (conversation?.is_team_job &&
+      conversation?.job?.payment_model === "DAILY" &&
+      conversation?.job?.remainingPaymentPaid &&
       !isJobCancelled);
   const isPaymentReleased =
     conversation?.job?.paymentBuffer?.is_payment_released === true;
