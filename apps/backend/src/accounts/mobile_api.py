@@ -6287,8 +6287,14 @@ def mobile_get_pending_reviews(request, job_id: int):
                     ).values_list("revieweeEmployeeID", flat=True)
                 )
 
+                seen_employee_ids = set()
+
                 for assignment in assigned_employees:
-                    if assignment.employee.employeeID not in reviewed_employee_ids:
+                    employee_id = assignment.employee.employeeID
+                    if (
+                        employee_id not in reviewed_employee_ids
+                        and employee_id not in seen_employee_ids
+                    ):
                         result["pending_reviews"].append(
                             {
                                 "type": "EMPLOYEE",
@@ -6299,6 +6305,7 @@ def mobile_get_pending_reviews(request, job_id: int):
                                 else None,
                             }
                         )
+                        seen_employee_ids.add(employee_id)
 
                 # Check if agency review is pending
                 agency_reviewed = JobReview.objects.filter(
@@ -6328,11 +6335,16 @@ def mobile_get_pending_reviews(request, job_id: int):
                     ).values_list("revieweeID", flat=True)
                 )
 
+                seen_worker_account_ids = set()
+
                 for assignment in assigned_workers:
                     worker_account_id = (
                         assignment.workerID.profileID.accountFK.accountID
                     )
-                    if worker_account_id not in reviewed_worker_ids:
+                    if (
+                        worker_account_id not in reviewed_worker_ids
+                        and worker_account_id not in seen_worker_account_ids
+                    ):
                         result["pending_reviews"].append(
                             {
                                 "type": "TEAM_WORKER",
@@ -6341,6 +6353,7 @@ def mobile_get_pending_reviews(request, job_id: int):
                                 "worker_account_id": worker_account_id,
                             }
                         )
+                        seen_worker_account_ids.add(worker_account_id)
             else:
                 # Regular job - check if worker review pending
                 if job.assignedWorkerID:
