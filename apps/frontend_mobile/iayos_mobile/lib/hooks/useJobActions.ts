@@ -265,7 +265,7 @@ export function useConfirmWorkStarted() {
 
   return useMutation({
     mutationFn: async (jobId: number) => {
-      const url = ENDPOINTS.CONFIRM_WORK_STARTED(jobId);
+      const url = ENDPOINTS.CONFIRM_WORKER_ARRIVED(jobId);
       const response = await apiRequest(url, {
         method: "POST",
       });
@@ -310,7 +310,11 @@ export function useConfirmWorkStarted() {
  */
 export function useMarkOnTheWay() {
   return useMutation({
-    mutationFn: async (_jobId: number) => ({ deprecated: true }),
+    mutationFn: async (_jobId: number) => {
+      throw new Error(
+        "Mark On The Way is removed. Use the client-first arrival flow instead.",
+      );
+    },
     onSuccess: () => {},
   });
 }
@@ -398,7 +402,11 @@ export function useTodayProjectAttendance(jobId: number, enabled: boolean) {
  */
 export function useMarkJobStarted() {
   return useMutation({
-    mutationFn: async (_jobId: number) => ({ deprecated: true }),
+    mutationFn: async (_jobId: number) => {
+      throw new Error(
+        "Mark Job Started is removed. Use the client-first arrival flow instead.",
+      );
+    },
     onSuccess: () => {},
   });
 }

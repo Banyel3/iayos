@@ -5021,47 +5021,38 @@ def upload_completion_photo(request, job_id: int, image: UploadedFile = File(...
 @require_kyc
 def worker_mark_on_the_way(request, job_id: int):
     """
-    DEPRECATED: This endpoint is no longer part of the simplified arrival flow.
-    Workers no longer need to mark themselves as on-the-way; the client simply
-    marks "Worker Has Arrived" when the worker shows up on-site.
-
-    Kept for backward-compatibility with older app versions.  Returns a
-    success-shaped response so legacy clients don't break, but no state is
-    mutated on the job.
+    REMOVED: This endpoint is no longer part of the arrival flow.
+    Worker-side on-the-way fallback has been fully disabled.
     """
-    return {
-        "success": True,
-        "deprecated": True,
-        "message": (
-            "The 'mark on the way' step has been removed. "
-            "Please proceed to the client's location — your client will mark when you've arrived."
-        ),
-        "worker_marked_on_the_way": False,
-    }
+    return Response(
+        {
+            "error": (
+                "The 'mark on the way' step has been removed. "
+                "Use the client-first arrival flow. "
+                "For multi-day fixed-rate jobs, the client must use /daily/confirm-arrival-today."
+            )
+        },
+        status=410,
+    )
 
 
 @router.post("/{job_id}/mark-job-started", auth=dual_auth)
 @require_kyc
 def worker_mark_job_started(request, job_id: int):
     """
-    DEPRECATED: This endpoint is no longer part of the simplified arrival flow.
-    Workers no longer need to tap "Mark Job Started"; work begins automatically
-    once the client marks "Worker Has Arrived" via /confirm-worker-arrived.
-
-    Kept for backward-compatibility with older app versions.  Returns a
-    success-shaped response so legacy clients don't break, but no state is
-    mutated on the job.
+    REMOVED: This endpoint is no longer part of the arrival flow.
+    Worker-side job-started fallback has been fully disabled.
     """
-    return {
-        "success": True,
-        "deprecated": True,
-        "message": (
-            "The 'mark job started' step has been removed. "
-            "Work begins as soon as the client confirms your arrival. "
-            "You can now mark the job complete when finished."
-        ),
-        "worker_marked_job_started": False,
-    }
+    return Response(
+        {
+            "error": (
+                "The 'mark job started' step has been removed. "
+                "Use the client-first arrival flow. "
+                "For multi-day fixed-rate jobs, the client must use /daily/confirm-arrival-today."
+            )
+        },
+        status=410,
+    )
 
 
 def _client_confirm_worker_arrived(request, job_id: int):

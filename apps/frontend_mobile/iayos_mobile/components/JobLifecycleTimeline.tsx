@@ -4,10 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors, Typography, Spacing, BorderRadius } from "@/constants/theme";
 
 type JobLifecycleTimelineProps = {
-  workerMarkedOnTheWay?: boolean;
-  workerMarkedOnTheWayAt?: string | null;
-  workerMarkedJobStarted?: boolean;
-  workerMarkedJobStartedAt?: string | null;
   clientConfirmedWorkStarted?: boolean;
   clientConfirmedWorkStartedAt?: string | null;
 };
@@ -20,10 +16,6 @@ const formatDateTime = (value?: string | null) => {
 };
 
 export function JobLifecycleTimeline({
-  workerMarkedOnTheWay,
-  workerMarkedOnTheWayAt,
-  workerMarkedJobStarted,
-  workerMarkedJobStartedAt,
   clientConfirmedWorkStarted,
   clientConfirmedWorkStartedAt,
 }: JobLifecycleTimelineProps) {
@@ -46,18 +38,6 @@ export function JobLifecycleTimeline({
             <Text style={styles.rowTitle}>Client confirmed worker arrival</Text>
             <Text style={styles.rowMeta}>
               {formatDateTime(clientConfirmedWorkStartedAt)}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {(workerMarkedOnTheWay || workerMarkedJobStarted) && (
-        <View style={styles.row}>
-          <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
-          <View style={styles.textWrap}>
-            <Text style={styles.rowTitle}>Legacy worker arrival markers recorded</Text>
-            <Text style={styles.rowMeta}>
-              {formatDateTime(workerMarkedOnTheWayAt || workerMarkedJobStartedAt)}
             </Text>
           </View>
         </View>

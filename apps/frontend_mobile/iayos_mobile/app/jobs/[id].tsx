@@ -2387,11 +2387,7 @@ export default function JobDetailScreen() {
           durationDays,
         )
       : null;
-  const hasLifecycleEvents = Boolean(
-    job.workerMarkedOnTheWay ||
-      job.workerMarkedJobStarted ||
-      job.clientConfirmedWorkStarted,
-  );
+  const hasLifecycleEvents = Boolean(job.clientConfirmedWorkStarted);
 
   const formatReviewDate = (value?: string) => {
     if (!value) return null;
@@ -2713,10 +2709,6 @@ export default function JobDetailScreen() {
         {hasLifecycleEvents && (
           <View style={styles.section}>
             <JobLifecycleTimeline
-              workerMarkedOnTheWay={job.workerMarkedOnTheWay}
-              workerMarkedOnTheWayAt={job.workerMarkedOnTheWayAt}
-              workerMarkedJobStarted={job.workerMarkedJobStarted}
-              workerMarkedJobStartedAt={job.workerMarkedJobStartedAt}
               clientConfirmedWorkStarted={job.clientConfirmedWorkStarted}
               clientConfirmedWorkStartedAt={job.clientConfirmedWorkStartedAt}
             />
