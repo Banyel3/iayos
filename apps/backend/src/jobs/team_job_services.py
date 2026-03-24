@@ -3372,10 +3372,33 @@ def client_approve_team_job(
     # Self-heal legacy assignment completion flags before enforcing gate.
     healed_assignments = _self_heal_team_assignment_completion_flags(job)
 
-    # Check if all freelance workers have marked complete
-    incomplete_workers = JobWorkerAssignment.objects.filter(
-        jobID=job, assignment_status="ACTIVE", worker_marked_complete=False
+    # Check if all freelance workers have marked complete.
+    # Merged flow: one worker may occupy multiple active slots; treat completion
+    # per unique worker (at least one active slot marked complete).
+    active_worker_rows = list(
+        JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status="ACTIVE",
+        ).select_related("workerID__profileID")
     )
+
+    worker_completion = {}
+    worker_sample_row = {}
+    for row in active_worker_rows:
+        worker_id = row.workerID_id
+        if worker_id is None:
+            continue
+        worker_completion[worker_id] = worker_completion.get(worker_id, False) or bool(
+            row.worker_marked_complete
+        )
+        if worker_id not in worker_sample_row:
+            worker_sample_row[worker_id] = row
+
+    incomplete_workers = [
+        worker_sample_row[worker_id]
+        for worker_id, is_complete in worker_completion.items()
+        if not is_complete
+    ]
 
     # Check if all agency employees have marked complete (for mixed team jobs)
     incomplete_employees = JobEmployeeAssignment.objects.filter(
@@ -3388,8 +3411,8 @@ def client_approve_team_job(
     unresolved_incomplete_count = 0
     unresolved_incomplete_sample = []
 
-    if incomplete_workers.exists():
-        unresolved_incomplete_count += incomplete_workers.count()
+    if incomplete_workers:
+        unresolved_incomplete_count += len(incomplete_workers)
         unresolved_incomplete_sample.extend(
             [
                 {
@@ -3399,7 +3422,7 @@ def client_approve_team_job(
                     "client_confirmed_arrival": bool(a.client_confirmed_arrival),
                     "type": "freelance",
                 }
-                for a in incomplete_workers.select_related("workerID__profileID")[:5]
+                for a in incomplete_workers[:5]
             ]
         )
 
