@@ -1,7 +1,7 @@
 // React Query Hooks for Job Actions
 // Handles confirm work started, mark complete, approve completion
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ENDPOINTS, apiRequest, API_BASE_URL } from "../api/config";
 import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
@@ -312,6 +312,84 @@ export function useMarkOnTheWay() {
   return useMutation({
     mutationFn: async (_jobId: number) => ({ deprecated: true }),
     onSuccess: () => {},
+  });
+}
+
+export type TodayProjectAttendance = {
+  id: number;
+  date: string | null;
+  time_in: string | null;
+  time_out: string | null;
+  worker_confirmed: boolean;
+  client_confirmed: boolean;
+};
+
+export function useConfirmArrivalToday() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (jobId: number) => {
+      const response = await apiRequest(ENDPOINTS.CONFIRM_ARRIVAL_TODAY(jobId), {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(getErrorMessage(error, "Failed to confirm arrival"));
+      }
+
+      return response.json() as Promise<{
+        success: boolean;
+        attendance_id: number;
+        date: string;
+        time_in: string | null;
+        created: boolean;
+      }>;
+    },
+    onSuccess: (_data, jobId) => {
+      Toast.show({
+        type: "success",
+        text1: "Arrival Confirmed",
+        text2: "Today's work has started",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["today-attendance", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "active"] });
+      queryClient.invalidateQueries({ queryKey: ["jobs", "active", String(jobId)] });
+      queryClient.invalidateQueries({ queryKey: ["jobDetails", jobId] });
+      queryClient.invalidateQueries({ queryKey: ["myJobs"] });
+      queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
+    },
+    onError: (error: Error) => {
+      Toast.show({
+        type: "error",
+        text1: "Confirmation Failed",
+        text2: error.message,
+      });
+    },
+  });
+}
+
+export function useTodayProjectAttendance(jobId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["today-attendance", jobId],
+    enabled: Boolean(jobId) && enabled,
+    queryFn: async (): Promise<{
+      success: boolean;
+      date: string;
+      attendance: TodayProjectAttendance | null;
+    }> => {
+      const response = await apiRequest(ENDPOINTS.TODAY_ATTENDANCE(jobId));
+
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string };
+        throw new Error(
+          getErrorMessage(error, "Failed to fetch today's attendance"),
+        );
+      }
+
+      return response.json();
+    },
   });
 }
 

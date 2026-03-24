@@ -569,6 +569,10 @@ export const ENDPOINTS = {
   CLIENT_CONFIRM_ATTENDANCE: (attendanceId: number) =>
     `${API_URL}/api/mobile/daily-attendance/${attendanceId}/client-confirm`,
   // New flow: Client verifies arrival and marks checkout
+  CONFIRM_ARRIVAL_TODAY: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/confirm-arrival-today`,
+  TODAY_ATTENDANCE: (jobId: number) =>
+    `${API_URL}/api/jobs/${jobId}/daily/today-attendance`,
   CLIENT_VERIFY_ARRIVAL: (jobId: number, attendanceId: number | string) =>
     `${API_URL}/api/jobs/${jobId}/daily/attendance/${attendanceId}/verify-arrival`,
   CLIENT_MARK_CHECKOUT: (jobId: number, attendanceId: number | string) =>

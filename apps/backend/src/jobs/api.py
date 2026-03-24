@@ -5119,7 +5119,7 @@ def _client_confirm_worker_arrived(request, job_id: int):
                 {
                     "error": (
                         "This is a multi-day project job. "
-                        "Use the daily attendance flow to mark worker arrival for each day."
+                        "Use /daily/confirm-arrival-today to mark worker arrival for each day."
                     )
                 },
                 status=400,
@@ -12826,6 +12826,216 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: str):
         "time_in": attendance.time_in.isoformat(),
         "time_out": attendance.time_out.isoformat(),
         "status": attendance.status,
+    }
+
+
+@router.post("/{job_id}/daily/confirm-arrival-today", auth=dual_auth)
+@require_kyc
+def confirm_arrival_today(request, job_id: int):
+    """
+    Client confirms today's arrival for a single (non-team) multi-day PROJECT job.
+
+    Creates (or reuses) today's DailyAttendance row keyed by (job, worker, date),
+    sets time_in, and unlocks same-day completion flow without triggering payment.
+    """
+    from accounts.models import DailyAttendance
+    from django.utils import timezone
+
+    try:
+        job = JobPosting.objects.select_related(
+            "clientID__profileID__accountFK",
+            "assignedWorkerID__profileID__accountFK",
+            "assignedEmployeeID",
+            "assignedAgencyFK",
+        ).get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    if job.clientID.profileID.accountFK != request.auth:
+        return Response(
+            {"error": "Only the job client can confirm worker arrival"}, status=403
+        )
+
+    if job.status != "IN_PROGRESS":
+        return Response(
+            {
+                "error": (
+                    "Job must be IN_PROGRESS to confirm daily arrival. "
+                    f"Current status: {job.status}"
+                )
+            },
+            status=400,
+        )
+
+    payment_model = str(getattr(job, "payment_model", "") or "").upper()
+    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    is_project_multiday = payment_model == "PROJECT" and duration_days > 1
+
+    if not is_project_multiday:
+        return Response(
+            {
+                "error": (
+                    "This endpoint is only for multi-day fixed-rate PROJECT jobs."
+                )
+            },
+            status=400,
+        )
+
+    if getattr(job, "is_team_job", False):
+        return Response(
+            {
+                "error": (
+                    "Team jobs must use assignment attendance endpoints, not this single-job flow."
+                )
+            },
+            status=400,
+        )
+
+    if job.assignedEmployeeID is not None or job.assignedAgencyFK is not None:
+        return Response(
+            {
+                "error": (
+                    "Agency-managed jobs must use agency employee attendance flow."
+                )
+            },
+            status=400,
+        )
+
+    if not job.assignedWorkerID:
+        return Response({"error": "No assigned worker found for this job"}, status=400)
+
+    now = timezone.now()
+    work_date = get_effective_work_date(job)
+
+    attendance, created = DailyAttendance.objects.get_or_create(
+        jobID=job,
+        workerID=job.assignedWorkerID,
+        date=work_date,
+        defaults={
+            "status": "PENDING",
+            "worker_confirmed": True,
+            "worker_confirmed_at": now,
+            "notes": "Auto-created from client confirm-arrival-today",
+        },
+    )
+
+    updated_fields = []
+    if not attendance.time_in:
+        attendance.time_in = now
+        updated_fields.append("time_in")
+
+    if not attendance.worker_confirmed:
+        attendance.worker_confirmed = True
+        updated_fields.append("worker_confirmed")
+
+    if not attendance.worker_confirmed_at:
+        attendance.worker_confirmed_at = now
+        updated_fields.append("worker_confirmed_at")
+
+    if updated_fields:
+        updated_fields.append("updatedAt")
+        attendance.save(update_fields=updated_fields)
+
+    if not job.clientConfirmedWorkStarted:
+        job.clientConfirmedWorkStarted = True
+        job.clientConfirmedWorkStartedAt = now
+        job.save(
+            update_fields=[
+                "clientConfirmedWorkStarted",
+                "clientConfirmedWorkStartedAt",
+                "updatedAt",
+            ]
+        )
+
+    return {
+        "success": True,
+        "message": "Worker arrival confirmed for today.",
+        "attendance_id": attendance.attendanceID,
+        "date": work_date.isoformat(),
+        "time_in": attendance.time_in.isoformat() if attendance.time_in else None,
+        "worker_confirmed": bool(attendance.worker_confirmed),
+        "client_confirmed": bool(attendance.client_confirmed),
+        "created": created,
+    }
+
+
+@router.get("/{job_id}/daily/today-attendance", auth=dual_auth)
+def get_today_project_attendance(request, job_id: int):
+    """
+    Get today's attendance row for a single (non-team) multi-day PROJECT job.
+    Returns attendance=null when today's row has not been created yet.
+    """
+    from accounts.models import DailyAttendance
+
+    try:
+        job = JobPosting.objects.select_related(
+            "clientID__profileID__accountFK",
+            "assignedWorkerID__profileID__accountFK",
+            "assignedEmployeeID",
+            "assignedAgencyFK",
+        ).get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    payment_model = str(getattr(job, "payment_model", "") or "").upper()
+    duration_days = int(getattr(job, "duration_days", 0) or 0)
+    is_project_multiday = payment_model == "PROJECT" and duration_days > 1
+
+    if not is_project_multiday:
+        return Response(
+            {
+                "error": (
+                    "This endpoint is only for multi-day fixed-rate PROJECT jobs."
+                )
+            },
+            status=400,
+        )
+
+    if getattr(job, "is_team_job", False):
+        return Response({"error": "Team jobs are not supported by this endpoint"}, status=400)
+
+    if job.assignedEmployeeID is not None or job.assignedAgencyFK is not None:
+        return Response(
+            {"error": "Agency-managed jobs are not supported by this endpoint"},
+            status=400,
+        )
+
+    if not job.assignedWorkerID:
+        return Response({"error": "No assigned worker found for this job"}, status=400)
+
+    # Allow both job participants to read status for same-day flow controls.
+    is_client = job.clientID.profileID.accountFK == request.auth
+    is_worker = job.assignedWorkerID.profileID.accountFK == request.auth
+    if not (is_client or is_worker):
+        return Response({"error": "Not authorized to access this attendance"}, status=403)
+
+    work_date = get_effective_work_date(job)
+    attendance = DailyAttendance.objects.filter(
+        jobID=job,
+        workerID=job.assignedWorkerID,
+        date=work_date,
+    ).first()
+
+    if not attendance:
+        return {
+            "success": True,
+            "job_id": job_id,
+            "date": work_date.isoformat(),
+            "attendance": None,
+        }
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "date": work_date.isoformat(),
+        "attendance": {
+            "id": attendance.attendanceID,
+            "date": attendance.date.isoformat() if attendance.date else None,
+            "time_in": attendance.time_in.isoformat() if attendance.time_in else None,
+            "time_out": attendance.time_out.isoformat() if attendance.time_out else None,
+            "worker_confirmed": bool(attendance.worker_confirmed),
+            "client_confirmed": bool(attendance.client_confirmed),
+        },
     }
 
 

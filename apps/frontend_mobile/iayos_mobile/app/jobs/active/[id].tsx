@@ -35,6 +35,10 @@ import {
   type SkillSlot,
   type WorkerAssignment,
 } from "@/lib/hooks/useTeamJob";
+import {
+  useConfirmArrivalToday,
+  useTodayProjectAttendance,
+} from "@/lib/hooks/useJobActions";
 import { useDailyFinishJob } from "@/lib/hooks/useDailyPayment";
 
 // ============================================================================
@@ -253,8 +257,56 @@ export default function ActiveJobDetailScreen() {
   const clientApproveMutation = useClientApproveTeamJob();
   const dailyFinishMutation = useDailyFinishJob();
   const earlyCompleteMutation = useEarlyCompleteWorker();
+  const confirmArrivalTodayMutation = useConfirmArrivalToday();
+
+  const markProjectDayCompleteMutation = useMutation({
+    mutationFn: async (attendanceId: number) => {
+      const response = await apiRequest(
+        ENDPOINTS.CLIENT_MARK_DAY_COMPLETE(Number(id), attendanceId),
+        {
+          method: "POST",
+          body: new FormData() as any,
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData?.error || "Failed to mark day complete");
+      }
+
+      return response.json() as Promise<{ message?: string }>;
+    },
+    onSuccess: (data) => {
+      Alert.alert(
+        "Day Completed",
+        data?.message ||
+          "Today's attendance is confirmed. Payment will settle at final completion.",
+      );
+      refetch();
+      refetchTodayAttendance();
+    },
+    onError: (error: Error) => {
+      Alert.alert("Error", error.message);
+    },
+  });
 
   const isTeamDaily = job?.is_team_job && job?.payment_model === "DAILY";
+  const isSingleProjectMultiDay =
+    Boolean(job) &&
+    !job?.is_team_job &&
+    job?.payment_model === "PROJECT" &&
+    (job?.duration_days ?? 0) > 1;
+
+  const {
+    data: todayAttendanceData,
+    refetch: refetchTodayAttendance,
+    isLoading: isTodayAttendanceLoading,
+  } = useTodayProjectAttendance(
+    Number(id),
+    isSingleProjectMultiDay && !isWorker && !Boolean(job?.client_marked_complete),
+  );
+
+  const todayAttendance = todayAttendanceData?.attendance ?? null;
 
   // Determine if this worker is assigned to this team job (supports multi-slot)
   const myAssignments =
@@ -570,6 +622,28 @@ export default function ActiveJobDetailScreen() {
         },
       ],
     );
+  };
+
+  const handleConfirmArrivalToday = () => {
+    confirmArrivalTodayMutation.mutate(Number(id), {
+      onSuccess: () => {
+        refetch();
+        refetchTodayAttendance();
+      },
+    });
+  };
+
+  const handleMarkProjectDayComplete = () => {
+    const attendanceId = todayAttendance?.id;
+    if (!attendanceId) {
+      Alert.alert(
+        "Attendance Missing",
+        "Confirm worker arrival first before marking the day complete.",
+      );
+      return;
+    }
+
+    markProjectDayCompleteMutation.mutate(attendanceId);
   };
 
   const handleViewChat = async () => {
@@ -1520,6 +1594,89 @@ export default function ActiveJobDetailScreen() {
             )}
           </View>
         </View>
+
+        {!isWorker &&
+          isSingleProjectMultiDay &&
+          !job.client_marked_complete && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Today&apos;s Attendance</Text>
+
+              {isTodayAttendanceLoading ? (
+                <ActivityIndicator color={Colors.primary} />
+              ) : !todayAttendance?.time_in ? (
+                <>
+                  <Text style={styles.waitingMessageText}>
+                    Confirm today&apos;s worker arrival to unlock day completion.
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryButton,
+                      { marginTop: Spacing.md, alignSelf: "stretch" },
+                    ]}
+                    onPress={handleConfirmArrivalToday}
+                    disabled={confirmArrivalTodayMutation.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {confirmArrivalTodayMutation.isPending ? (
+                      <ActivityIndicator color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-circle-outline"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.primaryButtonText}>
+                          Confirm Worker Arrival Today
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              ) : !todayAttendance.client_confirmed ? (
+                <>
+                  <Text style={styles.waitingMessageText}>
+                    Arrival confirmed. Mark day complete to record checkout.
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryButton,
+                      { marginTop: Spacing.md, alignSelf: "stretch" },
+                    ]}
+                    onPress={handleMarkProjectDayComplete}
+                    disabled={markProjectDayCompleteMutation.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {markProjectDayCompleteMutation.isPending ? (
+                      <ActivityIndicator color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.primaryButtonText}>
+                          Mark Day Complete
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.waitingMessage}>
+                  <Ionicons
+                    name="checkmark-done-circle"
+                    size={20}
+                    color={Colors.success}
+                  />
+                  <Text style={styles.waitingMessageText}>
+                    Day checkout is confirmed. Worker can now proceed with completion when ready.
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
