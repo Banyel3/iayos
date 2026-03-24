@@ -13,6 +13,7 @@ class Command(BaseCommand):
     help = (
         "Backfill team DAILY attendance rows for the simplified flow where "
         "worker completion can be settled without legacy checkout/confirm-client gating. "
+        "Covers both single-day and multi-day team DAILY jobs, including merged-slot scenarios. "
         "Defaults to dry-run; pass --execute to apply changes."
     )
 
@@ -66,7 +67,6 @@ class Command(BaseCommand):
         rows = DailyAttendance.objects.filter(
             jobID__is_team_job=True,
             jobID__payment_model="DAILY",
-            jobID__duration_days__gt=1,
             jobID__status__in=["ACTIVE", "IN_PROGRESS", "COMPLETED"],
             payment_processed=False,
             status__in=["DISPATCHED", "PENDING", "PRESENT", "HALF_DAY"],
