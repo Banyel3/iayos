@@ -28,6 +28,7 @@ import {
   ActionSheetIOS,
   Animated,
   Easing,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -299,8 +300,10 @@ export default function WorkerDetailScreen() {
   // Lightbox state for certificate images
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Fetch worker details
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["worker", id],
     queryFn: async () => {
       const response = await fetchJson<{
@@ -509,6 +512,17 @@ export default function WorkerDetailScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 120, flexGrow: 1 }}
           style={{ backgroundColor: "#F0F7FF" }} // Match Ice Blue theme
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={async () => {
+                setIsRefreshing(true);
+                await refetch();
+                setIsRefreshing(false);
+              }}
+              tintColor={Colors.primary}
+            />
+          }
         >
           {/* Self-View Banner */}
           {isOwnProfile && (
