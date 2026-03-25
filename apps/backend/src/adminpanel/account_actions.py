@@ -6,8 +6,23 @@ Handles suspend, ban, activate, and delete operations for user accounts.
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.sessions.models import Session
+from zoneinfo import ZoneInfo
 from accounts.models import Accounts, Notification
 from adminpanel.audit_service import log_action
+
+
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
+
+
+def _format_datetime_ph(dt_value):
+    if not dt_value:
+        return "indefinitely"
+
+    effective_dt = dt_value
+    if timezone.is_naive(effective_dt):
+        effective_dt = timezone.make_aware(effective_dt, timezone.get_current_timezone())
+
+    return timezone.localtime(effective_dt, PH_TIMEZONE).strftime("%Y-%m-%d %I:%M %p PHT")
 
 
 def _revoke_account_sessions(account: Accounts) -> int:
@@ -58,9 +73,7 @@ def suspend_account(
         
         # Create notification for user
         try:
-            suspended_date = 'indefinitely'
-            if account.suspended_until is not None and hasattr(account.suspended_until, 'strftime'):
-                suspended_date = account.suspended_until.strftime('%Y-%m-%d %H:%M %Z')  # type: ignore[union-attr]
+            suspended_date = _format_datetime_ph(account.suspended_until)
             Notification.objects.create(
                 accountFK=account,
                 message=f"Your account has been suspended. Reason: {reason}. Suspended until: {suspended_date}",

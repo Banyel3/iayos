@@ -51,7 +51,8 @@ def _is_blocked_account(user):
             user.is_suspended = False
             user.suspended_until = None
             user.suspended_reason = None
-            user.save(update_fields=["is_suspended", "suspended_until", "suspended_reason"])
+            user.is_active = True
+            user.save(update_fields=["is_suspended", "suspended_until", "suspended_reason", "is_active"])
         else:
             return True
 

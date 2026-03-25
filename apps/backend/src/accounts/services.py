@@ -11,10 +11,26 @@ import uuid
 import jwt
 import hashlib
 import random
+from zoneinfo import ZoneInfo
 from iayos_project.utils import upload_kyc_doc
 import os
 import re
 from difflib import SequenceMatcher
+
+
+PH_TIMEZONE = ZoneInfo("Asia/Manila")
+
+
+def _format_datetime_ph(dt_value):
+    if not dt_value:
+        return "indefinitely"
+
+    effective_dt = dt_value
+    if timezone.is_naive(effective_dt):
+        effective_dt = timezone.make_aware(effective_dt, timezone.get_current_timezone())
+
+    ph_dt = timezone.localtime(effective_dt, PH_TIMEZONE)
+    return ph_dt.strftime("%Y-%m-%d %I:%M %p PHT")
 
 
 def generate_otp():
@@ -341,12 +357,11 @@ def login_account(data, request=None):
             user.is_suspended = False
             user.suspended_until = None
             user.suspended_reason = None
-            user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason'])
+            user.is_active = True
+            user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason', 'is_active'])
         else:
             reason = user.suspended_reason or "Your account has been temporarily suspended."
-            until_text = "indefinitely"
-            if user.suspended_until:
-                until_text = timezone.localtime(user.suspended_until).strftime("%Y-%m-%d %H:%M %Z")
+            until_text = _format_datetime_ph(user.suspended_until)
             raise ValueError(
                 f"Your account has been suspended until {until_text}. Reason: {reason}"
             )
@@ -655,7 +670,8 @@ def refresh_token(expired_token):
                 user.is_suspended = False
                 user.suspended_until = None
                 user.suspended_reason = None
-                user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason'])
+                user.is_active = True
+                user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason', 'is_active'])
             else:
                 raise ValueError("Account is suspended")
 
