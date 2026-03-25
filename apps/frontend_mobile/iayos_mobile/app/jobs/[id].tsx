@@ -3926,7 +3926,9 @@ export default function JobDetailScreen() {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      backgroundColor: Colors.primary,
+                      backgroundColor: Colors.white,
+                      borderWidth: 1,
+                      borderColor: "#00BAF1",
                       paddingHorizontal: 12,
                       paddingVertical: 6,
                       borderRadius: 16,
@@ -3949,11 +3951,11 @@ export default function JobDetailScreen() {
                     <Ionicons
                       name="person-add-outline"
                       size={14}
-                      color={Colors.white}
+                      color="#00BAF1"
                     />
                     <Text
                       style={{
-                        color: Colors.white,
+                        color: "#00BAF1",
                         fontSize: 12,
                         fontWeight: "600",
                       }}
@@ -4113,17 +4115,40 @@ export default function JobDetailScreen() {
 
                     <View style={styles.applicationDetails}>
                       {application.budget_option === "NEGOTIATE" && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="cash-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            {job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
-                              ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
-                              : `Proposed: ₱${application.proposed_budget.toLocaleString()}`}
-                          </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Ionicons
+                              name="cash-outline"
+                              size={16}
+                              color="#00BAF1"
+                            />
+                            <Text style={[styles.applicationDetailText, { color: "#00BAF1", fontWeight: "600" }]}>
+                              {job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
+                                ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
+                                : `Proposed: ₱${application.proposed_budget.toLocaleString()}`}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }} />
+                          {application.status === "PENDING" && (application.negotiation_count ?? 0) < 3 && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 24 }}>
+                              <TouchableOpacity
+                                onPress={() => handleRejectPrice(application.id, application.worker.name)}
+                                disabled={rejectPriceMutation.isPending}
+                              >
+                                {rejectPriceMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.textSecondary} />
+                                ) : (
+                                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Reject Price</Text>
+                                )}
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={{ borderWidth: 1, borderColor: Colors.textSecondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: Colors.white }}
+                                onPress={() => handleCounterOffer(application)}
+                              >
+                                <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Counter</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
                         </View>
                       )}
                       {application.estimated_duration && (
@@ -4167,92 +4192,66 @@ export default function JobDetailScreen() {
                     {/* Action Buttons */}
                     {application.status === "PENDING" && (
                       <View style={{ gap: 8, marginTop: 8 }}>
-                        {/* Accept row */}
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() =>
-                            handleAcceptApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={acceptApplicationMutation.isPending}
-                        >
-                          {acceptApplicationMutation.isPending ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle-outline"
-                                size={20}
-                                color="#FFF"
-                              />
-                              <Text style={styles.acceptButtonText}>
-                                Accept
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-
-                        {/* Counter-offer + Reject Price row (only if worker negotiated and has proposals remaining) */}
-                        {application.budget_option === "NEGOTIATE" &&
-                          (application.negotiation_count ?? 0) < 3 && (
-                          <View style={styles.applicationActions}>
-                            <TouchableOpacity
-                              style={[styles.rejectButton, { flex: 1, borderColor: Colors.warning }]}
-                              onPress={() => handleRejectPrice(application.id, application.worker.name)}
-                              disabled={rejectPriceMutation.isPending}
-                            >
-                              {rejectPriceMutation.isPending ? (
-                                <ActivityIndicator size="small" color={Colors.warning} />
-                              ) : (
-                                <>
-                                  <Ionicons name="pricetag-outline" size={16} color={Colors.warning} />
-                                  <Text style={[styles.rejectButtonText, { color: Colors.warning }]}>
-                                    Reject Price
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[styles.rejectButton, { flex: 1, borderColor: Colors.textSecondary }]}
-                              onPress={() => handleCounterOffer(application)}
-                            >
-                              <Ionicons name="swap-horizontal-outline" size={16} color={Colors.textSecondary} />
-                              <Text style={[styles.rejectButtonText, { color: Colors.textSecondary }]}>Counter</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-
-                        {/* Reject Applicant */}
-                        <TouchableOpacity
-                          style={[styles.rejectButton, { borderColor: Colors.error }]}
-                          onPress={() =>
-                            handleRejectApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={rejectApplicationMutation.isPending}
-                        >
-                          {rejectApplicationMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.error}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={20}
+                        {/* Reject Applicant + Accept row */}
+                        <View style={styles.applicationActions}>
+                          {/* Reject Applicant */}
+                          <TouchableOpacity
+                            style={[styles.rejectButton, { borderColor: Colors.error }]}
+                            onPress={() =>
+                              handleRejectApplication(
+                                application.id,
+                                application.worker.name,
+                              )
+                            }
+                            disabled={rejectApplicationMutation.isPending}
+                          >
+                            {rejectApplicationMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
                                 color={Colors.error}
                               />
-                              <Text style={styles.rejectButtonText}>
-                                Reject Applicant
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={18}
+                                  color={Colors.error}
+                                />
+                                <Text style={styles.rejectButtonText}>
+                                  Reject Applicant
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={() =>
+                              handleAcceptApplication(
+                                application.id,
+                                application.worker.name,
+                              )
+                            }
+                            disabled={acceptApplicationMutation.isPending}
+                          >
+                            {acceptApplicationMutation.isPending ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={18}
+                                  color="#FFF"
+                                />
+                                <Text style={styles.acceptButtonText}>
+                                  Accept
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+
+
                       </View>
                     )}
                   </View>
@@ -6897,11 +6896,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.success,
+    backgroundColor: "#00BAF1",
     borderRadius: BorderRadius.md,
   },
   acceptButtonText: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.white,
   },
@@ -6918,7 +6917,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   rejectButtonText: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.error,
   },
