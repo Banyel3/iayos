@@ -292,7 +292,8 @@ export default function WorkerDetailScreen() {
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
-  const [showScoreDetails, setShowScoreDetails] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const suggestionOpacity = useRef(new Animated.Value(1)).current;
   const submitReportMutation = useSubmitReport();
 
   // Lightbox state for certificate images
@@ -313,6 +314,7 @@ export default function WorkerDetailScreen() {
       };
     },
     enabled: !!id,
+    staleTime: 0, // Always refetch when invalidated
   });
 
   // Fetch worker reviews using accountId (not workerProfileId)
@@ -330,6 +332,27 @@ export default function WorkerDetailScreen() {
     !!profileScore &&
     profileScore.profile_score !== null &&
     (profileScore.profile_score < 45 || profileScore.rating_category === "Poor");
+
+  // Rotate improvement suggestion every 15 seconds with fade transition
+  useEffect(() => {
+    const suggestions = profileScore?.improvement_suggestions ?? [];
+    if (suggestions.length <= 1) return;
+    const interval = setInterval(() => {
+      Animated.timing(suggestionOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        setSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+        Animated.timing(suggestionOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [profileScore?.improvement_suggestions, suggestionOpacity]);
 
   // Show skeleton while loading
   if (isLoading) {
@@ -570,45 +593,43 @@ export default function WorkerDetailScreen() {
           <View style={styles.contentContainer}>
 
             {/* AI Profile Score Section (Redesigned as Rectangle) */}
+            {/* Always show the card, but clients see only "NEEDS MORE ASSESSMENT" when score < 50 */}
             {profileScore && profileScore.profile_score !== null && (
               <View style={[styles.section, styles.aiScoreRectangleContainer]}>
-                <TouchableOpacity
-                  style={styles.aiScoreRectangle}
-                  onPress={() => setShowScoreDetails(!showScoreDetails)}
-                  activeOpacity={0.8}
-                >
+                <View style={styles.aiScoreRectangle}>
                   <View style={styles.aiScoreMainRow}>
                     <View style={styles.aiScoreTextGroup}>
                       <Text style={styles.mlScoreLabelAbove} numberOfLines={1}>AI PROFILE SCORE</Text>
                       <Text
                         style={[
                           styles.mlScoreLabelBelow,
-                          shouldDeferProfileScore && styles.mlScoreLabelBelowDeferred,
+                          (shouldDeferProfileScore || (!isOwnProfile && profileScore.profile_score < 50)) && styles.mlScoreLabelBelowDeferred,
                         ]}
                       >
-                        {shouldDeferProfileScore
+                        {shouldDeferProfileScore || (!isOwnProfile && profileScore.profile_score < 50)
                           ? "NEEDS MORE ASSESSMENT"
                           : profileScore.rating_category.toUpperCase()}
                       </Text>
                     </View>
-                    {shouldDeferProfileScore ? (
-                      <View style={styles.aiScoreValuePlaceholder} />
-                    ) : (
-                      <Text style={[styles.mlScoreValueCompact, { color: getScoreColor(profileScore.profile_score) }]}>
+                    {/* Only show the number if: own profile, OR client viewing score >= 50 */}
+                    {(isOwnProfile || profileScore.profile_score >= 50) && (
+                      <Text style={[styles.mlScoreValueCompact, { color: shouldDeferProfileScore ? "#9CA3AF" : getScoreColor(profileScore.profile_score) }]}>
                         {profileScore.profile_score.toFixed(0)}<Text style={styles.mlScorePercentSymbol}>%</Text>
                       </Text>
                     )}
                   </View>
-                </TouchableOpacity>
+                </View>
 
-                {showScoreDetails && (
+                {/* Rotating improvement suggestion — only for own profile */}
+                {isOwnProfile && profileScore.improvement_suggestions.length > 0 && (
                   <View style={styles.aiScoreDetailsInline}>
                     <View style={styles.aiScoreTooltipDivider} />
-                    <Text style={styles.aiScoreDetailsText}>
-                      {shouldDeferProfileScore
-                        ? "AI needs more assessment/data before showing a score."
-                        : "Based on profile completeness, certifications, and job history"}
-                    </Text>
+                    <Animated.View style={[styles.aiScoreSuggestionRow, { opacity: suggestionOpacity }]}>
+                      <Text style={styles.aiScoreSuggestionLabel}>Tip:</Text>
+                      <Text style={styles.aiScoreDetailsText}>
+                        {profileScore.improvement_suggestions[suggestionIndex % profileScore.improvement_suggestions.length]}
+                      </Text>
+                    </Animated.View>
                   </View>
                 )}
               </View>
@@ -1706,8 +1727,22 @@ const styles = StyleSheet.create({
   aiScoreDetailsText: {
     color: Colors.textSecondary,
     fontSize: 12,
+    fontStyle: "italic",
     lineHeight: 18,
     textAlign: "left",
+    flex: 1,
+  },
+  aiScoreSuggestionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 5,
+  },
+  aiScoreSuggestionLabel: {
+    fontSize: 12,
+    fontStyle: "italic",
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 18,

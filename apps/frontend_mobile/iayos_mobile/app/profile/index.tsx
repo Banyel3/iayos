@@ -1,7 +1,7 @@
 // Worker Profile Screen
 // Shows worker's professional profile with stats, completion widget, and edit button
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,9 +11,9 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { safeGoBack } from "@/lib/hooks/useSafeBack";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -167,6 +167,18 @@ export default function ProfileScreen() {
   // Completeness banner state
   const [completionDismissed, setCompletionDismissed] = useState(false);
 
+  const queryClient = useQueryClient();
+
+  // Refetch profile data when screen comes into focus (e.g. returning from edit)
+  useFocusEffect(
+    useCallback(() => {
+      if (isWorker) {
+        queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+        queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
+      }
+    }, [isWorker, queryClient])
+  );
+
   // Fetch profile data (only if worker)
   const {
     data: profile,
@@ -185,7 +197,7 @@ export default function ProfileScreen() {
       return data.profile_data || data;
     },
     enabled: isWorker, // Only fetch if user is a worker
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always refetch when invalidated
   });
 
   // Fetch portfolio images

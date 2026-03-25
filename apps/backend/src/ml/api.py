@@ -830,41 +830,107 @@ def _categorize_score(score: float) -> str:
 def _generate_improvement_suggestions(data: WorkerRatingRequest, score: float) -> List[str]:
     """Generate improvement suggestions based on profile data."""
     suggestions = []
-    
-    # Profile completion
-    if data.profile_completion and data.profile_completion < 80:
-        suggestions.append("Complete your profile to at least 80% for better visibility")
-    
-    # Bio
-    if data.bio_length is not None and data.bio_length < 100:
-        suggestions.append("Add a detailed bio (at least 100 characters) describing your skills and experience")
-    
-    # Certifications
-    if data.certifications_count is not None and data.certifications_count < 2:
-        suggestions.append("Add professional certifications to build trust with clients")
-    
-    # Verified certifications
-    if data.verified_certifications is not None and data.certifications_count and data.certifications_count > 0:
-        if data.verified_certifications < data.certifications_count:
-            suggestions.append("Get your certifications verified to increase your credibility")
-    
-    # Hourly rate
-    if data.hourly_rate is not None and data.hourly_rate == 0:
-        suggestions.append("Set a competitive hourly rate to attract clients")
-    
-    # Experience
-    if data.years_of_experience is not None and data.years_of_experience < 2:
-        suggestions.append("Gain more experience in your field to improve your profile score")
-    
-    # Specializations
-    if data.specializations_count is not None and data.specializations_count < 2:
-        suggestions.append("Add more specializations to showcase your diverse skills")
-    
-    # Rating
-    if data.avg_rating is not None and data.avg_rating < 4.0:
-        suggestions.append("Focus on delivering quality work to improve your average rating")
-    
-    return suggestions[:5]  # Return top 5 suggestions
+
+    # --- Profile completeness ---
+    if data.profile_completion is not None:
+        if data.profile_completion < 50:
+            suggestions.append("Your profile is less than half complete — fill in all sections so clients can trust you")
+        elif data.profile_completion < 70:
+            suggestions.append("Complete your profile to at least 70% to appear in more client searches")
+        elif data.profile_completion < 90:
+            suggestions.append("You're close to a fully complete profile — finishing it can significantly boost your visibility")
+
+    # --- Bio ---
+    if data.bio_length is not None:
+        if data.bio_length == 0:
+            suggestions.append("Write a bio — even a short paragraph about who you are and what you do makes a big difference")
+        elif data.bio_length < 80:
+            suggestions.append("Expand your bio to at least 80 characters so clients get a real sense of your personality and skills")
+        elif data.bio_length < 180:
+            suggestions.append("A longer bio (150+ characters) helps clients feel confident before hiring you")
+
+    # --- Hourly rate ---
+    if data.hourly_rate is not None:
+        if data.hourly_rate == 0:
+            suggestions.append("Set your hourly rate — workers without a rate are often skipped by clients browsing profiles")
+        elif data.hourly_rate > 0 and score < 60:
+            suggestions.append("Consider adjusting your rate to be competitive while you build up your reviews and job history")
+
+    # --- Specializations ---
+    if data.specializations_count is not None:
+        if data.specializations_count == 0:
+            suggestions.append("Add at least one specialization so clients can find you when searching for specific skills")
+        elif data.specializations_count == 1:
+            suggestions.append("Add a second specialization to broaden the types of jobs you can be matched with")
+        elif data.specializations_count < 4:
+            suggestions.append("Workers with 4+ specializations get matched to a wider range of job posts")
+
+    # --- Certifications ---
+    if data.certifications_count is not None:
+        if data.certifications_count == 0:
+            suggestions.append("Add at least one certification — it signals professionalism and helps clients choose you over others")
+        elif data.certifications_count == 1:
+            suggestions.append("A second certification further validates your expertise and boosts your credibility score")
+        elif data.certifications_count < 3:
+            suggestions.append("Having 3 or more certifications puts you ahead of most workers in your category")
+
+    # --- Verified certifications ---
+    if data.certifications_count and data.certifications_count > 0 and data.verified_certifications is not None:
+        unverified = data.certifications_count - data.verified_certifications
+        if unverified == data.certifications_count:
+            suggestions.append("Get your certification(s) verified by the platform — unverified certs carry much less weight with clients")
+        elif unverified > 0:
+            suggestions.append(f"You have {unverified} unverified certification(s) — getting them verified will raise your score right away")
+
+    # --- Completed jobs ---
+    if data.completed_jobs is not None:
+        if data.completed_jobs == 0:
+            suggestions.append("Land your first job — even a small completed job unlocks reviews and dramatically improves your score")
+            suggestions.append("Apply to entry-level or lower-budget jobs first to get that first review and build your track record")
+        elif data.completed_jobs < 5:
+            suggestions.append(f"You've completed {data.completed_jobs} job(s) — aim for 5 to establish a visible track record")
+        elif data.completed_jobs < 15:
+            suggestions.append("Workers with 15+ completed jobs appear more prominently in client searches")
+        elif data.completed_jobs < 50:
+            suggestions.append("Keep completing jobs consistently — 50+ completions puts you in the high-trust tier")
+
+    # --- Average rating ---
+    if data.avg_rating is not None:
+        if data.avg_rating == 0:
+            suggestions.append("You have no ratings yet — complete your first job and ask the client to leave a review")
+        elif data.avg_rating < 3.5:
+            suggestions.append("Your average rating is below 3.5 — focus on communication and delivering ahead of schedule to recover it")
+        elif data.avg_rating < 4.0:
+            suggestions.append("Push your rating above 4.0 by setting clear expectations with clients before starting work")
+        elif data.avg_rating < 4.5:
+            suggestions.append("A 4.5+ rating puts you in the top tier — go the extra mile on your next few jobs to push it higher")
+
+    # --- Activity / availability ---
+    if data.is_active is not None and not data.is_active:
+        suggestions.append("Set your status to Available — inactive profiles are ranked lower and missed by clients actively hiring")
+
+    # --- Experience ---
+    if data.years_of_experience is not None:
+        if data.years_of_experience < 1:
+            suggestions.append("Highlight any relevant personal projects or informal work in your bio to compensate for limited formal experience")
+        elif data.years_of_experience < 2:
+            suggestions.append("With under 2 years of experience, certifications and a strong bio are your best tools to stand out")
+
+    # --- Earnings / activity level ---
+    if data.total_earnings is not None and data.total_earnings == 0 and data.completed_jobs is not None and data.completed_jobs == 0:
+        suggestions.append("Your profile hasn't earned yet — clients look at earnings history as a trust signal, so getting started is key")
+
+    # --- Score-based broad tips ---
+    if score < 40:
+        suggestions.append("Your score has a lot of room to grow — even filling in 2-3 missing sections can jump you into the Fair tier")
+    if score < 55:
+        suggestions.append("Workers who respond quickly to job invitations get hired more often, even with a lower profile score")
+        suggestions.append("Make sure your profile photo is clear and professional — it's the first thing clients notice")
+    if score < 70:
+        suggestions.append("Ask satisfied clients to leave a review after every job — word-of-mouth through ratings is your fastest growth lever")
+        suggestions.append("Regularly update your bio with recent work or skills to show clients you're active and improving")
+
+    return suggestions
 
 
 @router.post("/predict-worker-rating", response=WorkerRatingResponse)

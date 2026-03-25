@@ -223,6 +223,8 @@ export default function EditProfileScreen() {
         await refreshUserData();
         // Invalidate queries to refresh user data
         queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+        queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
+        queryClient.invalidateQueries({ queryKey: ["worker"] });
       } else {
         throw new Error("Failed to upload avatar");
       }
@@ -285,8 +287,10 @@ export default function EditProfileScreen() {
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate profile query to refetch
+      // Invalidate profile + score queries to refetch
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
+      queryClient.invalidateQueries({ queryKey: ["worker"] });
       refreshUserData();
       Alert.alert("Success", "Profile updated successfully", [
         {
