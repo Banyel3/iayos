@@ -3807,9 +3807,12 @@ def mobile_get_my_applications(request):
                     "applied_skill_slot_id": app.applied_skill_slot.skillSlotID
                     if app.applied_skill_slot
                     else None,
-                    "applied_skill_slot_name": app.applied_skill_slot.specialization_name
-                    if app.applied_skill_slot
-                    else None,
+                    "applied_skill_slot_name": (
+                        app.applied_skill_slot.specializationID.specializationName
+                        if app.applied_skill_slot
+                        and getattr(app.applied_skill_slot, "specializationID", None)
+                        else None
+                    ),
                     "proposed_daily_rate": float(app.proposed_daily_rate)
                     if app.proposed_daily_rate
                     else None,
@@ -3932,9 +3935,12 @@ def mobile_get_application_detail(request, application_id: int):
             "applied_skill_slot_id": application.applied_skill_slot.skillSlotID
             if application.applied_skill_slot
             else None,
-            "applied_skill_slot_name": application.applied_skill_slot.skill_required
-            if application.applied_skill_slot
-            else None,
+            "applied_skill_slot_name": (
+                application.applied_skill_slot.specializationID.specializationName
+                if application.applied_skill_slot
+                and getattr(application.applied_skill_slot, "specializationID", None)
+                else None
+            ),
             "can_withdraw": application.status
             == JobApplication.ApplicationStatus.PENDING,
         }
