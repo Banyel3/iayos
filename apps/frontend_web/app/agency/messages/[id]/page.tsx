@@ -923,6 +923,25 @@ export default function AgencyChatScreen() {
       .map((record) => record.employee_id),
   );
 
+  const dailyAttendanceResolvedIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => {
+        const status = String(record.status || "").toUpperCase();
+        const isAbsent = status === "ABSENT" && Boolean(record.client_confirmed);
+        return Boolean(record.time_in) || isAbsent;
+      })
+      .map((record) => record.employee_id),
+  );
+
+  const dailyAttendanceAbsentIds = new Set(
+    (attendanceData?.records || [])
+      .filter((record) => {
+        const status = String(record.status || "").toUpperCase();
+        return status === "ABSENT" && Boolean(record.client_confirmed);
+      })
+      .map((record) => record.employee_id),
+  );
+
   const dailyDispatchedCount = shouldShowDailyWorkflow
     ? effectiveAgencyAssignments.filter((e: AssignedEmployee) =>
         dailyAttendanceDispatchedIds.has(e.employeeId),
@@ -1414,13 +1433,26 @@ export default function AgencyChatScreen() {
                 }
 
                 if (isTeamConversation) {
-                  const arrivedTeamEmployees = (team_agency_employees || []).filter(
-                    (employee: TeamAgencyEmployeeAssignment) =>
-                      Boolean(employee.clientConfirmedArrival),
+                  const resolvedTeamEmployees = (team_agency_employees || []).filter(
+                    (employee: TeamAgencyEmployeeAssignment) => {
+                      const employeeId = Number(employee.id);
+                      return (
+                        dailyAttendanceResolvedIds.has(employeeId) ||
+                        Boolean(employee.clientConfirmedArrival)
+                      );
+                    },
                   );
 
-                  const pendingTeamCompletions = arrivedTeamEmployees.filter(
+                  const absentTeamEmployees = (team_agency_employees || []).filter(
+                    (employee: TeamAgencyEmployeeAssignment) => {
+                      const employeeId = Number(employee.id);
+                      return dailyAttendanceAbsentIds.has(employeeId);
+                    },
+                  );
+
+                  const pendingTeamCompletions = resolvedTeamEmployees.filter(
                     (employee: TeamAgencyEmployeeAssignment) =>
+                      !dailyAttendanceAbsentIds.has(Number(employee.id)) &&
                       !(
                         employee.agencyMarkedComplete ||
                         employee.employeeMarkedComplete ||
@@ -1477,11 +1509,20 @@ export default function AgencyChatScreen() {
                     );
                   }
 
-                  if (arrivedTeamEmployees.length < (team_agency_employees || []).length) {
+                  if (resolvedTeamEmployees.length < (team_agency_employees || []).length) {
                     return (
                       <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-200 text-xs text-yellow-800 font-medium">
-                        Client is still confirming team arrivals ({arrivedTeamEmployees.length}/
+                        Waiting for client to resolve all team statuses ({resolvedTeamEmployees.length}/
                         {(team_agency_employees || []).length})
+                      </div>
+                    );
+                  }
+
+                  if (absentTeamEmployees.length > 0) {
+                    return (
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 font-medium">
+                        Team status resolved for today ({resolvedTeamEmployees.length}/
+                        {(team_agency_employees || []).length}); {absentTeamEmployees.length} marked absent.
                       </div>
                     );
                   }

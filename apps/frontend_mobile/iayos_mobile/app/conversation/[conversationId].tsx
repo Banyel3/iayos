@@ -6617,7 +6617,7 @@ export default function ChatScreen() {
                       </View>
 
                       <Text style={styles.teamProjectArrivalSubtext}>
-                        Confirm each worker arrival to unlock completion flow.
+                        Confirm each worker arrival or mark absent to unlock completion flow.
                         {completedCount > 0
                           ? ` ${completedCount}/${assignments.length} completed.`
                           : ""}
@@ -7160,9 +7160,65 @@ export default function ChatScreen() {
                   if (myAssignments.length === 0) return null;
 
                   const representativeAssignment = myAssignments[0];
-                  const allArrived = myAssignments.every(
-                    (a) => a.client_confirmed_arrival,
+                  const myAssignmentIds = new Set(
+                    myAssignments
+                      .flatMap((assignment) => assignment.assignment_ids || [])
+                      .map((id) => Number(id))
+                      .filter((id) => Number.isFinite(id)),
                   );
+                  const myAttendanceRows = attendanceRows.filter((row: any) => {
+                    const rowAssignmentId = Number(row?.assignment_id);
+                    const rowWorkerAccountId = Number(row?.worker_account_id);
+
+                    const assignmentMatch =
+                      Number.isFinite(rowAssignmentId) &&
+                      myAssignmentIds.has(rowAssignmentId);
+
+                    const accountMatch =
+                      Number.isFinite(rowWorkerAccountId) &&
+                      Number.isFinite(Number(user.accountID)) &&
+                      rowWorkerAccountId === Number(user.accountID);
+
+                    return assignmentMatch || accountMatch;
+                  });
+
+                  const resolvedAttendanceAssignmentIds = new Set(
+                    myAttendanceRows
+                      .filter(
+                        (row: any) =>
+                          isAttendanceRowArrived(row) || isAttendanceRowAbsent(row),
+                      )
+                      .map((row: any) => Number(row?.assignment_id))
+                      .filter((id: number) => Number.isFinite(id)),
+                  );
+
+                  const hasResolvedAttendanceWithoutAssignmentLink =
+                    myAttendanceRows.some(
+                      (row: any) =>
+                        (isAttendanceRowArrived(row) ||
+                          isAttendanceRowAbsent(row)) &&
+                        !Number.isFinite(Number(row?.assignment_id)),
+                    );
+
+                  const allArrived = myAssignments.every((assignment) => {
+                    const assignmentIds = Array.isArray(assignment.assignment_ids)
+                      ? assignment.assignment_ids
+                          .map((id: any) => Number(id))
+                          .filter((id: number) => Number.isFinite(id))
+                      : [];
+
+                    if (assignment.client_confirmed_arrival) {
+                      return true;
+                    }
+
+                    if (!assignmentIds.length) {
+                      return hasResolvedAttendanceWithoutAssignmentLink;
+                    }
+
+                    return assignmentIds.every((id: number) =>
+                      resolvedAttendanceAssignmentIds.has(id),
+                    );
+                  });
                   const allCompleted = myAssignments.every(
                     (a) => a.worker_marked_complete,
                   );
@@ -7192,7 +7248,7 @@ export default function ChatScreen() {
                           color={Colors.textSecondary}
                         />
                         <Text style={styles.waitingButtonText}>
-                          Waiting for client to confirm your arrival on all assigned slots...
+                          Waiting for client to confirm your arrival or mark absent on all assigned slots...
                         </Text>
                       </View>
                     );
@@ -8497,6 +8553,29 @@ export default function ChatScreen() {
                         },
                       );
 
+                  const dailyPayableRows = attendanceRows.filter((row: any) => {
+                    const status = String(row?.status || "").toUpperCase();
+                    return status !== "DISPUTED" && !Boolean(row?.payment_processed);
+                  });
+
+                  const hasPendingDailyResolution =
+                    isDailyAgencyFlow &&
+                    clientArrivalAssignments.some(
+                      (assignment) => !assignment.arrived && !assignment.absent,
+                    );
+
+                  const hasActiveDailyWorkRows =
+                    isDailyAgencyFlow &&
+                    clientArrivalAssignments.some(
+                      (assignment) => assignment.active_workday,
+                    );
+
+                  const dailyReadyForApprovePay =
+                    isDailyAgencyFlow &&
+                    dailyPayableRows.length > 0 &&
+                    !hasPendingDailyResolution &&
+                    !hasActiveDailyWorkRows;
+
                   const allWorkflowComplete =
                     (isDailyAgencyFlow
                       ? allArrived
@@ -8507,10 +8586,7 @@ export default function ChatScreen() {
                     allFreelancersComplete;
 
                   const showApprovePayButton = isDailyAgencyFlow
-                    ?
-                        allComplete &&
-                        allFreelancersComplete &&
-                        !isTodayWorkdaySettled
+                    ? dailyReadyForApprovePay && !isTodayWorkdaySettled
                     : allWorkflowComplete;
 
                   return (
