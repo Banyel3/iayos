@@ -12,6 +12,7 @@ from asgiref.sync import async_to_sync
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from .service import (
     fetchAll_kyc,
     review_kyc_items,
@@ -1996,11 +1997,39 @@ def suspend_user_account(request, account_id: str):
             data = json.loads(request.body.decode("utf-8"))
 
         reason = data.get("reason", "No reason provided")
+        suspended_until_raw = data.get("suspended_until")
 
         if not reason or not reason.strip():
             return {"success": False, "error": "Reason is required"}
 
-        result = suspend_account(account_id, reason, request.auth, request)
+        if not suspended_until_raw:
+            return {"success": False, "error": "Suspension expiry is required"}
+
+        suspended_until = parse_datetime(str(suspended_until_raw))
+        if suspended_until is None:
+            return {
+                "success": False,
+                "error": "Invalid suspended_until. Expected ISO datetime.",
+            }
+
+        if timezone.is_naive(suspended_until):
+            suspended_until = timezone.make_aware(
+                suspended_until, timezone.get_current_timezone()
+            )
+
+        if suspended_until <= timezone.now():
+            return {
+                "success": False,
+                "error": "Suspension expiry must be a future date/time",
+            }
+
+        result = suspend_account(
+            account_id,
+            reason,
+            request.auth,
+            request,
+            suspended_until=suspended_until,
+        )
         return result
 
     except Exception as e:

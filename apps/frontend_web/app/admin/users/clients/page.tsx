@@ -95,6 +95,7 @@ export default function ClientsPage() {
     null,
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
+  const [bulkActionExpiry, setBulkActionExpiry] = useState("");
   const mainClass = useMainContentClass("p-8 min-h-screen");
 
   const fetchClients = async () => {
@@ -220,6 +221,25 @@ export default function ClientsPage() {
   const executeBulkAction = async () => {
     if (!bulkAction || selectedClients.size === 0) return;
 
+    let suspendedUntilISO: string | null = null;
+    if (bulkAction === "suspend") {
+      if (!bulkActionReason.trim()) {
+        toast.error("Reason is required for suspension");
+        return;
+      }
+      if (!bulkActionExpiry) {
+        toast.error("Suspension expiry is required");
+        return;
+      }
+
+      const expiryDate = new Date(bulkActionExpiry);
+      if (Number.isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
+        toast.error("Suspension expiry must be in the future");
+        return;
+      }
+      suspendedUntilISO = expiryDate.toISOString();
+    }
+
     setBulkActionLoading(true);
     const clientIds = Array.from(selectedClients);
     let successCount = 0;
@@ -233,8 +253,8 @@ export default function ClientsPage() {
             : `/api/adminpanel/users/${clientId}/activate`;
 
         const body =
-          bulkAction === "suspend" && bulkActionReason
-            ? { reason: bulkActionReason }
+          bulkAction === "suspend" && suspendedUntilISO
+            ? { reason: bulkActionReason, suspended_until: suspendedUntilISO }
             : {};
 
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -258,6 +278,7 @@ export default function ClientsPage() {
     setBulkActionLoading(false);
     setShowBulkActionModal(false);
     setBulkActionReason("");
+    setBulkActionExpiry("");
     setSelectedClients(new Set());
     setSelectAll(false);
 
@@ -692,18 +713,31 @@ export default function ClientsPage() {
               client(s)?
             </p>
             {bulkAction === "suspend" && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Reason (optional)
-                </label>
-                <textarea
-                  value={bulkActionReason}
-                  onChange={(e) => setBulkActionReason(e.target.value)}
-                  className="w-full border rounded-md p-2"
-                  rows={3}
-                  placeholder="Enter reason for suspension..."
-                />
-              </div>
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason *
+                  </label>
+                  <textarea
+                    value={bulkActionReason}
+                    onChange={(e) => setBulkActionReason(e.target.value)}
+                    className="w-full border rounded-md p-2"
+                    rows={3}
+                    placeholder="Enter reason for suspension..."
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Suspension Expiry *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={bulkActionExpiry}
+                    onChange={(e) => setBulkActionExpiry(e.target.value)}
+                    className="w-full border rounded-md p-2"
+                  />
+                </div>
+              </>
             )}
             {bulkActionLoading && (
               <div className="mb-4 flex items-center text-blue-600">
@@ -717,6 +751,7 @@ export default function ClientsPage() {
                 onClick={() => {
                   setShowBulkActionModal(false);
                   setBulkActionReason("");
+                  setBulkActionExpiry("");
                 }}
                 disabled={bulkActionLoading}
               >

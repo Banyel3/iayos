@@ -4,14 +4,13 @@ from adminpanel.models import SystemRoles, KYCLogs
 from adminpanel.audit_service import log_action
 from django.utils.dateparse import parse_date
 from django.utils import timezone
-from datetime import timedelta, date
+from datetime import datetime, timedelta, date, timezone as dt_timezone
 from django.http import JsonResponse
 from django.conf import settings
 import uuid
 import jwt
 import hashlib
 import random
-from datetime import timedelta
 from iayos_project.utils import upload_kyc_doc
 import os
 import re
@@ -345,7 +344,12 @@ def login_account(data, request=None):
             user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason'])
         else:
             reason = user.suspended_reason or "Your account has been temporarily suspended."
-            raise ValueError(f"Your account has been suspended: {reason}")
+            until_text = "indefinitely"
+            if user.suspended_until:
+                until_text = timezone.localtime(user.suspended_until).strftime("%Y-%m-%d %H:%M %Z")
+            raise ValueError(
+                f"Your account has been suspended until {until_text}. Reason: {reason}"
+            )
     
     # Check if account is deactivated
     if not user.is_active:
@@ -641,6 +645,36 @@ def refresh_token(expired_token):
 
         # Get the user
         user = Accounts.objects.get(accountID=payload['user_id'])
+
+        # Re-check account state during refresh so blocked/revoked users cannot mint new access tokens
+        if user.is_banned:
+            raise ValueError("Account is banned")
+
+        if user.is_suspended:
+            if user.suspended_until and user.suspended_until < timezone.now():
+                user.is_suspended = False
+                user.suspended_until = None
+                user.suspended_reason = None
+                user.save(update_fields=['is_suspended', 'suspended_until', 'suspended_reason'])
+            else:
+                raise ValueError("Account is suspended")
+
+        if not user.is_active:
+            raise ValueError("Account is deactivated")
+
+        token_iat = payload.get('iat')
+        if user.auth_revoked_at:
+            if token_iat is None:
+                raise ValueError("Refresh token revoked")
+
+            token_iat_dt = None
+            if isinstance(token_iat, (int, float)):
+                token_iat_dt = datetime.fromtimestamp(token_iat, tz=dt_timezone.utc)
+            elif isinstance(token_iat, datetime):
+                token_iat_dt = token_iat if timezone.is_aware(token_iat) else timezone.make_aware(token_iat, dt_timezone.utc)
+
+            if token_iat_dt is None or token_iat_dt <= user.auth_revoked_at:
+                raise ValueError("Refresh token revoked")
 
         # Create new access token (preserve profile_type from refresh token)
         access_payload = {

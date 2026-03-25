@@ -74,6 +74,11 @@ class Accounts(AbstractBaseUser, PermissionsMixin):  # <-- include PermissionsMi
     is_banned = models.BooleanField(default=False)
     banned_at = models.DateTimeField(null=True, blank=True)
     banned_reason = models.TextField(null=True, blank=True)
+    auth_revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Invalidate access/refresh tokens issued before this time",
+    )
     banned_by = models.ForeignKey(
         "self",
         null=True,

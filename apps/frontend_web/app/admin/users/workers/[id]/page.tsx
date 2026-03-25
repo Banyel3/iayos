@@ -30,7 +30,6 @@ import {
   ArrowLeft,
   Award,
   Wrench,
-  Trash2,
 } from "lucide-react";
 import { Sidebar, useMainContentClass } from "../../../components";
 import { toast } from "sonner";
@@ -109,10 +108,9 @@ export default function WorkerDetailPage() {
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [showBanModal, setShowBanModal] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [actionReason, setActionReason] = useState("");
+  const [actionExpiry, setActionExpiry] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   // Reviews state
   const [reviews, setReviews] = useState<any[]>([]);
@@ -194,6 +192,17 @@ export default function WorkerDetailPage() {
       toast.error("Please provide a reason for suspension");
       return;
     }
+    if (!actionExpiry) {
+      toast.error("Please provide suspension expiry");
+      return;
+    }
+
+    const expiryDate = new Date(actionExpiry);
+    if (Number.isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
+      toast.error("Suspension expiry must be in the future");
+      return;
+    }
+
     setActionLoading(true);
     try {
       const response = await fetch(
@@ -202,7 +211,10 @@ export default function WorkerDetailPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ reason: actionReason }),
+          body: JSON.stringify({
+            reason: actionReason,
+            suspended_until: expiryDate.toISOString(),
+          }),
         },
       );
       const data = await response.json();
@@ -210,6 +222,7 @@ export default function WorkerDetailPage() {
         toast.success("Worker suspended successfully");
         setShowSuspendModal(false);
         setActionReason("");
+        setActionExpiry("");
         fetchWorker();
       } else {
         toast.error(data.error || "Failed to suspend worker");
@@ -277,35 +290,6 @@ export default function WorkerDetailPage() {
     } catch (error) {
       console.error("Activate error:", error);
       toast.error(getErrorMessage(error, "Failed to activate worker"));
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (deleteConfirmText !== "DELETE") {
-      toast.error('Please type "DELETE" to confirm');
-      return;
-    }
-    setActionLoading(true);
-    try {
-      const response = await fetch(
-        `${API_BASE}/api/adminpanel/users/${id}/delete`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
-      const data = await response.json();
-      if (data.success) {
-        toast.success("Worker deleted successfully");
-        router.push("/admin/users/workers");
-      } else {
-        toast.error(data.error || "Failed to delete worker");
-      }
-    } catch (error) {
-      console.error("Delete error:", error);
-      toast.error(getErrorMessage(error, "Failed to delete worker"));
     } finally {
       setActionLoading(false);
     }
@@ -785,14 +769,6 @@ export default function WorkerDetailPage() {
                   </Button>
                 )}
 
-                <Button
-                  variant="outline"
-                  className="w-full border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all mt-2 text-sm font-medium"
-                  onClick={() => setShowDeleteModal(true)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  delete profile
-                </Button>
               </CardContent>
             </Card>
 
@@ -845,17 +821,29 @@ export default function WorkerDetailPage() {
                     placeholder="Enter reason for suspension..."
                   />
                 </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Suspension Expiry *
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={actionExpiry}
+                    onChange={(e) => setActionExpiry(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowSuspendModal(false);
-                  setActionReason("");
-                }}
-                disabled={actionLoading}
-              >
+                  onClick={() => {
+                    setShowSuspendModal(false);
+                    setActionReason("");
+                    setActionExpiry("");
+                  }}
+                  disabled={actionLoading}
+                >
                 Cancel
               </Button>
               <Button
@@ -984,72 +972,6 @@ export default function WorkerDetailPage() {
         </div>
       )}
 
-      {/* Delete Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-white bg-opacity-10 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-start gap-4 mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold mb-2 text-red-600">
-                  Delete Worker Account
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  🚨 <strong>IRREVERSIBLE ACTION:</strong> This will permanently
-                  delete all worker data including:
-                </p>
-                <ul className="text-sm text-gray-600 mb-4 ml-6 list-disc">
-                  <li>Profile information & skills</li>
-                  <li>Job history & earnings</li>
-                  <li>Transaction records</li>
-                  <li>Reviews and ratings</li>
-                </ul>
-                <p className="text-sm font-semibold text-red-600 mb-4">
-                  This action CANNOT be undone.
-                </p>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type <strong>DELETE</strong> to confirm
-                  </label>
-                  <input
-                    type="text"
-                    value={deleteConfirmText}
-                    onChange={(e) => setDeleteConfirmText(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Type DELETE"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteConfirmText("");
-                }}
-                disabled={actionLoading}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={actionLoading || deleteConfirmText !== "DELETE"}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete Permanently"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

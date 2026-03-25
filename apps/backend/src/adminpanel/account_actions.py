@@ -5,11 +5,37 @@ Handles suspend, ban, activate, and delete operations for user accounts.
 
 from django.utils import timezone
 from datetime import timedelta
+from django.contrib.sessions.models import Session
 from accounts.models import Accounts, Notification
 from adminpanel.audit_service import log_action
 
 
-def suspend_account(account_id: str, reason: str, admin_user, request=None):
+def _revoke_account_sessions(account: Accounts) -> int:
+    """Invalidate auth for account by revoking tokens and deleting sessions."""
+    account.auth_revoked_at = timezone.now()
+    account.save(update_fields=["auth_revoked_at"])
+
+    deleted_sessions = 0
+    for session in Session.objects.all().iterator():
+        try:
+            session_data = session.get_decoded()
+        except Exception:
+            continue
+
+        if str(session_data.get("_auth_user_id")) == str(account.accountID):
+            session.delete()
+            deleted_sessions += 1
+
+    return deleted_sessions
+
+
+def suspend_account(
+    account_id: str,
+    reason: str,
+    admin_user,
+    request=None,
+    suspended_until=None,
+):
     """Suspend an account (temporary restriction)."""
     try:
         account = Accounts.objects.get(accountID=account_id)
@@ -20,18 +46,21 @@ def suspend_account(account_id: str, reason: str, admin_user, request=None):
             "is_suspended": getattr(account, 'is_suspended', False),
         }
         
-        # Suspend for 30 days by default
+        # Suspend for 30 days by default (fallback)
+        effective_suspended_until = suspended_until or (timezone.now() + timedelta(days=30))
         account.is_suspended = True
-        account.suspended_until = timezone.now() + timedelta(days=30)
+        account.suspended_until = effective_suspended_until
         account.suspended_reason = reason
         account.is_active = False  # Also mark as inactive
         account.save()
+
+        revoked_sessions = _revoke_account_sessions(account)
         
         # Create notification for user
         try:
             suspended_date = 'indefinitely'
             if account.suspended_until is not None and hasattr(account.suspended_until, 'strftime'):
-                suspended_date = account.suspended_until.strftime('%Y-%m-%d')  # type: ignore[union-attr]
+                suspended_date = account.suspended_until.strftime('%Y-%m-%d %H:%M %Z')  # type: ignore[union-attr]
             Notification.objects.create(
                 accountFK=account,
                 message=f"Your account has been suspended. Reason: {reason}. Suspended until: {suspended_date}",
@@ -46,9 +75,20 @@ def suspend_account(account_id: str, reason: str, admin_user, request=None):
             action="user_suspend",
             entity_type="user",
             entity_id=str(account_id),
-            details={"email": account.email, "action": "suspended", "reason": reason},
+            details={
+                "email": account.email,
+                "action": "suspended",
+                "reason": reason,
+                "suspended_until": account.suspended_until.isoformat() if account.suspended_until else None,
+                "sessions_revoked": revoked_sessions,
+            },
             before_value=before_state,
-            after_value={"is_active": False, "is_suspended": True, "reason": reason},
+            after_value={
+                "is_active": False,
+                "is_suspended": True,
+                "reason": reason,
+                "suspended_until": account.suspended_until.isoformat() if account.suspended_until else None,
+            },
             request=request
         )
         
@@ -82,6 +122,8 @@ def ban_account(account_id: str, reason: str, admin_user, request=None):
         account.is_active = False  # Mark as inactive
         account.is_suspended = False  # Clear suspension if any
         account.save()
+
+        revoked_sessions = _revoke_account_sessions(account)
         
         # Create notification for user
         try:
@@ -99,7 +141,12 @@ def ban_account(account_id: str, reason: str, admin_user, request=None):
             action="user_ban",
             entity_type="user",
             entity_id=str(account_id),
-            details={"email": account.email, "action": "banned", "reason": reason},
+            details={
+                "email": account.email,
+                "action": "banned",
+                "reason": reason,
+                "sessions_revoked": revoked_sessions,
+            },
             before_value=before_state,
             after_value={"is_active": False, "is_banned": True, "reason": reason},
             request=request
@@ -193,6 +240,8 @@ def delete_account(account_id: str, admin_user, request=None):
         account.banned_reason = "Account deleted by administrator"
         account.banned_by = admin_user
         account.save()
+
+        revoked_sessions = _revoke_account_sessions(account)
         
         # Log audit trail
         log_action(
@@ -200,7 +249,11 @@ def delete_account(account_id: str, admin_user, request=None):
             action="user_delete",
             entity_type="user",
             entity_id=str(account_id),
-            details={"email": account.email, "action": "soft-deleted"},
+            details={
+                "email": account.email,
+                "action": "soft-deleted",
+                "sessions_revoked": revoked_sessions,
+            },
             before_value=before_state,
             after_value={"is_active": False, "is_banned": True, "deleted": True},
             request=request

@@ -94,6 +94,7 @@ export default function AgencyPage() {
     null,
   );
   const [bulkActionReason, setBulkActionReason] = useState("");
+  const [bulkActionExpiry, setBulkActionExpiry] = useState("");
 
   // Expandable rows state
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -234,6 +235,25 @@ export default function AgencyPage() {
   const executeBulkAction = async () => {
     if (!bulkAction || selectedAgencies.size === 0) return;
 
+    let suspendedUntilISO: string | null = null;
+    if (bulkAction === "suspend") {
+      if (!bulkActionReason.trim()) {
+        toast.error("Reason is required for suspension");
+        return;
+      }
+      if (!bulkActionExpiry) {
+        toast.error("Suspension expiry is required");
+        return;
+      }
+
+      const expiryDate = new Date(bulkActionExpiry);
+      if (Number.isNaN(expiryDate.getTime()) || expiryDate <= new Date()) {
+        toast.error("Suspension expiry must be in the future");
+        return;
+      }
+      suspendedUntilISO = expiryDate.toISOString();
+    }
+
     setBulkActionLoading(true);
     const agencyIds = Array.from(selectedAgencies);
     let successCount = 0;
@@ -247,8 +267,8 @@ export default function AgencyPage() {
             : `/api/adminpanel/users/${agencyId}/activate`;
 
         const body =
-          bulkAction === "suspend" && bulkActionReason
-            ? { reason: bulkActionReason }
+          bulkAction === "suspend" && suspendedUntilISO
+            ? { reason: bulkActionReason, suspended_until: suspendedUntilISO }
             : {};
 
         const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -272,6 +292,7 @@ export default function AgencyPage() {
     setBulkActionLoading(false);
     setShowBulkActionModal(false);
     setBulkActionReason("");
+    setBulkActionExpiry("");
     setSelectedAgencies(new Set());
     setSelectAll(false);
 
@@ -726,18 +747,31 @@ export default function AgencyPage() {
                 </p>
 
                 {bulkAction === "suspend" && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reason for Suspension (Optional)
-                    </label>
-                    <textarea
-                      value={bulkActionReason}
-                      onChange={(e) => setBulkActionReason(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      rows={3}
-                      placeholder="Enter reason for suspension..."
-                    />
-                  </div>
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Reason for Suspension *
+                      </label>
+                      <textarea
+                        value={bulkActionReason}
+                        onChange={(e) => setBulkActionReason(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                        placeholder="Enter reason for suspension..."
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Suspension Expiry *
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={bulkActionExpiry}
+                        onChange={(e) => setBulkActionExpiry(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -748,6 +782,7 @@ export default function AgencyPage() {
                 onClick={() => {
                   setShowBulkActionModal(false);
                   setBulkActionReason("");
+                  setBulkActionExpiry("");
                 }}
                 disabled={bulkActionLoading}
               >

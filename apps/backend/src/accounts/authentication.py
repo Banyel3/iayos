@@ -2,14 +2,78 @@
 import jwt
 import logging
 from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from ninja.security import HttpBearer
 import traceback
 
 logger = logging.getLogger(__name__)
 
 Accounts = get_user_model()
+
+
+def _coerce_token_iat(payload):
+    """Normalize token iat claim to aware datetime (UTC)."""
+    token_iat = payload.get("iat")
+    if token_iat is None:
+        return None
+
+    if isinstance(token_iat, (int, float)):
+        return datetime.fromtimestamp(token_iat, tz=dt_timezone.utc)
+
+    if isinstance(token_iat, datetime):
+        if timezone.is_naive(token_iat):
+            return token_iat.replace(tzinfo=dt_timezone.utc)
+        return token_iat
+
+    if isinstance(token_iat, str):
+        value = token_iat.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(value)
+            if timezone.is_naive(parsed):
+                return parsed.replace(tzinfo=dt_timezone.utc)
+            return parsed
+        except ValueError:
+            return None
+
+    return None
+
+
+def _is_blocked_account(user):
+    """Return True if account should be rejected for API access."""
+    if user.is_banned:
+        return True
+
+    if user.is_suspended:
+        if user.suspended_until and user.suspended_until < timezone.now():
+            user.is_suspended = False
+            user.suspended_until = None
+            user.suspended_reason = None
+            user.save(update_fields=["is_suspended", "suspended_until", "suspended_reason"])
+        else:
+            return True
+
+    if not user.is_active:
+        return True
+
+    return False
+
+
+def _is_token_revoked(user, payload):
+    if not getattr(user, "auth_revoked_at", None):
+        return False
+
+    token_iat = _coerce_token_iat(payload)
+    if token_iat is None:
+        return True
+
+    revoked_at = user.auth_revoked_at
+    if timezone.is_naive(revoked_at):
+        revoked_at = timezone.make_aware(revoked_at, dt_timezone.utc)
+
+    return token_iat <= revoked_at
 
 class JWTBearer(HttpBearer):
     def authenticate(self, request, token):
@@ -37,6 +101,14 @@ class JWTBearer(HttpBearer):
 
             # Get the user
             user = Accounts.objects.get(accountID=user_id)
+
+            if _is_blocked_account(user):
+                print("[FAIL] Account is blocked")
+                return None
+
+            if _is_token_revoked(user, payload):
+                print("[FAIL] Token has been revoked")
+                return None
             
             # Attach profile_type to user object so it's available in request.auth
             user.profile_type = profile_type
@@ -86,6 +158,15 @@ class CookieJWTAuth:
                     return None
 
                 user = Accounts.objects.get(accountID=user_id)
+
+                if _is_blocked_account(user):
+                    print("[FAIL] Account is blocked")
+                    return None
+
+                if _is_token_revoked(user, refresh_payload):
+                    print("[FAIL] Refresh token has been revoked")
+                    return None
+
                 print(f"[SUCCESS] Refresh token validated - User: {user.email}")
 
                 # Generate a short-lived access token so downstream code can rely on request.auth
@@ -133,6 +214,15 @@ class CookieJWTAuth:
             print(f"[AUTH] Profile type from cookie JWT: {profile_type}")
 
             user = Accounts.objects.get(accountID=user_id)
+
+            if _is_blocked_account(user):
+                print("[FAIL] Account is blocked")
+                return None
+
+            if _is_token_revoked(user, payload):
+                print("[FAIL] Token has been revoked")
+                return None
+
             # Keep parity with Bearer auth: attach profile type for profile-aware endpoints.
             user.profile_type = profile_type
             print(f"[SUCCESS] Authentication SUCCESS - User: {user.email}")
