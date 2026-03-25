@@ -4756,7 +4756,10 @@ def worker_accept_original_budget(request, application_id: int):
 
         traceback.print_exc()
         return Response(
-            {"error": f"Failed to accept original budget: {str(e)}"}, status=500
+            {
+                "error": "Failed to accept original budget due to an internal error. Please try again later."
+            },
+            status=500,
         )
 
 
