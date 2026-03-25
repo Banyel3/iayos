@@ -34,6 +34,7 @@ from jobs.rate_validation import (
     validate_daily_rate_for_specialization,
     validate_daily_rate_for_specializations,
 )
+from jobs.start_date_action_lock import get_start_date_action_lock_payload
 
 
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
@@ -154,7 +155,10 @@ def _ensure_daily_attendance_row_for_team_member(
         attendance.time_in = now
         update_fields.append("time_in")
 
-    if Decimal(str(attendance.amount_earned or 0)) <= Decimal("0.00") and daily_rate > 0:
+    if (
+        Decimal(str(attendance.amount_earned or 0)) <= Decimal("0.00")
+        and daily_rate > 0
+    ):
         attendance.amount_earned = daily_rate
         update_fields.append("amount_earned")
 
@@ -172,6 +176,24 @@ def _post_team_arrival_system_update(job: Job):
     if not conversation:
         return
 
+    effective_day = _get_effective_work_date(job)
+    attendance_rows = DailyAttendance.objects.filter(jobID=job, date=effective_day)
+
+    absent_worker_ids = set(
+        attendance_rows.filter(
+            status="ABSENT",
+            client_confirmed=True,
+            workerID__isnull=False,
+        ).values_list("workerID_id", flat=True)
+    )
+    absent_employee_ids = set(
+        attendance_rows.filter(
+            status="ABSENT",
+            client_confirmed=True,
+            employeeID__isnull=False,
+        ).values_list("employeeID_id", flat=True)
+    )
+
     # Count unique people, not slot assignments, so one worker filling
     # multiple skills/slots is treated as one team member in system text.
     worker_assignments = JobWorkerAssignment.objects.filter(
@@ -183,6 +205,12 @@ def _post_team_arrival_system_update(job: Job):
     )
     arrived_workers = (
         worker_assignments.filter(client_confirmed_arrival=True)
+        .values_list("workerID_id", flat=True)
+        .distinct()
+        .count()
+    )
+    absent_workers = (
+        worker_assignments.filter(workerID_id__in=absent_worker_ids)
         .values_list("workerID_id", flat=True)
         .distinct()
         .count()
@@ -202,35 +230,58 @@ def _post_team_arrival_system_update(job: Job):
         .distinct()
         .count()
     )
+    absent_employees = (
+        employee_assignments.filter(employee_id__in=absent_employee_ids)
+        .values_list("employee_id", flat=True)
+        .distinct()
+        .count()
+    )
 
     total_count = total_workers + total_employees
-    arrived_count = arrived_workers + arrived_employees
+    resolved_count = (
+        arrived_workers + arrived_employees + absent_workers + absent_employees
+    )
+    absent_count = absent_workers + absent_employees
+    on_site_count = arrived_workers + arrived_employees
 
     if total_count <= 0:
         return
 
-    if arrived_count >= total_count:
+    if resolved_count >= total_count:
         if total_count == 1:
-            if total_workers == 1 and total_employees == 0:
-                arrival_text = "✅ Worker on site! Work can begin."
-            elif total_employees == 1 and total_workers == 0:
-                arrival_text = "✅ Employee on site! Work can begin."
+            if on_site_count == 1:
+                if total_workers == 1 and total_employees == 0:
+                    arrival_text = "✅ Worker on site! Work can begin."
+                elif total_employees == 1 and total_workers == 0:
+                    arrival_text = "✅ Employee on site! Work can begin."
+                else:
+                    arrival_text = "✅ Team member on site! Work can begin."
+            elif absent_count == 1:
+                arrival_text = "⚠️ Team member marked absent."
             else:
-                arrival_text = "✅ Team member on site! Work can begin."
+                arrival_text = "✅ Team status resolved for today."
         else:
-            arrival_text = f"✅ All {total_count} team members on site! Work can begin."
+            if absent_count > 0:
+                arrival_text = (
+                    f"✅ Team status resolved ({resolved_count}/{total_count}). "
+                    f"{on_site_count} on site, {absent_count} absent."
+                )
+            else:
+                arrival_text = (
+                    f"✅ All {total_count} team members on site! Work can begin."
+                )
 
         Message.create_system_message(
             conversation=conversation,
             message_text=arrival_text,
         )
     else:
-        remaining = total_count - arrived_count
+        remaining = total_count - resolved_count
         member_label = "member" if remaining == 1 else "members"
         Message.create_system_message(
             conversation=conversation,
             message_text=(
-                f"✅ Team arrival confirmed ({arrived_count}/{total_count}). "
+                f"✅ Team status resolved ({resolved_count}/{total_count}). "
                 f"Waiting for {remaining} more {member_label}."
             ),
         )
@@ -1798,12 +1849,16 @@ def get_team_job_detail(job_id: int, requesting_user=None) -> dict:
 
 
 @transaction.atomic
-def invite_agency_to_team_slot(job_id: int, slot_id: int, client_user, agency_id: int) -> dict:
+def invite_agency_to_team_slot(
+    job_id: int, slot_id: int, client_user, agency_id: int
+) -> dict:
     """Invite (or re-invite) an agency to a specific team slot in an existing team job."""
     from accounts.models import Agency, JobLog
 
     try:
-        job = Job.objects.select_related("clientID__profileID__accountFK").get(jobID=job_id)
+        job = Job.objects.select_related("clientID__profileID__accountFK").get(
+            jobID=job_id
+        )
     except Job.DoesNotExist:
         return {"success": False, "error": "Job not found"}
 
@@ -2027,7 +2082,10 @@ def apply_to_skill_slot(
         }
 
     if budget_option == "NEGOTIATE":
-        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+        if (
+            str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+            == "DAILY"
+        ):
             if proposed_daily_rate is None:
                 return {
                     "success": False,
@@ -2602,7 +2660,9 @@ def reject_team_application(
 
     # Notify worker with proposal allowance context
     max_proposals = 3
-    proposals_remaining = max(max_proposals - int(application.negotiation_count or 0), 0)
+    proposals_remaining = max(
+        max_proposals - int(application.negotiation_count or 0), 0
+    )
     rejection_message = (
         f"Your application for {slot_name} position in '{job.title}' was not accepted."
     )
@@ -2614,7 +2674,9 @@ def reject_team_application(
             f"{'s' if proposals_remaining != 1 else ''} remaining out of {max_proposals}."
         )
     else:
-        rejection_message += " You have no proposal attempts remaining for this application."
+        rejection_message += (
+            " You have no proposal attempts remaining for this application."
+        )
 
     Notification.objects.create(
         accountFK=application.workerID.profileID.accountFK,
@@ -2883,9 +2945,7 @@ def worker_complete_team_assignment(
             "updated_assignment_ids": assignment_ids,
             "updated_count": len(assignment_ids),
             "all_workers_complete": all_complete,
-            "message": (
-                "All your active assignments are already marked as complete"
-            ),
+            "message": ("All your active assignments are already marked as complete"),
             "completed_at": existing_completed_at.isoformat()
             if existing_completed_at
             else None,
@@ -3120,7 +3180,9 @@ def early_complete_team_worker(job_id: int, assignment_id: int, client_user) -> 
         if row.early_completed:
             continue
 
-        daily_rate = row.daily_rate_at_assignment or job.daily_rate_agreed or Decimal("0.00")
+        daily_rate = (
+            row.daily_rate_at_assignment or job.daily_rate_agreed or Decimal("0.00")
+        )
         absent_days = int(absent_days_by_assignment.get(row.assignmentID, 0) or 0)
         payable_days = max(0, total_planned_days - absent_days)
         full_contract_amount = daily_rate * Decimal(str(payable_days))
@@ -3258,6 +3320,10 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
     if not job.is_team_job:
         return {"success": False, "error": "This is not a team job"}
 
+    lock_payload = get_start_date_action_lock_payload(job)
+    if lock_payload:
+        return {"success": False, **lock_payload}
+
     # Verify client ownership
     client_profile = job.clientID
     if not client_profile or client_profile.profileID.accountFK != client_user:
@@ -3288,7 +3354,9 @@ def confirm_team_worker_arrival(job_id: int, assignment_id: int, client_user) ->
     # Idempotent: if every active assignment for this worker is already confirmed,
     # return success so stale client state can converge without a hard failure.
     if all(a.client_confirmed_arrival for a in worker_assignments):
-        payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+        payment_model = str(
+            getattr(job, "payment_model", "PROJECT") or "PROJECT"
+        ).upper()
         if payment_model in ["DAILY", "PROJECT"]:
             confirmed_at = timezone.now()
             for row in worker_assignments:
@@ -3477,7 +3545,11 @@ def client_approve_team_job(
 
         all_assignments_early_completed = workers_all_early and employees_all_early
 
-        if planned_days > 1 and effective_days < planned_days and not all_assignments_early_completed:
+        if (
+            planned_days > 1
+            and effective_days < planned_days
+            and not all_assignments_early_completed
+        ):
             return {
                 "success": False,
                 "error": (
@@ -4401,6 +4473,10 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
     if not job.is_team_job:
         return {"success": False, "error": "This is not a team job"}
 
+    lock_payload = get_start_date_action_lock_payload(job)
+    if lock_payload:
+        return {"success": False, **lock_payload}
+
     # Verify client ownership
     client_profile = job.clientID
     if not client_profile or client_profile.profileID.accountFK != client_user:
@@ -4474,7 +4550,9 @@ def confirm_team_employee_arrival(job_id: int, assignment_id: int, client_user) 
 
     # Idempotent success if already confirmed.
     if assignment.clientConfirmedArrival:
-        payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+        payment_model = str(
+            getattr(job, "payment_model", "PROJECT") or "PROJECT"
+        ).upper()
         if payment_model in ["DAILY", "PROJECT"]:
             _ensure_daily_attendance_row_for_team_member(
                 job,

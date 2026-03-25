@@ -53,6 +53,7 @@ import logging
 logger = logging.getLogger(__name__)
 from .cancellation_service import cancel_job_with_scenarios
 from .backjob_service import auto_start_agency_backjob_if_ready, get_business_local_date
+from .start_date_action_lock import get_start_date_action_lock_payload
 from .text_moderation import validate_job_post_content
 from .rate_validation import validate_daily_rate_for_specialization
 from datetime import datetime, timedelta
@@ -154,6 +155,13 @@ def _is_daily_job_participant(job: Job, user) -> bool:
         return True
 
     return False
+
+
+def _start_date_action_lock_response(job):
+    lock_payload = get_start_date_action_lock_payload(job)
+    if not lock_payload:
+        return None
+    return Response(lock_payload, status=403)
 
 
 def _resolve_daily_actor_type(job: Job, user) -> Optional[str]:
@@ -261,14 +269,18 @@ def _resolve_daily_attendance_from_ref(
     agency_assignment = None
 
     if requested_kind in (None, "worker"):
-        team_assignment = JobWorkerAssignment.objects.select_related(
-            "jobID", "workerID"
-        ).filter(assignmentID=assignment_id, jobID__jobID=job_id).first()
+        team_assignment = (
+            JobWorkerAssignment.objects.select_related("jobID", "workerID")
+            .filter(assignmentID=assignment_id, jobID__jobID=job_id)
+            .first()
+        )
 
     if requested_kind in (None, "employee"):
-        agency_assignment = JobEmployeeAssignment.objects.select_related(
-            "job", "employee"
-        ).filter(assignmentID=assignment_id, job__jobID=job_id).first()
+        agency_assignment = (
+            JobEmployeeAssignment.objects.select_related("job", "employee")
+            .filter(assignmentID=assignment_id, job__jobID=job_id)
+            .first()
+        )
 
     if team_assignment and agency_assignment:
         # Legacy ambiguous placeholder (`awaiting-<id>`) can collide across
@@ -1469,7 +1481,10 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                 JobPosting.AgencyFlowMode.DIRECT,
                 JobPosting.AgencyFlowMode.TEAM_SLOT,
             }
-            if requested_agency_flow_mode and requested_agency_flow_mode not in valid_agency_modes:
+            if (
+                requested_agency_flow_mode
+                and requested_agency_flow_mode not in valid_agency_modes
+            ):
                 return Response(
                     {
                         "error": "agency_hire_mode must be DIRECT or TEAM_SLOT for agency jobs"
@@ -1752,7 +1767,9 @@ def create_job_posting_mobile(request, data: CreateJobPostingMobileSchema):
                                 else "ENTRY",
                                 notes=slot_data.notes or "",
                                 status="OPEN",
-                                invited_agency=assigned_agency if data.agency_id else None,
+                                invited_agency=assigned_agency
+                                if data.agency_id
+                                else None,
                                 agency_invite_status=(
                                     "PENDING" if data.agency_id else None
                                 ),
@@ -3693,7 +3710,9 @@ def apply_for_job(request, job_id: int, data: JobApplicationSchema):
                 if job.shift_type in ("MORNING", "NIGHT")
                 else (getattr(data, "applied_shift", None) or None)
             )
-            application.negotiation_count = 1 if data.budget_option == "NEGOTIATE" else 0
+            application.negotiation_count = (
+                1 if data.budget_option == "NEGOTIATE" else 0
+            )
             application.clientRejectionReason = None
             application.save(
                 update_fields=[
@@ -4275,7 +4294,9 @@ def reject_application(request, job_id: int, application_id: int, payload: dict 
         from accounts.models import Notification
 
         max_proposals = 3
-        proposals_remaining = max(max_proposals - int(application.negotiation_count or 0), 0)
+        proposals_remaining = max(
+            max_proposals - int(application.negotiation_count or 0), 0
+        )
         rejection_message = f"Your proposal for '{job.title}' was not selected."
         if rejection_reason:
             rejection_message += f" Reason: {rejection_reason}."
@@ -4285,7 +4306,9 @@ def reject_application(request, job_id: int, application_id: int, payload: dict 
                 f"{'s' if proposals_remaining != 1 else ''} remaining out of {max_proposals}."
             )
         else:
-            rejection_message += " You have no proposals remaining for this application."
+            rejection_message += (
+                " You have no proposals remaining for this application."
+            )
 
         Notification.objects.create(
             accountFK=application.workerID.profileID.accountFK,
@@ -5092,6 +5115,10 @@ def _client_confirm_worker_arrived(request, job_id: int):
                 {"error": "You are not the client for this job"}, status=403
             )
 
+        action_lock = _start_date_action_lock_response(job)
+        if action_lock:
+            return action_lock
+
         # Verify job is in progress
         if job.status not in ["IN_PROGRESS", "ACTIVE"]:
             return Response(
@@ -5346,9 +5373,9 @@ def worker_mark_job_complete(request, job_id: int):
                 if hasattr(request, "body") and request.body:
                     try:
                         payload = json.loads(request.body.decode("utf-8"))
-                        completion_notes = payload.get("completion_notes") or payload.get(
-                            "notes"
-                        )
+                        completion_notes = payload.get(
+                            "completion_notes"
+                        ) or payload.get("notes")
                     except json.JSONDecodeError:
                         completion_notes = None
 
@@ -5359,7 +5386,9 @@ def worker_mark_job_complete(request, job_id: int):
                 )
 
                 if not result.get("success"):
-                    error_message = str(result.get("error") or "Failed to mark complete")
+                    error_message = str(
+                        result.get("error") or "Failed to mark complete"
+                    )
                     lowered_error = error_message.lower()
                     status_code = (
                         403
@@ -7124,9 +7153,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
 
                         if not agency_account_ids:
                             return Response(
-                                {
-                                    "error": "No agency found for this team job"
-                                },
+                                {"error": "No agency found for this team job"},
                                 status=400,
                             )
 
@@ -7143,9 +7170,7 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                         ).first()
                         if not reviewee_agency:
                             return Response(
-                                {
-                                    "error": "Agency not found for this team job"
-                                },
+                                {"error": "Agency not found for this team job"},
                                 status=400,
                             )
 
@@ -7430,7 +7455,9 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                         seen_employee_ids.add(employee_id)
 
                 agency_account_ids = set(
-                    all_employee_assignments.values_list("employee__agency_id", flat=True)
+                    all_employee_assignments.values_list(
+                        "employee__agency_id", flat=True
+                    )
                 )
                 agency_account_ids.discard(None)
                 if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
@@ -7439,7 +7466,9 @@ def submit_job_review(request, job_id: int, data: SubmitReviewSchema):
                 if agency_account_ids:
                     from accounts.models import Agency
 
-                    for agency in Agency.objects.filter(accountFK_id__in=agency_account_ids):
+                    for agency in Agency.objects.filter(
+                        accountFK_id__in=agency_account_ids
+                    ):
                         if agency.agencyId not in reviewed_agency_ids:
                             pending_team_workers.append(
                                 {
@@ -10948,11 +10977,22 @@ def confirm_team_worker_arrival_endpoint(request, job_id: int, assignment_id: in
     """
     from jobs.team_job_services import confirm_team_worker_arrival
 
+    try:
+        job = JobPosting.objects.get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    action_lock = _start_date_action_lock_response(job)
+    if action_lock:
+        return action_lock
+
     result = confirm_team_worker_arrival(
         job_id=job_id, assignment_id=assignment_id, client_user=request.auth
     )
 
     if not result.get("success"):
+        if result.get("error_code") == "ACTIONS_LOCKED_UNTIL_START_DATE":
+            return Response(result, status=403)
         return Response(
             {"error": result.get("error", "Failed to confirm arrival")}, status=400
         )
@@ -11169,6 +11209,15 @@ def confirm_team_employee_arrival_endpoint(request, job_id: int, assignment_id: 
     """
     from jobs.team_job_services import confirm_team_employee_arrival
 
+    try:
+        job = JobPosting.objects.get(jobID=job_id)
+    except JobPosting.DoesNotExist:
+        return Response({"error": "Job not found"}, status=404)
+
+    action_lock = _start_date_action_lock_response(job)
+    if action_lock:
+        return action_lock
+
     result = confirm_team_employee_arrival(
         job_id=job_id,
         assignment_id=assignment_id,
@@ -11176,6 +11225,8 @@ def confirm_team_employee_arrival_endpoint(request, job_id: int, assignment_id: 
     )
 
     if not result.get("success"):
+        if result.get("error_code") == "ACTIONS_LOCKED_UNTIL_START_DATE":
+            return Response(result, status=403)
         return Response(
             {"error": result.get("error", "Failed to confirm arrival")}, status=400
         )
@@ -12589,6 +12640,10 @@ def confirm_attendance_client(
             {"error": "Only the job client can confirm attendance"}, status=403
         )
 
+    action_lock = _start_date_action_lock_response(attendance.jobID)
+    if action_lock:
+        return action_lock
+
     approved_status = data.get("approved_status") if data else None
 
     result = DailyPaymentService.confirm_attendance_client(
@@ -12637,6 +12692,10 @@ def verify_employee_arrival(request, job_id: int, attendance_id: str):
         return Response(
             {"error": "Only the job client can mark worker arrival"}, status=403
         )
+
+    action_lock = _start_date_action_lock_response(attendance.jobID)
+    if action_lock:
+        return action_lock
 
     assignment_id = attendance.assignmentID_id
     worker_id = None
@@ -12771,6 +12830,10 @@ def mark_employee_checkout_client(request, job_id: int, attendance_id: str):
     if attendance.jobID.clientID.profileID.accountFK != request.auth:
         return Response({"error": "Only the job client can mark checkout"}, status=403)
 
+    action_lock = _start_date_action_lock_response(attendance.jobID)
+    if action_lock:
+        return action_lock
+
     # Verify employee has been verified as arrived
     if not attendance.time_in:
         return Response(
@@ -12864,11 +12927,7 @@ def confirm_arrival_today(request, job_id: int):
 
     if not is_project_multiday:
         return Response(
-            {
-                "error": (
-                    "This endpoint is only for multi-day fixed-rate PROJECT jobs."
-                )
-            },
+            {"error": ("This endpoint is only for multi-day fixed-rate PROJECT jobs.")},
             status=400,
         )
 
@@ -12974,16 +13033,14 @@ def get_today_project_attendance(request, job_id: int):
 
     if not is_project_multiday:
         return Response(
-            {
-                "error": (
-                    "This endpoint is only for multi-day fixed-rate PROJECT jobs."
-                )
-            },
+            {"error": ("This endpoint is only for multi-day fixed-rate PROJECT jobs.")},
             status=400,
         )
 
     if getattr(job, "is_team_job", False):
-        return Response({"error": "Team jobs are not supported by this endpoint"}, status=400)
+        return Response(
+            {"error": "Team jobs are not supported by this endpoint"}, status=400
+        )
 
     if job.assignedEmployeeID is not None or job.assignedAgencyFK is not None:
         return Response(
@@ -12998,7 +13055,9 @@ def get_today_project_attendance(request, job_id: int):
     is_client = job.clientID.profileID.accountFK == request.auth
     is_worker = job.assignedWorkerID.profileID.accountFK == request.auth
     if not (is_client or is_worker):
-        return Response({"error": "Not authorized to access this attendance"}, status=403)
+        return Response(
+            {"error": "Not authorized to access this attendance"}, status=403
+        )
 
     work_date = get_effective_work_date(job)
     attendance = DailyAttendance.objects.filter(
@@ -13023,7 +13082,9 @@ def get_today_project_attendance(request, job_id: int):
             "id": attendance.attendanceID,
             "date": attendance.date.isoformat() if attendance.date else None,
             "time_in": attendance.time_in.isoformat() if attendance.time_in else None,
-            "time_out": attendance.time_out.isoformat() if attendance.time_out else None,
+            "time_out": attendance.time_out.isoformat()
+            if attendance.time_out
+            else None,
             "worker_confirmed": bool(attendance.worker_confirmed),
             "client_confirmed": bool(attendance.client_confirmed),
         },
@@ -13620,9 +13681,7 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
     if is_agency and (target_employee_id is not None or not is_worker):
         if target_employee_id is None:
             return Response(
-                {
-                    "error": "target_employee_id is required for agency skip requests"
-                },
+                {"error": "target_employee_id is required for agency skip requests"},
                 status=400,
             )
 
@@ -13643,9 +13702,7 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
         ).exists()
         if not employee_assigned:
             return Response(
-                {
-                    "error": "Selected agency employee is not assigned to this team job"
-                },
+                {"error": "Selected agency employee is not assigned to this team job"},
                 status=400,
             )
 
@@ -13834,15 +13891,23 @@ def review_daily_skip_day(
                     skip_request.requested_by == "AGENCY"
                     and skip_request.requestedByUser_id
                 ):
-                    fallback_employee_assignment = JobEmployeeAssignment.objects.filter(
-                        job=job,
-                        employee__agency=skip_request.requestedByUser,
-                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
-                        skill_slot__isnull=False,
-                    ).select_related("employee").first()
+                    fallback_employee_assignment = (
+                        JobEmployeeAssignment.objects.filter(
+                            job=job,
+                            employee__agency=skip_request.requestedByUser,
+                            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                            skill_slot__isnull=False,
+                        )
+                        .select_related("employee")
+                        .first()
+                    )
                     if fallback_employee_assignment:
-                        skip_request.target_type = DailySkipDayRequest.TargetType.EMPLOYEE
-                        skip_request.target_employee = fallback_employee_assignment.employee
+                        skip_request.target_type = (
+                            DailySkipDayRequest.TargetType.EMPLOYEE
+                        )
+                        skip_request.target_employee = (
+                            fallback_employee_assignment.employee
+                        )
                         skip_request.target_worker_account = None
                         skip_request.save(
                             update_fields=[
@@ -13873,9 +13938,7 @@ def review_daily_skip_day(
                 target_employee = skip_request.target_employee
                 if not target_employee:
                     return Response(
-                        {
-                            "error": "Skip-day request has no target employee configured"
-                        },
+                        {"error": "Skip-day request has no target employee configured"},
                         status=400,
                     )
 
@@ -13887,9 +13950,7 @@ def review_daily_skip_day(
                 ).exists()
                 if not assigned_to_job:
                     return Response(
-                        {
-                            "error": "Target employee is not assigned to this team job"
-                        },
+                        {"error": "Target employee is not assigned to this team job"},
                         status=400,
                     )
 
@@ -13923,7 +13984,9 @@ def review_daily_skip_day(
 
                 if not attendance.worker_confirmed:
                     attendance.worker_confirmed = True
-                    attendance.worker_confirmed_at = attendance.worker_confirmed_at or now
+                    attendance.worker_confirmed_at = (
+                        attendance.worker_confirmed_at or now
+                    )
 
                 attendance.status = "ABSENT"
                 attendance.amount_earned = Decimal("0.00")
@@ -14673,7 +14736,9 @@ def finish_daily_job(request, job_id: int):
     from jobs.payment_buffer_service import has_receivable_ledger_for_account
     from jobs.daily_payment_service import DailyPaymentService
 
-    is_team_daily = bool(job.is_team_job and str(job.payment_model or "").upper() == "DAILY")
+    is_team_daily = bool(
+        job.is_team_job and str(job.payment_model or "").upper() == "DAILY"
+    )
 
     # Settle any fully confirmed and still-unprocessed attendance first.
     confirmed_unprocessed_rows = DailyAttendance.objects.filter(
@@ -14703,7 +14768,9 @@ def finish_daily_job(request, job_id: int):
 
             if not attendance.client_confirmed:
                 approved_status = (
-                    "PRESENT" if attendance.status in ["PENDING", "DISPATCHED"] else None
+                    "PRESENT"
+                    if attendance.status in ["PENDING", "DISPATCHED"]
+                    else None
                 )
                 result = DailyPaymentService.confirm_attendance_client(
                     attendance,
@@ -14825,7 +14892,10 @@ def finish_daily_job(request, job_id: int):
         # close, validate ledger presence only for recipients who actually earned
         # a positive amount. Assigned recipients with 0 earned should not block
         # completion/review transition.
-        if job.is_team_job and str(getattr(job, "payment_model", "") or "").upper() == "DAILY":
+        if (
+            job.is_team_job
+            and str(getattr(job, "payment_model", "") or "").upper() == "DAILY"
+        ):
             paid_worker_accounts = DailyAttendance.objects.filter(
                 jobID=job,
                 payment_processed=True,
@@ -15568,6 +15638,10 @@ def confirm_project_employee_arrival(request, job_id: int, employee_id: int):
                 {"error": "Only the job client can confirm employee arrival"},
                 status=403,
             )
+
+        action_lock = _start_date_action_lock_response(job)
+        if action_lock:
+            return action_lock
 
         # Verify this is a PROJECT job
         if job.payment_model == "DAILY":

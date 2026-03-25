@@ -6,6 +6,21 @@ import { ENDPOINTS, apiRequest, API_BASE_URL } from "../api/config";
 import { getErrorMessage } from "../utils/parse-api-error";
 import Toast from "react-native-toast-message";
 
+
+function showStartDateActionLockToast(error: Error): boolean {
+  const message = String(error?.message || "");
+  if (!message.toLowerCase().includes("actions are locked until")) {
+    return false;
+  }
+
+  Toast.show({
+    type: "info",
+    text1: "Actions Locked",
+    text2: message,
+  });
+  return true;
+}
+
 function patchConversationJobState(
   queryClient: ReturnType<typeof useQueryClient>,
   jobId: number,
@@ -235,7 +250,7 @@ export function useConfirmWorkerArrived() {
       const message = (error.message || "").toLowerCase();
       if (message.includes("already confirmed")) {
         queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
-        queryClient.invalidateQueries({ queryKey: ["jobDetails", variables.jobId] });
+        queryClient.invalidateQueries({ queryKey: ["jobDetails", variables] });
         queryClient.invalidateQueries({ queryKey: ["myJobs"] });
         queryClient.invalidateQueries({ queryKey: ["jobs"] });
 
@@ -296,6 +311,7 @@ export function useConfirmWorkStarted() {
       queryClient.invalidateQueries({ queryKey: ["myJobs"] });
     },
     onError: (error: Error) => {
+      if (showStartDateActionLockToast(error)) return;
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
@@ -365,6 +381,7 @@ export function useConfirmArrivalToday() {
       queryClient.invalidateQueries({ queryKey: ["messages"], exact: false });
     },
     onError: (error: Error) => {
+      if (showStartDateActionLockToast(error)) return;
       Toast.show({
         type: "error",
         text1: "Confirmation Failed",
@@ -392,7 +409,11 @@ export function useTodayProjectAttendance(jobId: number, enabled: boolean) {
         );
       }
 
-      return response.json();
+      return response.json() as Promise<{
+        success: boolean;
+        date: string;
+        attendance: TodayProjectAttendance | null;
+      }>;
     },
   });
 }
@@ -725,6 +746,7 @@ export function useConfirmTeamEmployeeArrival() {
       queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId)] });
     },
     onError: (error: Error, variables) => {
+      if (showStartDateActionLockToast(error)) return;
       const normalizedMessage = String(error?.message || "").toLowerCase();
       const isAlreadyConfirmed =
         normalizedMessage.includes("already confirmed") ||
@@ -1366,6 +1388,7 @@ export function useConfirmProjectArrival() {
       queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId)] });
     },
     onError: (error: Error, variables) => {
+      if (showStartDateActionLockToast(error)) return;
       const normalizedMessage = String(error?.message || "").toLowerCase();
       const isAlreadyConfirmed =
         normalizedMessage.includes("already confirmed") ||
