@@ -17,9 +17,27 @@ import datetime
 from datetime import timedelta
 from jobs.cancellation_service import cancel_job_with_scenarios
 from jobs.backjob_service import auto_start_agency_backjob_if_ready
+from profiles.chat_lock_service import (
+    CHAT_LOCKED_UNTIL_START_DATE,
+    ensure_start_date_lock_system_messages,
+    get_start_date_chat_lock_state,
+)
 
 router = Router()
 logger = logging.getLogger(__name__)
+
+
+def _build_start_date_lock_payload(lock_state):
+    return {
+        "error": lock_state.can_send_reason,
+        "error_code": CHAT_LOCKED_UNTIL_START_DATE,
+        "can_send_message": False,
+        "can_send_reason": lock_state.can_send_reason,
+        "chat_locked": True,
+        "chat_locked_until": lock_state.chat_locked_until.isoformat()
+        if lock_state.chat_locked_until
+        else None,
+    }
 
 
 def _is_testing_mode_enabled() -> bool:
@@ -2768,6 +2786,9 @@ def get_agency_conversation_messages(request, conversation_id: int):
                     status=403,
                 )
 
+        ensure_start_date_lock_system_messages(conv, job)
+        start_date_chat_lock = get_start_date_chat_lock_state(job)
+
         # Backjob chat lock: keep conversation visible but lock messaging until admin opens negotiation.
         from accounts.models import JobDispute
 
@@ -2781,8 +2802,8 @@ def get_agency_conversation_messages(request, conversation_id: int):
         )
 
         backjob_info = None
-        can_send_message = True
-        can_send_reason = None
+        can_send_message = start_date_chat_lock.can_send_message
+        can_send_reason = start_date_chat_lock.can_send_reason
 
         if active_dispute:
             auto_start_agency_backjob_if_ready(
@@ -3238,7 +3259,10 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
             for skip_request in skip_requests:
                 target_name = "Worker"
-                if skip_request.target_type == "EMPLOYEE" and skip_request.target_employee:
+                if (
+                    skip_request.target_type == "EMPLOYEE"
+                    and skip_request.target_employee
+                ):
                     target_name = skip_request.target_employee.fullName
                 elif skip_request.target_worker_account:
                     from accounts.models import Profile
@@ -3255,12 +3279,12 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
                 my_worker_requested = False
                 if skip_request.target_type == "EMPLOYEE":
-                    my_worker_requested = (
-                        skip_request.requestedByUser_id == int(account.accountID)
+                    my_worker_requested = skip_request.requestedByUser_id == int(
+                        account.accountID
                     )
                 else:
-                    my_worker_requested = (
-                        skip_request.target_worker_account_id == int(account.accountID)
+                    my_worker_requested = skip_request.target_worker_account_id == int(
+                        account.accountID
                     )
 
                 daily_skip_requests_today.append(
@@ -3354,6 +3378,13 @@ def get_agency_conversation_messages(request, conversation_id: int):
                 "backjob": backjob_info,
                 "can_send_message": can_send_message,
                 "can_send_reason": can_send_reason,
+                "chat_locked": not can_send_message,
+                "chat_locked_until": start_date_chat_lock.chat_locked_until.isoformat()
+                if start_date_chat_lock.chat_locked_until
+                else None,
+                "chat_lock_code": CHAT_LOCKED_UNTIL_START_DATE
+                if not can_send_message
+                else None,
             }
         )
 
@@ -3417,6 +3448,13 @@ def send_agency_message(
 
         if not has_access:
             return Response({"error": "Access denied"}, status=403)
+
+        ensure_start_date_lock_system_messages(conv, job)
+        start_date_chat_lock = get_start_date_chat_lock_state(job)
+        if not start_date_chat_lock.can_send_message:
+            return Response(
+                _build_start_date_lock_payload(start_date_chat_lock), status=403
+            )
 
         # Block sending messages if conversation is COMPLETED and there is no active backjob cycle.
         # Legacy compatibility: some existing records may remain IN_NEGOTIATION even after
@@ -3632,6 +3670,13 @@ def upload_agency_chat_image(request, conversation_id: int):
             return Response(
                 {"error": "You are not authorized to access this conversation"},
                 status=403,
+            )
+
+        ensure_start_date_lock_system_messages(conversation, job)
+        start_date_chat_lock = get_start_date_chat_lock_state(job)
+        if not start_date_chat_lock.can_send_message:
+            return Response(
+                _build_start_date_lock_payload(start_date_chat_lock), status=403
             )
 
         # Enforce the same backjob lock for image messages.

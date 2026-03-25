@@ -79,6 +79,11 @@ export type ConversationDetail = {
   conversation_id: number;
   status?: string;
   is_archived?: boolean;
+  can_send_message?: boolean;
+  can_send_reason?: string | null;
+  chat_locked?: boolean;
+  chat_locked_until?: string | null;
+  chat_lock_code?: string | null;
   agency_flow_mode?: "DIRECT" | "TEAM_SLOT" | null;
   job: {
     id: number;

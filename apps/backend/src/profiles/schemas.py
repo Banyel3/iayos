@@ -26,6 +26,7 @@ class ProductSchema(Schema):
 # Chat Schemas
 class SendMessageSchema(Schema):
     """Schema for sending a new message within an existing conversation"""
+
     conversation_id: int
     message_text: str
     message_type: Optional[str] = "TEXT"
@@ -33,6 +34,7 @@ class SendMessageSchema(Schema):
 
 class MessageResponseSchema(Schema):
     """Schema for a single message"""
+
     sender_name: str
     sender_avatar: Optional[str]
     message_text: str
@@ -44,6 +46,7 @@ class MessageResponseSchema(Schema):
 
 class ConversationParticipantSchema(Schema):
     """Schema for conversation participant info"""
+
     name: str
     avatar: Optional[str]
     profile_type: str
@@ -52,15 +55,22 @@ class ConversationParticipantSchema(Schema):
 
 class ConversationSchema(Schema):
     """Schema for a conversation in the list"""
+
     id: int  # Conversation ID is needed for frontend to open the conversation
     other_participant: ConversationParticipantSchema
     last_message: Optional[str]
     last_message_time: Optional[datetime]
     unread_count: int
     created_at: datetime
+    can_send_message: Optional[bool] = None
+    can_send_reason: Optional[str] = None
+    chat_locked: Optional[bool] = None
+    chat_locked_until: Optional[str] = None
+    chat_lock_code: Optional[str] = None
 
 
 class MarkAsReadSchema(Schema):
     """Schema for marking messages as read"""
+
     conversation_id: int
     message_id: Optional[int] = None  # If provided, mark up to this message
