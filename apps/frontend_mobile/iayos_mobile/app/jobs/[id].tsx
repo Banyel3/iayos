@@ -3777,6 +3777,135 @@ export default function JobDetailScreen() {
             </View>
           )}
 
+        {/* Posted By - For LISTING jobs, shown above Applications */}
+        {job.jobType !== "INVITE" &&
+          job.status !== "IN_PROGRESS" &&
+          job.status !== "COMPLETED" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Posted By</Text>
+            {isWorker && job.postedBy?.id ? (
+              /* Worker viewing client - clickable */
+              <TouchableOpacity
+                style={styles.posterCard}
+                onPress={() =>
+                  router.push(`/clients/${job.postedBy?.id}` as any)
+                }
+                activeOpacity={0.7}
+              >
+                {job.postedBy?.avatar ? (
+                  <Image
+                    source={{ uri: job.postedBy.avatar }}
+                    style={styles.posterAvatar}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.posterAvatar,
+                      {
+                        backgroundColor: Colors.background,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={28}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                )}
+                <View style={styles.posterInfo}>
+                  <Text style={styles.posterName}>
+                    {job.postedBy?.name || "Unknown Client"}
+                  </Text>
+                  <View style={styles.posterRating}>
+                    {(job.postedBy?.rating ?? 0) > 0 ? (
+                      <>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {job.postedBy.rating.toFixed(1)} rating
+                        </Text>
+                      </>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.posterRatingText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        New
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+                  <Text style={styles.tapToViewHint}>Tap to view profile</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            ) : (
+              /* Client viewing their own post - not clickable */
+              <View style={styles.posterCard}>
+                {job.postedBy?.avatar ? (
+                  <Image
+                    source={{ uri: job.postedBy.avatar }}
+                    style={styles.posterAvatar}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.posterAvatar,
+                      {
+                        backgroundColor: Colors.background,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={28}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                )}
+                <View style={styles.posterInfo}>
+                  <Text style={styles.posterName}>
+                    {job.postedBy?.name || "Unknown Client"}
+                    {isClient && job.postedBy?.id === user?.accountID
+                      ? " (You)"
+                      : ""}
+                  </Text>
+                  <View style={styles.posterRating}>
+                    {(job.postedBy?.rating ?? 0) > 0 ? (
+                      <>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {job.postedBy.rating.toFixed(1)} rating
+                        </Text>
+                      </>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.posterRatingText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        New
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
         {showApplicationsSection && (
           <View style={styles.section}>
@@ -4599,132 +4728,7 @@ export default function JobDetailScreen() {
               </View>
             )}
           </>
-        ) : (
-          /* LISTING Jobs - Show "Posted By" - clickable for workers */
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Posted By</Text>
-            {isWorker && job.postedBy?.id ? (
-              /* Worker viewing client - clickable */
-              <TouchableOpacity
-                style={styles.posterCard}
-                onPress={() =>
-                  router.push(`/clients/${job.postedBy?.id}` as any)
-                }
-                activeOpacity={0.7}
-              >
-                {job.postedBy?.avatar ? (
-                  <Image
-                    source={{ uri: job.postedBy.avatar }}
-                    style={styles.posterAvatar}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.posterAvatar,
-                      {
-                        backgroundColor: Colors.background,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="person"
-                      size={28}
-                      color={Colors.textSecondary}
-                    />
-                  </View>
-                )}
-                <View style={styles.posterInfo}>
-                  <Text style={styles.posterName}>
-                    {job.postedBy?.name || "Unknown Client"}
-                  </Text>
-                  <View style={styles.posterRating}>
-                    {(job.postedBy?.rating ?? 0) > 0 ? (
-                      <>
-                        <Ionicons name="star" size={16} color="#F59E0B" />
-                        <Text style={styles.posterRatingText}>
-                          {job.postedBy.rating.toFixed(1)} rating
-                        </Text>
-                      </>
-                    ) : (
-                      <Text
-                        style={[
-                          styles.posterRatingText,
-                          { color: Colors.textSecondary },
-                        ]}
-                      >
-                        New
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
-                  <Text style={styles.tapToViewHint}>Tap to view profile</Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
-              </TouchableOpacity>
-            ) : (
-              /* Client viewing their own post - not clickable */
-              <View style={styles.posterCard}>
-                {job.postedBy?.avatar ? (
-                  <Image
-                    source={{ uri: job.postedBy.avatar }}
-                    style={styles.posterAvatar}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.posterAvatar,
-                      {
-                        backgroundColor: Colors.background,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="person"
-                      size={28}
-                      color={Colors.textSecondary}
-                    />
-                  </View>
-                )}
-                <View style={styles.posterInfo}>
-                  <Text style={styles.posterName}>
-                    {job.postedBy?.name || "Unknown Client"}
-                    {isClient && job.postedBy?.id === user?.accountID
-                      ? " (You)"
-                      : ""}
-                  </Text>
-                  <View style={styles.posterRating}>
-                    {(job.postedBy?.rating ?? 0) > 0 ? (
-                      <>
-                        <Ionicons name="star" size={16} color="#F59E0B" />
-                        <Text style={styles.posterRatingText}>
-                          {job.postedBy.rating.toFixed(1)} rating
-                        </Text>
-                      </>
-                    ) : (
-                      <Text
-                        style={[
-                          styles.posterRatingText,
-                          { color: Colors.textSecondary },
-                        ]}
-                      >
-                        New
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
+        ) : null}
 
         {/* Cancel Button - Below Posted By/Assigned Worker, non-sticky */}
         {user?.accountID === job.postedBy?.id &&
