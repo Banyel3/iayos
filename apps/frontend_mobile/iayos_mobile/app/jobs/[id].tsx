@@ -194,6 +194,10 @@ interface JobApplication {
   proposals_remaining?: number;
   client_rejection_reason?: string | null;
   response_message?: string | null;
+  last_actor?: "WORKER" | "CLIENT" | null;
+  client_counter_budget?: number | null;
+  client_counter_daily_rate?: number | null;
+  client_counter_days?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -3777,6 +3781,135 @@ export default function JobDetailScreen() {
             </View>
           )}
 
+        {/* Posted By - For LISTING jobs, shown above Applications */}
+        {job.jobType !== "INVITE" &&
+          job.status !== "IN_PROGRESS" &&
+          job.status !== "COMPLETED" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Posted By</Text>
+            {isWorker && job.postedBy?.id ? (
+              /* Worker viewing client - clickable */
+              <TouchableOpacity
+                style={styles.posterCard}
+                onPress={() =>
+                  router.push(`/clients/${job.postedBy?.id}` as any)
+                }
+                activeOpacity={0.7}
+              >
+                {job.postedBy?.avatar ? (
+                  <Image
+                    source={{ uri: job.postedBy.avatar }}
+                    style={styles.posterAvatar}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.posterAvatar,
+                      {
+                        backgroundColor: Colors.background,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={28}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                )}
+                <View style={styles.posterInfo}>
+                  <Text style={styles.posterName}>
+                    {job.postedBy?.name || "Unknown Client"}
+                  </Text>
+                  <View style={styles.posterRating}>
+                    {(job.postedBy?.rating ?? 0) > 0 ? (
+                      <>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {job.postedBy.rating.toFixed(1)} rating
+                        </Text>
+                      </>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.posterRatingText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        New
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+                  <Text style={styles.tapToViewHint}>Tap to view profile</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            ) : (
+              /* Client viewing their own post - not clickable */
+              <View style={styles.posterCard}>
+                {job.postedBy?.avatar ? (
+                  <Image
+                    source={{ uri: job.postedBy.avatar }}
+                    style={styles.posterAvatar}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.posterAvatar,
+                      {
+                        backgroundColor: Colors.background,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={28}
+                      color={Colors.textSecondary}
+                    />
+                  </View>
+                )}
+                <View style={styles.posterInfo}>
+                  <Text style={styles.posterName}>
+                    {job.postedBy?.name || "Unknown Client"}
+                    {isClient && job.postedBy?.id === user?.accountID
+                      ? " (You)"
+                      : ""}
+                  </Text>
+                  <View style={styles.posterRating}>
+                    {(job.postedBy?.rating ?? 0) > 0 ? (
+                      <>
+                        <Ionicons name="star" size={16} color="#F59E0B" />
+                        <Text style={styles.posterRatingText}>
+                          {job.postedBy.rating.toFixed(1)} rating
+                        </Text>
+                      </>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.posterRatingText,
+                          { color: Colors.textSecondary },
+                        ]}
+                      >
+                        New
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Applications Section - Only for open LISTING jobs by client (non-team jobs only) */}
         {showApplicationsSection && (
           <View style={styles.section}>
@@ -3797,7 +3930,9 @@ export default function JobDetailScreen() {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      backgroundColor: Colors.primary,
+                      backgroundColor: Colors.white,
+                      borderWidth: 1,
+                      borderColor: "#00BAF1",
                       paddingHorizontal: 12,
                       paddingVertical: 6,
                       borderRadius: 16,
@@ -3820,11 +3955,11 @@ export default function JobDetailScreen() {
                     <Ionicons
                       name="person-add-outline"
                       size={14}
-                      color={Colors.white}
+                      color="#00BAF1"
                     />
                     <Text
                       style={{
-                        color: Colors.white,
+                        color: "#00BAF1",
                         fontSize: 12,
                         fontWeight: "600",
                       }}
@@ -3983,20 +4118,48 @@ export default function JobDetailScreen() {
                     )}
 
                     <View style={styles.applicationDetails}>
-                      {application.budget_option === "NEGOTIATE" && (
-                        <View style={styles.applicationDetailItem}>
-                          <Ionicons
-                            name="cash-outline"
-                            size={16}
-                            color={Colors.textSecondary}
-                          />
-                          <Text style={styles.applicationDetailText}>
-                            {job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
-                              ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
-                              : `Proposed: ₱${application.proposed_budget.toLocaleString()}`}
-                          </Text>
-                        </View>
-                      )}
+                      {application.budget_option === "NEGOTIATE" && (() => {
+                        const clientHasCountered = application.last_actor === "CLIENT" && !!application.client_counter_budget;
+                        const priceLabel = clientHasCountered
+                          ? job?.payment_model === "DAILY" && application.client_counter_daily_rate && application.client_counter_days
+                            ? `You Countered for: ₱${application.client_counter_daily_rate.toLocaleString()}/day × ${application.client_counter_days} days = ₱${(application.client_counter_daily_rate * application.client_counter_days).toLocaleString()}`
+                            : `You Countered for: ₱${application.client_counter_budget!.toLocaleString()}`
+                          : job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
+                            ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
+                            : `Proposed: ₱${application.proposed_budget.toLocaleString()}`;
+                        return (
+                          <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Ionicons name="cash-outline" size={16} color="#00BAF1" />
+                              <Text style={[styles.applicationDetailText, { color: "#00BAF1", fontWeight: "600" }]}>
+                                {priceLabel}
+                              </Text>
+                            </View>
+                            <View style={{ flex: 1 }} />
+                            {application.status === "PENDING" && !clientHasCountered && (application.negotiation_count ?? 0) < 3 && (
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 24 }}>
+                                <TouchableOpacity
+                                  onPress={() => handleRejectPrice(application.id, application.worker.name)}
+                                  disabled={rejectPriceMutation.isPending}
+                                >
+                                  {rejectPriceMutation.isPending ? (
+                                    <ActivityIndicator size="small" color={Colors.textSecondary} />
+                                  ) : (
+                                    <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Reject Price</Text>
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={{ borderWidth: 1, borderColor: Colors.textSecondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: Colors.white }}
+                                  onPress={() => handleCounterOffer(application)}
+                                >
+                                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Counter</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })()}
+                      
                       {application.estimated_duration && (
                         <View style={styles.applicationDetailItem}>
                           <Ionicons
@@ -4038,92 +4201,66 @@ export default function JobDetailScreen() {
                     {/* Action Buttons */}
                     {application.status === "PENDING" && (
                       <View style={{ gap: 8, marginTop: 8 }}>
-                        {/* Accept row */}
-                        <TouchableOpacity
-                          style={styles.acceptButton}
-                          onPress={() =>
-                            handleAcceptApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={acceptApplicationMutation.isPending}
-                        >
-                          {acceptApplicationMutation.isPending ? (
-                            <ActivityIndicator size="small" color="#FFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="checkmark-circle-outline"
-                                size={20}
-                                color="#FFF"
-                              />
-                              <Text style={styles.acceptButtonText}>
-                                Accept
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-
-                        {/* Counter-offer + Reject Price row (only if worker negotiated and has proposals remaining) */}
-                        {application.budget_option === "NEGOTIATE" &&
-                          (application.negotiation_count ?? 0) < 3 && (
-                          <View style={styles.applicationActions}>
-                            <TouchableOpacity
-                              style={[styles.rejectButton, { flex: 1, borderColor: Colors.warning }]}
-                              onPress={() => handleRejectPrice(application.id, application.worker.name)}
-                              disabled={rejectPriceMutation.isPending}
-                            >
-                              {rejectPriceMutation.isPending ? (
-                                <ActivityIndicator size="small" color={Colors.warning} />
-                              ) : (
-                                <>
-                                  <Ionicons name="pricetag-outline" size={16} color={Colors.warning} />
-                                  <Text style={[styles.rejectButtonText, { color: Colors.warning }]}>
-                                    Reject Price
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[styles.rejectButton, { flex: 1, borderColor: Colors.textSecondary }]}
-                              onPress={() => handleCounterOffer(application)}
-                            >
-                              <Ionicons name="swap-horizontal-outline" size={16} color={Colors.textSecondary} />
-                              <Text style={[styles.rejectButtonText, { color: Colors.textSecondary }]}>Counter</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-
-                        {/* Reject Applicant */}
-                        <TouchableOpacity
-                          style={[styles.rejectButton, { borderColor: Colors.error }]}
-                          onPress={() =>
-                            handleRejectApplication(
-                              application.id,
-                              application.worker.name,
-                            )
-                          }
-                          disabled={rejectApplicationMutation.isPending}
-                        >
-                          {rejectApplicationMutation.isPending ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={Colors.error}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="close-circle-outline"
-                                size={20}
+                        {/* Reject Applicant + Accept row */}
+                        <View style={styles.applicationActions}>
+                          {/* Reject Applicant */}
+                          <TouchableOpacity
+                            style={[styles.rejectButton, { borderColor: Colors.error }]}
+                            onPress={() =>
+                              handleRejectApplication(
+                                application.id,
+                                application.worker.name,
+                              )
+                            }
+                            disabled={rejectApplicationMutation.isPending}
+                          >
+                            {rejectApplicationMutation.isPending ? (
+                              <ActivityIndicator
+                                size="small"
                                 color={Colors.error}
                               />
-                              <Text style={styles.rejectButtonText}>
-                                Reject Applicant
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="close-circle-outline"
+                                  size={18}
+                                  color={Colors.error}
+                                />
+                                <Text style={styles.rejectButtonText}>
+                                  Reject Applicant
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.acceptButton}
+                            onPress={() =>
+                              handleAcceptApplication(
+                                application.id,
+                                application.worker.name,
+                              )
+                            }
+                            disabled={acceptApplicationMutation.isPending}
+                          >
+                            {acceptApplicationMutation.isPending ? (
+                              <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={18}
+                                  color="#FFF"
+                                />
+                                <Text style={styles.acceptButtonText}>
+                                  Accept
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+
+
                       </View>
                     )}
                   </View>
@@ -4599,132 +4736,7 @@ export default function JobDetailScreen() {
               </View>
             )}
           </>
-        ) : (
-          /* LISTING Jobs - Show "Posted By" - clickable for workers */
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Posted By</Text>
-            {isWorker && job.postedBy?.id ? (
-              /* Worker viewing client - clickable */
-              <TouchableOpacity
-                style={styles.posterCard}
-                onPress={() =>
-                  router.push(`/clients/${job.postedBy?.id}` as any)
-                }
-                activeOpacity={0.7}
-              >
-                {job.postedBy?.avatar ? (
-                  <Image
-                    source={{ uri: job.postedBy.avatar }}
-                    style={styles.posterAvatar}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.posterAvatar,
-                      {
-                        backgroundColor: Colors.background,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="person"
-                      size={28}
-                      color={Colors.textSecondary}
-                    />
-                  </View>
-                )}
-                <View style={styles.posterInfo}>
-                  <Text style={styles.posterName}>
-                    {job.postedBy?.name || "Unknown Client"}
-                  </Text>
-                  <View style={styles.posterRating}>
-                    {(job.postedBy?.rating ?? 0) > 0 ? (
-                      <>
-                        <Ionicons name="star" size={16} color="#F59E0B" />
-                        <Text style={styles.posterRatingText}>
-                          {job.postedBy.rating.toFixed(1)} rating
-                        </Text>
-                      </>
-                    ) : (
-                      <Text
-                        style={[
-                          styles.posterRatingText,
-                          { color: Colors.textSecondary },
-                        ]}
-                      >
-                        New
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
-                  <Text style={styles.tapToViewHint}>Tap to view profile</Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
-              </TouchableOpacity>
-            ) : (
-              /* Client viewing their own post - not clickable */
-              <View style={styles.posterCard}>
-                {job.postedBy?.avatar ? (
-                  <Image
-                    source={{ uri: job.postedBy.avatar }}
-                    style={styles.posterAvatar}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.posterAvatar,
-                      {
-                        backgroundColor: Colors.background,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="person"
-                      size={28}
-                      color={Colors.textSecondary}
-                    />
-                  </View>
-                )}
-                <View style={styles.posterInfo}>
-                  <Text style={styles.posterName}>
-                    {job.postedBy?.name || "Unknown Client"}
-                    {isClient && job.postedBy?.id === user?.accountID
-                      ? " (You)"
-                      : ""}
-                  </Text>
-                  <View style={styles.posterRating}>
-                    {(job.postedBy?.rating ?? 0) > 0 ? (
-                      <>
-                        <Ionicons name="star" size={16} color="#F59E0B" />
-                        <Text style={styles.posterRatingText}>
-                          {job.postedBy.rating.toFixed(1)} rating
-                        </Text>
-                      </>
-                    ) : (
-                      <Text
-                        style={[
-                          styles.posterRatingText,
-                          { color: Colors.textSecondary },
-                        ]}
-                      >
-                        New
-                      </Text>
-                    )}
-                  </View>
-                  <Text style={styles.postedTime}>Posted {job.postedAt}</Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
+        ) : null}
 
         {/* Cancel Button - Below Posted By/Assigned Worker, non-sticky */}
         {user?.accountID === job.postedBy?.id &&
@@ -4775,30 +4787,19 @@ export default function JobDetailScreen() {
                 size={16}
                 color={workerProposalsExhausted ? Colors.warning : Colors.primary}
               />
-              <Text style={{ fontSize: 13, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontWeight: "500", flex: 1 }}>
-                {workerProposalsExhausted
-                  ? "No more proposals allowed."
-                  : `${workerProposalsRemaining} of 3 proposals remaining`}
-              </Text>
-            </View>
-
-            {/* Awaiting response banner */}
-            {workerAwaitingResponse && (
-              <View style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: "#FFF8E1",
-                padding: 10,
-                borderRadius: 8,
-                marginBottom: 12,
-              }}>
-                <ActivityIndicator size="small" color={Colors.warning} />
-                <Text style={{ fontSize: 13, color: Colors.warning, fontWeight: "500" }}>
-                  Awaiting client response...
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontWeight: "500" }}>
+                  {workerProposalsExhausted
+                    ? "No more proposals allowed."
+                    : `${workerProposalsRemaining} of 3 proposals remaining`}
                 </Text>
+                {workerAwaitingResponse && (
+                  <Text style={{ fontSize: 12, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontStyle: "italic", marginTop: 2 }}>
+                    Awaiting client response...
+                  </Text>
+                )}
               </View>
-            )}
+            </View>
 
             {/* Negotiation Thread */}
             {workerNegotiationLoading ? (
@@ -4867,17 +4868,17 @@ export default function JobDetailScreen() {
             {/* Client countered — action buttons */}
             {workerClientCountered && workerLastRound && (
               <View style={{
-                backgroundColor: "#FFF8E1",
+                backgroundColor: "#F4FBFF",
                 borderRadius: 12,
                 padding: 16,
                 marginTop: 12,
                 borderWidth: 1,
-                borderColor: Colors.warning,
+                borderColor: "#00BAF1",
               }}>
                 <Text style={{ fontSize: 15, fontWeight: "700", color: Colors.textPrimary, marginBottom: 4 }}>
                   Client&apos;s Counter-Offer
                 </Text>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.warning, marginBottom: 12 }}>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: "#00BAF1", marginBottom: 12 }}>
                   {job?.payment_model === "DAILY" && workerLastRound.proposed_daily_rate && workerLastRound.proposed_days
                     ? `₱${workerLastRound.proposed_daily_rate.toLocaleString()}/day × ${workerLastRound.proposed_days} days`
                     : `₱${workerLastRound.proposed_budget.toLocaleString()}`}
@@ -4885,7 +4886,7 @@ export default function JobDetailScreen() {
 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: Colors.success,
+                    backgroundColor: "#00BAF1",
                     borderRadius: 8,
                     paddingVertical: 12,
                     alignItems: "center",
@@ -6893,11 +6894,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.success,
+    backgroundColor: "#00BAF1",
     borderRadius: BorderRadius.md,
   },
   acceptButtonText: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.white,
   },
@@ -6914,7 +6915,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   rejectButtonText: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.error,
   },
