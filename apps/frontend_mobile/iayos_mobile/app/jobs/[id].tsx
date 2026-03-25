@@ -2052,7 +2052,7 @@ export default function JobDetailScreen() {
                 setProposedDailyRate("");
                 setProposedDays("");
               }
-              if (job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY") {
+              if (job?.shift_type && job.shift_type !== "ANY") {
                 setAppliedShift(job.shift_type as "MORNING" | "NIGHT");
               } else {
                 setAppliedShift(null);
@@ -2079,7 +2079,7 @@ export default function JobDetailScreen() {
       setProposedDays("");
     }
     // Reset shift selection; auto-set if job has a fixed shift
-    if (job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY") {
+    if (job?.shift_type && job.shift_type !== "ANY") {
       setAppliedShift(job.shift_type as "MORNING" | "NIGHT");
     } else {
       setAppliedShift(null);
@@ -2123,8 +2123,8 @@ export default function JobDetailScreen() {
       return;
     }
 
-    // Validate shift selection for ANY-shift DAILY jobs
-    if (isDailyJob && (!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
+    // Validate shift selection for ANY-shift team jobs.
+    if ((!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
       Alert.alert("Error", "Please select a shift (Day Shift or Night Shift)");
       return;
     }
@@ -2167,9 +2167,10 @@ export default function JobDetailScreen() {
         estimatedDuration: estimatedDuration || undefined,
         proposedDailyRate: isDailyJob && budgetOption === "NEGOTIATE" ? parseFloat(proposedDailyRate) : undefined,
         proposedDays: isDailyJob && budgetOption === "NEGOTIATE" ? parseInt(proposedDays) : undefined,
-        appliedShift: isDailyJob
-          ? (job?.shift_type && job.shift_type !== "ANY" ? job.shift_type as "MORNING" | "NIGHT" : appliedShift) ?? undefined
-          : undefined,
+        appliedShift:
+          (job?.shift_type && job.shift_type !== "ANY"
+            ? (job.shift_type as "MORNING" | "NIGHT")
+            : appliedShift) ?? undefined,
       },
       {
         onSuccess: () => {
@@ -5687,8 +5688,8 @@ export default function JobDetailScreen() {
               )
             )}
 
-            {/* Shift picker for DAILY ANY-shift jobs */}
-            {job?.payment_model === "DAILY" && (!job?.shift_type || job.shift_type === "ANY") && (
+            {/* Shift picker for ANY-shift team jobs */}
+            {(!job?.shift_type || job.shift_type === "ANY") && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Shift *</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
@@ -5723,8 +5724,8 @@ export default function JobDetailScreen() {
                 </View>
               </View>
             )}
-            {/* Shift banner for fixed-shift DAILY jobs */}
-            {job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY" && (
+            {/* Shift banner for fixed-shift jobs */}
+            {job?.shift_type && job.shift_type !== "ANY" && (
               <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}> 
                 <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
                   Shift:{" "}

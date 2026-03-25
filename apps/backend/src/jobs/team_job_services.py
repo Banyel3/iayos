@@ -2015,7 +2015,7 @@ def apply_to_skill_slot(
     payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
     requested_applied_shift = str(applied_shift).upper() if applied_shift else None
 
-    if payment_model == "DAILY":
+    if payment_model in ("DAILY", "PROJECT"):
         if job.shift_type in ("MORNING", "NIGHT"):
             normalized_applied_shift = job.shift_type
         else:
