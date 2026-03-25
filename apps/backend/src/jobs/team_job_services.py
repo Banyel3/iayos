@@ -3556,7 +3556,7 @@ def client_approve_team_job(
             [
                 {
                     "assignment_id": a.assignmentID,
-                    "worker_id": getattr(a.workerID, "workerProfileID", None),
+                    "worker_id": getattr(a.workerID, "id", None),
                     "worker_name": f"{a.workerID.profileID.firstName} {a.workerID.profileID.lastName}".strip(),
                     "client_confirmed_arrival": bool(a.client_confirmed_arrival),
                     "type": "freelance",

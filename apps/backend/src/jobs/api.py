@@ -13997,9 +13997,9 @@ def review_daily_skip_day(
                     seen_worker_ids = set()
                     for assignment in worker_assignments:
                         worker = assignment.workerID
-                        if worker and worker.workerProfileID not in seen_worker_ids:
+                        if worker and worker.id not in seen_worker_ids:
                             target_workers.append(worker)
-                            seen_worker_ids.add(worker.workerProfileID)
+                            seen_worker_ids.add(worker.id)
                 elif (
                     job.assignedWorkerID
                     and job.assignedWorkerID.profileID
