@@ -646,8 +646,17 @@ export default function ChatScreen() {
   const isJobAssigned = normalizedJobStatus === "ASSIGNED";
   const isRegularJobTerminal =
     normalizedJobStatus === "COMPLETED" || normalizedJobStatus === "CANCELLED";
+  const isStartDateActionLocked =
+    !!conversation?.job?.preferred_start_date &&
+    (() => {
+      const start = new Date(conversation.job.preferred_start_date as string);
+      start.setHours(0, 0, 0, 0);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      return now < start;
+    })();
   const canUseRegularProjectActions =
-    isJobInProgress || isJobActive || isJobAssigned;
+    (isJobInProgress || isJobActive || isJobAssigned) && !isStartDateActionLocked;
   const isServerMarkedClosed = normalizedConversationStatus === "COMPLETED";
   const isConversationArchived = !!conversation?.is_archived;
   const isCancelledConversationTerminal =
@@ -4341,6 +4350,31 @@ export default function ChatScreen() {
     return Number.isFinite(normalized) ? normalized : null;
   };
 
+  const isAttendanceRowAbsent = (row: any): boolean => {
+    const status = String(row?.status || "").toUpperCase();
+    return status === "ABSENT" && Boolean(row?.client_confirmed);
+  };
+
+  const isAttendanceRowArrived = (row: any): boolean =>
+    Boolean(row?.time_in) || Boolean(row?.client_confirmed);
+
+  const showMarkAbsentConfirmation = (
+    workerName: string,
+    onConfirm: () => void,
+  ) => {
+    Alert.alert("Mark Absent", `Mark ${workerName} as absent for today?`, [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Mark Absent",
+        style: "destructive",
+        onPress: onConfirm,
+      },
+    ]);
+  };
+
   interface UnifiedClientArrivalAssignment {
     type: "WORKER" | "AGENCY" | "PROJECT" | "ATTENDANCE";
     assignment_id: number;
@@ -4422,6 +4456,33 @@ export default function ChatScreen() {
           const assignmentWorkerId = Number(
             actionableWorkerRow?.worker_id ?? a.worker_id,
           );
+          const assignmentAccountId = Number(a.account_id);
+          const workerAttendanceRows = attendanceRows.filter((row: any) => {
+            const rowAssignmentId = Number(row?.assignment_id);
+            const rowWorkerId = Number(row?.worker_id);
+            const rowWorkerAccountId = Number(row?.worker_account_id);
+
+            const assignmentMatch =
+              Number.isFinite(rowAssignmentId) &&
+              assignmentIds.includes(rowAssignmentId);
+            const workerMatch =
+              Number.isFinite(assignmentWorkerId) &&
+              Number.isFinite(rowWorkerId) &&
+              rowWorkerId === assignmentWorkerId;
+            const accountMatch =
+              Number.isFinite(assignmentAccountId) &&
+              assignmentAccountId > 0 &&
+              Number.isFinite(rowWorkerAccountId) &&
+              rowWorkerAccountId === assignmentAccountId;
+
+            return assignmentMatch || workerMatch || accountMatch;
+          });
+          const hasAbsentAttendance = workerAttendanceRows.some((row: any) =>
+            isAttendanceRowAbsent(row),
+          );
+          const hasAttendanceArrival = workerAttendanceRows.some((row: any) =>
+            isAttendanceRowArrived(row),
+          );
 
           return {
             type: "WORKER" as const,
@@ -4437,9 +4498,9 @@ export default function ChatScreen() {
                 ? a.skills.join(", ")
                 : "Team Worker",
             avatar: a.avatar,
-            arrived: allRowsArrived,
+            arrived: allRowsArrived || hasAttendanceArrival,
             completed: allRowsCompleted,
-            absent: false,
+            absent: hasAbsentAttendance,
             active_workday: false,
             checked_out_pending: false,
             can_early_finish: canEarlyFinishAnyPending,
@@ -4456,42 +4517,68 @@ export default function ChatScreen() {
                 : null,
           };
         }),
-        ...agencyAssignments.map((a) => ({
-          type: "AGENCY" as const,
-          assignment_id: Number(a.assignment_id),
-          employee_id: Number.isFinite(Number((a as any)?.id))
+        ...agencyAssignments.map((a) => {
+          const assignmentId = Number(a.assignment_id);
+          const employeeId = Number.isFinite(Number((a as any)?.id))
             ? Number((a as any).id)
             : Number.isFinite(Number((a as any)?.employee_id))
               ? Number((a as any).employee_id)
-              : null,
-          name: a.name,
-          skill: a.skill,
-          avatar: a.avatar,
-          arrived: Boolean(a.clientConfirmedArrival),
-          completed: Boolean(
-            a.agencyMarkedComplete ||
+              : null;
+          const normalizedEmployeeId = Number(employeeId);
+          const agencyAttendanceRows = attendanceRows.filter((row: any) => {
+            const rowAssignmentId = Number(row?.assignment_id);
+            const rowWorkerId = Number(row?.worker_id);
+            const assignmentMatch =
+              Number.isFinite(rowAssignmentId) &&
+              Number.isFinite(assignmentId) &&
+              rowAssignmentId === assignmentId;
+            const employeeMatch =
+              Number.isFinite(rowWorkerId) &&
+              Number.isFinite(normalizedEmployeeId) &&
+              normalizedEmployeeId > 0 &&
+              rowWorkerId === normalizedEmployeeId;
+            return assignmentMatch || employeeMatch;
+          });
+          const hasAbsentAttendance = agencyAttendanceRows.some((row: any) =>
+            isAttendanceRowAbsent(row),
+          );
+          const hasAttendanceArrival = agencyAttendanceRows.some((row: any) =>
+            isAttendanceRowArrived(row),
+          );
+
+          return {
+            type: "AGENCY" as const,
+            assignment_id: assignmentId,
+            employee_id: employeeId,
+            name: a.name,
+            skill: a.skill,
+            avatar: a.avatar,
+            arrived: Boolean(a.clientConfirmedArrival) || hasAttendanceArrival,
+            completed: Boolean(
+              a.agencyMarkedComplete ||
+                a.employeeMarkedComplete ||
+                a.marked_complete ||
+                String(a.status || "").toUpperCase() === "COMPLETED",
+            ),
+            absent: hasAbsentAttendance,
+            active_workday: false,
+            checked_out_pending: false,
+            can_early_finish: Boolean(a.can_early_finish),
+            worker_marked_complete: Boolean(
               a.employeeMarkedComplete ||
-              a.marked_complete ||
-              String(a.status || "").toUpperCase() === "COMPLETED",
-          ),
-          absent: false,
-          active_workday: false,
-          checked_out_pending: false,
-          can_early_finish: Boolean(a.can_early_finish),
-          worker_marked_complete: Boolean(
-            a.employeeMarkedComplete ||
-              a.agencyMarkedComplete ||
-              a.marked_complete,
-          ),
-          marked_complete: Boolean(
-            a.employeeMarkedComplete ||
-              a.agencyMarkedComplete ||
-              a.marked_complete,
-          ),
-          early_completed: Boolean(a.early_completed),
-          early_finish_quote: a.early_finish_quote,
-          early_completion_payout: a.early_completion_payout,
-        })),
+                a.agencyMarkedComplete ||
+                a.marked_complete,
+            ),
+            marked_complete: Boolean(
+              a.employeeMarkedComplete ||
+                a.agencyMarkedComplete ||
+                a.marked_complete,
+            ),
+            early_completed: Boolean(a.early_completed),
+            early_finish_quote: a.early_finish_quote,
+            early_completion_payout: a.early_completion_payout,
+          };
+        }),
       ].filter((assignment) => Number.isFinite(assignment.assignment_id));
 
       assignments.sort((a, b) => {
@@ -5148,23 +5235,12 @@ export default function ChatScreen() {
                           <TouchableOpacity
                             style={styles.noWorkQuickButton}
                             onPress={() =>
-                              Alert.alert(
-                                "Mark No Work Today",
-                                "Confirm that the worker did not work today? This records an ABSENT day with no payment.",
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Confirm",
-                                    style: "destructive",
-                                    onPress: () =>
-                                      clientMarkNoWorkMutation.mutate({
-                                        jobId: conversation.job.id,
-                                        workerId:
-                                          conversation.attendance_today?.[0]
-                                            ?.worker_id,
-                                      }),
-                                  },
-                                ],
+                              showMarkAbsentConfirmation("worker", () =>
+                                clientMarkNoWorkMutation.mutate({
+                                  jobId: conversation.job.id,
+                                  workerId:
+                                    conversation.attendance_today?.[0]?.worker_id,
+                                }),
                               )
                             }
                             disabled={clientMarkNoWorkMutation.isPending}
@@ -6521,6 +6597,18 @@ export default function ChatScreen() {
 
                   return (
                     <View style={styles.teamProjectArrivalSection}>
+                      {isStartDateActionLocked && (
+                        <View style={[styles.actionButton, styles.waitingButton]}>
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={18}
+                            color={Colors.textSecondary}
+                          />
+                          <Text style={styles.waitingButtonText}>
+                            Arrival and attendance actions unlock on start date.
+                          </Text>
+                        </View>
+                      )}
                       <View style={styles.teamArrivalHeader}>
                         <Text style={styles.teamArrivalTitle}>{statusTitle}</Text>
                         <Text style={styles.teamArrivalProgress}>
@@ -6677,7 +6765,10 @@ export default function ChatScreen() {
                                         ],
                                       )
                                     }
-                                    disabled={clientMarkCheckoutMutation.isPending}
+                                    disabled={
+                                      isStartDateActionLocked ||
+                                      clientMarkCheckoutMutation.isPending
+                                    }
                                   >
                                     {clientMarkCheckoutMutation.isPending ? (
                                       <ActivityIndicator
@@ -6718,6 +6809,7 @@ export default function ChatScreen() {
                                           )
                                     }
                                     disabled={
+                                      isStartDateActionLocked ||
                                       clientConfirmAttendanceMutation.isPending
                                     }
                                   >
@@ -6858,6 +6950,7 @@ export default function ChatScreen() {
                                         );
                                       }}
                                       disabled={
+                                        isStartDateActionLocked ||
                                         !canConfirmArrival ||
                                         confirmButtonPending ||
                                         clientMarkNoWorkMutation.isPending
@@ -6887,27 +6980,17 @@ export default function ChatScreen() {
                                           return;
                                         }
 
-                                        Alert.alert(
-                                          "Mark Absent",
-                                          `Mark ${assignment.name || "worker"} as absent for today?`,
-                                          [
-                                            {
-                                              text: "Cancel",
-                                              style: "cancel",
-                                            },
-                                            {
-                                              text: "Mark Absent",
-                                              style: "destructive",
-                                              onPress: () =>
-                                                clientMarkNoWorkMutation.mutate({
-                                                  jobId: conversation.job.id,
-                                                  workerId: absentTargetId,
-                                                }),
-                                            },
-                                          ],
+                                        showMarkAbsentConfirmation(
+                                          assignment.name || "worker",
+                                          () =>
+                                            clientMarkNoWorkMutation.mutate({
+                                              jobId: conversation.job.id,
+                                              workerId: absentTargetId,
+                                            }),
                                         );
                                       }}
                                       disabled={
+                                        isStartDateActionLocked ||
                                         !canMarkAbsent ||
                                         confirmButtonPending ||
                                         clientMarkNoWorkMutation.isPending
