@@ -608,11 +608,35 @@ export default function KYCUploadScreen() {
         const data = (await response.json()) as {
           valid: boolean;
           error?: string;
+          error_code?: string;
           details?: {
             needs_manual_review?: boolean;
             warnings?: string[];
+            suggestions?: string[];
+            quality_flags?: string[];
           };
         };
+
+        let friendlyError = data.error;
+        if (!data.valid && documentType === "FRONTID") {
+          const suggestion =
+            data.details?.suggestions?.find((tip) => tip && tip.length > 0) ||
+            "Please retake your Front ID in better lighting.";
+
+          if (data.error_code === "GLARE_DETECTED") {
+            friendlyError =
+              "Glare is covering the ID photo. Avoid reflections and retake.\n\nTip: " +
+              suggestion;
+          } else if (data.error_code === "IMAGE_TOO_BLURRY") {
+            friendlyError =
+              "Front ID image is too blurry to verify the face photo.\n\nTip: " +
+              suggestion;
+          } else if (data.error_code === "IMAGE_SLIGHTLY_BLURRY") {
+            friendlyError =
+              "Front ID image is slightly blurry and face detection failed.\n\nTip: " +
+              suggestion;
+          }
+        }
 
         if (data.valid && data.details?.needs_manual_review) {
           const warningMsg =
@@ -621,7 +645,7 @@ export default function KYCUploadScreen() {
           Alert.alert("Manual Review Notice", warningMsg);
         }
 
-        return { valid: data.valid, error: data.error };
+        return { valid: data.valid, error: friendlyError ?? data.error };
       } catch (parseError) {
         console.error(
           "[KYC Validate] Failed to parse JSON response:",

@@ -19,14 +19,10 @@ from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from enum import Enum
 from django.conf import settings
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 import numpy as np
 
 logger = logging.getLogger(__name__)
-
-# Face detection now uses local face_recognition (dlib) library
-# via face_detection_service.py — no external API needed
-import os
 
 # Tesseract is imported conditionally
 try:
@@ -252,7 +248,7 @@ class DocumentVerificationService:
     - Tesseract OCR for text extraction
     """
 
-    def __init__(self, face_api_url: str = None, skip_face_service: bool = False):
+    def __init__(self, face_api_url: Optional[str] = None, skip_face_service: bool = False):
         """
         Initialize the verification service
         
@@ -276,6 +272,177 @@ class DocumentVerificationService:
             except Exception as e:
                 logger.warning(f"Could not load face_detection_service: {e}")
         return self._face_service
+
+    def _get_frontid_quality_thresholds(self) -> Dict[str, Any]:
+        """Runtime-configurable FRONTID thresholds for glare/blur handling."""
+        return {
+            "glare_fail_threshold": float(getattr(settings, "KYC_FRONTID_GLARE_FAIL_THRESHOLD", 0.23)),
+            "glare_warn_threshold": float(getattr(settings, "KYC_FRONTID_GLARE_WARN_THRESHOLD", 0.14)),
+            "blur_fail_threshold": float(getattr(settings, "KYC_FRONTID_BLUR_FAIL_THRESHOLD", 20.0)),
+            "blur_warn_threshold": float(getattr(settings, "KYC_FRONTID_BLUR_WARN_THRESHOLD", 38.0)),
+            "face_retry_enabled": bool(getattr(settings, "KYC_FRONTID_FACE_RETRY_ENABLED", True)),
+        }
+
+    def _analyze_frontid_capture_quality(self, image: Image.Image) -> Dict[str, Any]:
+        """
+        Analyze FRONTID capture quality for likely glare and blur conditions.
+
+        The output is designed to power actionable errors when face detection fails.
+        """
+        thresholds = self._get_frontid_quality_thresholds()
+
+        try:
+            rgb = image.convert("RGB")
+            arr = np.array(rgb, dtype=np.float32)
+            if arr.size == 0:
+                raise ValueError("Empty image array")
+
+            gray = np.dot(arr[..., :3], [0.299, 0.587, 0.114]).astype(np.float32)
+            sat = np.max(arr, axis=2) - np.min(arr, axis=2)
+
+            specular_mask = (gray >= 240.0) & (sat <= 30.0)
+            bright_mask = gray >= 248.0
+
+            h, w = gray.shape
+            y1, y2 = int(h * 0.2), int(h * 0.8)
+            x1, x2 = int(w * 0.2), int(w * 0.8)
+            center_specular_mask = specular_mask[y1:y2, x1:x2]
+
+            specular_ratio = float(np.mean(specular_mask))
+            center_specular_ratio = float(np.mean(center_specular_mask)) if center_specular_mask.size else 0.0
+            bright_ratio = float(np.mean(bright_mask))
+
+            glare_score = min(
+                1.0,
+                (specular_ratio * 3.2) + (center_specular_ratio * 2.0) + (bright_ratio * 1.3),
+            )
+
+            laplacian_var = self._calculate_laplacian_variance(gray)
+
+            quality_flags: List[str] = []
+            if glare_score >= thresholds["glare_fail_threshold"]:
+                quality_flags.append("glare_high")
+            elif glare_score >= thresholds["glare_warn_threshold"]:
+                quality_flags.append("glare_medium")
+
+            if laplacian_var < thresholds["blur_fail_threshold"]:
+                quality_flags.append("blur_severe")
+            elif laplacian_var < thresholds["blur_warn_threshold"]:
+                quality_flags.append("blur_slight")
+
+            suggestions: List[str] = []
+            if "glare_high" in quality_flags or "glare_medium" in quality_flags:
+                suggestions.extend([
+                    "Move away from direct light and avoid reflections on the card.",
+                    "Tilt the ID slightly to remove bright glare over the photo.",
+                    "Turn off flash if possible and use soft, indirect lighting.",
+                ])
+
+            if "blur_severe" in quality_flags or "blur_slight" in quality_flags:
+                suggestions.extend([
+                    "Hold the phone steady and tap to focus before capturing.",
+                    "Place the ID on a flat surface and retake in brighter light.",
+                ])
+
+            return {
+                "glare_score": round(glare_score, 4),
+                "specular_ratio": round(specular_ratio, 4),
+                "center_specular_ratio": round(center_specular_ratio, 4),
+                "bright_ratio": round(bright_ratio, 4),
+                "laplacian_variance": round(float(laplacian_var), 2),
+                "quality_flags": quality_flags,
+                "suggestions": suggestions,
+                "thresholds": {
+                    "glare_fail_threshold": thresholds["glare_fail_threshold"],
+                    "glare_warn_threshold": thresholds["glare_warn_threshold"],
+                    "blur_fail_threshold": thresholds["blur_fail_threshold"],
+                    "blur_warn_threshold": thresholds["blur_warn_threshold"],
+                },
+            }
+        except Exception as err:
+            logger.warning("FrontID quality analysis failed: %s", err)
+            return {
+                "glare_score": 0.0,
+                "specular_ratio": 0.0,
+                "center_specular_ratio": 0.0,
+                "bright_ratio": 0.0,
+                "laplacian_variance": None,
+                "quality_flags": [],
+                "suggestions": [],
+                "error": str(err),
+            }
+
+    def _prepare_frontid_retry_image(self, file_data: bytes) -> bytes:
+        """
+        Enhance FRONTID image bytes for a second face-detection pass.
+
+        This helps in cases where glossy ID glare or low contrast hides facial features.
+        """
+        try:
+            image = Image.open(io.BytesIO(file_data))
+            image = ImageOps.exif_transpose(image).convert("RGB")
+
+            image = ImageOps.autocontrast(image, cutoff=2)
+            image = ImageEnhance.Contrast(image).enhance(1.12)
+            image = ImageEnhance.Sharpness(image).enhance(1.08)
+
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=95)
+            return output.getvalue()
+        except Exception as err:
+            logger.warning("FrontID retry image enhancement failed: %s", err)
+            return file_data
+
+    def _build_frontid_face_failure(self, quality_details: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build specific FRONTID face-detection failure messaging."""
+        details = quality_details or {}
+        flags = set(details.get("quality_flags") or [])
+
+        if "glare_high" in flags:
+            return {
+                "error_code": "GLARE_DETECTED",
+                "error": (
+                    "Strong glare is covering your ID photo. "
+                    "Retake the Front ID with softer lighting and less reflection."
+                ),
+                "suggestions": details.get("suggestions") or [],
+            }
+
+        if "blur_severe" in flags:
+            return {
+                "error_code": "IMAGE_TOO_BLURRY",
+                "error": "Image is too blurry to detect the ID photo. Please retake a clearer Front ID image.",
+                "suggestions": details.get("suggestions") or [],
+            }
+
+        if "glare_medium" in flags:
+            return {
+                "error_code": "GLARE_DETECTED",
+                "error": (
+                    "Possible glare detected over the ID photo. "
+                    "Please tilt the card slightly and retake."
+                ),
+                "suggestions": details.get("suggestions") or [],
+            }
+
+        if "blur_slight" in flags:
+            return {
+                "error_code": "IMAGE_SLIGHTLY_BLURRY",
+                "error": (
+                    "Image appears slightly blurry and the face on your ID could not be detected. "
+                    "Please retake with better focus."
+                ),
+                "suggestions": details.get("suggestions") or [],
+            }
+
+        return {
+            "error_code": "NO_FACE_DETECTED",
+            "error": "No face detected on your ID. Please ensure the photo on your ID is clearly visible.",
+            "suggestions": [
+                "Capture in good lighting and keep the card flat.",
+                "Make sure the ID photo area is fully visible inside the frame.",
+            ],
+        }
 
     def validate_document_quick(
         self, 
@@ -328,6 +495,7 @@ class DocumentVerificationService:
                 return {
                     "valid": False,
                     "error": error_msg,
+                    "error_code": quality_result.get("rejection_reason") or "IMAGE_QUALITY_FAILED",
                     "details": {"quality": quality_result, "resolution": f"{width}x{height}"}
                 }
             
@@ -338,11 +506,16 @@ class DocumentVerificationService:
             glasses_manual_review = False
             glasses_warning = None
             frontid_authenticity = None
+            frontid_capture_quality = None
             frontid_manual_review = False
             frontid_warning = None
+            face_result = {"detected": False, "count": 0, "confidence": 0}
+            face_retry_result = None
+            face_detected_on_retry = False
 
             if document_type.upper() == "FRONTID":
                 frontid_authenticity = self._assess_frontid_authenticity(image)
+                frontid_capture_quality = self._analyze_frontid_capture_quality(image)
                 if frontid_authenticity.get("is_suspected_non_photo"):
                     frontid_manual_review = True
                     frontid_warning = (
@@ -356,6 +529,19 @@ class DocumentVerificationService:
             
             if require_face:
                 face_result = self._detect_face(file_data)
+
+                if (
+                    document_type.upper() == "FRONTID"
+                    and not face_result.get("detected", False)
+                    and not face_result.get("skipped")
+                    and self._get_frontid_quality_thresholds().get("face_retry_enabled", True)
+                ):
+                    retry_bytes = self._prepare_frontid_retry_image(file_data)
+                    face_retry_result = self._detect_face(retry_bytes)
+                    if face_retry_result.get("detected", False):
+                        face_result = face_retry_result
+                        face_detected_on_retry = True
+                        logger.info("   ✅ FrontID face detected on enhanced retry pass")
                 
                 if not face_result.get("detected", False):
                     if face_result.get("skipped"):
@@ -364,6 +550,24 @@ class DocumentVerificationService:
                         face_detection_warning = "Face detection service temporarily unavailable. Your document will be reviewed manually."
                         logger.warning("   ⚠️ Face detection skipped (face_recognition/dlib unavailable) - marked for manual review")
                     else:
+                        if document_type.upper() == "FRONTID":
+                            frontid_failure = self._build_frontid_face_failure(frontid_capture_quality)
+                            logger.warning("   ❌ FrontID face detection failed: %s", frontid_failure["error_code"])
+                            return {
+                                "valid": False,
+                                "error": frontid_failure["error"],
+                                "error_code": frontid_failure["error_code"],
+                                "details": {
+                                    "face_detection": face_result,
+                                    "face_detection_retry": face_retry_result,
+                                    "frontid_capture_quality": frontid_capture_quality,
+                                    "quality": quality_result,
+                                    "quality_flags": (frontid_capture_quality or {}).get("quality_flags", []),
+                                    "suggestions": frontid_failure.get("suggestions", []),
+                                    "resolution": f"{width}x{height}",
+                                },
+                            }
+
                         error_msg = "No face detected in the image. Please ensure your face is clearly visible."
                         if document_type.upper() == "SELFIE":
                             error_msg = "No face detected in your selfie. Please take a clear photo of your face looking at the camera."
@@ -374,6 +578,7 @@ class DocumentVerificationService:
                         return {
                             "valid": False,
                             "error": error_msg,
+                            "error_code": "NO_FACE_DETECTED",
                             "details": {"face_detection": face_result, "resolution": f"{width}x{height}"}
                         }
                 else:
@@ -429,12 +634,21 @@ class DocumentVerificationService:
             
             # Build warnings list
             warnings = quality_result.get("warnings", [])
+            if frontid_capture_quality:
+                frontid_flags = set(frontid_capture_quality.get("quality_flags", []))
+                if "glare_medium" in frontid_flags:
+                    warnings.append("Mild glare detected on Front ID. If verification fails later, retake with less reflection.")
+                if "blur_slight" in frontid_flags:
+                    warnings.append("Front ID image is slightly blurry. Retake for best verification results.")
+
             if face_detection_warning:
                 warnings.append(face_detection_warning)
             if glasses_warning:
                 warnings.append(glasses_warning)
             if frontid_warning:
                 warnings.append(frontid_warning)
+            if face_detected_on_retry:
+                warnings.append("Front ID face detected after enhancement retry; capture quality may be borderline.")
 
             needs_manual_review = (
                 face_detection_skipped
@@ -453,13 +667,18 @@ class DocumentVerificationService:
             return {
                 "valid": True,
                 "error": None,
+                "error_code": None,
                 "details": {
                     "resolution": f"{width}x{height}",
                     "quality_score": quality_result.get("score", 0),
+                    "quality": quality_result,
                     "warnings": warnings,
                     "face_detection_skipped": face_detection_skipped,
+                    "face_detection_retry": face_retry_result,
+                    "face_detected_on_retry": face_detected_on_retry,
                     "glasses_detection": glasses_detection,
                     "frontid_authenticity": frontid_authenticity,
+                    "frontid_capture_quality": frontid_capture_quality,
                     "needs_manual_review": needs_manual_review,
                     "manual_review_reasons": manual_review_reasons,
                 }
@@ -470,6 +689,7 @@ class DocumentVerificationService:
             return {
                 "valid": False,
                 "error": "Failed to process image. Please try a different photo.",
+                "error_code": "VALIDATION_PROCESSING_ERROR",
                 "details": {"error": str(e)}
             }
 
@@ -735,6 +955,7 @@ class DocumentVerificationService:
         """
         warnings = []
         width, height = image.size
+        laplacian_var: Optional[float] = None
         
         # Check resolution - BOTH width and height must meet minimum
         if width < MIN_RESOLUTION or height < MIN_RESOLUTION:
@@ -780,7 +1001,7 @@ class DocumentVerificationService:
         
         # Calculate quality score
         resolution_score = min(1.0, (width * height) / (1920 * 1080))
-        blur_score = min(1.0, laplacian_var / (MAX_BLUR_THRESHOLD * 5)) if 'laplacian_var' in locals() else 0.5
+        blur_score = min(1.0, laplacian_var / (MAX_BLUR_THRESHOLD * 5)) if laplacian_var is not None else 0.5
         quality_score = (resolution_score * 0.4 + blur_score * 0.6)
         
         return {
@@ -789,7 +1010,8 @@ class DocumentVerificationService:
             "reason": None,
             "warnings": warnings,
             "resolution_score": resolution_score,
-            "blur_score": blur_score
+            "blur_score": blur_score,
+            "laplacian_variance": round(float(laplacian_var), 2) if laplacian_var is not None else None,
         }
 
     def _calculate_laplacian_variance(self, gray_image: np.ndarray) -> float:

@@ -42,9 +42,16 @@ def cache_validation_result(
         'quality_score': validation_result.get('quality_score'),
         'ai_confidence_score': validation_result.get('ai_confidence_score'),
         'ai_warnings': validation_result.get('ai_warnings', []),
+        'warnings': validation_result.get('warnings', []),
         'ai_details': validation_result.get('ai_details', {}),
+        'details': validation_result.get('details', {}),
         'ai_rejection_reason': validation_result.get('ai_rejection_reason'),
+        'ai_rejection_code': validation_result.get('ai_rejection_code'),
         'ai_rejection_message': validation_result.get('ai_rejection_message'),
+        'quality_flags': validation_result.get('quality_flags', []),
+        'suggestions': validation_result.get('suggestions', []),
+        'face_detection_skipped': validation_result.get('face_detection_skipped', False),
+        'needs_manual_review': validation_result.get('needs_manual_review', False),
     }
     
     cache.set(cache_key, json.dumps(cache_data), timeout)

@@ -919,10 +919,22 @@ def validate_kyc_document(request):
         cached_result = get_cached_validation(file_hash, cache_key)
         if cached_result:
             print(f"   ⚡ [CACHE HIT] Returning cached validation for {document_type}")
+            cached_details = cached_result.get('details') if isinstance(cached_result.get('details'), dict) else None
+            if not cached_details:
+                cached_details = {
+                    'quality_score': cached_result.get('quality_score', 0),
+                    'resolution': cached_result.get('resolution', ''),
+                    'warnings': cached_result.get('warnings', []),
+                    'face_detection_skipped': cached_result.get('face_detection_skipped', False),
+                    'needs_manual_review': cached_result.get('needs_manual_review', False),
+                    'quality_flags': cached_result.get('quality_flags', []),
+                    'suggestions': cached_result.get('suggestions', []),
+                }
             return {
                 "valid": cached_result.get('ai_status') != 'FAILED',
                 "error": cached_result.get('ai_rejection_message'),
-                "details": cached_result,
+                "error_code": cached_result.get('ai_rejection_code'),
+                "details": cached_details,
                 "file_hash": file_hash,
                 "cached": True
             }
@@ -958,6 +970,7 @@ def validate_kyc_document(request):
                     result = {
                         "valid": False,
                         "error": keyword_result.get("error") or "Required document text not found.",
+                        "error_code": "MISSING_REQUIRED_TEXT",
                         "details": keyword_result.get("details", {}),
                     }
                 else:
@@ -973,6 +986,7 @@ def validate_kyc_document(request):
                     result = {
                         "valid": False,
                         "error": keyword_result.get("error") or "Required clearance text not found.",
+                        "error_code": "MISSING_REQUIRED_TEXT",
                         "details": keyword_result.get("details", {}),
                     }
                 else:
@@ -984,11 +998,15 @@ def validate_kyc_document(request):
             validation_data = {
                 'ai_status': 'PASSED' if result['valid'] else 'FAILED',
                 'ai_rejection_message': result.get('error'),
+                'ai_rejection_code': result.get('error_code'),
                 'quality_score': result.get('details', {}).get('quality_score', 0),
                 'resolution': result.get('details', {}).get('resolution', ''),
                 'warnings': result.get('details', {}).get('warnings', []),
                 'face_detection_skipped': result.get('details', {}).get('face_detection_skipped', False),
                 'needs_manual_review': result.get('details', {}).get('needs_manual_review', False),
+                'quality_flags': result.get('details', {}).get('quality_flags', []),
+                'suggestions': result.get('details', {}).get('suggestions', []),
+                'details': result.get('details', {}),
             }
             cache_validation_result(file_hash, cache_key, validation_data)
             
@@ -1021,8 +1039,10 @@ def validate_kyc_document(request):
             validation_data = {
                 'ai_status': 'PASSED',
                 'ai_rejection_message': None,
+                'ai_rejection_code': None,
                 'needs_manual_review': True,
                 'skipped': True,
+                'details': fallback_result.get('details', {}),
             }
             cache_validation_result(file_hash, cache_key, validation_data)
             

@@ -182,6 +182,14 @@ KYC_SELFIE_GLASSES_BLOCK = os.environ.get('KYC_SELFIE_GLASSES_BLOCK', 'true').lo
 KYC_SELFIE_GLASSES_STRICT_CONFIDENCE = float(os.environ.get('KYC_SELFIE_GLASSES_STRICT_CONFIDENCE', '0.70'))
 KYC_SELFIE_GLASSES_REVIEW_CONFIDENCE = float(os.environ.get('KYC_SELFIE_GLASSES_REVIEW_CONFIDENCE', '0.45'))
 
+# FRONTID capture quality thresholds (glare/blur) used when face detection fails.
+# These are conservative defaults to improve error specificity on glossy IDs.
+KYC_FRONTID_GLARE_FAIL_THRESHOLD = float(os.environ.get('KYC_FRONTID_GLARE_FAIL_THRESHOLD', '0.23'))
+KYC_FRONTID_GLARE_WARN_THRESHOLD = float(os.environ.get('KYC_FRONTID_GLARE_WARN_THRESHOLD', '0.14'))
+KYC_FRONTID_BLUR_FAIL_THRESHOLD = float(os.environ.get('KYC_FRONTID_BLUR_FAIL_THRESHOLD', '20.0'))
+KYC_FRONTID_BLUR_WARN_THRESHOLD = float(os.environ.get('KYC_FRONTID_BLUR_WARN_THRESHOLD', '38.0'))
+KYC_FRONTID_FACE_RETRY_ENABLED = os.environ.get('KYC_FRONTID_FACE_RETRY_ENABLED', 'true').lower() == 'true'
+
 # Rate limiting
 RATE_LIMIT_DISABLED = os.environ.get('RATE_LIMIT_DISABLED', 'false').lower() == 'true'
 
