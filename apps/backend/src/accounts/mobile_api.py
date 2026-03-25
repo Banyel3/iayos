@@ -2779,6 +2779,9 @@ def mobile_get_job_applications(request, job_id: int):
                     "estimated_duration": app.estimatedDuration or "",
                     "budget_option": app.budgetOption,
                     "status": app.status,
+                    "negotiation_count": app.negotiation_count or 0,
+                    "max_proposals": MAX_WORKER_PROPOSALS,
+                    "proposals_remaining": _proposals_remaining_for_application(app),
                     "created_at": app.createdAt.isoformat() if app.createdAt else None,
                     "updated_at": app.updatedAt.isoformat() if app.updatedAt else None,
                 }
@@ -4331,6 +4334,13 @@ def client_counter_offer(request, application_id: int, payload: ClientCounterSch
                 {"error": "Can only counter on a pending application"}, status=400
             )
 
+        # Block counter if worker has exhausted all proposals
+        if application.negotiation_count >= MAX_WORKER_PROPOSALS:
+            return Response(
+                {"error": "Worker has used all proposals. You can accept the current price or reject the applicant."},
+                status=400,
+            )
+
         # Must have a pending worker proposal to counter
         last = (
             PriceNegotiation.objects.filter(application=application)
@@ -4465,6 +4475,13 @@ def client_reject_price(request, application_id: int, payload: ClientRejectPrice
         if application.status != JobApplication.ApplicationStatus.PENDING:
             return Response(
                 {"error": "Can only reject a pending application"}, status=400
+            )
+
+        # Block reject-price if worker has exhausted all proposals
+        if application.negotiation_count >= MAX_WORKER_PROPOSALS:
+            return Response(
+                {"error": "Worker has used all proposals. You can accept the current price or reject the applicant."},
+                status=400,
             )
 
         last = (
