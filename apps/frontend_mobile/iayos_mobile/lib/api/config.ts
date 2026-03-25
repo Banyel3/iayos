@@ -338,8 +338,6 @@ export const ENDPOINTS = {
     `${API_URL}/api/mobile/applications/${applicationId}/negotiations/reject-price`,
   NEGOTIATION_ACCEPT_COUNTER: (applicationId: number) =>
     `${API_URL}/api/mobile/applications/${applicationId}/negotiations/accept-counter`,
-  NEGOTIATION_ACCEPT_ORIGINAL: (applicationId: number) =>
-    `${API_URL}/api/mobile/applications/${applicationId}/negotiations/accept-original`,
   CANCEL_JOB: (id: number) => `${API_URL}/api/jobs/${id}/cancel`,
   MARK_COMPLETE: (id: number) => `${API_BASE_URL}/jobs/${id}/mark-complete`,
   APPROVE_COMPLETION: (id: number) =>
