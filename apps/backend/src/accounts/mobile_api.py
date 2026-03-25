@@ -2755,10 +2755,28 @@ def mobile_get_job_applications(request, job_id: int):
         )
 
         # Format the response
+        from accounts.models import PriceNegotiation
         applications_data = []
         for app in applications:
             worker_profile = app.workerID.profileID
             worker_account = worker_profile.accountFK
+
+            # Determine last negotiation actor and client's counter amount
+            last_actor = None
+            client_counter_budget = None
+            client_counter_daily_rate = None
+            client_counter_days = None
+            last_neg = (
+                PriceNegotiation.objects.filter(application=app)
+                .order_by("-createdAt")
+                .first()
+            )
+            if last_neg:
+                last_actor = last_neg.actor
+                if last_neg.actor == PriceNegotiation.Actor.CLIENT and last_neg.status == PriceNegotiation.NegotiationStatus.PENDING:
+                    client_counter_budget = float(last_neg.proposed_budget) if last_neg.proposed_budget else None
+                    client_counter_daily_rate = float(last_neg.proposed_daily_rate) if last_neg.proposed_daily_rate else None
+                    client_counter_days = last_neg.proposed_days
 
             applications_data.append(
                 {
@@ -2782,6 +2800,10 @@ def mobile_get_job_applications(request, job_id: int):
                     "negotiation_count": app.negotiation_count or 0,
                     "max_proposals": MAX_WORKER_PROPOSALS,
                     "proposals_remaining": _proposals_remaining_for_application(app),
+                    "last_actor": last_actor,
+                    "client_counter_budget": client_counter_budget,
+                    "client_counter_daily_rate": client_counter_daily_rate,
+                    "client_counter_days": client_counter_days,
                     "created_at": app.createdAt.isoformat() if app.createdAt else None,
                     "updated_at": app.updatedAt.isoformat() if app.updatedAt else None,
                 }

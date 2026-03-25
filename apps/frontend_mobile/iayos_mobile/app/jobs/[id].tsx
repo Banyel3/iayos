@@ -194,6 +194,10 @@ interface JobApplication {
   proposals_remaining?: number;
   client_rejection_reason?: string | null;
   response_message?: string | null;
+  last_actor?: "WORKER" | "CLIENT" | null;
+  client_counter_budget?: number | null;
+  client_counter_daily_rate?: number | null;
+  client_counter_days?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -4114,43 +4118,48 @@ export default function JobDetailScreen() {
                     )}
 
                     <View style={styles.applicationDetails}>
-                      {application.budget_option === "NEGOTIATE" && (
-                        <View style={{ flexDirection: "row", alignItems: "center" }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                            <Ionicons
-                              name="cash-outline"
-                              size={16}
-                              color="#00BAF1"
-                            />
-                            <Text style={[styles.applicationDetailText, { color: "#00BAF1", fontWeight: "600" }]}>
-                              {job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
-                                ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
-                                : `Proposed: ₱${application.proposed_budget.toLocaleString()}`}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1 }} />
-                          {application.status === "PENDING" && (application.negotiation_count ?? 0) < 3 && (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 24 }}>
-                              <TouchableOpacity
-                                onPress={() => handleRejectPrice(application.id, application.worker.name)}
-                                disabled={rejectPriceMutation.isPending}
-                              >
-                                {rejectPriceMutation.isPending ? (
-                                  <ActivityIndicator size="small" color={Colors.textSecondary} />
-                                ) : (
-                                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Reject Price</Text>
-                                )}
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={{ borderWidth: 1, borderColor: Colors.textSecondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: Colors.white }}
-                                onPress={() => handleCounterOffer(application)}
-                              >
-                                <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Counter</Text>
-                              </TouchableOpacity>
+                      {application.budget_option === "NEGOTIATE" && (() => {
+                        const clientHasCountered = application.last_actor === "CLIENT" && !!application.client_counter_budget;
+                        const priceLabel = clientHasCountered
+                          ? job?.payment_model === "DAILY" && application.client_counter_daily_rate && application.client_counter_days
+                            ? `You Countered for: ₱${application.client_counter_daily_rate.toLocaleString()}/day × ${application.client_counter_days} days = ₱${(application.client_counter_daily_rate * application.client_counter_days).toLocaleString()}`
+                            : `You Countered for: ₱${application.client_counter_budget!.toLocaleString()}`
+                          : job?.payment_model === "DAILY" && application.proposed_daily_rate && application.proposed_days
+                            ? `Proposed: ₱${application.proposed_daily_rate.toLocaleString()}/day × ${application.proposed_days} days = ₱${(application.proposed_daily_rate * application.proposed_days).toLocaleString()}`
+                            : `Proposed: ₱${application.proposed_budget.toLocaleString()}`;
+                        return (
+                          <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Ionicons name="cash-outline" size={16} color="#00BAF1" />
+                              <Text style={[styles.applicationDetailText, { color: "#00BAF1", fontWeight: "600" }]}>
+                                {priceLabel}
+                              </Text>
                             </View>
-                          )}
-                        </View>
-                      )}
+                            <View style={{ flex: 1 }} />
+                            {application.status === "PENDING" && !clientHasCountered && (application.negotiation_count ?? 0) < 3 && (
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 24 }}>
+                                <TouchableOpacity
+                                  onPress={() => handleRejectPrice(application.id, application.worker.name)}
+                                  disabled={rejectPriceMutation.isPending}
+                                >
+                                  {rejectPriceMutation.isPending ? (
+                                    <ActivityIndicator size="small" color={Colors.textSecondary} />
+                                  ) : (
+                                    <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Reject Price</Text>
+                                  )}
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={{ borderWidth: 1, borderColor: Colors.textSecondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: Colors.white }}
+                                  onPress={() => handleCounterOffer(application)}
+                                >
+                                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Counter</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })()}
+                      
                       {application.estimated_duration && (
                         <View style={styles.applicationDetailItem}>
                           <Ionicons
@@ -4778,30 +4787,19 @@ export default function JobDetailScreen() {
                 size={16}
                 color={workerProposalsExhausted ? Colors.warning : Colors.primary}
               />
-              <Text style={{ fontSize: 13, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontWeight: "500", flex: 1 }}>
-                {workerProposalsExhausted
-                  ? "No more proposals allowed."
-                  : `${workerProposalsRemaining} of 3 proposals remaining`}
-              </Text>
-            </View>
-
-            {/* Awaiting response banner */}
-            {workerAwaitingResponse && (
-              <View style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: "#FFF8E1",
-                padding: 10,
-                borderRadius: 8,
-                marginBottom: 12,
-              }}>
-                <ActivityIndicator size="small" color={Colors.warning} />
-                <Text style={{ fontSize: 13, color: Colors.warning, fontWeight: "500" }}>
-                  Awaiting client response...
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontWeight: "500" }}>
+                  {workerProposalsExhausted
+                    ? "No more proposals allowed."
+                    : `${workerProposalsRemaining} of 3 proposals remaining`}
                 </Text>
+                {workerAwaitingResponse && (
+                  <Text style={{ fontSize: 12, color: workerProposalsExhausted ? Colors.warning : Colors.primary, fontStyle: "italic", marginTop: 2 }}>
+                    Awaiting client response...
+                  </Text>
+                )}
               </View>
-            )}
+            </View>
 
             {/* Negotiation Thread */}
             {workerNegotiationLoading ? (
