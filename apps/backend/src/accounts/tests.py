@@ -36,7 +36,12 @@ from accounts.models import (
     workerSpecialization,
 )
 from agency.models import AgencyEmployee
-from profiles.models import Conversation, ConversationParticipant, Message, MessageAttachment
+from profiles.models import (
+    Conversation,
+    ConversationParticipant,
+    Message,
+    MessageAttachment,
+)
 
 
 class WipeJobsCommandTests(TestCase):
@@ -316,6 +321,50 @@ class WipeJobsCommandTests(TestCase):
 
         return job
 
+    def _create_team_job_with_multi_slot_applications_same_worker(self):
+        job = Job.objects.create(
+            clientID=self.client_record,
+            title="Wipe team test job",
+            description="Delete team job graph",
+            categoryID=self.specialization,
+            budget=Decimal("3000.00"),
+            location="Zamboanga",
+            is_team_job=True,
+            status=Job.JobStatus.ACTIVE,
+        )
+
+        slot_1 = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1500.00"),
+        )
+        slot_2 = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1500.00"),
+        )
+
+        JobApplication.objects.create(
+            jobID=job,
+            workerID=self.worker_record,
+            applied_skill_slot=slot_1,
+            proposalMessage="I can do slot 1",
+            proposedBudget=Decimal("1400.00"),
+            budgetOption=JobApplication.BudgetOption.NEGOTIATE,
+        )
+        JobApplication.objects.create(
+            jobID=job,
+            workerID=self.worker_record,
+            applied_skill_slot=slot_2,
+            proposalMessage="I can do slot 2",
+            proposedBudget=Decimal("1450.00"),
+            budgetOption=JobApplication.BudgetOption.NEGOTIATE,
+        )
+
+        return job
+
     def test_wipe_jobs_removes_full_job_graph_and_job_origin_transactions(self):
         job = self._create_job_graph()
 
@@ -373,3 +422,12 @@ class WipeJobsCommandTests(TestCase):
         self.assertFalse(self.client_wallet.autoWithdrawEnabled)
         self.assertIsNone(self.client_wallet.preferredPaymentMethodID)
         self.assertIsNone(self.client_wallet.lastAutoWithdrawAt)
+
+    def test_wipe_jobs_handles_team_multi_slot_same_worker_applications(self):
+        self._create_team_job_with_multi_slot_applications_same_worker()
+
+        call_command("wipe_jobs")
+
+        self.assertEqual(JobApplication.objects.count(), 0)
+        self.assertEqual(JobSkillSlot.objects.count(), 0)
+        self.assertEqual(Job.objects.count(), 0)

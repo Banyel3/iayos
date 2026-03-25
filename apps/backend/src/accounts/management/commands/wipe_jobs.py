@@ -99,6 +99,12 @@ class Command(BaseCommand):
                 f"(linked + orphan reference-matched)."
             )
 
+            # Delete applications before jobs to avoid transient unique violations
+            # when JobApplication.applied_skill_slot (SET_NULL) is nulled during
+            # cascade and multiple team-slot applications exist for one worker/job.
+            application_count, _ = JobApplication.objects.all().delete()
+            self.stdout.write(f"  Deleted {application_count} job application(s).")
+
             notification_count = 0
             if job_ids:
                 notification_count, _ = Notification.objects.filter(
