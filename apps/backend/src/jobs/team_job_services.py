@@ -559,6 +559,18 @@ def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
         "workerID__profileID__accountFK"
     ).filter(jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"])
 
+    worker_absent_days_by_assignment = {
+        row["assignmentID"]: int(row.get("days") or 0)
+        for row in DailyAttendance.objects.filter(
+            jobID=job,
+            assignmentID__isnull=False,
+            status="ABSENT",
+            client_confirmed=True,
+        )
+        .values("assignmentID")
+        .annotate(days=Count("date", distinct=True))
+    }
+
     for assignment in worker_assignments:
         account = assignment.workerID.profileID.accountFK
         daily_rate = (
@@ -566,7 +578,11 @@ def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
             or job.daily_rate_agreed
             or Decimal("0.00")
         )
-        full_contract = Decimal(daily_rate) * Decimal(planned_days)
+        absent_days = int(
+            worker_absent_days_by_assignment.get(assignment.assignmentID, 0) or 0
+        )
+        payable_days = max(0, planned_days - absent_days)
+        full_contract = Decimal(daily_rate) * Decimal(payable_days)
         already_earned = Decimal(assignment.total_earned or Decimal("0.00"))
         remaining = full_contract - already_earned
         if remaining < Decimal("0.00"):
@@ -594,6 +610,18 @@ def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
         .annotate(total=Sum("amount_earned"))
     }
 
+    employee_absent_days = {
+        row["employeeID"]: int(row.get("days") or 0)
+        for row in DailyAttendance.objects.filter(
+            jobID=job,
+            employeeID__isnull=False,
+            status="ABSENT",
+            client_confirmed=True,
+        )
+        .values("employeeID")
+        .annotate(days=Count("date", distinct=True))
+    }
+
     for emp_assignment in employee_assignments:
         if getattr(emp_assignment, "early_completed", False):
             # Early-completed employee assignments are already settled in full.
@@ -609,7 +637,12 @@ def _calculate_team_daily_remaining_payouts(job: Job) -> dict:
         else:
             daily_rate = Decimal(str(job.daily_rate_agreed or "0.00"))
 
-        full_contract = daily_rate * Decimal(planned_days)
+        absent_days = int(
+            employee_absent_days.get(getattr(emp_assignment, "employee_id", None), 0)
+            or 0
+        )
+        payable_days = max(0, planned_days - absent_days)
+        full_contract = daily_rate * Decimal(payable_days)
         already_earned = employee_earned_totals.get(
             getattr(emp_assignment, "employee_id", None), Decimal("0.00")
         )
@@ -3071,12 +3104,26 @@ def early_complete_team_worker(job_id: int, assignment_id: int, client_user) -> 
     total_remaining_payout = Decimal("0.00")
     updated_assignment_ids = []
 
+    absent_days_by_assignment = {
+        row["assignmentID"]: int(row.get("days") or 0)
+        for row in DailyAttendance.objects.filter(
+            jobID=job,
+            assignmentID__in=[a.assignmentID for a in worker_assignments],
+            status="ABSENT",
+            client_confirmed=True,
+        )
+        .values("assignmentID")
+        .annotate(days=Count("date", distinct=True))
+    }
+
     for row in worker_assignments:
         if row.early_completed:
             continue
 
         daily_rate = row.daily_rate_at_assignment or job.daily_rate_agreed or Decimal("0.00")
-        full_contract_amount = daily_rate * Decimal(str(total_planned_days))
+        absent_days = int(absent_days_by_assignment.get(row.assignmentID, 0) or 0)
+        payable_days = max(0, total_planned_days - absent_days)
+        full_contract_amount = daily_rate * Decimal(str(payable_days))
         already_earned = row.total_earned or Decimal("0.00")
         remaining_payout = full_contract_amount - already_earned
         if remaining_payout < Decimal("0.00"):
@@ -5033,7 +5080,20 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
         else:
             daily_rate = Decimal(str(getattr(job, "daily_rate_agreed", None) or "0.00"))
 
-        contracted_amount = daily_rate * Decimal(planned_days)
+        absent_days = int(
+            DailyAttendance.objects.filter(
+                jobID=job,
+                employeeID=assignment.employee,
+                status="ABSENT",
+                client_confirmed=True,
+            )
+            .values("date")
+            .distinct()
+            .count()
+            or 0
+        )
+        payable_days = max(0, planned_days - absent_days)
+        contracted_amount = daily_rate * Decimal(payable_days)
         already_credited = Decimal(
             str(
                 DailyAttendance.objects.filter(

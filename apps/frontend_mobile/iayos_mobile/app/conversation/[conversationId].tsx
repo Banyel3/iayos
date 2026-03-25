@@ -123,6 +123,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import CountdownConfirmModal from "../../components/CountdownConfirmModal";
+import Toast from "react-native-toast-message";
 
 type EditableReviewTarget = {
   review_id: number;
@@ -255,6 +256,7 @@ export default function ChatScreen() {
   const [priceInputText, setPriceInputText] = useState("");
   // For team jobs: track current worker being reviewed
   const [currentTeamWorkerIndex, setCurrentTeamWorkerIndex] = useState(0);
+  const skipExtendPromptedKeysRef = useRef<Set<string>>(new Set());
 
   // Get current user for role-aware rendering and team assignment identification
   const { user } = useAuth();
@@ -2083,6 +2085,36 @@ export default function ChatScreen() {
       icon: "flag",
       iconColor: Colors.error,
     });
+  };
+
+  const promptExtendAfterSkipApproval = (requestDate?: string) => {
+    if (!conversation?.job?.id) return;
+
+    const effectiveDate =
+      requestDate ||
+      conversation.effective_work_date ||
+      new Date().toISOString().slice(0, 10);
+    const promptKey = `${conversation.job.id}:${effectiveDate}`;
+
+    if (skipExtendPromptedKeysRef.current.has(promptKey)) {
+      return;
+    }
+    skipExtendPromptedKeysRef.current.add(promptKey);
+
+    Alert.alert(
+      "Skip Day Approved",
+      "Do you want to extend this job by 1 day to make up for the skipped day?",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Extend +1 Day",
+          onPress: () =>
+            dailyExtendOneDayMutation.mutate({
+              jobId: conversation.job.id,
+            }),
+        },
+      ],
+    );
   };
 
   // Handle approve early completion for solo DAILY jobs (CLIENT only)
@@ -4117,6 +4149,11 @@ export default function ChatScreen() {
   const attendanceRowsToday = Array.isArray(conversation.attendance_today)
     ? conversation.attendance_today
     : [];
+  const dailySkipRequestsToday = Array.isArray(
+    conversation.daily_skip_requests_today,
+  )
+    ? conversation.daily_skip_requests_today
+    : [];
   const payableAttendanceRowsToday = attendanceRowsToday.filter((row: any) => {
     const status = String(row?.status || "").toUpperCase();
     return status !== "DISPUTED";
@@ -4159,6 +4196,30 @@ export default function ChatScreen() {
     isTestingModeEnabled &&
     effectiveDurationDays > 0 &&
     qaOffset >= qaMaxOffset;
+  const isDailyTeamFlow =
+    conversation.is_team_job === true &&
+    conversation.job?.payment_model === "DAILY";
+  const scopedTeamFreelancerCount = Array.isArray(
+    conversation.team_worker_assignments,
+  )
+    ? conversation.team_worker_assignments.length
+    : 0;
+  const scopedTeamAgencyEmployeeCount = Array.isArray(
+    conversation.team_agency_employees,
+  )
+    ? conversation.team_agency_employees.length
+    : 0;
+  const isHybridTeamDailyFlow =
+    isDailyTeamFlow &&
+    scopedTeamFreelancerCount > 0 &&
+    scopedTeamAgencyEmployeeCount > 0;
+  const isMergedTeamDailyFlow =
+    isDailyTeamFlow &&
+    groupedTeamWorkerAssignments.some(
+      (group) => (group.assignment_ids?.length || 0) > 1,
+    );
+  const isScopedTeamDailyFlow =
+    isHybridTeamDailyFlow || isMergedTeamDailyFlow;
   const isTeamProjectAttendance =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "PROJECT";
@@ -4181,8 +4242,8 @@ export default function ChatScreen() {
   const showDailyEndActions =
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
-    !conversation.is_team_job &&
     conversation.job?.status === "IN_PROGRESS" &&
+    (!conversation.is_team_job || isScopedTeamDailyFlow) &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const attendanceRows = Array.isArray(conversation.attendance_today)
     ? conversation.attendance_today
@@ -4194,7 +4255,7 @@ export default function ChatScreen() {
     conversation.job?.payment_model === "PROJECT" &&
     (isProjectMultiDayJob || attendanceRows.length > 0);
   const shouldFinishDailyTeamJob =
-    conversation.is_team_job === true &&
+    isScopedTeamDailyFlow &&
     conversation.job?.payment_model === "DAILY" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const showProjectEndActions =
@@ -5141,7 +5202,7 @@ export default function ChatScreen() {
                                         text: "Confirm",
                                         onPress: () => {
                                           const assignmentId = Number(
-                                            employee?.assignment_id,
+                                            (employee as any)?.assignment_id,
                                           );
                                           if (
                                             conversation.is_team_job &&
@@ -5214,13 +5275,13 @@ export default function ChatScreen() {
                                 disabled={
                                   conversation.is_team_job
                                     ? (
-                                        Number.isFinite(
-                                          Number(employee?.assignment_id),
-                                        ) &&
-                                        isArrivalConfirmPending(
-                                          "AGENCY",
-                                          Number(employee?.assignment_id),
-                                        )
+                                          Number.isFinite(
+                                            Number((employee as any)?.assignment_id),
+                                          ) &&
+                                          isArrivalConfirmPending(
+                                            "AGENCY",
+                                            Number((employee as any)?.assignment_id),
+                                          )
                                       ) ||
                                       confirmTeamEmployeeArrivalMutation.isPending
                                     : isArrivalConfirmPending(
@@ -5233,11 +5294,11 @@ export default function ChatScreen() {
                                 {(conversation.is_team_job
                                   ? (
                                       Number.isFinite(
-                                        Number(employee?.assignment_id),
+                                        Number((employee as any)?.assignment_id),
                                       ) &&
                                       isArrivalConfirmPending(
                                         "AGENCY",
-                                        Number(employee?.assignment_id),
+                                        Number((employee as any)?.assignment_id),
                                       )
                                     ) ||
                                     confirmTeamEmployeeArrivalMutation.isPending
@@ -5590,45 +5651,193 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                  {/* Worker View: Skip Day Request — removed; workers use attendance/no-work flow instead */}
+                  {/* Worker/Agency View: Skip Day Request (DAILY team hybrid/merged) */}
+                  {conversation.job?.payment_model === "DAILY" &&
+                    isScopedTeamDailyFlow &&
+                    conversation.my_role !== "CLIENT" &&
+                    (() => {
+                      const todaySkipForMe = dailySkipRequestsToday.find((request) => {
+                        const targetType = String(request?.target_type || "").toUpperCase();
+                        if (targetType === "EMPLOYEE") {
+                          return Boolean(request?.my_worker_requested);
+                        }
+                        return Boolean(request?.my_worker_requested);
+                      });
+
+                      if (todaySkipForMe) {
+                        return (
+                          <View
+                            style={
+                              todaySkipForMe.status === "APPROVED"
+                                ? styles.skipDayStatusApproved
+                                : todaySkipForMe.status === "REJECTED"
+                                  ? styles.skipDayStatusRejected
+                                  : styles.clientSkipDayCard
+                            }
+                          >
+                            <Text style={styles.skipDayStatusTitle}>
+                              {todaySkipForMe.status === "PENDING"
+                                ? "Skip day request pending"
+                                : todaySkipForMe.status === "APPROVED"
+                                  ? "Skip day approved"
+                                  : "Skip day rejected"}
+                            </Text>
+                            {todaySkipForMe.status === "REJECTED" && (
+                              <Text style={styles.skipDayStatusText}>
+                                {todaySkipForMe.client_rejection_reason ||
+                                  "Client declined your skip day request."}
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      }
+
+                      if (
+                        Boolean(myWorkerAttendanceToday?.time_in) ||
+                        Boolean(myWorkerAttendanceToday?.client_confirmed)
+                      ) {
+                        return null;
+                      }
+
+                      const requestTargetEmployee =
+                        conversation.my_role === "AGENCY"
+                          ? (() => {
+                              const candidates = (
+                                conversation.team_agency_employees || []
+                              )
+                                .map((employee: any) => {
+                                  const employeeId = Number(
+                                    employee?.id ?? employee?.employee_id,
+                                  );
+                                  if (!Number.isFinite(employeeId)) {
+                                    return null;
+                                  }
+
+                                  return {
+                                    employeeId,
+                                    name:
+                                      String(employee?.name || "").trim() ||
+                                      "Agency Employee",
+                                    isPrimaryContact: Boolean(
+                                      employee?.isPrimaryContact,
+                                    ),
+                                  };
+                                })
+                                .filter(Boolean) as {
+                                employeeId: number;
+                                name: string;
+                                isPrimaryContact: boolean;
+                              }[];
+
+                              if (!candidates.length) {
+                                return null;
+                              }
+
+                              return (
+                                candidates.find(
+                                  (candidate) => candidate.isPrimaryContact,
+                                ) || candidates[0]
+                              );
+                            })()
+                          : null;
+
+                      return (
+                        <View style={styles.clientSkipDayCard}>
+                          <Text style={styles.clientSkipDayTitle}>Request Skip Day</Text>
+                          <Text style={styles.clientSkipDayText}>
+                            Ask client approval to skip today for your assigned work.
+                          </Text>
+                          <View style={styles.clientSkipDayActions}>
+                            <TouchableOpacity
+                              style={styles.clientSkipApproveButton}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Request Skip Day",
+                                  "Submit a skip-day request for today? Client approval is required.",
+                                  [
+                                    { text: "Cancel", style: "cancel" },
+                                    {
+                                      text: "Submit Request",
+                                      onPress: () => {
+                                        if (
+                                          conversation.my_role === "AGENCY" &&
+                                          !requestTargetEmployee
+                                        ) {
+                                          Alert.alert(
+                                            "Missing Employee",
+                                            "No assigned agency employee was found for this skip-day request.",
+                                          );
+                                          return;
+                                        }
+
+                                        requestDailySkipDayMutation.mutate({
+                                          jobId: conversation.job.id,
+                                          request_date:
+                                            conversation.effective_work_date ||
+                                            new Date().toISOString().slice(0, 10),
+                                          ...(conversation.my_role === "AGENCY" &&
+                                          requestTargetEmployee
+                                            ? {
+                                                target_employee_id:
+                                                  requestTargetEmployee.employeeId,
+                                              }
+                                            : {}),
+                                        });
+                                      },
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={
+                                requestDailySkipDayMutation.isPending ||
+                                (conversation.my_role === "AGENCY" &&
+                                  !requestTargetEmployee)
+                              }
+                            >
+                              {requestDailySkipDayMutation.isPending ? (
+                                <ActivityIndicator size="small" color={Colors.white} />
+                              ) : (
+                                <Text style={styles.clientSkipApproveText}>Request Skip Day</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    })()}
 
                   {/* Client View: Skip Day Request Review (DAILY-only) */}
                   {conversation.my_role === "CLIENT" &&
                     conversation.job?.payment_model === "DAILY" &&
                     (() => {
-                      const todaySkipRequest =
-                        conversation.daily_skip_requests_today?.[0];
+                      if (!dailySkipRequestsToday.length) return null;
 
-                      if (!todaySkipRequest) return null;
+                      return dailySkipRequestsToday.map((todaySkipRequest) => {
+                        const targetName =
+                          todaySkipRequest?.target_name || "Worker";
+                        const requestDate =
+                          todaySkipRequest?.request_date ||
+                          conversation.effective_work_date ||
+                          new Date().toISOString().slice(0, 10);
 
-                      const waitingForTeam =
-                        todaySkipRequest.requires_all_team_workers &&
-                        !todaySkipRequest.all_workers_requested;
-
-                      if (todaySkipRequest.status === "PENDING") {
-                        return (
-                          <View style={styles.clientSkipDayCard}>
-                            <Text style={styles.clientSkipDayTitle}>
-                              Skip Day Request
-                            </Text>
-                            <Text style={styles.clientSkipDayText}>
-                              {todaySkipRequest.requires_all_team_workers
-                                ? `${todaySkipRequest.requested_count}/${todaySkipRequest.total_required} team workers requested`
-                                : "Worker requested to skip today"}
-                            </Text>
-
-                            {waitingForTeam ? (
-                              <Text style={styles.clientSkipDayWaitingText}>
-                                Waiting for all ACTIVE team workers to request
+                        if (todaySkipRequest.status === "PENDING") {
+                          return (
+                            <View
+                              key={`skip-pending-${todaySkipRequest.skip_request_id}`}
+                              style={styles.clientSkipDayCard}
+                            >
+                              <Text style={styles.clientSkipDayTitle}>
+                                Skip Day Request
                               </Text>
-                            ) : (
+                              <Text style={styles.clientSkipDayText}>
+                                {targetName} requested to skip today.
+                              </Text>
                               <View style={styles.clientSkipDayActions}>
                                 <TouchableOpacity
                                   style={styles.clientSkipApproveButton}
                                   onPress={() =>
                                     Alert.alert(
                                       "Approve Skip Day",
-                                      "Approve this skip-day request?",
+                                      `Approve ${targetName}'s skip-day request?`,
                                       [
                                         {
                                           text: "Cancel",
@@ -5643,6 +5852,13 @@ export default function ChatScreen() {
                                                 skipRequestId:
                                                   todaySkipRequest.skip_request_id,
                                                 approve: true,
+                                              },
+                                              {
+                                                onSuccess: () => {
+                                                  promptExtendAfterSkipApproval(
+                                                    requestDate,
+                                                  );
+                                                },
                                               },
                                             ),
                                         },
@@ -5663,7 +5879,7 @@ export default function ChatScreen() {
                                   onPress={() =>
                                     Alert.alert(
                                       "Reject Skip Day",
-                                      "Reject this skip-day request?",
+                                      `Reject ${targetName}'s skip-day request?`,
                                       [
                                         {
                                           text: "Cancel",
@@ -5696,43 +5912,46 @@ export default function ChatScreen() {
                                   </Text>
                                 </TouchableOpacity>
                               </View>
+                            </View>
+                          );
+                        }
+
+                        return (
+                          <View
+                            key={`skip-reviewed-${todaySkipRequest.skip_request_id}`}
+                            style={
+                              todaySkipRequest.status === "APPROVED"
+                                ? styles.skipDayStatusApproved
+                                : styles.skipDayStatusRejected
+                            }
+                          >
+                            <Text style={styles.skipDayStatusTitle}>
+                              {todaySkipRequest.status === "APPROVED"
+                                ? `Skip day approved for ${targetName}`
+                                : `Skip day rejected for ${targetName}`}
+                            </Text>
+                            {todaySkipRequest.status === "REJECTED" && (
+                              <Text style={styles.skipDayStatusText}>
+                                {todaySkipRequest.client_rejection_reason ||
+                                  "Request was declined."}
+                              </Text>
                             )}
                           </View>
                         );
-                      }
-
-                      return (
-                        <View
-                          style={
-                            todaySkipRequest.status === "APPROVED"
-                              ? styles.skipDayStatusApproved
-                              : styles.skipDayStatusRejected
-                          }
-                        >
-                          <Text style={styles.skipDayStatusTitle}>
-                            {todaySkipRequest.status === "APPROVED"
-                              ? "Skip day approved"
-                              : "Skip day rejected"}
-                          </Text>
-                          {todaySkipRequest.status === "REJECTED" && (
-                            <Text style={styles.skipDayStatusText}>
-                              {todaySkipRequest.client_rejection_reason ||
-                                "Request was declined."}
-                            </Text>
-                          )}
-                        </View>
-                      );
+                      });
                     })()}
 
                   {showDailyEndActions && (
                     <View style={styles.dailyEndActionsCard}>
                       <Text style={styles.dailyEndActionsTitle}>
-                        DAILY Duration Reached
+                        {conversation.is_team_job
+                          ? "Team DAILY Duration Reached"
+                          : "DAILY Duration Reached"}
                       </Text>
                       <Text style={styles.dailyEndActionsText}>
-                        Worked {effectiveWorkedDays}/{effectiveDurationDays}{" "}
-                        day(s). Choose to extend one more day (with escrow
-                        top-up) or finish this job and proceed to reviews.
+                        {conversation.is_team_job
+                          ? `Worked ${effectiveWorkedDays}/${effectiveDurationDays} day(s). Add another day for the team or approve and pay final now.`
+                          : `Worked ${effectiveWorkedDays}/${effectiveDurationDays} day(s). Choose to extend one more day (with escrow top-up) or finish this job and proceed to reviews.`}
                       </Text>
 
                       <View style={styles.dailyEndActionsButtons}>
@@ -5782,12 +6001,18 @@ export default function ChatScreen() {
                           style={styles.dailyFinishButton}
                           onPress={() =>
                             Alert.alert(
-                              "Finish Daily Job",
-                              "Mark this DAILY job as finished now? This will move it into review/backjob flow.",
+                              conversation.is_team_job
+                                ? "Approve & Pay Final"
+                                : "Finish Daily Job",
+                              conversation.is_team_job
+                                ? "Finish this team DAILY job and settle final payouts now?"
+                                : "Mark this DAILY job as finished now? This will move it into review/backjob flow.",
                               [
                                 { text: "Cancel", style: "cancel" },
                                 {
-                                  text: "Finish Job",
+                                  text: conversation.is_team_job
+                                    ? "Approve & Pay Final"
+                                    : "Finish Job",
                                   style: "destructive",
                                   onPress: () =>
                                     dailyFinishJobMutation.mutate(
@@ -5824,9 +6049,11 @@ export default function ChatScreen() {
                                 size={16}
                                 color={Colors.white}
                               />
-                              <Text style={styles.dailyEndButtonText}>
-                                Job Finished
-                              </Text>
+                               <Text style={styles.dailyEndButtonText}>
+                                 {conversation.is_team_job
+                                   ? "Approve & Pay Final"
+                                   : "Job Finished"}
+                               </Text>
                             </>
                           )}
                         </TouchableOpacity>
@@ -6079,74 +6306,128 @@ export default function ChatScreen() {
                                           clientVerifyArrivalMutation.isPending ||
                                           Boolean(attendance.time_in) ||
                                           Boolean(attendance.client_confirmed);
-                                        return isOnTheWayForClient ? (
-                                          <View
-                                            style={
-                                              styles.teamWorkerOnTheWayBannerRow
-                                            }
-                                          >
-                                            <Text
-                                              style={
-                                                styles.teamWorkerOnTheWayName
-                                              }
-                                              numberOfLines={1}
-                                            >
-                                              {workerDisplayName}
-                                            </Text>
-                                            <TouchableOpacity
-                                              style={[
-                                                styles.confirmArrivalButtonCompact,
-                                                styles.confirmArrivalButtonSmall,
-                                                {
-                                                  backgroundColor:
-                                                    arrivalActionDisabled
-                                                      ? Colors.textSecondary
-                                                      : Colors.primary,
-                                                },
-                                              ]}
-                                              onPress={() =>
-                                                Alert.alert(
-                                                  "Verify Arrival",
-                                                  `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
-                                                  [
-                                                    {
-                                                      text: "Cancel",
-                                                      style: "cancel",
-                                                    },
-                                                    {
-                                                      text: "Verify",
-                                                      onPress: () =>
-                                                        clientVerifyArrivalMutation.mutate(
-                                                          {
-                                                            jobId:
-                                                              conversation.job.id,
-                                                            attendanceId:
-                                                              attendance.attendance_id,
-                                                          },
-                                                        ),
-                                                    },
-                                                  ],
-                                                )
-                                              }
-                                              disabled={arrivalActionDisabled}
-                                            >
-                                              {clientVerifyArrivalMutation.isPending ? (
-                                                <ActivityIndicator
-                                                  size="small"
-                                                  color={Colors.white}
-                                                />
-                                              ) : (
-                                                <Text
-                                                  style={
-                                                    styles.confirmArrivalButtonTextSmall
-                                                  }
-                                                >
-                                                  {attendance.time_in
-                                                    ? "Arrived"
-                                                    : "Confirm Arrival"}
-                                                </Text>
-                                              )}
-                                            </TouchableOpacity>
+                                          return isOnTheWayForClient ? (
+                                           <View
+                                             style={
+                                               styles.teamWorkerOnTheWayBannerRow
+                                             }
+                                           >
+                                             <Text
+                                               style={
+                                                 styles.teamWorkerOnTheWayName
+                                               }
+                                               numberOfLines={1}
+                                             >
+                                               {workerDisplayName}
+                                             </Text>
+                                            <View style={styles.clientOnTheWayActionRow}>
+                                              <TouchableOpacity
+                                                style={[
+                                                  styles.confirmArrivalButtonCompact,
+                                                  styles.confirmArrivalButtonSmall,
+                                                  {
+                                                    backgroundColor:
+                                                      arrivalActionDisabled
+                                                        ? Colors.textSecondary
+                                                        : Colors.primary,
+                                                  },
+                                                ]}
+                                                onPress={() =>
+                                                  Alert.alert(
+                                                    "Verify Arrival",
+                                                    `Confirm ${attendance.worker_name || "worker"} has arrived on site?`,
+                                                    [
+                                                      {
+                                                        text: "Cancel",
+                                                        style: "cancel",
+                                                      },
+                                                      {
+                                                        text: "Verify",
+                                                        onPress: () =>
+                                                          clientVerifyArrivalMutation.mutate(
+                                                            {
+                                                              jobId:
+                                                                conversation.job.id,
+                                                              attendanceId:
+                                                                attendance.attendance_id,
+                                                            },
+                                                          ),
+                                                      },
+                                                    ],
+                                                  )
+                                                }
+                                                disabled={arrivalActionDisabled}
+                                              >
+                                                {clientVerifyArrivalMutation.isPending ? (
+                                                  <ActivityIndicator
+                                                    size="small"
+                                                    color={Colors.white}
+                                                  />
+                                                ) : (
+                                                  <Text
+                                                    style={
+                                                      styles.confirmArrivalButtonTextSmall
+                                                    }
+                                                  >
+                                                    {attendance.time_in
+                                                      ? "Arrived"
+                                                      : "Confirm Arrival"}
+                                                  </Text>
+                                                )}
+                                              </TouchableOpacity>
+
+                                              <TouchableOpacity
+                                                style={[
+                                                  styles.confirmArrivalButtonCompact,
+                                                  styles.confirmArrivalButtonSmall,
+                                                  styles.markAbsentButtonSmall,
+                                                ]}
+                                                onPress={() =>
+                                                  Alert.alert(
+                                                    "Mark Absent",
+                                                    `Mark ${attendance.worker_name || "worker"} as absent for today?`,
+                                                    [
+                                                      {
+                                                        text: "Cancel",
+                                                        style: "cancel",
+                                                      },
+                                                      {
+                                                        text: "Mark Absent",
+                                                        style: "destructive",
+                                                        onPress: () =>
+                                                          clientMarkNoWorkMutation.mutate(
+                                                            {
+                                                              jobId:
+                                                                conversation.job.id,
+                                                              workerId:
+                                                                attendance.worker_id,
+                                                            },
+                                                          ),
+                                                      },
+                                                    ],
+                                                  )
+                                                }
+                                                disabled={
+                                                  clientMarkNoWorkMutation.isPending ||
+                                                  arrivalActionDisabled
+                                                }
+                                              >
+                                                {clientMarkNoWorkMutation.isPending ? (
+                                                  <ActivityIndicator
+                                                    size="small"
+                                                    color={Colors.white}
+                                                  />
+                                                ) : (
+                                                  <Text
+                                                    style={
+                                                      styles.confirmArrivalButtonTextSmall
+                                                    }
+                                                  >
+                                                    Mark Absent
+                                                  </Text>
+                                                )}
+                                              </TouchableOpacity>
+                                            </View>
                                           </View>
                                         ) : null;
                                       })()}
@@ -7227,7 +7508,7 @@ export default function ChatScreen() {
                       (a) => a.client_confirmed_arrival,
                     );
                   const allAssignmentsEarlyCompleted =
-                    conversation.job?.payment_model === "DAILY" &&
+                    shouldChargePerAttendance &&
                     conversation.team_worker_assignments.length > 0 &&
                     conversation.team_worker_assignments.every(
                       (a) => a.early_completed,
@@ -7277,7 +7558,7 @@ export default function ChatScreen() {
                           </Text>
                         </View>
                         {/* Pay Now (Optional) — PROJECT team jobs only; not applicable for DAILY */}
-                        {conversation.job?.payment_model !== "DAILY" &&
+                        {!shouldChargePerAttendance &&
                           !conversation.job.remainingPaymentPaid &&
                           !conversation.job.clientMarkedComplete && (
                             <TouchableOpacity
@@ -7312,7 +7593,7 @@ export default function ChatScreen() {
                               )}
                             </TouchableOpacity>
                           )}
-                        {conversation.job.payment_model !== "DAILY" &&
+                        {!shouldChargePerAttendance &&
                           conversation.job.remainingPaymentPaid && (
                           <View
                             style={[
@@ -7342,11 +7623,11 @@ export default function ChatScreen() {
 
                   // Show approve button if all complete and not yet approved
                   if (!conversation.job.clientMarkedComplete) {
-                    if (
-                      conversation.job.payment_model === "DAILY" &&
-                      isTodayWorkdaySettled &&
-                      !shouldFinishDailyTeamJob
-                    ) {
+                    if (shouldFinishDailyTeamJob && isScopedTeamDailyFlow) {
+                      return null;
+                    }
+
+                    if (isTodayWorkdaySettled && !shouldFinishDailyTeamJob) {
                       return (
                         <View style={[styles.actionButton, styles.completedAction]}>
                           <Ionicons
@@ -7368,7 +7649,7 @@ export default function ChatScreen() {
 
                     return (
                       <>
-                        {conversation.job.payment_model !== "DAILY" &&
+                        {!shouldChargePerAttendance &&
                           conversation.job.remainingPaymentPaid && (
                           <View
                             style={[
@@ -7397,22 +7678,22 @@ export default function ChatScreen() {
                             styles.approveCompletionButton,
                           ]}
                           onPress={
-                            conversation.job.payment_model === "DAILY"
+                            shouldChargePerAttendance
                               ? shouldFinishDailyTeamJob
                                 ? handleFinishDailyTeamJob
                                 : handleApproveDailyTeamWorkday
                               : handleApproveTeamJobCompletion
                           }
                           disabled={
-                            conversation.job.payment_model === "DAILY"
+                            shouldChargePerAttendance
                               ? shouldFinishDailyTeamJob
                                 ? dailyFinishJobMutation.isPending
                                 : isBulkDailySettlementInFlight
                               : approveTeamJobCompletionMutation.isPending ||
-                                      isApprovePayPreflightInFlight
+                                  isApprovePayPreflightInFlight
                           }
                         >
-                          {(conversation.job.payment_model === "DAILY"
+                          {(shouldChargePerAttendance
                             ? shouldFinishDailyTeamJob
                               ? dailyFinishJobMutation.isPending
                               : isBulkDailySettlementInFlight
@@ -7426,7 +7707,7 @@ export default function ChatScreen() {
                             <>
                               <Ionicons
                                 name={
-                                  conversation.job.payment_model === "DAILY"
+                                  shouldChargePerAttendance
                                     ? shouldFinishDailyTeamJob
                                       ? "flag"
                                       : "wallet"
@@ -7438,7 +7719,7 @@ export default function ChatScreen() {
                                 color={Colors.white}
                               />
                                 <Text style={styles.actionButtonText}>
-                                  {conversation.job.payment_model === "DAILY"
+                                  {shouldChargePerAttendance
                                     ? shouldFinishDailyTeamJob
                                       ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
                                       : "Approve & Pay for Today"
@@ -8322,8 +8603,7 @@ export default function ChatScreen() {
                       {/* All complete - waiting for client approval */}
                       {allComplete &&
                         !conversation.job.clientMarkedComplete &&
-                        (conversation.job?.payment_model === "DAILY" &&
-                        isTodayWorkdaySettled ? (
+                        (isTodayWorkdaySettled ? (
                           <View
                             style={[styles.actionButton, styles.completedAction]}
                           >
@@ -11799,6 +12079,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.xs,
   },
+  clientOnTheWayActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
   activeAttendanceTimeText: {
     ...Typography.body.small,
     color: Colors.textSecondary,
@@ -11990,6 +12275,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 5,
     minWidth: 0,
+  },
+  markAbsentButtonSmall: {
+    backgroundColor: Colors.error,
   },
   confirmArrivalButtonTextSmall: {
     ...Typography.body.small,

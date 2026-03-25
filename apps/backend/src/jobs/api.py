@@ -13559,6 +13559,7 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
     """
     from datetime import date
     from accounts.models import DailyAttendance, DailySkipDayRequest
+    from agency.models import AgencyEmployee
 
     try:
         job = Job.objects.get(jobID=job_id)
@@ -13576,7 +13577,13 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
 
     # Verify user is assigned to this job as worker or agency
     is_agency = bool(
-        job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth
+        (job.assignedAgencyFK and job.assignedAgencyFK.accountFK == request.auth)
+        or JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee__agency=request.auth,
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            skill_slot__isnull=False,
+        ).exists()
     )
     is_worker = bool(
         job.assignedWorkerID
@@ -13605,19 +13612,60 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
 
     requester_account_id = int(request.auth.accountID)
 
+    target_type = DailySkipDayRequest.TargetType.WORKER
+    target_worker_account = request.auth
+    target_employee = None
+
+    target_employee_id = getattr(data, "target_employee_id", None)
+    if is_agency and (target_employee_id is not None or not is_worker):
+        if target_employee_id is None:
+            return Response(
+                {
+                    "error": "target_employee_id is required for agency skip requests"
+                },
+                status=400,
+            )
+
+        target_employee = AgencyEmployee.objects.filter(
+            employeeID=target_employee_id,
+            agency=request.auth,
+        ).first()
+        if not target_employee:
+            return Response(
+                {"error": "Agency employee not found for this account"}, status=404
+            )
+
+        employee_assigned = JobEmployeeAssignment.objects.filter(
+            job=job,
+            employee=target_employee,
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            skill_slot__isnull=False,
+        ).exists()
+        if not employee_assigned:
+            return Response(
+                {
+                    "error": "Selected agency employee is not assigned to this team job"
+                },
+                status=400,
+            )
+
+        target_type = DailySkipDayRequest.TargetType.EMPLOYEE
+        target_worker_account = None
+
     # Do not allow skip-day requests once work has started for that date.
-    if is_agency:
+    if target_type == DailySkipDayRequest.TargetType.EMPLOYEE:
         has_checked_in = DailyAttendance.objects.filter(
             jobID=job,
             date=parsed_date,
             time_in__isnull=False,
+            employeeID=target_employee,
         ).exists()
     else:
         has_checked_in = DailyAttendance.objects.filter(
             jobID=job,
             date=parsed_date,
             time_in__isnull=False,
-            workerID__profileID__accountFK=request.auth,
+            workerID__profileID__accountFK=target_worker_account,
         ).exists()
 
     if has_checked_in:
@@ -13630,17 +13678,18 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
 
     # Also block skip requests when attendance is already finalized by client
     # (e.g., client used no-work quick action and confirmed ABSENT for the date).
-    if is_agency:
+    if target_type == DailySkipDayRequest.TargetType.EMPLOYEE:
         already_finalized = DailyAttendance.objects.filter(
             jobID=job,
             date=parsed_date,
+            employeeID=target_employee,
             client_confirmed=True,
         ).exists()
     else:
         already_finalized = DailyAttendance.objects.filter(
             jobID=job,
             date=parsed_date,
-            workerID__profileID__accountFK=request.auth,
+            workerID__profileID__accountFK=target_worker_account,
             client_confirmed=True,
         ).exists()
 
@@ -13652,31 +13701,23 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
             status=400,
         )
 
-    requires_all_team_workers = bool(
-        getattr(job, "is_team_job", False) and not is_agency
-    )
-    total_required = 1
-    if requires_all_team_workers:
-        total_required = (
-            JobWorkerAssignment.objects.filter(
-                jobID=job, assignment_status__in=["ACTIVE", "COMPLETED"]
-            ).count()
-            or 1
-        )
-
     with db_transaction.atomic():
         skip_request, created = DailySkipDayRequest.objects.get_or_create(
             jobID=job,
             request_date=parsed_date,
+            target_worker_account=target_worker_account,
+            target_employee=target_employee,
             defaults={
-                "requested_by": "AGENCY" if is_agency else "WORKER",
+                "requested_by": "AGENCY"
+                if target_type == DailySkipDayRequest.TargetType.EMPLOYEE
+                else "WORKER",
+                "target_type": target_type,
                 "requestedByUser": request.auth,
                 "requested_account_ids": [requester_account_id],
                 "requested_count": 1,
-                "total_required": total_required,
-                "requires_all_team_workers": requires_all_team_workers,
-                "all_workers_requested": (not requires_all_team_workers)
-                or total_required <= 1,
+                "total_required": 1,
+                "requires_all_team_workers": False,
+                "all_workers_requested": True,
             },
         )
 
@@ -13689,22 +13730,34 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
                     status=400,
                 )
 
-            requested_ids = list(skip_request.requested_account_ids or [])
-            if requester_account_id not in requested_ids:
-                requested_ids.append(requester_account_id)
-
-            skip_request.requested_account_ids = requested_ids
-            skip_request.requested_count = len(requested_ids)
-            skip_request.total_required = max(
-                skip_request.total_required or 1, total_required
-            )
-            skip_request.requires_all_team_workers = requires_all_team_workers
-            skip_request.all_workers_requested = (
-                not requires_all_team_workers
-            ) or skip_request.requested_count >= skip_request.total_required
+            skip_request.requested_account_ids = [requester_account_id]
+            skip_request.requested_count = 1
+            skip_request.total_required = 1
+            skip_request.requires_all_team_workers = False
+            skip_request.all_workers_requested = True
             if not skip_request.requestedByUser:
                 skip_request.requestedByUser = request.auth
+            skip_request.target_type = target_type
+            skip_request.target_worker_account = target_worker_account
+            skip_request.target_employee = target_employee
+            skip_request.requested_by = (
+                "AGENCY"
+                if target_type == DailySkipDayRequest.TargetType.EMPLOYEE
+                else "WORKER"
+            )
             skip_request.save()
+
+    target_name = "Worker"
+    if target_type == DailySkipDayRequest.TargetType.EMPLOYEE and target_employee:
+        target_name = target_employee.fullName
+    elif target_worker_account:
+        target_profile = Profile.objects.filter(accountFK=target_worker_account).first()
+        if target_profile:
+            target_name = (
+                f"{target_profile.firstName or ''} {target_profile.lastName or ''}"
+            ).strip() or target_worker_account.email
+        else:
+            target_name = target_worker_account.email
 
     return {
         "success": True,
@@ -13713,12 +13766,18 @@ def request_daily_skip_day(request, job_id: int, data: RequestSkipDaySchema):
             "skip_request_id": skip_request.skipRequestID,
             "request_date": skip_request.request_date.isoformat(),
             "status": skip_request.status,
+            "target_type": skip_request.target_type,
+            "target_name": target_name,
+            "target_worker_account_id": skip_request.target_worker_account_id,
+            "target_employee_id": skip_request.target_employee_id,
             "requested_count": skip_request.requested_count,
             "total_required": skip_request.total_required,
             "requires_all_team_workers": skip_request.requires_all_team_workers,
             "all_workers_requested": skip_request.all_workers_requested,
-            "my_worker_requested": requester_account_id
-            in (skip_request.requested_account_ids or []),
+            "my_worker_requested": (
+                skip_request.target_worker_account_id == requester_account_id
+                or skip_request.requestedByUser_id == requester_account_id
+            ),
             "client_rejection_reason": skip_request.client_rejection_reason,
         },
     }
@@ -13764,82 +13823,96 @@ def review_daily_skip_day(
     processed_attendance_rows = []
     with db_transaction.atomic():
         if action == "approve":
-            target_account_ids = list(skip_request.requested_account_ids or [])
-            if not target_account_ids and skip_request.requestedByUser_id:
-                target_account_ids = [int(skip_request.requestedByUser_id)]
+            target_type = skip_request.target_type
 
-            target_workers = []
-            seen_worker_ids = set()
-
+            # Backward-compat path for pre-migration rows
             if (
-                job.assignedWorkerID
-                and job.assignedWorkerID.profileID
-                and job.assignedWorkerID.profileID.accountFK_id in target_account_ids
+                not skip_request.target_worker_account_id
+                and not skip_request.target_employee_id
             ):
-                target_workers.append(job.assignedWorkerID)
-                seen_worker_ids.add(job.assignedWorkerID.workerProfileID)
+                if (
+                    skip_request.requested_by == "AGENCY"
+                    and skip_request.requestedByUser_id
+                ):
+                    fallback_employee_assignment = JobEmployeeAssignment.objects.filter(
+                        job=job,
+                        employee__agency=skip_request.requestedByUser,
+                        status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                        skill_slot__isnull=False,
+                    ).select_related("employee").first()
+                    if fallback_employee_assignment:
+                        skip_request.target_type = DailySkipDayRequest.TargetType.EMPLOYEE
+                        skip_request.target_employee = fallback_employee_assignment.employee
+                        skip_request.target_worker_account = None
+                        skip_request.save(
+                            update_fields=[
+                                "target_type",
+                                "target_employee",
+                                "target_worker_account",
+                                "updatedAt",
+                            ]
+                        )
+                        target_type = skip_request.target_type
+                elif skip_request.requestedByUser_id:
+                    skip_request.target_type = DailySkipDayRequest.TargetType.WORKER
+                    skip_request.target_worker_account = skip_request.requestedByUser
+                    skip_request.target_employee = None
+                    skip_request.save(
+                        update_fields=[
+                            "target_type",
+                            "target_worker_account",
+                            "target_employee",
+                            "updatedAt",
+                        ]
+                    )
+                    target_type = skip_request.target_type
 
-            if getattr(job, "is_team_job", False):
-                assignment_workers = WorkerProfile.objects.filter(
-                    workerProfileID__in=JobWorkerAssignment.objects.filter(
-                        jobID=job,
-                        workerID__isnull=False,
-                        workerID__profileID__accountFK_id__in=target_account_ids,
-                        assignment_status__in=["ACTIVE", "COMPLETED"],
-                    ).values_list("workerID_id", flat=True)
-                )
+            now = timezone.now()
 
-                for worker in assignment_workers:
-                    if worker.workerProfileID in seen_worker_ids:
-                        continue
-                    target_workers.append(worker)
-                    seen_worker_ids.add(worker.workerProfileID)
-
-            if (
-                not target_workers
-                and job.assignedWorkerID
-                and not getattr(job, "is_team_job", False)
-            ):
-                target_workers = [job.assignedWorkerID]
-
-            if not target_workers:
-                return Response(
-                    {
-                        "error": "No assigned worker found to mark absent for this skip day request"
-                    },
-                    status=400,
-                )
-
-            # Safety gate: reject the entire approval if any target worker already checked in.
-            # This prevents partial updates when one worker is not eligible for skip-day absent marking.
-            existing_attendance_by_worker = {
-                row.workerID_id: row
-                for row in DailyAttendance.objects.filter(
-                    jobID=job,
-                    date=skip_request.request_date,
-                    workerID__in=target_workers,
-                )
-            }
-            for worker in target_workers:
-                existing_row = existing_attendance_by_worker.get(worker.workerProfileID)
-                if existing_row and existing_row.time_in:
-                    worker_name = "Unknown Worker"
-                    if worker.profileID:
-                        worker_name = f"{worker.profileID.firstName} {worker.profileID.lastName}".strip()
+            if target_type == DailySkipDayRequest.TargetType.EMPLOYEE:
+                target_employee = skip_request.target_employee
+                if not target_employee:
                     return Response(
                         {
-                            "error": f"Cannot approve skip day because {worker_name} already checked in for the requested date"
+                            "error": "Skip-day request has no target employee configured"
                         },
                         status=400,
                     )
 
-            now = timezone.now()
-            for worker in target_workers:
+                assigned_to_job = JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    employee=target_employee,
+                    status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                    skill_slot__isnull=False,
+                ).exists()
+                if not assigned_to_job:
+                    return Response(
+                        {
+                            "error": "Target employee is not assigned to this team job"
+                        },
+                        status=400,
+                    )
+
+                existing_employee_row = DailyAttendance.objects.filter(
+                    jobID=job,
+                    date=skip_request.request_date,
+                    employeeID=target_employee,
+                ).first()
+                if existing_employee_row and existing_employee_row.time_in:
+                    return Response(
+                        {
+                            "error": f"Cannot approve skip day because {target_employee.fullName} already checked in for the requested date"
+                        },
+                        status=400,
+                    )
+
                 attendance, _ = DailyAttendance.objects.get_or_create(
                     jobID=job,
-                    workerID=worker,
+                    employeeID=target_employee,
                     date=skip_request.request_date,
                     defaults={
+                        "workerID": None,
+                        "assignmentID": None,
                         "status": "ABSENT",
                         "amount_earned": Decimal("0.00"),
                         "worker_confirmed": True,
@@ -13850,9 +13923,7 @@ def review_daily_skip_day(
 
                 if not attendance.worker_confirmed:
                     attendance.worker_confirmed = True
-                    attendance.worker_confirmed_at = (
-                        attendance.worker_confirmed_at or now
-                    )
+                    attendance.worker_confirmed_at = attendance.worker_confirmed_at or now
 
                 attendance.status = "ABSENT"
                 attendance.amount_earned = Decimal("0.00")
@@ -13887,10 +13958,13 @@ def review_daily_skip_day(
                 processed_attendance_rows.append(
                     {
                         "attendance_id": attendance.attendanceID,
-                        "worker_id": attendance.workerID_id,
-                        "worker_account_id": attendance.workerID.profileID.accountFK_id
-                        if attendance.workerID and attendance.workerID.profileID
+                        "assignment_id": attendance.assignmentID_id,
+                        "employee_id": attendance.employeeID_id,
+                        "worker_id": attendance.employeeID_id,
+                        "worker_account_id": attendance.employeeID.agency_id
+                        if attendance.employeeID
                         else None,
+                        "worker_name": target_employee.fullName,
                         "status": attendance.status,
                         "client_confirmed": attendance.client_confirmed,
                         "amount_earned": float(attendance.amount_earned),
@@ -13900,12 +13974,178 @@ def review_daily_skip_day(
                         ),
                     }
                 )
+            else:
+                target_account = skip_request.target_worker_account
+                if not target_account:
+                    return Response(
+                        {"error": "Skip-day request has no target worker configured"},
+                        status=400,
+                    )
+
+                worker_assignments = list(
+                    JobWorkerAssignment.objects.select_related(
+                        "workerID__profileID__accountFK"
+                    ).filter(
+                        jobID=job,
+                        workerID__profileID__accountFK=target_account,
+                        assignment_status__in=["ACTIVE", "COMPLETED"],
+                    )
+                )
+
+                target_workers = []
+                if worker_assignments:
+                    seen_worker_ids = set()
+                    for assignment in worker_assignments:
+                        worker = assignment.workerID
+                        if worker and worker.workerProfileID not in seen_worker_ids:
+                            target_workers.append(worker)
+                            seen_worker_ids.add(worker.workerProfileID)
+                elif (
+                    job.assignedWorkerID
+                    and job.assignedWorkerID.profileID
+                    and job.assignedWorkerID.profileID.accountFK_id
+                    == target_account.accountID
+                ):
+                    target_workers = [job.assignedWorkerID]
+
+                if not target_workers:
+                    return Response(
+                        {
+                            "error": "No assigned worker found to mark absent for this skip day request"
+                        },
+                        status=400,
+                    )
+
+                attendance_filter = Q(workerID__in=target_workers)
+                if worker_assignments:
+                    attendance_filter = attendance_filter | Q(
+                        assignmentID__in=worker_assignments
+                    )
+
+                already_checked_in = DailyAttendance.objects.filter(
+                    jobID=job,
+                    date=skip_request.request_date,
+                    time_in__isnull=False,
+                ).filter(attendance_filter)
+
+                if already_checked_in.exists():
+                    worker = target_workers[0]
+                    worker_name = "Worker"
+                    if worker.profileID:
+                        worker_name = (
+                            f"{worker.profileID.firstName} {worker.profileID.lastName}"
+                        ).strip() or "Worker"
+                    return Response(
+                        {
+                            "error": f"Cannot approve skip day because {worker_name} already checked in for the requested date"
+                        },
+                        status=400,
+                    )
+
+                if worker_assignments:
+                    attendance_targets = [
+                        {
+                            "assignment": assignment,
+                            "worker": assignment.workerID,
+                        }
+                        for assignment in worker_assignments
+                    ]
+                else:
+                    attendance_targets = [
+                        {
+                            "assignment": None,
+                            "worker": worker,
+                        }
+                        for worker in target_workers
+                    ]
+
+                for target in attendance_targets:
+                    assignment = target["assignment"]
+                    worker = target["worker"]
+                    get_or_create_kwargs = {
+                        "jobID": job,
+                        "date": skip_request.request_date,
+                        "workerID": worker,
+                    }
+                    if assignment is not None:
+                        get_or_create_kwargs["assignmentID"] = assignment
+
+                    attendance, _ = DailyAttendance.objects.get_or_create(
+                        **get_or_create_kwargs,
+                        defaults={
+                            "employeeID": None,
+                            "status": "ABSENT",
+                            "amount_earned": Decimal("0.00"),
+                            "worker_confirmed": True,
+                            "worker_confirmed_at": now,
+                            "notes": f"Skip day approved by client (request #{skip_request.skipRequestID})",
+                        },
+                    )
+
+                    if not attendance.worker_confirmed:
+                        attendance.worker_confirmed = True
+                        attendance.worker_confirmed_at = (
+                            attendance.worker_confirmed_at or now
+                        )
+
+                    attendance.status = "ABSENT"
+                    attendance.amount_earned = Decimal("0.00")
+                    attendance.notes = f"Skip day approved by client (request #{skip_request.skipRequestID})"
+                    attendance.save(
+                        update_fields=[
+                            "worker_confirmed",
+                            "worker_confirmed_at",
+                            "status",
+                            "amount_earned",
+                            "notes",
+                            "updatedAt",
+                        ]
+                    )
+
+                    if not attendance.client_confirmed:
+                        confirm_result = DailyPaymentService.confirm_attendance_client(
+                            attendance,
+                            request.auth,
+                            approved_status="ABSENT",
+                        )
+                        if not confirm_result.get("success"):
+                            return Response(
+                                {
+                                    "error": confirm_result.get(
+                                        "error", "Failed to confirm absent attendance"
+                                    )
+                                },
+                                status=400,
+                            )
+
+                    worker_name = "Worker"
+                    if worker and worker.profileID:
+                        worker_name = (
+                            f"{worker.profileID.firstName} {worker.profileID.lastName}"
+                        ).strip() or "Worker"
+
+                    processed_attendance_rows.append(
+                        {
+                            "attendance_id": attendance.attendanceID,
+                            "assignment_id": attendance.assignmentID_id,
+                            "worker_id": attendance.workerID_id,
+                            "worker_account_id": attendance.workerID.profileID.accountFK_id
+                            if attendance.workerID and attendance.workerID.profileID
+                            else None,
+                            "worker_name": worker_name,
+                            "status": attendance.status,
+                            "client_confirmed": attendance.client_confirmed,
+                            "amount_earned": float(attendance.amount_earned),
+                            "payment_processed": attendance.payment_processed,
+                            "absent_penalty_amount": float(
+                                attendance.absent_penalty_amount or Decimal("0.00")
+                            ),
+                        }
+                    )
 
             skip_request.status = "APPROVED"
             skip_request.client_rejection_reason = None
-            message = (
-                "Skip-day request approved. Worker marked absent for the requested day."
-            )
+            message = "Skip-day request approved. Target worker marked absent for the requested day."
         else:
             skip_request.status = "REJECTED"
             skip_request.client_rejection_reason = (
@@ -13931,6 +14171,9 @@ def review_daily_skip_day(
         "skip_request": {
             "skip_request_id": skip_request.skipRequestID,
             "status": skip_request.status,
+            "target_type": skip_request.target_type,
+            "target_worker_account_id": skip_request.target_worker_account_id,
+            "target_employee_id": skip_request.target_employee_id,
             "client_rejection_reason": skip_request.client_rejection_reason,
             "reviewed_at": skip_request.reviewedAt.isoformat()
             if skip_request.reviewedAt

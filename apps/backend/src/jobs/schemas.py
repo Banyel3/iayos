@@ -379,6 +379,7 @@ class RequestSkipDaySchema(Schema):
     """Schema for requesting a daily skip day"""
 
     request_date: str  # YYYY-MM-DD format
+    target_employee_id: Optional[int] = None
 
 
 class ReviewSkipDaySchema(Schema):

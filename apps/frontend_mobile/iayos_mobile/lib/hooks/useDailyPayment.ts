@@ -236,16 +236,19 @@ function patchConversationSkipRequestStatus(
 function patchConversationAttendanceRows(
   queryClient: ReturnType<typeof useQueryClient>,
   jobId: number,
-  rows: Array<{
+  rows: {
     attendance_id: number;
+    assignment_id?: number;
+    employee_id?: number;
     worker_id?: number;
     worker_account_id?: number;
+    worker_name?: string;
     status: string;
     client_confirmed: boolean;
     amount_earned: number;
     payment_processed: boolean;
     absent_penalty_amount?: number;
-  }>,
+  }[],
 ) {
   if (!rows.length) {
     return;
@@ -277,6 +280,11 @@ function patchConversationAttendanceRows(
         if (current) {
           byId.set(key, {
             ...current,
+            assignment_id: updated.assignment_id ?? current?.assignment_id,
+            worker_id: updated.worker_id ?? current?.worker_id,
+            worker_account_id:
+              updated.worker_account_id ?? current?.worker_account_id,
+            worker_name: updated.worker_name || current?.worker_name || "Worker",
             status: updated.status,
             is_dispatched: false,
             client_confirmed: updated.client_confirmed,
@@ -291,9 +299,10 @@ function patchConversationAttendanceRows(
         } else {
           byId.set(key, {
             attendance_id: updated.attendance_id,
+            assignment_id: updated.assignment_id ?? null,
             worker_id: updated.worker_id,
             worker_account_id: updated.worker_account_id,
-            worker_name: "Worker",
+            worker_name: updated.worker_name || "Worker",
             worker_avatar: null,
             date: previous.effective_work_date || nowIso.split("T")[0],
             time_in: null,
@@ -1611,6 +1620,7 @@ export const useClientMarkCheckout = () => {
 export interface RequestDailySkipDayPayload {
   jobId: number;
   request_date: string;
+  target_employee_id?: number;
 }
 
 export interface ClientReviewDailySkipDayPayload {
@@ -1628,16 +1638,19 @@ interface SkipDayReviewResponse {
     status: "PENDING" | "APPROVED" | "REJECTED";
     client_rejection_reason?: string | null;
   };
-  processed_attendance?: Array<{
+  processed_attendance?: {
     attendance_id: number;
+    assignment_id?: number;
+    employee_id?: number;
     worker_id?: number;
     worker_account_id?: number;
+    worker_name?: string;
     status: string;
     client_confirmed: boolean;
     amount_earned: number;
     payment_processed: boolean;
     absent_penalty_amount?: number;
-  }>;
+  }[];
 }
 
 export interface ClientQASkipNextDayPayload {
@@ -1674,12 +1687,19 @@ export const useRequestDailySkipDay = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ jobId, request_date }: RequestDailySkipDayPayload) => {
+    mutationFn: async ({
+      jobId,
+      request_date,
+      target_employee_id,
+    }: RequestDailySkipDayPayload) => {
       const response = await apiRequest(
         ENDPOINTS.DAILY_SKIP_DAY_REQUEST(jobId),
         {
           method: "POST",
-          body: JSON.stringify({ request_date }),
+          body: JSON.stringify({
+            request_date,
+            ...(target_employee_id ? { target_employee_id } : {}),
+          }),
         },
       );
 

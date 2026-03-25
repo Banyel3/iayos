@@ -3231,24 +3231,54 @@ def get_agency_conversation_messages(request, conversation_id: int):
 
             today = _get_effective_work_date(job)
             effective_work_date = today
-            skip_request = (
-                DailySkipDayRequest.objects.filter(jobID=job, request_date=today)
-                .order_by("-createdAt")
-                .first()
-            )
+            skip_requests = DailySkipDayRequest.objects.filter(
+                jobID=job,
+                request_date=today,
+            ).order_by("-createdAt")
 
-            if skip_request:
-                requested_ids = list(skip_request.requested_account_ids or [])
+            for skip_request in skip_requests:
+                target_name = "Worker"
+                if skip_request.target_type == "EMPLOYEE" and skip_request.target_employee:
+                    target_name = skip_request.target_employee.fullName
+                elif skip_request.target_worker_account:
+                    from accounts.models import Profile
+
+                    target_profile = Profile.objects.filter(
+                        accountFK=skip_request.target_worker_account
+                    ).first()
+                    if target_profile:
+                        target_name = (
+                            f"{target_profile.firstName or ''} {target_profile.lastName or ''}"
+                        ).strip() or skip_request.target_worker_account.email
+                    else:
+                        target_name = skip_request.target_worker_account.email
+
+                my_worker_requested = False
+                if skip_request.target_type == "EMPLOYEE":
+                    my_worker_requested = (
+                        skip_request.requestedByUser_id == int(account.accountID)
+                    )
+                else:
+                    my_worker_requested = (
+                        skip_request.target_worker_account_id == int(account.accountID)
+                    )
+
                 daily_skip_requests_today.append(
                     {
                         "skip_request_id": skip_request.skipRequestID,
                         "request_date": skip_request.request_date.isoformat(),
                         "status": skip_request.status,
+                        "requested_by": skip_request.requested_by,
+                        "requested_by_user_id": skip_request.requestedByUser_id,
+                        "target_type": skip_request.target_type,
+                        "target_name": target_name,
+                        "target_worker_account_id": skip_request.target_worker_account_id,
+                        "target_employee_id": skip_request.target_employee_id,
                         "requested_count": skip_request.requested_count,
                         "total_required": skip_request.total_required,
                         "requires_all_team_workers": skip_request.requires_all_team_workers,
                         "all_workers_requested": skip_request.all_workers_requested,
-                        "my_worker_requested": int(account.accountID) in requested_ids,
+                        "my_worker_requested": my_worker_requested,
                         "client_rejection_reason": skip_request.client_rejection_reason,
                     }
                 )
