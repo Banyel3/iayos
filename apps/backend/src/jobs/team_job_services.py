@@ -2012,13 +2012,33 @@ def apply_to_skill_slot(
             "error": f"Job is not accepting applications (status: {job.status})",
         }
 
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    requested_applied_shift = str(applied_shift).upper() if applied_shift else None
+
+    if payment_model == "DAILY":
+        if job.shift_type in ("MORNING", "NIGHT"):
+            normalized_applied_shift = job.shift_type
+        else:
+            if requested_applied_shift not in ("MORNING", "NIGHT"):
+                return {
+                    "success": False,
+                    "error": "This job requires you to choose a shift: MORNING or NIGHT.",
+                    "field": "applied_shift",
+                }
+            normalized_applied_shift = requested_applied_shift
+    else:
+        normalized_applied_shift = (
+            job.shift_type
+            if job.shift_type in ("MORNING", "NIGHT")
+            else (requested_applied_shift or None)
+        )
+
     # Date-overlap policy parity: workers may handle multiple jobs if schedules do not overlap.
     scheduled_conflict = find_worker_schedule_conflict(
         worker_profile,
         job,
         exclude_job_id=job.jobID,
-        applied_shift=applied_shift
-        or (job.shift_type if job.shift_type in ("MORNING", "NIGHT") else None),
+        applied_shift=normalized_applied_shift,
     )
     if scheduled_conflict:
         conflict_start, conflict_end = _job_date_window(scheduled_conflict)
@@ -2136,11 +2156,6 @@ def apply_to_skill_slot(
             "error": "You have already applied to this skill slot",
         }
 
-    normalized_applied_shift = (
-        job.shift_type
-        if job.shift_type in ("MORNING", "NIGHT")
-        else (applied_shift or None)
-    )
     new_negotiation_count = 1 if budget_option == "NEGOTIATE" else 0
 
     try:

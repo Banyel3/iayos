@@ -1664,7 +1664,7 @@ export default function JobDetailScreen() {
     if (job?.shift_type && job.shift_type !== "ANY") {
       setAppliedShift(job.shift_type as "MORNING" | "NIGHT");
     } else {
-      setAppliedShift("ANY");
+      setAppliedShift(null);
     }
 
     // Show payment education modal first (only the very first time)
@@ -1702,7 +1702,7 @@ export default function JobDetailScreen() {
 
     // Validate shift selection when job is open to any shift.
     if ((!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
-      Alert.alert("Error", "Please select a shift (Anytime, Day Shift, or Night Shift)");
+      Alert.alert("Error", "Please select a shift (Day Shift or Night Shift)");
       return;
     }
 
@@ -5179,7 +5179,7 @@ export default function JobDetailScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Shift *</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  {(["ANY", "MORNING", "NIGHT"] as const).map((s) => (
+                  {(["MORNING", "NIGHT"] as const).map((s) => (
                     <TouchableOpacity
                       key={s}
                       onPress={() => setAppliedShift(s)}
@@ -5192,7 +5192,7 @@ export default function JobDetailScreen() {
                         borderWidth: 1.5,
                         borderColor: appliedShift === s ? Colors.primary : Colors.border,
                         backgroundColor: appliedShift === s ? Colors.primary + "15" : Colors.background,
-                        justifyContent: s === "ANY" ? "center" : "flex-start",
+                        justifyContent: "flex-start",
                         alignItems: "center",
                       }}
                       activeOpacity={0.7}
@@ -5203,13 +5203,11 @@ export default function JobDetailScreen() {
                         color: appliedShift === s ? Colors.primary : Colors.textSecondary,
                         textAlign: "center",
                       }}>
-                        {s === "ANY" ? "Anytime" : s === "MORNING" ? "Day Shift" : "Night Shift"}
+                        {s === "MORNING" ? "Day Shift" : "Night Shift"}
                       </Text>
-                      {s !== "ANY" && (
-                        <Text style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}>
-                          {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
-                        </Text>
-                      )}
+                      <Text style={{ fontSize: 10, color: Colors.textHint, marginTop: 2 }}>
+                        {s === "MORNING" ? "8:00 AM - 5:00 PM" : "6:00 PM - 12:00 AM"}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </View>

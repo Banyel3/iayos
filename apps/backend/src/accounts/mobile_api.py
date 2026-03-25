@@ -4244,6 +4244,7 @@ def worker_propose_price(request, application_id: int, payload: WorkerProposeSch
 
         # Update application with latest proposal values
         application.negotiation_count = new_round
+        application.proposalMessage = payload.message or ""
         application.proposedBudget = proposed_budget
         application.proposed_daily_rate = proposed_daily_rate
         application.proposed_days = proposed_days
@@ -4251,6 +4252,7 @@ def worker_propose_price(request, application_id: int, payload: WorkerProposeSch
         application.save(
             update_fields=[
                 "negotiation_count",
+            "proposalMessage",
                 "proposedBudget",
                 "proposed_daily_rate",
                 "proposed_days",
