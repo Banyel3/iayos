@@ -48,7 +48,6 @@ class Command(BaseCommand):
             JobReview,
             JobSkillSlot,
             JobWorkerAssignment,
-            Notification,
             PriceNegotiation,
             ReviewSkillTag,
             SavedJob,
@@ -76,15 +75,11 @@ class Command(BaseCommand):
             "JOB-",
             "CANCEL-CLIENT-",
             "CANCEL-WORKER-",
-            "DAILY-AUTO-REL-",
-            "BACKFILL-JOB-",
         )
 
         self.stdout.write("Starting job wipe and wallet reset...")
 
         with transaction.atomic():
-            job_ids = list(Job.objects.values_list("jobID", flat=True))
-
             # Delete job-origin transactions BEFORE deleting jobs.
             # Transaction.relatedJobPosting uses SET_NULL, so linked rows can become
             # orphaned. We also match known job transaction reference prefixes so
@@ -104,15 +99,6 @@ class Command(BaseCommand):
             # cascade and multiple team-slot applications exist for one worker/job.
             application_count, _ = JobApplication.objects.all().delete()
             self.stdout.write(f"  Deleted {application_count} job application(s).")
-
-            notification_count = 0
-            if job_ids:
-                notification_count, _ = Notification.objects.filter(
-                    relatedJobID__in=job_ids
-                ).delete()
-                self.stdout.write(
-                    f"  Deleted {notification_count} job-linked notification(s)."
-                )
 
             job_count, deleted_detail = Job.objects.all().delete()
             wallet_count = Wallet.objects.update(
@@ -138,13 +124,8 @@ class Command(BaseCommand):
                 rating=None,
                 employeeOfTheMonth=False,
                 employeeOfTheMonthDate=None,
-                employeeOfTheMonthReason="",
                 lastRatingUpdate=None,
             )
-
-        remaining_job_txn_filter = Q(relatedJobPosting__isnull=False)
-        for prefix in job_reference_prefixes:
-            remaining_job_txn_filter |= Q(referenceNumber__istartswith=prefix)
 
         verification_counts = {
             "jobs": Job.objects.count(),
@@ -170,14 +151,6 @@ class Command(BaseCommand):
             "conversation_participants": ConversationParticipant.objects.count(),
             "messages": Message.objects.count(),
             "message_attachments": MessageAttachment.objects.count(),
-            "job_origin_transactions_remaining": Transaction.objects.filter(
-                remaining_job_txn_filter
-            ).count(),
-            "job_linked_notifications": Notification.objects.filter(
-                relatedJobID__in=job_ids
-            ).count()
-            if job_ids
-            else 0,
         }
 
         verification_lines = [
@@ -204,7 +177,7 @@ class Command(BaseCommand):
                 f"(totalJobsPosted, activeJobsCount, clientRating).\n"
                 f"Reset {agency_employee_count} AgencyEmployee(s) "
                 f"(totalJobsCompleted, totalEarnings, rating, employeeOfTheMonth, "
-                f"employeeOfTheMonthDate, employeeOfTheMonthReason, lastRatingUpdate).\n"
+                f"employeeOfTheMonthDate, lastRatingUpdate).\n"
                 f"Post-wipe verification counts:\n{verification_str}"
             )
         )
