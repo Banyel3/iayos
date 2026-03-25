@@ -3001,110 +3001,178 @@ def early_complete_team_worker(job_id: int, assignment_id: int, client_user) -> 
             "error": "Only the client can early-complete a worker",
         }
 
-    # Get the specific worker assignment
+    # Resolve anchor assignment first, then fan-out to all ACTIVE slots
+    # for the same worker on this job.
     try:
         assignment = JobWorkerAssignment.objects.select_related(
-            "workerID__profileID__accountFK", "skillSlotID__specializationID"
+            "workerID__profileID__accountFK"
         ).get(assignmentID=assignment_id, jobID=job)
     except JobWorkerAssignment.DoesNotExist:
         return {"success": False, "error": "Worker assignment not found"}
 
-    if assignment.assignment_status != "ACTIVE":
+    if assignment.assignment_status not in ["ACTIVE", "COMPLETED"]:
         return {
             "success": False,
-            "error": f"Assignment is not active (status: {assignment.assignment_status})",
+            "error": f"Assignment status is {assignment.assignment_status}",
         }
 
-    if assignment.early_completed:
-        return {
-            "success": False,
-            "error": "This worker has already been early-completed",
-        }
-
-    # Calculate the full contracted amount and remaining payout
-    daily_rate = (
-        assignment.daily_rate_at_assignment or job.daily_rate_agreed or Decimal("0.00")
+    worker_assignments = list(
+        JobWorkerAssignment.objects.select_related(
+            "workerID__profileID__accountFK", "skillSlotID__specializationID"
+        ).filter(
+            jobID=job,
+            workerID=assignment.workerID,
+            assignment_status="ACTIVE",
+        )
     )
-    total_planned_days = planned_days
-    full_contract_amount = daily_rate * Decimal(str(total_planned_days))
-    already_earned = assignment.total_earned or Decimal("0.00")
-    remaining_payout = full_contract_amount - already_earned
 
-    if remaining_payout < Decimal("0.00"):
-        remaining_payout = Decimal("0.00")
+    if not worker_assignments:
+        if assignment.early_completed:
+            all_complete = not JobWorkerAssignment.objects.filter(
+                jobID=job, assignment_status="ACTIVE"
+            ).exists()
+            return {
+                "success": True,
+                "already_done": True,
+                "assignment_id": assignment.assignmentID,
+                "updated_assignment_ids": [assignment.assignmentID],
+                "updated_count": 0,
+                "remaining_payout": 0.0,
+                "all_workers_complete": all_complete,
+                "message": "Worker was already early-completed",
+            }
+        return {
+            "success": False,
+            "error": "No active assignments found for this worker",
+        }
+
+    if any(not row.client_confirmed_arrival for row in worker_assignments):
+        return {
+            "success": False,
+            "error": "Client must confirm worker arrival on all assigned slots first",
+        }
+
+    if any(not row.worker_marked_complete for row in worker_assignments):
+        return {
+            "success": False,
+            "error": "Worker must mark complete on all assigned slots before early finish",
+        }
 
     now = timezone.now()
     worker_account = assignment.workerID.profileID.accountFK
-    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
+    worker_name = (
+        f"{assignment.workerID.profileID.firstName} "
+        f"{assignment.workerID.profileID.lastName}"
+    ).strip() or "Worker"
 
-    # Pay out remaining amount to worker wallet if > 0
-    if remaining_payout > Decimal("0.00"):
+    total_planned_days = planned_days
+    total_contract_amount = Decimal("0.00")
+    total_already_earned = Decimal("0.00")
+    total_remaining_payout = Decimal("0.00")
+    updated_assignment_ids = []
+
+    for row in worker_assignments:
+        if row.early_completed:
+            continue
+
+        daily_rate = row.daily_rate_at_assignment or job.daily_rate_agreed or Decimal("0.00")
+        full_contract_amount = daily_rate * Decimal(str(total_planned_days))
+        already_earned = row.total_earned or Decimal("0.00")
+        remaining_payout = full_contract_amount - already_earned
+        if remaining_payout < Decimal("0.00"):
+            remaining_payout = Decimal("0.00")
+
+        total_contract_amount += full_contract_amount
+        total_already_earned += already_earned
+        total_remaining_payout += remaining_payout
+
+        row.total_earned = Decimal(str(row.total_earned or "0.00")) + remaining_payout
+        row.early_completed = True
+        row.early_completed_at = now
+        row.early_completion_payout = remaining_payout
+        row.assignment_status = "COMPLETED"
+        row.worker_marked_complete = True
+        row.worker_marked_complete_at = now
+        row.save(
+            update_fields=[
+                "total_earned",
+                "early_completed",
+                "early_completed_at",
+                "early_completion_payout",
+                "assignment_status",
+                "worker_marked_complete",
+                "worker_marked_complete_at",
+                "updatedAt",
+            ]
+        )
+        updated_assignment_ids.append(row.assignmentID)
+
+    if not updated_assignment_ids:
+        all_complete = not JobWorkerAssignment.objects.filter(
+            jobID=job, assignment_status="ACTIVE"
+        ).exists()
+        return {
+            "success": True,
+            "already_done": True,
+            "assignment_id": assignment.assignmentID,
+            "updated_assignment_ids": [a.assignmentID for a in worker_assignments],
+            "updated_count": 0,
+            "remaining_payout": 0.0,
+            "all_workers_complete": all_complete,
+            "message": "Worker was already early-completed",
+        }
+
+    if total_remaining_payout > Decimal("0.00"):
         worker_wallet, _ = Wallet.objects.select_for_update().get_or_create(
             accountFK=worker_account
         )
-        # Use pendingEarnings (7-day buffer, same as regular daily payment)
-        worker_wallet.pendingEarnings += remaining_payout
+        worker_wallet.pendingEarnings += total_remaining_payout
         worker_wallet.save()
 
-        # Update assignment tracking
-        assignment.total_earned += remaining_payout
-
-        # Create transaction record
         Transaction.objects.create(
             walletID=worker_wallet,
             transactionType="PENDING_EARNING",
-            amount=remaining_payout,
+            amount=total_remaining_payout,
             balanceAfter=worker_wallet.balance,
             status="PENDING",
             description=(
-                f"Early completion full-pay payout ({total_planned_days - assignment.days_worked} remaining days) "
+                f"Early completion full-pay payout ({len(updated_assignment_ids)} slot(s)) "
                 f"- Job #{job.jobID}"
             ),
             relatedJobPosting=job,
             paymentMethod="WALLET",
         )
 
-    # Mark assignment as early-completed
-    assignment.early_completed = True
-    assignment.early_completed_at = now
-    assignment.early_completion_payout = remaining_payout
-    assignment.assignment_status = "COMPLETED"
-    assignment.worker_marked_complete = True
-    assignment.worker_marked_complete_at = now
-    assignment.save()
-
-    # Notify worker
     Notification.objects.create(
         accountFK=worker_account,
         notificationType="TEAM_WORKER_COMPLETE",
         title="Early Completion — Full Pay",
         message=(
-            f"You've been marked as done early on '{job.title}'. "
-            f"Full pay of ₱{float(full_contract_amount):,.2f} "
-            f"({total_planned_days} days × ₱{float(daily_rate):,.2f}/day) has been applied."
+            f"You've been marked as done early on '{job.title}' for "
+            f"{len(updated_assignment_ids)} slot(s). Full pay of "
+            f"₱{float(total_contract_amount):,.2f} has been applied."
             + (
-                f" ₱{float(remaining_payout):,.2f} added to your pending earnings."
-                if remaining_payout > Decimal("0.00")
+                f" ₱{float(total_remaining_payout):,.2f} added to your pending earnings."
+                if total_remaining_payout > Decimal("0.00")
                 else ""
             )
         ),
         relatedJobID=job.jobID,
     )
 
-    # Notify client
     if client_profile:
         Notification.objects.create(
             accountFK=client_profile.profileID.accountFK,
             notificationType="TEAM_WORKER_COMPLETE",
             title="Worker Early-Completed",
             message=(
-                f"{worker_name} has been marked as done early on '{job.title}'. "
-                f"Full pay of ₱{float(full_contract_amount):,.2f} applied."
+                f"{worker_name} has been marked as done early on '{job.title}' "
+                f"for {len(updated_assignment_ids)} slot(s). "
+                f"Full pay of ₱{float(total_contract_amount):,.2f} applied."
             ),
             relatedJobID=job.jobID,
         )
 
-    # Check if ALL active assignments are now done
     all_complete = not JobWorkerAssignment.objects.filter(
         jobID=job, assignment_status="ACTIVE"
     ).exists()
@@ -3112,17 +3180,18 @@ def early_complete_team_worker(job_id: int, assignment_id: int, client_user) -> 
     return {
         "success": True,
         "assignment_id": assignment.assignmentID,
+        "updated_assignment_ids": updated_assignment_ids,
+        "updated_count": len(updated_assignment_ids),
         "worker_name": worker_name,
-        "daily_rate": float(daily_rate),
         "total_planned_days": total_planned_days,
-        "days_worked": assignment.days_worked,
-        "already_earned": float(already_earned),
-        "remaining_payout": float(remaining_payout),
-        "full_contract_amount": float(full_contract_amount),
+        "already_earned": float(total_already_earned),
+        "remaining_payout": float(total_remaining_payout),
+        "full_contract_amount": float(total_contract_amount),
         "all_workers_complete": all_complete,
         "message": (
-            f"{worker_name} early-completed with full pay. "
-            f"₱{float(remaining_payout):,.2f} payout for {total_planned_days - assignment.days_worked} remaining days."
+            f"{worker_name} early-completed with full pay across "
+            f"{len(updated_assignment_ids)} slot(s). "
+            f"₱{float(total_remaining_payout):,.2f} payout applied."
         ),
     }
 
@@ -4682,7 +4751,7 @@ def early_complete_team_worker_project(
 
     try:
         assignment = JobWorkerAssignment.objects.select_related(
-            "workerID__profileID__accountFK", "skillSlotID"
+            "workerID__profileID__accountFK"
         ).get(assignmentID=assignment_id, jobID=job)
     except JobWorkerAssignment.DoesNotExist:
         return {"success": False, "error": "Worker assignment not found"}
@@ -4693,25 +4762,115 @@ def early_complete_team_worker_project(
             "error": f"Assignment status is {assignment.assignment_status}",
         }
 
-    if assignment.early_completed:
+    worker_assignments = list(
+        JobWorkerAssignment.objects.select_related(
+            "workerID__profileID__accountFK", "skillSlotID"
+        ).filter(
+            jobID=job,
+            workerID=assignment.workerID,
+            assignment_status="ACTIVE",
+        )
+    )
+
+    if not worker_assignments:
+        if assignment.early_completed:
+            all_complete = (
+                not JobWorkerAssignment.objects.filter(
+                    jobID=job, assignment_status="ACTIVE"
+                ).exists()
+                and not JobEmployeeAssignment.objects.filter(
+                    job=job,
+                    skill_slot__isnull=False,
+                    status__in=["ASSIGNED", "IN_PROGRESS"],
+                ).exists()
+            )
+            return {
+                "success": True,
+                "already_done": True,
+                "assignment_id": assignment.assignmentID,
+                "updated_assignment_ids": [assignment.assignmentID],
+                "updated_count": 0,
+                "payout": 0.0,
+                "all_workers_complete": all_complete,
+                "message": "Worker was already early-completed",
+            }
+        return {
+            "success": False,
+            "error": "No active assignments found for this worker",
+        }
+
+    if any(not row.client_confirmed_arrival for row in worker_assignments):
+        return {
+            "success": False,
+            "error": "Client must confirm worker arrival on all assigned slots first",
+        }
+
+    if any(not row.worker_marked_complete for row in worker_assignments):
+        return {
+            "success": False,
+            "error": "Worker must mark complete on all assigned slots before early finish",
+        }
+
+    now = timezone.now()
+    worker_account = assignment.workerID.profileID.accountFK
+    worker_name = (
+        f"{assignment.workerID.profileID.firstName} "
+        f"{assignment.workerID.profileID.lastName}"
+    ).strip() or "Worker"
+
+    payout = Decimal("0.00")
+    updated_assignment_ids = []
+
+    for row in worker_assignments:
+        if row.early_completed:
+            continue
+
+        row_payout = Decimal("0.00")
+        if row.skillSlotID and row.skillSlotID.budget_allocated:
+            row_payout = Decimal(str(row.skillSlotID.budget_allocated))
+
+        payout += row_payout
+
+        row.early_completed = True
+        row.early_completed_at = now
+        row.early_completion_payout = row_payout
+        row.assignment_status = "COMPLETED"
+        row.worker_marked_complete = True
+        row.worker_marked_complete_at = now
+        row.save(
+            update_fields=[
+                "early_completed",
+                "early_completed_at",
+                "early_completion_payout",
+                "assignment_status",
+                "worker_marked_complete",
+                "worker_marked_complete_at",
+                "updatedAt",
+            ]
+        )
+        updated_assignment_ids.append(row.assignmentID)
+
+    if not updated_assignment_ids:
+        all_complete = (
+            not JobWorkerAssignment.objects.filter(
+                jobID=job, assignment_status="ACTIVE"
+            ).exists()
+            and not JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot__isnull=False,
+                status__in=["ASSIGNED", "IN_PROGRESS"],
+            ).exists()
+        )
         return {
             "success": True,
             "already_done": True,
             "assignment_id": assignment.assignmentID,
+            "updated_assignment_ids": [a.assignmentID for a in worker_assignments],
+            "updated_count": 0,
+            "payout": 0.0,
+            "all_workers_complete": all_complete,
             "message": "Worker was already early-completed",
         }
-
-    if not assignment.client_confirmed_arrival:
-        return {"success": False, "error": "Client must confirm worker arrival first"}
-
-    # Full slot budget = the contracted share for this freelancer
-    payout = Decimal("0.00")
-    if assignment.skillSlotID and assignment.skillSlotID.budget_allocated:
-        payout = Decimal(str(assignment.skillSlotID.budget_allocated))
-
-    now = timezone.now()
-    worker_account = assignment.workerID.profileID.accountFK
-    worker_name = f"{assignment.workerID.profileID.firstName} {assignment.workerID.profileID.lastName}"
 
     if payout > Decimal("0.00"):
         worker_wallet, _ = Wallet.objects.select_for_update().get_or_create(
@@ -4726,24 +4885,19 @@ def early_complete_team_worker_project(
             amount=payout,
             balanceAfter=worker_wallet.balance,
             status="PENDING",
-            description=f"Early completion payout (PROJECT full share) - Job #{job.jobID}",
+            description=(
+                f"Early completion payout (PROJECT full share across "
+                f"{len(updated_assignment_ids)} slot(s)) - Job #{job.jobID}"
+            ),
             relatedJobPosting=job,
             paymentMethod="WALLET",
         )
-
-    assignment.early_completed = True
-    assignment.early_completed_at = now
-    assignment.early_completion_payout = payout
-    assignment.assignment_status = "COMPLETED"
-    assignment.worker_marked_complete = True
-    assignment.worker_marked_complete_at = now
-    assignment.save()
 
     JobLog.objects.create(
         jobID=job,
         notes=(
             f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Client early-completed "
-            f"PROJECT worker {worker_name} (assignment #{assignment_id}). "
+            f"PROJECT worker {worker_name} across {len(updated_assignment_ids)} slot(s). "
             f"Payout: PHP {payout}"
         ),
         changedBy=client_user,
@@ -4756,7 +4910,8 @@ def early_complete_team_worker_project(
         notificationType="TEAM_WORKER_COMPLETE",
         title="Early Completion — Full Pay",
         message=(
-            f"You've been marked as done early on '{job.title}'. "
+            f"You've been marked as done early on '{job.title}' across "
+            f"{len(updated_assignment_ids)} slot(s). "
             f"Full project share of PHP {float(payout):,.2f} added to pending earnings."
         ),
         relatedJobID=job.jobID,
@@ -4774,10 +4929,15 @@ def early_complete_team_worker_project(
     return {
         "success": True,
         "assignment_id": assignment.assignmentID,
+        "updated_assignment_ids": updated_assignment_ids,
+        "updated_count": len(updated_assignment_ids),
         "worker_name": worker_name,
         "payout": float(payout),
         "all_workers_complete": all_complete,
-        "message": f"{worker_name} early-completed with full PROJECT share of PHP {float(payout):,.2f}",
+        "message": (
+            f"{worker_name} early-completed with full PROJECT share of "
+            f"PHP {float(payout):,.2f} across {len(updated_assignment_ids)} slot(s)"
+        ),
     }
 
 

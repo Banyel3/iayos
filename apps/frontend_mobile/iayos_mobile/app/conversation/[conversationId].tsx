@@ -6648,34 +6648,75 @@ export default function ChatScreen() {
                       const workerRows = teamAssignedWorkers.filter((row: any) =>
                         assignmentIds.includes(Number(row?.assignment_id)),
                       );
+                      const actionableWorkerRow =
+                        workerRows.find(
+                          (row: any) =>
+                            Boolean(row?.can_early_finish) &&
+                            !Boolean(row?.early_completed),
+                        ) ??
+                        workerRows.find((row: any) => !Boolean(row?.early_completed)) ??
+                        workerRows[0];
+
+                      const hasWorkerRows = workerRows.length > 0;
+                      const allRowsArrived = hasWorkerRows
+                        ? workerRows.every((row: any) =>
+                            Boolean(row?.client_confirmed_arrival),
+                          )
+                        : Boolean(a.client_confirmed_arrival);
+                      const allRowsCompleted = hasWorkerRows
+                        ? workerRows.every((row: any) =>
+                            Boolean(row?.worker_marked_complete),
+                          )
+                        : Boolean(a.worker_marked_complete);
+                      const allRowsEarlyCompleted = hasWorkerRows
+                        ? workerRows.every((row: any) => Boolean(row?.early_completed))
+                        : false;
+
+                      const pendingEarlyRows = workerRows.filter(
+                        (row: any) => !Boolean(row?.early_completed),
+                      );
+                      const canEarlyFinishAnyPending = pendingEarlyRows.some(
+                        (row: any) => Boolean(row?.can_early_finish),
+                      );
+
+                      const pendingQuoteValues = pendingEarlyRows
+                        .map((row: any) => Number(row?.early_finish_quote))
+                        .filter((value) => Number.isFinite(value));
+                      const pendingPayoutValues = workerRows
+                        .map((row: any) => Number(row?.early_completion_payout))
+                        .filter((value) => Number.isFinite(value));
 
                       return {
                         type: "WORKER" as const,
-                        assignment_id: Number(assignmentIds[0]),
+                        assignment_id: Number(
+                          actionableWorkerRow?.assignment_id ?? assignmentIds[0],
+                        ),
                         name: a.name,
                         skill:
                           Array.isArray(a.skills) && a.skills.length > 0
                             ? a.skills.join(", ")
                             : "Team Worker",
                         avatar: a.avatar,
-                        arrived: Boolean(a.client_confirmed_arrival),
-                        completed: Boolean(a.worker_marked_complete),
-                        can_early_finish: workerRows.some((row: any) =>
-                          Boolean(row?.can_early_finish),
-                        ),
-                        worker_marked_complete: Boolean(a.worker_marked_complete),
-                        marked_complete: Boolean(a.worker_marked_complete),
-                        early_completed: workerRows.some((row: any) =>
-                          Boolean(row?.early_completed),
-                        ),
+                        arrived: allRowsArrived,
+                        completed: allRowsCompleted,
+                        can_early_finish: canEarlyFinishAnyPending,
+                        worker_marked_complete: allRowsCompleted,
+                        marked_complete: allRowsCompleted,
+                        early_completed: allRowsEarlyCompleted,
                         early_finish_quote:
-                          workerRows.find(
-                            (row: any) => row?.early_finish_quote != null,
-                          )?.early_finish_quote ?? null,
+                          pendingQuoteValues.length > 0
+                            ? pendingQuoteValues.reduce(
+                                (sum, value) => sum + value,
+                                0,
+                              )
+                            : null,
                         early_completion_payout:
-                          workerRows.find(
-                            (row: any) => row?.early_completion_payout != null,
-                          )?.early_completion_payout ?? null,
+                          pendingPayoutValues.length > 0
+                            ? pendingPayoutValues.reduce(
+                                (sum, value) => sum + value,
+                                0,
+                              )
+                            : null,
                       };
                     }),
                     ...agencyAssignments.map((a) => ({
