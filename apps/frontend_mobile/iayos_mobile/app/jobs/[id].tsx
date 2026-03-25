@@ -17,6 +17,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   TouchableWithoutFeedback,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -441,6 +442,15 @@ export default function JobDetailScreen() {
   const { user, switchProfile, checkAuth } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ["jobs", id] });
+    await queryClient.invalidateQueries({ queryKey: ["jobs", id, "applied"] });
+    setRefreshing(false);
+  }, [queryClient, id]);
 
   // Debug logging
   if (__DEV__)
@@ -2592,7 +2602,12 @@ export default function JobDetailScreen() {
       {/* Inline Loader */}
       {/* Removed - now using skeleton loader above */}
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Photos */}
         {job.photos && job.photos.length > 0 && (
           <View style={styles.section}>
@@ -4939,7 +4954,7 @@ export default function JobDetailScreen() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* Apply Button (Fixed at bottom) - Only for non-team LISTING jobs */}
