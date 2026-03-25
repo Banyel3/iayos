@@ -1120,15 +1120,6 @@ export default function WorkerDetailScreen() {
                                           style={styles.certThumbnailLeftImage}
                                           resizeMode="cover"
                                         />
-                                        <View
-                                          style={styles.certThumbnailLeftOverlay}
-                                        >
-                                          <Ionicons
-                                            name="expand-outline"
-                                            size={16}
-                                            color={Colors.white}
-                                          />
-                                        </View>
                                       </TouchableOpacity>
                                     ) : (
                                       <View
@@ -1260,13 +1251,6 @@ export default function WorkerDetailScreen() {
                                     style={styles.certThumbnailLeftImage}
                                     resizeMode="cover"
                                   />
-                                  <View style={styles.certThumbnailLeftOverlay}>
-                                    <Ionicons
-                                      name="expand-outline"
-                                      size={16}
-                                      color={Colors.white}
-                                    />
-                                  </View>
                                 </TouchableOpacity>
                               ) : (
                                 <View style={styles.certThumbnailLeftPlaceholder}>
@@ -1445,6 +1429,44 @@ export default function WorkerDetailScreen() {
           )}
         </View>
       </SafeAreaView >
+
+      {/* Lightbox Modal for Certificate Images */}
+      <Modal
+        visible={!!lightboxImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxImage(null)}
+      >
+        <View style={styles.lightboxOverlay}>
+          <TouchableOpacity
+            style={styles.lightboxBackdrop}
+            activeOpacity={1}
+            onPress={() => setLightboxImage(null)}
+          />
+          {lightboxImage && (
+            <ScrollView
+              style={{ width: "100%", height: "100%" }}
+              contentContainerStyle={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+              maximumZoomScale={5}
+              minimumZoomScale={1}
+              bouncesZoom
+              centerContent
+            >
+              <Image
+                source={{ uri: lightboxImage }}
+                style={styles.lightboxImage}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          )}
+          <TouchableOpacity
+            style={styles.lightboxCloseButton}
+            onPress={() => setLightboxImage(null)}
+          >
+            <Ionicons name="close" size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </>
   );
 }
