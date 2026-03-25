@@ -3839,8 +3839,35 @@ class DailySkipDayRequest(models.Model):
         WORKER = "WORKER", "Worker"
         AGENCY = "AGENCY", "Agency"
 
+    class TargetType(models.TextChoices):
+        WORKER = "WORKER", "Freelance worker"
+        EMPLOYEE = "EMPLOYEE", "Agency employee"
+
     requested_by = models.CharField(
         max_length=10, choices=RequestedBy.choices, default="WORKER"
+    )
+
+    target_type = models.CharField(
+        max_length=10,
+        choices=TargetType.choices,
+        default=TargetType.WORKER,
+        help_text="Entity whose attendance is affected when approved",
+    )
+    target_worker_account = models.ForeignKey(
+        Accounts,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_skip_requests_as_target_worker",
+        help_text="Target worker account (for freelancer/team-worker requests)",
+    )
+    target_employee = models.ForeignKey(
+        "agency.AgencyEmployee",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="daily_skip_requests_as_target_employee",
+        help_text="Target agency employee (for hybrid/team agency requests)",
     )
 
     requestedByUser = models.ForeignKey(
@@ -3886,14 +3913,23 @@ class DailySkipDayRequest(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["jobID", "request_date"],
-                name="unique_daily_skip_request_per_job_date",
+                fields=["jobID", "request_date", "target_worker_account"],
+                condition=models.Q(target_worker_account__isnull=False),
+                name="uniq_skip_req_worker_target_per_day",
+            ),
+            models.UniqueConstraint(
+                fields=["jobID", "request_date", "target_employee"],
+                condition=models.Q(target_employee__isnull=False),
+                name="uniq_skip_req_employee_target_per_day",
             )
         ]
 
     def __str__(self):
+        target_label = "worker"
+        if self.target_type == self.TargetType.EMPLOYEE:
+            target_label = "employee"
         return (
-            f"Skip request Job #{self.jobID_id} on {self.request_date} ({self.status})"
+            f"Skip request Job #{self.jobID_id} on {self.request_date} ({target_label}, {self.status})"
         )
 
 

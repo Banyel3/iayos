@@ -41,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Start-Date Chat Lock (Manila Time) Across Job Conversations**
+  - Enforced server-side chat lock for conversations tied to jobs with a future `preferred_start_date`.
+  - Conversations are still created immediately, but sending text/image messages now returns a consistent lock response until start date is reached in Asia/Manila timezone.
+  - Added automatic system guidance messages: one when chat is locked pre-start, and one when chat unlocks on/after start date.
+  - Extended conversation payload with `can_send_message`, `can_send_reason`, and lock metadata so mobile can render proper locked-state UX.
+  - Updated mobile conversation input to disable sending while start-date lock is active and show the backend-provided helper reason.
+
 - **Hybrid Conversation Stability + Visibility (Agency/Web/Mobile)**
   - Fixed agency conversations backend crash caused by queryset filtering on non-DB model properties (`total_workers_needed` / `total_workers_assigned`).
   - Reworked agency conversation team-slot gating to run in Python per conversation/job, preserving lock behavior without invalid ORM lookups.

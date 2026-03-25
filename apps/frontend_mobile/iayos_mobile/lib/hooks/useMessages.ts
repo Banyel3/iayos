@@ -79,6 +79,11 @@ export type ConversationDetail = {
   conversation_id: number;
   status?: string;
   is_archived?: boolean;
+  can_send_message?: boolean;
+  can_send_reason?: string | null;
+  chat_locked?: boolean;
+  chat_locked_until?: string | null;
+  chat_lock_code?: string | null;
   agency_flow_mode?: "DIRECT" | "TEAM_SLOT" | null;
   job: {
     id: number;
@@ -299,6 +304,12 @@ export type ConversationDetail = {
     skip_request_id: number;
     status: "PENDING" | "APPROVED" | "REJECTED";
     request_date?: string;
+    requested_by?: "WORKER" | "AGENCY";
+    requested_by_user_id?: number;
+    target_type?: "WORKER" | "EMPLOYEE";
+    target_name?: string;
+    target_worker_account_id?: number | null;
+    target_employee_id?: number | null;
     requested_count?: number;
     total_required?: number;
     requires_all_team_workers?: boolean;

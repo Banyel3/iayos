@@ -24,6 +24,7 @@ from accounts.models import (
     JobReview,
     JobSkillSlot,
     JobWorkerAssignment,
+    Notification,
     PriceNegotiation,
     Profile,
     ReviewSkillTag,
@@ -35,7 +36,12 @@ from accounts.models import (
     workerSpecialization,
 )
 from agency.models import AgencyEmployee
-from profiles.models import Conversation, ConversationParticipant, Message, MessageAttachment
+from profiles.models import (
+    Conversation,
+    ConversationParticipant,
+    Message,
+    MessageAttachment,
+)
 
 
 class WipeJobsCommandTests(TestCase):
@@ -279,11 +285,88 @@ class WipeJobsCommandTests(TestCase):
             relatedJobPosting=None,
             referenceNumber="DEPOSIT-KEEP-001",
         )
+        Transaction.objects.create(
+            walletID=self.client_wallet,
+            transactionType=Transaction.TransactionType.EARNING,
+            amount=Decimal("25.00"),
+            balanceAfter=Decimal("809.56"),
+            status=Transaction.TransactionStatus.COMPLETED,
+            relatedJobPosting=None,
+            referenceNumber=f"DAILY-AUTO-REL-{job.jobID}",
+        )
+        Transaction.objects.create(
+            walletID=self.client_wallet,
+            transactionType=Transaction.TransactionType.EARNING,
+            amount=Decimal("30.00"),
+            balanceAfter=Decimal("839.56"),
+            status=Transaction.TransactionStatus.COMPLETED,
+            relatedJobPosting=None,
+            referenceNumber=f"BACKFILL-JOB-{job.jobID}-RELEASED-COMPAT",
+        )
+
+        Notification.objects.create(
+            accountFK=self.client_account,
+            notificationType=Notification.NotificationType.JOB_UPDATED,
+            title="Job updated",
+            message="Job update notification tied to job",
+            relatedJobID=job.jobID,
+        )
+        Notification.objects.create(
+            accountFK=self.client_account,
+            notificationType=Notification.NotificationType.SYSTEM,
+            title="Keep me",
+            message="Unrelated notification should remain",
+            relatedJobID=999999,
+        )
+
+        return job
+
+    def _create_team_job_with_multi_slot_applications_same_worker(self):
+        job = Job.objects.create(
+            clientID=self.client_record,
+            title="Wipe team test job",
+            description="Delete team job graph",
+            categoryID=self.specialization,
+            budget=Decimal("3000.00"),
+            location="Zamboanga",
+            is_team_job=True,
+            status=Job.JobStatus.ACTIVE,
+        )
+
+        slot_1 = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1500.00"),
+        )
+        slot_2 = JobSkillSlot.objects.create(
+            jobID=job,
+            specializationID=self.specialization,
+            workers_needed=1,
+            budget_allocated=Decimal("1500.00"),
+        )
+
+        JobApplication.objects.create(
+            jobID=job,
+            workerID=self.worker_record,
+            applied_skill_slot=slot_1,
+            proposalMessage="I can do slot 1",
+            proposedBudget=Decimal("1400.00"),
+            budgetOption=JobApplication.BudgetOption.NEGOTIATE,
+        )
+        JobApplication.objects.create(
+            jobID=job,
+            workerID=self.worker_record,
+            applied_skill_slot=slot_2,
+            proposalMessage="I can do slot 2",
+            proposedBudget=Decimal("1450.00"),
+            budgetOption=JobApplication.BudgetOption.NEGOTIATE,
+        )
 
         return job
 
     def test_wipe_jobs_removes_full_job_graph_and_job_origin_transactions(self):
-        self._create_job_graph()
+        job = self._create_job_graph()
 
         call_command("wipe_jobs")
 
@@ -317,9 +400,20 @@ class WipeJobsCommandTests(TestCase):
         self.assertFalse(
             Transaction.objects.filter(referenceNumber__startswith="JOB-").exists()
         )
+        self.assertFalse(
+            Transaction.objects.filter(
+                referenceNumber__startswith="DAILY-AUTO-REL-"
+            ).exists()
+        )
+        self.assertFalse(
+            Transaction.objects.filter(referenceNumber__startswith="BACKFILL-JOB-").exists()
+        )
         self.assertTrue(
             Transaction.objects.filter(referenceNumber="DEPOSIT-KEEP-001").exists()
         )
+
+        self.assertFalse(Notification.objects.filter(relatedJobID=job.jobID).exists())
+        self.assertTrue(Notification.objects.filter(relatedJobID=999999).exists())
 
         self.client_wallet.refresh_from_db()
         self.assertEqual(self.client_wallet.balance, Decimal("0.00"))
@@ -328,3 +422,12 @@ class WipeJobsCommandTests(TestCase):
         self.assertFalse(self.client_wallet.autoWithdrawEnabled)
         self.assertIsNone(self.client_wallet.preferredPaymentMethodID)
         self.assertIsNone(self.client_wallet.lastAutoWithdrawAt)
+
+    def test_wipe_jobs_handles_team_multi_slot_same_worker_applications(self):
+        self._create_team_job_with_multi_slot_applications_same_worker()
+
+        call_command("wipe_jobs")
+
+        self.assertEqual(JobApplication.objects.count(), 0)
+        self.assertEqual(JobSkillSlot.objects.count(), 0)
+        self.assertEqual(Job.objects.count(), 0)

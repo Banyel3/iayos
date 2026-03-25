@@ -23,6 +23,24 @@ from zoneinfo import ZoneInfo
 from jobs.backjob_service import auto_start_agency_backjob_if_ready
 from accounts.models import JobEmployeeAssignment
 from .content_filter import contains_contact_info
+from .chat_lock_service import (
+    CHAT_LOCKED_UNTIL_START_DATE,
+    ensure_start_date_lock_system_messages,
+    get_start_date_chat_lock_state,
+)
+
+
+def _build_start_date_lock_response_payload(lock_state):
+    return {
+        "error": lock_state.can_send_reason,
+        "error_code": CHAT_LOCKED_UNTIL_START_DATE,
+        "can_send_message": False,
+        "can_send_reason": lock_state.can_send_reason,
+        "chat_locked": True,
+        "chat_locked_until": lock_state.chat_locked_until.isoformat()
+        if lock_state.chat_locked_until
+        else None,
+    }
 
 
 router = Router()
@@ -1805,6 +1823,9 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                         f"[get_conversation_by_job] Added backjob system message to conversation {conversation.conversationID}"
                     )
 
+            ensure_start_date_lock_system_messages(conversation, job)
+            start_lock = get_start_date_chat_lock_state(job)
+
             return {
                 "success": True,
                 "conversation_id": conversation.conversationID,
@@ -1812,6 +1833,12 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 "reopened": reopened,
                 "system_message_added": system_message_added,
                 "backjob": backjob_info,
+                "can_send_message": start_lock.can_send_message,
+                "can_send_reason": start_lock.can_send_reason,
+                "chat_locked": start_lock.chat_locked,
+                "chat_locked_until": start_lock.chat_locked_until.isoformat()
+                if start_lock.chat_locked_until
+                else None,
             }
 
         # If no conversation exists and user is a valid participant, create one
@@ -1862,11 +1889,20 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
             f"[get_conversation_by_job] Created new conversation {conversation.conversationID} for job {job_id}"
         )
 
+        ensure_start_date_lock_system_messages(conversation, job)
+        start_lock = get_start_date_chat_lock_state(job)
+
         return {
             "success": True,
             "conversation_id": conversation.conversationID,
             "exists": False,
             "created": True,
+            "can_send_message": start_lock.can_send_message,
+            "can_send_reason": start_lock.can_send_reason,
+            "chat_locked": start_lock.chat_locked,
+            "chat_locked_until": start_lock.chat_locked_until.isoformat()
+            if start_lock.chat_locked_until
+            else None,
         }
 
     except Exception as e:
@@ -2022,6 +2058,8 @@ def get_conversation_messages(request, conversation_id: int):
 
         # Get job info
         job = conversation.relatedJobPosting
+        ensure_start_date_lock_system_messages(conversation, job)
+        start_date_chat_lock = get_start_date_chat_lock_state(job)
         cancellation_snapshot = _get_job_cancellation_snapshot(job)
 
         # Get all messages with attachments
@@ -2187,7 +2225,6 @@ def get_conversation_messages(request, conversation_id: int):
 
         # For agency jobs, check employee and agency reviews separately
         if is_agency_job_for_reviews and client_account:
-
             agency_account_id = None
             if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
                 agency_account_id = job.assignedAgencyFK.accountFK_id
@@ -2551,7 +2588,6 @@ def get_conversation_messages(request, conversation_id: int):
         # Get ALL assigned employees for multi-employee jobs
         assigned_employees_list = []
         if is_agency_conversation:
-
             assignments = (
                 JobEmployeeAssignment.objects.filter(
                     job=job, status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"]
@@ -2935,7 +2971,9 @@ def get_conversation_messages(request, conversation_id: int):
             if job.assignedAgencyFK and job.assignedAgencyFK.accountFK_id:
                 agency_account_ids.add(job.assignedAgencyFK.accountFK_id)
 
-            team_agencies = list(Agency.objects.filter(accountFK_id__in=agency_account_ids))
+            team_agencies = list(
+                Agency.objects.filter(accountFK_id__in=agency_account_ids)
+            )
             reviewed_team_agencies_count = 0
             for agency in team_agencies:
                 agency_reviewed = agency.agencyId in reviewed_agency_ids
@@ -2961,9 +2999,7 @@ def get_conversation_messages(request, conversation_id: int):
                 if employee.get("id") is not None
             }
             total_team_workers = (
-                total_freelancer_workers
-                + len(unique_employee_ids)
-                + len(team_agencies)
+                total_freelancer_workers + len(unique_employee_ids) + len(team_agencies)
             )
             reviewed_by_client_count = reviewed_freelancers_count + sum(
                 1
@@ -3485,25 +3521,56 @@ def get_conversation_messages(request, conversation_id: int):
 
             # Skip-day requests are DAILY-specific and do not apply to PROJECT jobs.
             if is_daily_job:
-                skip_request = (
-                    DailySkipDayRequest.objects.filter(jobID=job, request_date=today)
-                    .order_by("-createdAt")
-                    .first()
-                )
+                skip_requests = DailySkipDayRequest.objects.filter(
+                    jobID=job,
+                    request_date=today,
+                ).order_by("-createdAt")
 
-                if skip_request:
-                    requested_ids = list(skip_request.requested_account_ids or [])
+                for skip_request in skip_requests:
+                    target_name = "Worker"
+                    if (
+                        skip_request.target_type == "EMPLOYEE"
+                        and skip_request.target_employee
+                    ):
+                        target_name = skip_request.target_employee.fullName
+                    elif skip_request.target_worker_account:
+                        target_profile = Profile.objects.filter(
+                            accountFK=skip_request.target_worker_account
+                        ).first()
+                        if target_profile:
+                            target_name = (
+                                f"{target_profile.firstName or ''} {target_profile.lastName or ''}"
+                            ).strip() or skip_request.target_worker_account.email
+                        else:
+                            target_name = skip_request.target_worker_account.email
+
+                    my_worker_requested = False
+                    if skip_request.target_type == "EMPLOYEE":
+                        my_worker_requested = skip_request.requestedByUser_id == int(
+                            request.auth.accountID
+                        )
+                    else:
+                        my_worker_requested = (
+                            skip_request.target_worker_account_id
+                            == int(request.auth.accountID)
+                        )
+
                     daily_skip_requests_today.append(
                         {
                             "skip_request_id": skip_request.skipRequestID,
                             "request_date": skip_request.request_date.isoformat(),
                             "status": skip_request.status,
+                            "requested_by": skip_request.requested_by,
+                            "requested_by_user_id": skip_request.requestedByUser_id,
+                            "target_type": skip_request.target_type,
+                            "target_name": target_name,
+                            "target_worker_account_id": skip_request.target_worker_account_id,
+                            "target_employee_id": skip_request.target_employee_id,
                             "requested_count": skip_request.requested_count,
                             "total_required": skip_request.total_required,
                             "requires_all_team_workers": skip_request.requires_all_team_workers,
                             "all_workers_requested": skip_request.all_workers_requested,
-                            "my_worker_requested": int(request.auth.accountID)
-                            in requested_ids,
+                            "my_worker_requested": my_worker_requested,
                             "client_rejection_reason": skip_request.client_rejection_reason,
                         }
                     )
@@ -4020,6 +4087,13 @@ def get_conversation_messages(request, conversation_id: int):
             "effective_work_date": effective_work_date.isoformat(),
             "qa_day_offset": qa_day_offset,
             "qa_testing_mode": _is_testing_mode_enabled() and qa_day_offset > 0,
+            "can_send_message": start_date_chat_lock.can_send_message,
+            "can_send_reason": start_date_chat_lock.can_send_reason,
+            "chat_locked": start_date_chat_lock.chat_locked,
+            "chat_locked_until": start_date_chat_lock.chat_locked_until.isoformat()
+            if start_date_chat_lock.chat_locked_until
+            else None,
+            "chat_lock_code": start_date_chat_lock.error_code,
             "client_review": client_review_data,  # Actual review data from client
             "worker_review": worker_review_data,  # Actual review data from worker
             "counterparty_reviews": counterparty_reviews_data,
@@ -4102,6 +4176,20 @@ def send_message(request, data: SendMessageSchema):
         if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"}, status=403
+            )
+
+        # Prevent new messages while start-date chat lock is active.
+        # Backjob/legacy reopen rules remain independent from this lock.
+        ensure_start_date_lock_system_messages(
+            conversation, conversation.relatedJobPosting
+        )
+        start_date_chat_lock = get_start_date_chat_lock_state(
+            conversation.relatedJobPosting
+        )
+        if not start_date_chat_lock.can_send_message:
+            return Response(
+                _build_start_date_lock_response_payload(start_date_chat_lock),
+                status=403,
             )
 
         # Prevent new messages once conversation is closed/archived.
@@ -4437,6 +4525,18 @@ def upload_chat_image(request, conversation_id: int, image: UploadedFile = File(
         if not (is_client or is_worker or is_team_participant or is_agency):
             return Response(
                 {"error": "You are not a participant in this conversation"}, status=403
+            )
+
+        ensure_start_date_lock_system_messages(
+            conversation, conversation.relatedJobPosting
+        )
+        start_date_chat_lock = get_start_date_chat_lock_state(
+            conversation.relatedJobPosting
+        )
+        if not start_date_chat_lock.can_send_message:
+            return Response(
+                _build_start_date_lock_response_payload(start_date_chat_lock),
+                status=403,
             )
 
         # Validate file size (5MB max)

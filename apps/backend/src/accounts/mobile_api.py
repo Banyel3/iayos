@@ -9266,7 +9266,7 @@ def worker_check_in(request, job_id: int):
                 "fan_out": True,
                 "attendance_ids": dispatched_ids,
                 "attendance_id": dispatched_ids[0] if dispatched_ids else None,
-                "worker_id": getattr(worker, "workerProfileID", None),
+                "worker_id": getattr(worker, "id", None),
                 "worker_account_id": getattr(request.auth, "accountID", None),
                 "time_in": None,
                 "date": str(today),
@@ -9433,7 +9433,7 @@ def worker_check_in(request, job_id: int):
         return {
             "success": True,
             "attendance_id": attendance.attendanceID,
-            "worker_id": getattr(worker, "workerProfileID", None),
+            "worker_id": getattr(worker, "id", None),
             "worker_account_id": getattr(request.auth, "accountID", None),
             "time_in": None,
             "date": str(today),
@@ -9927,7 +9927,7 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
         if worker_id:
             # First try regular worker profile id
             target_worker = WorkerProfile.objects.filter(
-                workerProfileID=worker_id
+                id=worker_id
             ).first()
             if target_worker:
                 is_primary_assigned_worker = job.assignedWorkerID == target_worker
@@ -10012,6 +10012,25 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 fan_attendance_ids = []
                 total_absent_penalty = Decimal("0.00")
                 last_result = {}
+
+                existing_rows = list(
+                    DailyAttendance.objects.filter(
+                        jobID=job,
+                        workerID=target_worker,
+                        assignmentID__in=team_no_work_assignments,
+                        date=today,
+                    )
+                )
+                checked_in_row = next((row for row in existing_rows if row.time_in), None)
+                if checked_in_row:
+                    return Response(
+                        {
+                            "error": "Cannot mark absent after worker has checked in",
+                            "time_in": checked_in_row.time_in.isoformat(),
+                        },
+                        status=400,
+                    )
+
                 for assign in team_no_work_assignments:
                     fan_att, _ = DailyAttendance.objects.get_or_create(
                         jobID=job,
@@ -10027,11 +10046,6 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                             "notes": "Marked absent by client quick action",
                         },
                     )
-
-                    if fan_att.time_in:
-                        # Worker already checked in for this slot — skip silently
-                        fan_attendance_ids.append(fan_att.attendanceID)
-                        continue
 
                     if not fan_att.client_confirmed:
                         fan_att.worker_confirmed = True

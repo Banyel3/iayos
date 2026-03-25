@@ -17,6 +17,7 @@ type MessageInputProps = {
   onSend: (text: string) => Promise<boolean | void> | void;
   onImagePress?: () => void;
   isSending?: boolean;
+  disabled?: boolean;
   placeholder?: string;
 };
 
@@ -24,13 +25,14 @@ export default function MessageInput({
   onSend,
   onImagePress,
   isSending = false,
+  disabled = false,
   placeholder = "Type a message...",
 }: MessageInputProps) {
   const [text, setText] = useState("");
 
   const handleSend = async () => {
     const trimmed = text.trim();
-    if (trimmed && !isSending) {
+    if (trimmed && !isSending && !disabled) {
       try {
         await onSend(trimmed);
         // Only clear text after successful send
@@ -41,7 +43,7 @@ export default function MessageInput({
     }
   };
 
-  const canSend = text.trim().length > 0 && !isSending;
+  const canSend = text.trim().length > 0 && !isSending && !disabled;
 
   return (
     <View style={styles.container}>
@@ -50,13 +52,13 @@ export default function MessageInput({
         <TouchableOpacity
           style={styles.imageButton}
           onPress={onImagePress}
-          disabled={isSending}
+          disabled={isSending || disabled}
           activeOpacity={0.7}
         >
           <Ionicons
             name="image-outline"
             size={24}
-            color={isSending ? Colors.textSecondary : Colors.primary}
+            color={isSending || disabled ? Colors.textSecondary : Colors.primary}
           />
         </TouchableOpacity>
       )}
@@ -71,7 +73,7 @@ export default function MessageInput({
           onChangeText={setText}
           multiline
           maxLength={1000}
-          editable={!isSending}
+          editable={!isSending && !disabled}
           autoCapitalize="sentences"
           autoCorrect
           returnKeyType="send"
