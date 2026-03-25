@@ -6902,6 +6902,8 @@ export default function ChatScreen() {
                   interface UnifiedTeamAssignment {
                     type: "WORKER" | "AGENCY";
                     assignment_id: number;
+                    worker_id?: number | null;
+                    employee_id?: number | null;
                     name: string;
                     skill?: string | null;
                     avatar?: string | null;
@@ -6966,12 +6968,18 @@ export default function ChatScreen() {
                       const pendingPayoutValues = workerRows
                         .map((row: any) => Number(row?.early_completion_payout))
                         .filter((value) => Number.isFinite(value));
+                      const assignmentWorkerId = Number(
+                        actionableWorkerRow?.worker_id ?? a.worker_id,
+                      );
 
                       return {
                         type: "WORKER" as const,
                         assignment_id: Number(
                           actionableWorkerRow?.assignment_id ?? assignmentIds[0],
                         ),
+                        worker_id: Number.isFinite(assignmentWorkerId)
+                          ? assignmentWorkerId
+                          : null,
                         name: a.name,
                         skill:
                           Array.isArray(a.skills) && a.skills.length > 0
@@ -7003,6 +7011,11 @@ export default function ChatScreen() {
                     ...agencyAssignments.map((a) => ({
                       type: "AGENCY" as const,
                       assignment_id: Number(a.assignment_id),
+                      employee_id: Number.isFinite(Number((a as any)?.id))
+                        ? Number((a as any).id)
+                        : Number.isFinite(Number((a as any)?.employee_id))
+                          ? Number((a as any).employee_id)
+                          : null,
                       name: a.name,
                       skill: a.skill,
                       avatar: a.avatar,
@@ -7080,6 +7093,27 @@ export default function ChatScreen() {
                             : isArrived
                               ? "Arrived"
                               : "Not arrived";
+                          const assignmentId = Number(assignment.assignment_id);
+                          const hasValidAssignmentId =
+                            Number.isFinite(assignmentId);
+                          const isArrivalPendingForRow = hasValidAssignmentId
+                            ? isArrivalConfirmPending(
+                                assignment.type,
+                                assignmentId,
+                              )
+                            : false;
+                          const isConfirmMutationPending =
+                            assignment.type === "AGENCY"
+                              ? confirmTeamEmployeeArrivalMutation.isPending
+                              : confirmTeamWorkerArrivalMutation.isPending;
+                          const confirmButtonPending =
+                            isArrivalPendingForRow || isConfirmMutationPending;
+                          const absentTargetId = Number(
+                            assignment.type === "AGENCY"
+                              ? assignment.employee_id
+                              : assignment.worker_id,
+                          );
+                          const canMarkAbsent = Number.isFinite(absentTargetId);
 
                           return (
                             <View
@@ -7161,51 +7195,104 @@ export default function ChatScreen() {
                                     </Text>
                                   </View>
                                 ) : (
-                                  <TouchableOpacity
-                                    style={styles.teamProjectConfirmArrivalButton}
-                                    onPress={() => {
-                                      const assignmentId = Number(
-                                        assignment.assignment_id,
-                                      );
-                                      if (!Number.isFinite(assignmentId)) {
-                                        return;
-                                      }
-
-                                      if (assignment.type === "AGENCY") {
-                                        handleConfirmTeamEmployeeArrival(
-                                          assignmentId,
-                                          assignment.name,
-                                        );
-                                      } else {
-                                        handleConfirmTeamWorkerArrival(
-                                          assignmentId,
-                                          assignment.name,
-                                        );
-                                      }
-                                    }}
-                                    disabled={
-                                      assignment.type === "AGENCY"
-                                        ? confirmTeamEmployeeArrivalMutation.isPending
-                                        : confirmTeamWorkerArrivalMutation.isPending
-                                    }
+                                  <View
+                                    style={styles.teamProjectArrivalActionRow}
                                   >
-                                    {(assignment.type === "AGENCY"
-                                      ? confirmTeamEmployeeArrivalMutation.isPending
-                                      : confirmTeamWorkerArrivalMutation.isPending) ? (
-                                      <ActivityIndicator
-                                        size="small"
-                                        color={Colors.white}
-                                      />
-                                    ) : (
-                                      <Text
-                                        style={
-                                          styles.teamProjectConfirmArrivalText
+                                    <TouchableOpacity
+                                      style={styles.teamProjectConfirmArrivalButton}
+                                      onPress={() => {
+                                        if (!hasValidAssignmentId) {
+                                          return;
                                         }
-                                      >
-                                        Confirm
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
+
+                                        if (assignment.type === "AGENCY") {
+                                          handleConfirmTeamEmployeeArrival(
+                                            assignmentId,
+                                            assignment.name,
+                                          );
+                                        } else {
+                                          handleConfirmTeamWorkerArrival(
+                                            assignmentId,
+                                            assignment.name,
+                                          );
+                                        }
+                                      }}
+                                      disabled={
+                                        !hasValidAssignmentId ||
+                                        confirmButtonPending ||
+                                        clientMarkNoWorkMutation.isPending
+                                      }
+                                    >
+                                      {confirmButtonPending ? (
+                                        <ActivityIndicator
+                                          size="small"
+                                          color={Colors.white}
+                                        />
+                                      ) : (
+                                        <Text
+                                          style={
+                                            styles.teamProjectConfirmArrivalText
+                                          }
+                                        >
+                                          Confirm
+                                        </Text>
+                                      )}
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                      style={[
+                                        styles.teamProjectConfirmArrivalButton,
+                                        styles.teamProjectMarkAbsentButton,
+                                      ]}
+                                      onPress={() => {
+                                        if (!canMarkAbsent) {
+                                          return;
+                                        }
+
+                                        Alert.alert(
+                                          "Mark Absent",
+                                          `Mark ${assignment.name || "worker"} as absent for today?`,
+                                          [
+                                            {
+                                              text: "Cancel",
+                                              style: "cancel",
+                                            },
+                                            {
+                                              text: "Mark Absent",
+                                              style: "destructive",
+                                              onPress: () =>
+                                                clientMarkNoWorkMutation.mutate(
+                                                  {
+                                                    jobId: conversation.job.id,
+                                                    workerId: absentTargetId,
+                                                  },
+                                                ),
+                                            },
+                                          ],
+                                        );
+                                      }}
+                                      disabled={
+                                        !canMarkAbsent ||
+                                        confirmButtonPending ||
+                                        clientMarkNoWorkMutation.isPending
+                                      }
+                                    >
+                                      {clientMarkNoWorkMutation.isPending ? (
+                                        <ActivityIndicator
+                                          size="small"
+                                          color={Colors.white}
+                                        />
+                                      ) : (
+                                        <Text
+                                          style={
+                                            styles.teamProjectConfirmArrivalText
+                                          }
+                                        >
+                                          Mark Absent
+                                        </Text>
+                                      )}
+                                    </TouchableOpacity>
+                                  </View>
                                 )}
                               </View>
 
@@ -12210,6 +12297,14 @@ const styles = StyleSheet.create({
     minWidth: 78,
     alignItems: "center",
     justifyContent: "center",
+  },
+  teamProjectArrivalActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  teamProjectMarkAbsentButton: {
+    backgroundColor: Colors.error,
   },
   teamProjectConfirmArrivalText: {
     ...Typography.body.small,
