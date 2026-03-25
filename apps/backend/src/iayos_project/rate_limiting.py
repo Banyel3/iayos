@@ -4,10 +4,12 @@ Rate Limiting Middleware for iAyos API
 Provides protection against brute force attacks and API abuse.
 Uses Redis for distributed rate limiting across multiple backend instances.
 
-Rate limits are configurable per endpoint category:
-- Authentication: 5 requests/minute (strict)
-- API Write: 30 requests/minute (moderate)
-- API Read: 100 requests/minute (lenient)
+Rate limits are configurable per endpoint category.
+
+Note:
+- Global middleware enforcement is intentionally disabled for generic
+  api_read/api_write traffic to prevent false-positive 429 responses.
+- Sensitive categories (auth/password reset/payment/upload) remain enforced.
 """
 
 import time
@@ -209,8 +211,9 @@ class RateLimitMiddleware:
     
     Applies automatic rate limiting based on request method and path:
     - POST/PUT/DELETE to /api/accounts/login|register → auth limits
-    - POST/PUT/DELETE to /api/ → api_write limits
-    - GET to /api/ → api_read limits
+    - POST/PUT/DELETE to payment/upload paths → payment/upload limits
+
+    Generic api_read/api_write throttling is disabled intentionally.
     """
     
     # Paths that should use auth rate limits
@@ -252,6 +255,10 @@ class RateLimitMiddleware:
         # Get client identifier
         identifier = get_client_ip(request)
         
+        # Generic read/write throttling is disabled to avoid false-positive 429s
+        if category in ("api_read", "api_write"):
+            return self.get_response(request)
+
         # Check rate limit
         is_allowed, count, retry_after = check_rate_limit(category, identifier)
         
