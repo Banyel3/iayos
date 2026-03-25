@@ -24,6 +24,7 @@ from accounts.models import (
     JobReview,
     JobSkillSlot,
     JobWorkerAssignment,
+    Notification,
     PriceNegotiation,
     Profile,
     ReviewSkillTag,
@@ -279,11 +280,44 @@ class WipeJobsCommandTests(TestCase):
             relatedJobPosting=None,
             referenceNumber="DEPOSIT-KEEP-001",
         )
+        Transaction.objects.create(
+            walletID=self.client_wallet,
+            transactionType=Transaction.TransactionType.EARNING,
+            amount=Decimal("25.00"),
+            balanceAfter=Decimal("809.56"),
+            status=Transaction.TransactionStatus.COMPLETED,
+            relatedJobPosting=None,
+            referenceNumber=f"DAILY-AUTO-REL-{job.jobID}",
+        )
+        Transaction.objects.create(
+            walletID=self.client_wallet,
+            transactionType=Transaction.TransactionType.EARNING,
+            amount=Decimal("30.00"),
+            balanceAfter=Decimal("839.56"),
+            status=Transaction.TransactionStatus.COMPLETED,
+            relatedJobPosting=None,
+            referenceNumber=f"BACKFILL-JOB-{job.jobID}-RELEASED-COMPAT",
+        )
+
+        Notification.objects.create(
+            accountFK=self.client_account,
+            notificationType=Notification.NotificationType.JOB_UPDATED,
+            title="Job updated",
+            message="Job update notification tied to job",
+            relatedJobID=job.jobID,
+        )
+        Notification.objects.create(
+            accountFK=self.client_account,
+            notificationType=Notification.NotificationType.SYSTEM,
+            title="Keep me",
+            message="Unrelated notification should remain",
+            relatedJobID=999999,
+        )
 
         return job
 
     def test_wipe_jobs_removes_full_job_graph_and_job_origin_transactions(self):
-        self._create_job_graph()
+        job = self._create_job_graph()
 
         call_command("wipe_jobs")
 
@@ -317,9 +351,20 @@ class WipeJobsCommandTests(TestCase):
         self.assertFalse(
             Transaction.objects.filter(referenceNumber__startswith="JOB-").exists()
         )
+        self.assertFalse(
+            Transaction.objects.filter(
+                referenceNumber__startswith="DAILY-AUTO-REL-"
+            ).exists()
+        )
+        self.assertFalse(
+            Transaction.objects.filter(referenceNumber__startswith="BACKFILL-JOB-").exists()
+        )
         self.assertTrue(
             Transaction.objects.filter(referenceNumber="DEPOSIT-KEEP-001").exists()
         )
+
+        self.assertFalse(Notification.objects.filter(relatedJobID=job.jobID).exists())
+        self.assertTrue(Notification.objects.filter(relatedJobID=999999).exists())
 
         self.client_wallet.refresh_from_db()
         self.assertEqual(self.client_wallet.balance, Decimal("0.00"))
