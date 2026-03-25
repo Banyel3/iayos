@@ -4065,8 +4065,8 @@ export default function JobDetailScreen() {
                           )}
                         </TouchableOpacity>
 
-                        {/* Counter-offer + Reject Price row — hidden once worker reaches final (3rd) proposal */}
-                        {application.budget_option === "NEGOTIATE" && (application.negotiation_count ?? 0) < 3 && (
+                        {/* Counter-offer + Reject Price row — hidden once worker reaches final proposal, as defined by max_proposals */}
+                        {application.budget_option === "NEGOTIATE" && (application.negotiation_count ?? 0) < (application.max_proposals ?? 3) && (
                           <View style={styles.applicationActions}>
                             <TouchableOpacity
                               style={[styles.rejectButton, { flex: 1, borderColor: Colors.warning }]}
