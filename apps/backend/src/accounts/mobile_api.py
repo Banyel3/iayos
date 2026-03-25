@@ -51,6 +51,7 @@ from jobs.schemas import (
     ClientCounterSchema,
     ClientRejectPriceSchema,
 )
+from jobs.start_date_action_lock import get_start_date_action_lock_payload
 from jobs.rate_validation import validate_daily_rate_for_specialization
 
 CHECK_IN_UNDO_WINDOW_SECONDS = 10
@@ -224,6 +225,13 @@ def _supports_daily_attendance_flow(job) -> bool:
         pass
 
     return _derive_duration_days(job) > 1
+
+
+def _start_date_action_lock_response(job):
+    lock_payload = get_start_date_action_lock_payload(job)
+    if not lock_payload:
+        return None
+    return Response(lock_payload, status=403)
 
 
 # region MOBILE AUTH ENDPOINTS
@@ -1634,7 +1642,9 @@ def mobile_my_jobs(
 
 
 @mobile_router.get("/jobs/categories")
-def mobile_job_categories(request, worker_id: Optional[int] = None, agency_id: Optional[int] = None):
+def mobile_job_categories(
+    request, worker_id: Optional[int] = None, agency_id: Optional[int] = None
+):
     """
     Get all job categories/specializations for mobile.
     If agency_id is provided, also includes that agency's custom skills.
@@ -3263,7 +3273,9 @@ def mobile_accept_application(request, job_id: int, application_id: int):
     "/jobs/{job_id}/applications/{application_id}/reject", auth=jwt_auth
 )
 @require_kyc
-def mobile_reject_application(request, job_id: int, application_id: int, payload: dict = None):
+def mobile_reject_application(
+    request, job_id: int, application_id: int, payload: dict = None
+):
     """
     Reject a job application (mobile version)
     """
@@ -3729,6 +3741,7 @@ def mobile_get_my_applications(request):
 
         # Prefetch latest negotiation entries to detect pending counter-offers
         from accounts.models import PriceNegotiation
+
         app_ids = [app.applicationID for app in applications]
         pending_counters = set(
             PriceNegotiation.objects.filter(
@@ -4195,7 +4208,10 @@ def worker_propose_price(request, application_id: int, payload: WorkerProposeSch
         )
         proposed_days = payload.proposed_days or None
 
-        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+        if (
+            str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+            == "DAILY"
+        ):
             if proposed_daily_rate is None:
                 return Response(
                     {"error": "proposed_daily_rate is required for DAILY negotiation"},
@@ -4357,7 +4373,10 @@ def client_counter_offer(request, application_id: int, payload: ClientCounterSch
         )
         proposed_days = payload.proposed_days or None
 
-        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "DAILY":
+        if (
+            str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+            == "DAILY"
+        ):
             if proposed_daily_rate is None:
                 return Response(
                     {"error": "proposed_daily_rate is required for DAILY negotiation"},
@@ -9692,6 +9711,10 @@ def client_confirm_attendance(request, attendance_id: int, approved_status: str 
                 {"error": "Only the job client can confirm attendance"}, status=403
             )
 
+        action_lock = _start_date_action_lock_response(job)
+        if action_lock:
+            return action_lock
+
         # Support both query/body payloads for backwards compatibility.
         approved_status = (
             request.POST.get("approved_status")
@@ -9897,6 +9920,7 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
     from .models import Job, DailyAttendance, WorkerProfile, JobWorkerAssignment
     from agency.models import AgencyEmployee
     from jobs.daily_payment_service import DailyPaymentService
+    from jobs.team_job_services import _post_team_arrival_system_update
 
     try:
         try:
@@ -9921,14 +9945,16 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 {"error": "Only the job client can mark no-work days"}, status=403
             )
 
+        action_lock = _start_date_action_lock_response(job)
+        if action_lock:
+            return action_lock
+
         target_worker = None
         target_employee = None
 
         if worker_id:
             # First try regular worker profile id
-            target_worker = WorkerProfile.objects.filter(
-                id=worker_id
-            ).first()
+            target_worker = WorkerProfile.objects.filter(id=worker_id).first()
             if target_worker:
                 is_primary_assigned_worker = job.assignedWorkerID == target_worker
                 is_team_assigned_worker = JobWorkerAssignment.objects.filter(
@@ -10021,7 +10047,9 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                         date=today,
                     )
                 )
-                checked_in_row = next((row for row in existing_rows if row.time_in), None)
+                checked_in_row = next(
+                    (row for row in existing_rows if row.time_in), None
+                )
                 if checked_in_row:
                     return Response(
                         {
@@ -10099,6 +10127,9 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                     msg = last_result.get(
                         "message", "Marked as absent. No payment recorded for today."
                     )
+
+                if bool(getattr(job, "is_team_job", False)):
+                    _post_team_arrival_system_update(job)
 
                 return {
                     "success": True,
@@ -10204,6 +10235,9 @@ def client_mark_no_work_today(request, job_id: int, worker_id: int = None):
                 )
 
             synced_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+
+        if bool(getattr(job, "is_team_job", False)):
+            _post_team_arrival_system_update(job)
 
         return {
             "success": True,
