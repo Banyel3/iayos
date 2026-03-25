@@ -4502,7 +4502,7 @@ def client_reject_price(request, application_id: int, payload: ClientRejectPrice
                 + (
                     f" You have {proposals_remaining} proposal(s) remaining."
                     if proposals_remaining > 0
-                    else " You have no proposals remaining. Accept the original job price or withdraw."
+                    else " You have no proposals remaining. The client will decide whether to accept or reject your application."
                 )
             ),
             relatedJobID=job.jobID,
@@ -4627,140 +4627,6 @@ def worker_accept_counter(request, application_id: int):
             {"error": f"Failed to accept counter-offer: {str(e)}"}, status=500
         )
 
-
-@mobile_router.post(
-    "/applications/{application_id}/negotiations/accept-original", auth=dual_auth
-)
-@require_kyc
-def worker_accept_original_budget(request, application_id: int):
-    """
-    Worker accepts the original job budget after exhausting all negotiation proposals.
-    Only available when proposals_remaining == 0 and the last negotiation entry
-    from the worker was REJECTED by the client.
-    """
-    from accounts.models import JobApplication, PriceNegotiation
-    from .models import Profile, WorkerProfile, Notification
-
-    try:
-        profile_type = getattr(request.auth, "profile_type", None)
-        profile = Profile.objects.filter(
-            accountFK=request.auth,
-            **(({"profileType": profile_type}) if profile_type else {}),
-        ).first()
-        if not profile or profile.profileType != "WORKER":
-            return Response(
-                {"error": "Only workers can accept the original budget"}, status=403
-            )
-
-        worker_profile = WorkerProfile.objects.filter(profileID=profile).first()
-        if not worker_profile:
-            return Response({"error": "Worker profile not found"}, status=403)
-
-        try:
-            application = JobApplication.objects.select_related(
-                "jobID", "jobID__clientID__profileID__accountFK"
-            ).get(applicationID=application_id, workerID=worker_profile)
-        except JobApplication.DoesNotExist:
-            return Response({"error": "Application not found"}, status=404)
-
-        if application.status != JobApplication.ApplicationStatus.PENDING:
-            return Response(
-                {"error": "Can only act on a pending application"}, status=400
-            )
-
-        if application.negotiation_count < MAX_WORKER_PROPOSALS:
-            return Response(
-                {
-                    "error": (
-                        "You still have proposals remaining. "
-                        "Use them or wait for the client to respond."
-                    )
-                },
-                status=400,
-            )
-
-        # Validate that the last entry is a REJECTED worker proposal
-        last = (
-            PriceNegotiation.objects.filter(application=application)
-            .order_by("-createdAt")
-            .first()
-        )
-        if (
-            not last
-            or last.actor != PriceNegotiation.Actor.WORKER
-            or last.status != PriceNegotiation.NegotiationStatus.REJECTED
-        ):
-            return Response(
-                {
-                    "error": (
-                        "You can only accept the original budget after your final proposal "
-                        "has been rejected by the client."
-                    )
-                },
-                status=400,
-            )
-
-        job = application.jobID
-        original_budget = job.budget
-
-        # Record the acceptance of the original budget
-        PriceNegotiation.objects.create(
-            application=application,
-            actor=PriceNegotiation.Actor.WORKER,
-            round_number=0,
-            proposed_budget=original_budget,
-            message="Worker accepted the original job budget.",
-            status=PriceNegotiation.NegotiationStatus.ACCEPTED,
-        )
-
-        # Update the application to reflect the original budget
-        application.proposedBudget = original_budget
-        application.proposed_daily_rate = None
-        application.proposed_days = None
-        application.budgetOption = "ACCEPT"
-        application.save(
-            update_fields=[
-                "proposedBudget",
-                "proposed_daily_rate",
-                "proposed_days",
-                "budgetOption",
-                "updatedAt",
-            ]
-        )
-
-        # Notify the client
-        worker_name = (
-            f"{worker_profile.profileID.firstName} "
-            f"{worker_profile.profileID.lastName}"
-        ).strip()
-        Notification.objects.create(
-            accountFK=job.clientID.profileID.accountFK,
-            notificationType="NEGOTIATION_ORIGINAL_ACCEPTED",
-            title=f"Worker accepted original budget for '{job.title}'",
-            message=(
-                f"{worker_name} accepted your original listed budget of "
-                f"\u20b1{original_budget:,.2f} after negotiation."
-            ),
-            relatedJobID=job.jobID,
-            relatedApplicationID=application.applicationID,
-        )
-
-        return {
-            "success": True,
-            "message": "You have accepted the original job budget.",
-            "agreed_budget": float(original_budget),
-        }
-
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return Response(
-            {
-                "error": "Failed to accept original budget due to an internal error. Please try again later."
-            },
-            status=500,
-        )
 
 
 @mobile_router.get("/jobs/search", auth=jwt_auth)
