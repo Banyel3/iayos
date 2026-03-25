@@ -94,6 +94,12 @@ class Command(BaseCommand):
                 f"(linked + orphan reference-matched)."
             )
 
+            # Delete applications before jobs to avoid transient unique violations
+            # when JobApplication.applied_skill_slot (SET_NULL) is nulled during
+            # cascade and multiple team-slot applications exist for one worker/job.
+            application_count, _ = JobApplication.objects.all().delete()
+            self.stdout.write(f"  Deleted {application_count} job application(s).")
+
             job_count, deleted_detail = Job.objects.all().delete()
             wallet_count = Wallet.objects.update(
                 balance=Decimal("0.00"),
