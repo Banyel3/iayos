@@ -4954,7 +4954,7 @@ export default function JobDetailScreen() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 120 }} />
       </ScrollView>
 
       {/* Apply Button (Fixed at bottom) - Only for non-team LISTING jobs */}
