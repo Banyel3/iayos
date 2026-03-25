@@ -2286,6 +2286,9 @@ def mobile_remove_skill(request, skill_id: int):
                         replacement_primary.skillType = "PRIMARY"
                         replacement_primary.save(update_fields=["skillType"])
 
+        # Recalculate profile completion after skill (and cascaded cert) removal
+        worker_profile.update_profile_completion()
+
         print(
             f"✅ [SKILL] Removed skill '{skill_name}' from {user.email} (cascaded {linked_certs_count} certifications)"
         )

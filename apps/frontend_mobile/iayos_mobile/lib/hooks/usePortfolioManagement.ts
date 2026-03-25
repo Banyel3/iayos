@@ -125,6 +125,8 @@ export const usePortfolioManagement = () => {
     onSuccess: () => {
       // Invalidate profile to update completion percentage
       queryClient.invalidateQueries({ queryKey: ["workerProfile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
     },
   });

@@ -100,7 +100,9 @@ export default function CertificationsScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </Pressable>
         <Text style={styles.headerTitle}>Certifications</Text>
-        <View style={styles.addButton} />
+        <Pressable onPress={handleAdd} style={styles.addButton}>
+          <Ionicons name="add" size={28} color={Colors.primary} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -196,6 +198,10 @@ export default function CertificationsScreen() {
         {/* Quick Actions */}
         {certifications.length > 0 && (
           <View style={styles.quickActions}>
+            <Pressable style={styles.addCertButton} onPress={handleAdd}>
+              <Ionicons name="add-circle" size={20} color={Colors.white} />
+              <Text style={styles.addCertButtonText}>Add Certification</Text>
+            </Pressable>
             <Pressable
               style={styles.quickAction}
               onPress={() => router.push("/profile/skills" as any)}
@@ -365,6 +371,21 @@ const styles = StyleSheet.create({
   quickActions: {
     marginTop: 24,
     gap: 12,
+  },
+  addCertButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+    padding: 16,
+    borderRadius: BorderRadius.medium,
+    ...Shadows.small,
+    gap: 8,
+  },
+  addCertButtonText: {
+    ...Typography.body.medium,
+    color: Colors.white,
+    fontWeight: "600",
   },
   quickAction: {
     flexDirection: "row",

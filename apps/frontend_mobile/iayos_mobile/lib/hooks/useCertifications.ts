@@ -184,6 +184,8 @@ export const useCreateCertification = () => {
       queryClient.invalidateQueries({ queryKey: ["certifications"] });
       // Invalidate worker profile (affects completion percentage)
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      // Invalidate AI profile score (cert addition affects score)
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
       // Invalidate skills cache used by CertificationForm
       queryClient.invalidateQueries({ queryKey: ["my-skills-for-cert"] });
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
@@ -254,6 +256,8 @@ export const useUpdateCertification = () => {
       });
       // Invalidate profile completion
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      // Invalidate AI profile score (cert update affects score)
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
       // Invalidate skills cache
       queryClient.invalidateQueries({ queryKey: ["my-skills-for-cert"] });
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
@@ -285,6 +289,8 @@ export const useDeleteCertification = () => {
       queryClient.invalidateQueries({ queryKey: ["certifications"] });
       // Invalidate worker profile
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      // Invalidate AI profile score (cert removal affects score)
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
       // Invalidate skills cache
       queryClient.invalidateQueries({ queryKey: ["my-skills-for-cert"] });
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });

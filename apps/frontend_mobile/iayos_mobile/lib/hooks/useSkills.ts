@@ -156,6 +156,7 @@ export function useAddSkill() {
       // Invalidate skills queries to refetch
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
     },
   });
 }
@@ -197,6 +198,7 @@ export function useUpdateSkill() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
     },
   });
 }
@@ -227,6 +229,7 @@ export function useRemoveSkill() {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["certifications"] }); // Refresh certs (may have cascade deleted)
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] }); // Skill removal affects score
     },
   });
 }
@@ -258,6 +261,7 @@ export function useReorderSkills() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
     },
   });
 }
@@ -315,6 +319,7 @@ export function useCreateCustomSkill() {
       queryClient.invalidateQueries({ queryKey: ["my-skills"] });
       queryClient.invalidateQueries({ queryKey: ["available-skills"] });
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
     },
   });
 }

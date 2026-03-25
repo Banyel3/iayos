@@ -28,6 +28,7 @@ import {
   ActionSheetIOS,
   Animated,
   Easing,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -292,14 +293,17 @@ export default function WorkerDetailScreen() {
   const [isReviewsExpanded, setIsReviewsExpanded] = useState(true);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set());
-  const [showScoreDetails, setShowScoreDetails] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const suggestionOpacity = useRef(new Animated.Value(1)).current;
   const submitReportMutation = useSubmitReport();
 
   // Lightbox state for certificate images
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // Fetch worker details
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["worker", id],
     queryFn: async () => {
       const response = await fetchJson<{
@@ -313,6 +317,7 @@ export default function WorkerDetailScreen() {
       };
     },
     enabled: !!id,
+    staleTime: 0, // Always refetch when invalidated
   });
 
   // Fetch worker reviews using accountId (not workerProfileId)
@@ -330,6 +335,27 @@ export default function WorkerDetailScreen() {
     !!profileScore &&
     profileScore.profile_score !== null &&
     (profileScore.profile_score < 45 || profileScore.rating_category === "Poor");
+
+  // Rotate improvement suggestion every 15 seconds with fade transition
+  useEffect(() => {
+    const suggestions = profileScore?.improvement_suggestions ?? [];
+    if (suggestions.length <= 1) return;
+    const interval = setInterval(() => {
+      Animated.timing(suggestionOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        setSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+        Animated.timing(suggestionOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [profileScore?.improvement_suggestions, suggestionOpacity]);
 
   // Show skeleton while loading
   if (isLoading) {
@@ -486,6 +512,17 @@ export default function WorkerDetailScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 120, flexGrow: 1 }}
           style={{ backgroundColor: "#F0F7FF" }} // Match Ice Blue theme
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={async () => {
+                setIsRefreshing(true);
+                await refetch();
+                setIsRefreshing(false);
+              }}
+              tintColor={Colors.primary}
+            />
+          }
         >
           {/* Self-View Banner */}
           {isOwnProfile && (
@@ -570,45 +607,43 @@ export default function WorkerDetailScreen() {
           <View style={styles.contentContainer}>
 
             {/* AI Profile Score Section (Redesigned as Rectangle) */}
+            {/* Always show the card, but clients see only "NEEDS MORE ASSESSMENT" when score < 50 */}
             {profileScore && profileScore.profile_score !== null && (
               <View style={[styles.section, styles.aiScoreRectangleContainer]}>
-                <TouchableOpacity
-                  style={styles.aiScoreRectangle}
-                  onPress={() => setShowScoreDetails(!showScoreDetails)}
-                  activeOpacity={0.8}
-                >
+                <View style={styles.aiScoreRectangle}>
                   <View style={styles.aiScoreMainRow}>
                     <View style={styles.aiScoreTextGroup}>
                       <Text style={styles.mlScoreLabelAbove} numberOfLines={1}>AI PROFILE SCORE</Text>
                       <Text
                         style={[
                           styles.mlScoreLabelBelow,
-                          shouldDeferProfileScore && styles.mlScoreLabelBelowDeferred,
+                          (shouldDeferProfileScore || (!isOwnProfile && profileScore.profile_score < 50)) && styles.mlScoreLabelBelowDeferred,
                         ]}
                       >
-                        {shouldDeferProfileScore
+                        {shouldDeferProfileScore || (!isOwnProfile && profileScore.profile_score < 50)
                           ? "NEEDS MORE ASSESSMENT"
                           : profileScore.rating_category.toUpperCase()}
                       </Text>
                     </View>
-                    {shouldDeferProfileScore ? (
-                      <View style={styles.aiScoreValuePlaceholder} />
-                    ) : (
-                      <Text style={[styles.mlScoreValueCompact, { color: getScoreColor(profileScore.profile_score) }]}>
+                    {/* Only show the number if: own profile, OR client viewing score >= 50 */}
+                    {(isOwnProfile || profileScore.profile_score >= 50) && (
+                      <Text style={[styles.mlScoreValueCompact, { color: shouldDeferProfileScore ? "#9CA3AF" : getScoreColor(profileScore.profile_score) }]}>
                         {profileScore.profile_score.toFixed(0)}<Text style={styles.mlScorePercentSymbol}>%</Text>
                       </Text>
                     )}
                   </View>
-                </TouchableOpacity>
+                </View>
 
-                {showScoreDetails && (
+                {/* Rotating improvement suggestion — only for own profile */}
+                {isOwnProfile && profileScore.improvement_suggestions.length > 0 && (
                   <View style={styles.aiScoreDetailsInline}>
                     <View style={styles.aiScoreTooltipDivider} />
-                    <Text style={styles.aiScoreDetailsText}>
-                      {shouldDeferProfileScore
-                        ? "AI needs more assessment/data before showing a score."
-                        : "Based on profile completeness, certifications, and job history"}
-                    </Text>
+                    <Animated.View style={[styles.aiScoreSuggestionRow, { opacity: suggestionOpacity }]}>
+                      <Text style={styles.aiScoreSuggestionLabel}>Tip:</Text>
+                      <Text style={styles.aiScoreDetailsText}>
+                        {profileScore.improvement_suggestions[suggestionIndex % profileScore.improvement_suggestions.length]}
+                      </Text>
+                    </Animated.View>
                   </View>
                 )}
               </View>
@@ -1085,15 +1120,6 @@ export default function WorkerDetailScreen() {
                                           style={styles.certThumbnailLeftImage}
                                           resizeMode="cover"
                                         />
-                                        <View
-                                          style={styles.certThumbnailLeftOverlay}
-                                        >
-                                          <Ionicons
-                                            name="expand-outline"
-                                            size={16}
-                                            color={Colors.white}
-                                          />
-                                        </View>
                                       </TouchableOpacity>
                                     ) : (
                                       <View
@@ -1225,13 +1251,6 @@ export default function WorkerDetailScreen() {
                                     style={styles.certThumbnailLeftImage}
                                     resizeMode="cover"
                                   />
-                                  <View style={styles.certThumbnailLeftOverlay}>
-                                    <Ionicons
-                                      name="expand-outline"
-                                      size={16}
-                                      color={Colors.white}
-                                    />
-                                  </View>
                                 </TouchableOpacity>
                               ) : (
                                 <View style={styles.certThumbnailLeftPlaceholder}>
@@ -1410,6 +1429,44 @@ export default function WorkerDetailScreen() {
           )}
         </View>
       </SafeAreaView >
+
+      {/* Lightbox Modal for Certificate Images */}
+      <Modal
+        visible={!!lightboxImage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxImage(null)}
+      >
+        <View style={styles.lightboxOverlay}>
+          <TouchableOpacity
+            style={styles.lightboxBackdrop}
+            activeOpacity={1}
+            onPress={() => setLightboxImage(null)}
+          />
+          {lightboxImage && (
+            <ScrollView
+              style={{ width: "100%", height: "100%" }}
+              contentContainerStyle={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+              maximumZoomScale={5}
+              minimumZoomScale={1}
+              bouncesZoom
+              centerContent
+            >
+              <Image
+                source={{ uri: lightboxImage }}
+                style={styles.lightboxImage}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          )}
+          <TouchableOpacity
+            style={styles.lightboxCloseButton}
+            onPress={() => setLightboxImage(null)}
+          >
+            <Ionicons name="close" size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1706,8 +1763,22 @@ const styles = StyleSheet.create({
   aiScoreDetailsText: {
     color: Colors.textSecondary,
     fontSize: 12,
+    fontStyle: "italic",
     lineHeight: 18,
     textAlign: "left",
+    flex: 1,
+  },
+  aiScoreSuggestionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 5,
+  },
+  aiScoreSuggestionLabel: {
+    fontSize: 12,
+    fontStyle: "italic",
+    fontWeight: "600",
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 18,

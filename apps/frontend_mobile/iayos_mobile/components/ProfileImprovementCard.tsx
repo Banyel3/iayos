@@ -211,18 +211,12 @@ export default function ProfileImprovementCard({
               },
             ]}
           >
-            {shouldDeferScoreDisplay ? (
-              <Text style={[styles.scoreMax, { color: Colors.textSecondary }]}>
-                Assessing
+            <>
+              <Text style={[styles.scoreValue, { color: shouldDeferScoreDisplay ? Colors.textSecondary : scoreColor }]}>
+                {Math.round(profileScore)}
               </Text>
-            ) : (
-              <>
-                <Text style={[styles.scoreValue, { color: scoreColor }]}>
-                  {Math.round(profileScore)}
-                </Text>
-                <Text style={styles.scoreMax}>/100</Text>
-              </>
-            )}
+              <Text style={styles.scoreMax}>/100</Text>
+            </>
           </View>
         </View>
 
@@ -231,7 +225,7 @@ export default function ProfileImprovementCard({
           <Text style={styles.motivationalMessage}>{motivationalMessage}</Text>
 
           {/* Progress to Next Tier */}
-          {!shouldDeferScoreDisplay && progressInfo.nextTier !== "Max" && (
+          {progressInfo.nextTier !== "Max" && (
             <View style={styles.progressContainer}>
               <Text style={styles.progressLabel}>
                 {progressInfo.pointsNeeded} points to {progressInfo.nextTier}
@@ -242,7 +236,7 @@ export default function ProfileImprovementCard({
                     styles.progressBarFill,
                     {
                       width: `${progressInfo.progress}%`,
-                      backgroundColor: scoreColor,
+                      backgroundColor: shouldDeferScoreDisplay ? Colors.textSecondary : scoreColor,
                     },
                   ]}
                 />

@@ -148,6 +148,10 @@ export default function EditProfileScreen() {
 
   // Initialize form with current values from auth context and profile
   useEffect(() => {
+    // The WORKER_PROFILE endpoint returns { profile_data: { ... } }
+    // so worker fields live under profile.profile_data (or user.profile_data from auth context)
+    const pd = (profile as any)?.profile_data || user?.profile_data;
+
     // Load basic info from auth context
     if (user?.profile_data) {
       setFirstName(user.profile_data.firstName || "");
@@ -157,15 +161,15 @@ export default function EditProfileScreen() {
       setAvatarUri(getAbsoluteMediaUrl(user.profile_data.profileImg) || null);
     }
 
-    // Load worker-specific data from profile query
-    if (profile) {
-      setJobTitle(profile.description || "");
-      setBio(profile.bio || "");
-      setHourlyRate(profile.hourlyRate ? profile.hourlyRate.toString() : "");
-      setSoftSkills(profile.softSkills || "");
+    // Load worker-specific data from profile_data
+    if (pd) {
+      setJobTitle(pd.jobTitle || pd.description || "");
+      setBio(pd.bio || "");
+      setHourlyRate(pd.hourlyRate ? pd.hourlyRate.toString() : "");
+      setSoftSkills(pd.softSkills || "");
       // Override phone if profile has it
-      if (profile.user?.phoneNumber) {
-        setPhoneNumber(profile.user.phoneNumber);
+      if (pd.contactNum) {
+        setPhoneNumber(pd.contactNum);
       }
     }
   }, [user, profile]);
@@ -223,6 +227,8 @@ export default function EditProfileScreen() {
         await refreshUserData();
         // Invalidate queries to refresh user data
         queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+        queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
+        queryClient.invalidateQueries({ queryKey: ["worker"] });
       } else {
         throw new Error("Failed to upload avatar");
       }
@@ -285,8 +291,10 @@ export default function EditProfileScreen() {
       return response.json();
     },
     onSuccess: () => {
-      // Invalidate profile query to refetch
+      // Invalidate profile + score queries to refetch
       queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile-score"] });
+      queryClient.invalidateQueries({ queryKey: ["worker"] });
       refreshUserData();
       Alert.alert("Success", "Profile updated successfully", [
         {
@@ -302,16 +310,16 @@ export default function EditProfileScreen() {
 
   // Track if form has changes
   useEffect(() => {
+    const pd = (profile as any)?.profile_data || user?.profile_data;
     const originalFirstName = user?.profile_data?.firstName || "";
     const originalLastName = user?.profile_data?.lastName || "";
-    const originalPhone =
-      user?.profile_data?.contactNum || profile?.user?.phoneNumber || "";
-    const originalJobTitle = profile?.description || "";
-    const originalBio = profile?.bio || "";
-    const originalRate = profile?.hourlyRate
-      ? profile.hourlyRate.toString()
+    const originalPhone = pd?.contactNum || "";
+    const originalJobTitle = pd?.jobTitle || pd?.description || "";
+    const originalBio = pd?.bio || "";
+    const originalRate = pd?.hourlyRate
+      ? pd.hourlyRate.toString()
       : "";
-    const originalSoftSkills = profile?.softSkills || "";
+    const originalSoftSkills = pd?.softSkills || "";
 
     const changed =
       avatarChanged ||
@@ -641,7 +649,6 @@ export default function EditProfileScreen() {
                   style={[
                     styles.input,
                     styles.inputWithPadding,
-                    hourlyRate.length > 0 && styles.inputActive,
                   ]}
                   value={hourlyRate}
                   onChangeText={setHourlyRate}
