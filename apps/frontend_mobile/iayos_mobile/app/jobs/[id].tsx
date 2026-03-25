@@ -4868,17 +4868,17 @@ export default function JobDetailScreen() {
             {/* Client countered — action buttons */}
             {workerClientCountered && workerLastRound && (
               <View style={{
-                backgroundColor: "#FFF8E1",
+                backgroundColor: "#F4FBFF",
                 borderRadius: 12,
                 padding: 16,
                 marginTop: 12,
                 borderWidth: 1,
-                borderColor: Colors.warning,
+                borderColor: "#00BAF1",
               }}>
                 <Text style={{ fontSize: 15, fontWeight: "700", color: Colors.textPrimary, marginBottom: 4 }}>
                   Client&apos;s Counter-Offer
                 </Text>
-                <Text style={{ fontSize: 16, fontWeight: "700", color: Colors.warning, marginBottom: 12 }}>
+                <Text style={{ fontSize: 16, fontWeight: "700", color: "#00BAF1", marginBottom: 12 }}>
                   {job?.payment_model === "DAILY" && workerLastRound.proposed_daily_rate && workerLastRound.proposed_days
                     ? `₱${workerLastRound.proposed_daily_rate.toLocaleString()}/day × ${workerLastRound.proposed_days} days`
                     : `₱${workerLastRound.proposed_budget.toLocaleString()}`}
@@ -4886,7 +4886,7 @@ export default function JobDetailScreen() {
 
                 <TouchableOpacity
                   style={{
-                    backgroundColor: Colors.success,
+                    backgroundColor: "#00BAF1",
                     borderRadius: 8,
                     paddingVertical: 12,
                     alignItems: "center",
