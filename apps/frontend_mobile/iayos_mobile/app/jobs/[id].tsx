@@ -1492,9 +1492,13 @@ export default function JobDetailScreen() {
         ENDPOINTS.NEGOTIATION_COUNTER(applicationId),
         { method: "POST", body: JSON.stringify(body) },
       );
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        detail?: unknown;
+        message?: unknown;
+      };
       if (!response.ok) {
-        throw new Error(String((data as any)?.error || (data as any)?.detail || "Failed to send counter-offer"));
+        throw new Error(getErrorMessage(data, "Failed to send counter-offer"));
       }
       return data;
     },
@@ -1521,9 +1525,13 @@ export default function JobDetailScreen() {
         ENDPOINTS.NEGOTIATION_REJECT_PRICE(applicationId),
         { method: "POST", body: JSON.stringify({ message: "Price rejected by client." }) },
       );
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        detail?: unknown;
+        message?: unknown;
+      };
       if (!response.ok) {
-        throw new Error(String((data as any)?.error || (data as any)?.detail || "Failed to reject price"));
+        throw new Error(getErrorMessage(data, "Failed to reject price"));
       }
       return data;
     },
