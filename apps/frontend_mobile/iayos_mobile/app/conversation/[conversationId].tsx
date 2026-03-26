@@ -8831,9 +8831,55 @@ export default function ChatScreen() {
 
                   const hasActiveDailyWorkRows =
                     isDailyAgencyFlow &&
-                    clientArrivalAssignments.some(
-                      (assignment) => assignment.active_workday,
-                    );
+                    clientArrivalAssignments.some((assignment) => {
+                      if (!assignment.active_workday) {
+                        return false;
+                      }
+
+                      const assignmentId = Number(assignment.assignment_id);
+                      const workerId = Number(
+                        assignment.worker_id ?? assignment.employee_id,
+                      );
+
+                      const hasPayableUnprocessedAttendance = attendanceRows.some(
+                        (row: any) => {
+                          const status = String(row?.status || "").toUpperCase();
+                          const isPayableStatus =
+                            status === "PRESENT" || status === "HALF_DAY";
+                          if (!isPayableStatus || Boolean(row?.payment_processed)) {
+                            return false;
+                          }
+
+                          const rowAssignmentId = Number(row?.assignment_id);
+                          const rowWorkerId = Number(row?.worker_id);
+
+                          const assignmentMatch =
+                            Number.isFinite(assignmentId) &&
+                            Number.isFinite(rowAssignmentId) &&
+                            rowAssignmentId === assignmentId;
+
+                          const workerMatch =
+                            Number.isFinite(workerId) &&
+                            Number.isFinite(rowWorkerId) &&
+                            rowWorkerId === workerId;
+
+                          return assignmentMatch || workerMatch;
+                        },
+                      );
+
+                      if (!hasPayableUnprocessedAttendance) {
+                        return false;
+                      }
+
+                      const completionFlag = Boolean(
+                        assignment.completed ||
+                          assignment.worker_marked_complete ||
+                          assignment.marked_complete ||
+                          assignment.early_completed,
+                      );
+
+                      return !completionFlag;
+                    });
 
                   const hasArrivedWorkersPendingCompletion =
                     isDailyAgencyFlow &&
