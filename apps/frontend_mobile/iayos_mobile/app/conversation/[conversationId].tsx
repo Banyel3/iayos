@@ -4200,7 +4200,7 @@ export default function ChatScreen() {
     : [];
   const payableAttendanceRowsToday = attendanceRowsToday.filter((row: any) => {
     const status = String(row?.status || "").toUpperCase();
-    return status !== "DISPUTED";
+    return status === "PRESENT" || status === "HALF_DAY";
   });
   const unpaidAttendanceRowsToday = payableAttendanceRowsToday.filter(
     (row: any) => !Boolean(row?.payment_processed),
