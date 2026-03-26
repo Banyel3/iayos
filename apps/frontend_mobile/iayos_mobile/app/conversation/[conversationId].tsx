@@ -1505,7 +1505,7 @@ export default function ChatScreen() {
     }
   }, [conversation?.messages.length]);
 
-  // Handle confirm work started (CLIENT only)
+  // Handle confirm worker arrival (CLIENT only)
   const handleConfirmWorkStarted = () => {
     if (!conversation) return;
 
@@ -1516,8 +1516,8 @@ export default function ChatScreen() {
       "the worker";
 
     Alert.alert(
-      "Confirm Work Started",
-      `Are you sure ${workerName} has arrived and started working?`,
+      "Confirm Worker Arrival",
+      `Has ${workerName} arrived at the job site?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -4283,12 +4283,13 @@ export default function ChatScreen() {
     conversation.my_role === "CLIENT" &&
     !conversation.is_team_job &&
     !isTeamProjectAttendance &&
+    !conversation.job?.clientConfirmedWorkStarted &&
     !hasAnyCheckedInToday &&
     !hasAnyClientConfirmedToday;
-  const canShowWorkerOnTheWayQuickAction =
-    isWorkerSideRole &&
+  const isSoloDailyFlow =
     conversation.job?.payment_model === "DAILY" &&
-    !conversation.is_team_job;
+    !conversation.is_team_job &&
+    !conversation.is_agency_job;
   const isWorkerAlreadyCheckedIn = Boolean(
     myWorkerAttendanceToday?.time_in ||
       myWorkerAttendanceToday?.worker_confirmed_at,
@@ -5140,7 +5141,9 @@ export default function ChatScreen() {
                     <View style={styles.attendanceActionRight}>
                       {conversation.my_role !== "CLIENT" &&
                       conversation.my_role !== "AGENCY" ? (
-                        hasNoWorkMarkedToday ? (
+                        isSoloDailyFlow ? (
+                          <View style={styles.attendanceClientRightSpacer} />
+                        ) : hasNoWorkMarkedToday ? (
                           <>
                             <Text style={styles.workerOnTheWayHelperText}>
                               Attendance for today
@@ -7909,6 +7912,38 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 )}
 
+              {/* CLIENT: Confirm Worker Arrival (Solo DAILY, hybrid-style arrival-first flow) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isSoloDailyFlow &&
+                conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      styles.confirmWorkStartedButton,
+                    ]}
+                    onPress={handleConfirmWorkStarted}
+                    disabled={confirmWorkStartedMutation.isPending}
+                  >
+                    {confirmWorkStartedMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Confirm Worker Has Arrived
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
               {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
@@ -7929,10 +7964,55 @@ export default function ChatScreen() {
                   </View>
                 )}
 
+              {/* CLIENT: Waiting for Worker to Complete (Solo DAILY) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isSoloDailyFlow &&
+                conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedComplete && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      Waiting for worker to complete job...
+                    </Text>
+                  </View>
+                )}
+
               {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only, simplified flow) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
+                conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text
+                        style={styles.waitingButtonText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        Waiting for client to confirm worker arrival...
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+              {/* WORKER: Waiting for Client Confirmation (Solo DAILY) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isSoloDailyFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted && (
