@@ -1597,9 +1597,11 @@ export default function JobDetailScreen() {
         Alert.alert("Missing fields", "Enter both daily rate and number of days.");
         return;
       }
+      const totalBudget = rate * days;
       counterOfferMutation.mutate({
         applicationId: counterModalApplicationId,
         message: msg,
+        proposed_budget: totalBudget,
         proposed_daily_rate: rate,
         proposed_days: days,
       });
