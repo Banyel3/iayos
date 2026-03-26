@@ -8661,14 +8661,54 @@ export default function ChatScreen() {
                       )
                     : [];
 
-                  const arrivedNonAbsentAssignments = isDailyAgencyFlow
+                  const assignmentHasUnpaidPayableRow = (
+                    assignment: UnifiedClientArrivalAssignment,
+                  ) => {
+                    return attendanceRows.some((row: any) => {
+                      const status = String(row?.status || "").toUpperCase();
+                      const isPayableStatus =
+                        status === "PRESENT" || status === "HALF_DAY";
+
+                      if (!isPayableStatus || Boolean(row?.payment_processed)) {
+                        return false;
+                      }
+
+                      const rowAssignmentId = Number(row?.assignment_id);
+                      if (
+                        Number.isFinite(rowAssignmentId) &&
+                        Number.isFinite(assignment.assignment_id) &&
+                        rowAssignmentId === Number(assignment.assignment_id)
+                      ) {
+                        return true;
+                      }
+
+                      const rowWorkerId = Number(row?.worker_id);
+                      const assignmentWorkerId = Number(
+                        assignment.worker_id ?? assignment.employee_id,
+                      );
+
+                      if (
+                        Number.isFinite(rowWorkerId) &&
+                        Number.isFinite(assignmentWorkerId) &&
+                        rowWorkerId === assignmentWorkerId
+                      ) {
+                        return true;
+                      }
+
+                      return false;
+                    });
+                  };
+
+                  const arrivedAssignmentsRequiringCompletion = isDailyAgencyFlow
                     ? resolvedDailyAssignments.filter(
-                        (assignment) => assignment.arrived && !assignment.absent,
+                        (assignment) =>
+                          assignment.arrived &&
+                          assignmentHasUnpaidPayableRow(assignment),
                       )
                     : [];
 
                   const allArrivedAssignmentsMarkedComplete = isDailyAgencyFlow
-                    ? arrivedNonAbsentAssignments.every((assignment) =>
+                    ? arrivedAssignmentsRequiringCompletion.every((assignment) =>
                         Boolean(
                           assignment.completed ||
                             assignment.worker_marked_complete ||
@@ -8699,7 +8739,7 @@ export default function ChatScreen() {
 
                   const hasArrivedWorkersPendingCompletion =
                     isDailyAgencyFlow &&
-                    arrivedNonAbsentAssignments.some(
+                    arrivedAssignmentsRequiringCompletion.some(
                       (assignment) =>
                         !Boolean(
                           assignment.completed ||
