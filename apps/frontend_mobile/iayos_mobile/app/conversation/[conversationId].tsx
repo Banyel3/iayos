@@ -2005,8 +2005,7 @@ export default function ChatScreen() {
 
     const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
       const attendanceId = Number(row?.attendance_id ?? row?.id);
-      const status = String(row?.status || "").toUpperCase();
-      const isPayableStatus = status === "PRESENT" || status === "HALF_DAY";
+      const isPayableStatus = isDailySettleableStatus(row?.status);
 
       return (
         Number.isFinite(attendanceId) &&
@@ -2054,8 +2053,13 @@ export default function ChatScreen() {
 
             for (const row of payableRows) {
               try {
+                const normalizedStatus = String(row?.status || "").toUpperCase();
+                const approvedStatus =
+                  normalizedStatus === "HALF_DAY" ? "HALF_DAY" : "PRESENT";
+
                 await clientConfirmAttendanceMutation.mutateAsync({
                   attendanceId: Number(row.attendance_id),
+                  approvedStatus,
                   paymentMethod: "WALLET",
                 });
                 settledCount += 1;
@@ -4198,10 +4202,9 @@ export default function ChatScreen() {
   )
     ? conversation.daily_skip_requests_today
     : [];
-  const payableAttendanceRowsToday = attendanceRowsToday.filter((row: any) => {
-    const status = String(row?.status || "").toUpperCase();
-    return status === "PRESENT" || status === "HALF_DAY";
-  });
+  const payableAttendanceRowsToday = attendanceRowsToday.filter((row: any) =>
+    isDailySettleableStatus(row?.status),
+  );
   const unpaidAttendanceRowsToday = payableAttendanceRowsToday.filter(
     (row: any) => !Boolean(row?.payment_processed),
   );
@@ -4393,6 +4396,11 @@ export default function ChatScreen() {
 
   const isAttendanceRowArrived = (row: any): boolean =>
     Boolean(row?.time_in) || Boolean(row?.client_confirmed);
+
+  const isDailySettleableStatus = (statusValue: unknown): boolean => {
+    const status = String(statusValue || "").toUpperCase();
+    return status === "PENDING" || status === "PRESENT" || status === "HALF_DAY";
+  };
 
   const showMarkAbsentConfirmation = (
     workerName: string,
@@ -7397,9 +7405,7 @@ export default function ChatScreen() {
                     assignment: UnifiedClientArrivalAssignment,
                   ) => {
                     return attendanceRows.some((row: any) => {
-                      const status = String(row?.status || "").toUpperCase();
-                      const isPayableStatus =
-                        status === "PRESENT" || status === "HALF_DAY";
+                      const isPayableStatus = isDailySettleableStatus(row?.status);
 
                       if (!isPayableStatus || Boolean(row?.payment_processed)) {
                         return false;
@@ -7450,15 +7456,6 @@ export default function ChatScreen() {
                           assignment.early_completed,
                       ),
                     );
-
-                  const dailyPayableRows = isTeamDailyAttendanceFlow
-                    ? attendanceRows.filter((row: any) => {
-                        const status = String(row?.status || "").toUpperCase();
-                        const isPayableStatus =
-                          status === "PRESENT" || status === "HALF_DAY";
-                        return isPayableStatus && !Boolean(row?.payment_processed);
-                      })
-                    : [];
 
                   const uniqueWorkerUnits =
                     groupedTeamWorkerAssignments.length > 0
@@ -7712,9 +7709,7 @@ export default function ChatScreen() {
                                   {shouldChargePerAttendance
                                     ? shouldFinishDailyTeamJob
                                       ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
-                                      : dailyPayableRows.length > 0
-                                        ? "Approve & Pay for Today"
-                                        : "No Payable Rows for Today"
+                                      : "Approve & Pay for Today"
                                     : conversation.job.remainingPaymentPaid ||
                                         allAssignmentsEarlyCompleted
                                       ? "Approve Team Completion"
@@ -8763,9 +8758,7 @@ export default function ChatScreen() {
                     assignment: UnifiedClientArrivalAssignment,
                   ) => {
                     return attendanceRows.some((row: any) => {
-                      const status = String(row?.status || "").toUpperCase();
-                      const isPayableStatus =
-                        status === "PRESENT" || status === "HALF_DAY";
+                      const isPayableStatus = isDailySettleableStatus(row?.status);
 
                       if (!isPayableStatus || Boolean(row?.payment_processed)) {
                         return false;
@@ -8817,9 +8810,7 @@ export default function ChatScreen() {
                     : true;
 
                   const dailyPayableRows = attendanceRows.filter((row: any) => {
-                    const status = String(row?.status || "").toUpperCase();
-                    const isPayableStatus =
-                      status === "PRESENT" || status === "HALF_DAY";
+                    const isPayableStatus = isDailySettleableStatus(row?.status);
                     return isPayableStatus && !Boolean(row?.payment_processed);
                   });
 
@@ -8843,9 +8834,9 @@ export default function ChatScreen() {
 
                       const hasPayableUnprocessedAttendance = attendanceRows.some(
                         (row: any) => {
-                          const status = String(row?.status || "").toUpperCase();
-                          const isPayableStatus =
-                            status === "PRESENT" || status === "HALF_DAY";
+                          const isPayableStatus = isDailySettleableStatus(
+                            row?.status,
+                          );
                           if (!isPayableStatus || Boolean(row?.payment_processed)) {
                             return false;
                           }
