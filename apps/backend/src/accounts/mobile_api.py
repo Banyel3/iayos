@@ -3298,7 +3298,7 @@ def mobile_reject_application(
     """
     Reject a job application (mobile version)
     """
-    from .models import Profile, ClientProfile, JobApplication
+    from .models import Profile, ClientProfile, JobApplication, Notification
     from jobs.models import JobPosting
 
     try:
