@@ -4921,7 +4921,20 @@ export default function JobDetailScreen() {
                       justifyContent: "center",
                       gap: 6,
                     }}
-                    onPress={() => setShowWorkerProposeModal(true)}
+                    onPress={() => {
+                      if (workerLastRound) {
+                        if (job?.payment_model === "DAILY") {
+                          setWorkerProposeDailyRate(workerLastRound.proposed_daily_rate ? String(workerLastRound.proposed_daily_rate) : "");
+                          setWorkerProposeDays(workerLastRound.proposed_days ? String(workerLastRound.proposed_days) : "");
+                          setWorkerProposeAmount("");
+                        } else {
+                          setWorkerProposeAmount(workerLastRound.proposed_budget ? String(workerLastRound.proposed_budget) : "");
+                          setWorkerProposeDailyRate("");
+                          setWorkerProposeDays("");
+                        }
+                      }
+                      setShowWorkerProposeModal(true);
+                    }}
                     activeOpacity={0.7}
                   >
                     <Ionicons name="refresh" size={18} color={Colors.primary} />
