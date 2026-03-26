@@ -4194,6 +4194,20 @@ export default function ChatScreen() {
   const hasAnyClientConfirmedToday = Boolean(
     conversation.attendance_today?.some((a) => Boolean(a.client_confirmed)),
   );
+
+  const isAttendanceRowAbsent = (row: any): boolean => {
+    const status = String(row?.status || "").toUpperCase();
+    return status === "ABSENT" && Boolean(row?.client_confirmed);
+  };
+
+  const isAttendanceRowArrived = (row: any): boolean =>
+    Boolean(row?.time_in) || Boolean(row?.client_confirmed);
+
+  const isDailySettleableStatus = (statusValue: unknown): boolean => {
+    const status = String(statusValue || "").toUpperCase();
+    return status === "PENDING" || status === "PRESENT" || status === "HALF_DAY";
+  };
+
   const attendanceRowsToday = Array.isArray(conversation.attendance_today)
     ? conversation.attendance_today
     : [];
@@ -4387,19 +4401,6 @@ export default function ChatScreen() {
       employee?.id ?? employee?.employee_id ?? employee?.employeeId,
     );
     return Number.isFinite(normalized) ? normalized : null;
-  };
-
-  const isAttendanceRowAbsent = (row: any): boolean => {
-    const status = String(row?.status || "").toUpperCase();
-    return status === "ABSENT" && Boolean(row?.client_confirmed);
-  };
-
-  const isAttendanceRowArrived = (row: any): boolean =>
-    Boolean(row?.time_in) || Boolean(row?.client_confirmed);
-
-  const isDailySettleableStatus = (statusValue: unknown): boolean => {
-    const status = String(statusValue || "").toUpperCase();
-    return status === "PENDING" || status === "PRESENT" || status === "HALF_DAY";
   };
 
   const showMarkAbsentConfirmation = (
