@@ -5918,296 +5918,6 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                  {/* Worker/Agency View: Skip Day Request (DAILY team hybrid/merged) */}
-                  {conversation.job?.payment_model === "DAILY" &&
-                    isScopedTeamDailyFlow &&
-                    conversation.my_role !== "CLIENT" &&
-                    (() => {
-                      const todaySkipForMe = dailySkipRequestsToday.find((request) => {
-                        const targetType = String(request?.target_type || "").toUpperCase();
-                        if (targetType === "EMPLOYEE") {
-                          return Boolean(request?.my_worker_requested);
-                        }
-                        return Boolean(request?.my_worker_requested);
-                      });
-
-                      if (todaySkipForMe) {
-                        return (
-                          <View
-                            style={
-                              todaySkipForMe.status === "APPROVED"
-                                ? styles.skipDayStatusApproved
-                                : todaySkipForMe.status === "REJECTED"
-                                  ? styles.skipDayStatusRejected
-                                  : styles.clientSkipDayCard
-                            }
-                          >
-                            <Text style={styles.skipDayStatusTitle}>
-                              {todaySkipForMe.status === "PENDING"
-                                ? "Skip day request pending"
-                                : todaySkipForMe.status === "APPROVED"
-                                  ? "Skip day approved"
-                                  : "Skip day rejected"}
-                            </Text>
-                            {todaySkipForMe.status === "REJECTED" && (
-                              <Text style={styles.skipDayStatusText}>
-                                {todaySkipForMe.client_rejection_reason ||
-                                  "Client declined your skip day request."}
-                              </Text>
-                            )}
-                          </View>
-                        );
-                      }
-
-                      if (
-                        Boolean(myWorkerAttendanceToday?.time_in) ||
-                        Boolean(myWorkerAttendanceToday?.client_confirmed)
-                      ) {
-                        return null;
-                      }
-
-                      const requestTargetEmployee =
-                        conversation.my_role === "AGENCY"
-                          ? (() => {
-                              const candidates = (
-                                conversation.team_agency_employees || []
-                              )
-                                .map((employee: any) => {
-                                  const employeeId = Number(
-                                    employee?.id ?? employee?.employee_id,
-                                  );
-                                  if (!Number.isFinite(employeeId)) {
-                                    return null;
-                                  }
-
-                                  return {
-                                    employeeId,
-                                    name:
-                                      String(employee?.name || "").trim() ||
-                                      "Agency Employee",
-                                    isPrimaryContact: Boolean(
-                                      employee?.isPrimaryContact,
-                                    ),
-                                  };
-                                })
-                                .filter(Boolean) as {
-                                employeeId: number;
-                                name: string;
-                                isPrimaryContact: boolean;
-                              }[];
-
-                              if (!candidates.length) {
-                                return null;
-                              }
-
-                              return (
-                                candidates.find(
-                                  (candidate) => candidate.isPrimaryContact,
-                                ) || candidates[0]
-                              );
-                            })()
-                          : null;
-
-                      return (
-                        <View style={styles.clientSkipDayCard}>
-                          <Text style={styles.clientSkipDayTitle}>Request Skip Day</Text>
-                          <Text style={styles.clientSkipDayText}>
-                            Ask client approval to skip today for your assigned work.
-                          </Text>
-                          <View style={styles.clientSkipDayActions}>
-                            <TouchableOpacity
-                              style={styles.clientSkipApproveButton}
-                              onPress={() =>
-                                Alert.alert(
-                                  "Request Skip Day",
-                                  "Submit a skip-day request for today? Client approval is required.",
-                                  [
-                                    { text: "Cancel", style: "cancel" },
-                                    {
-                                      text: "Submit Request",
-                                      onPress: () => {
-                                        if (
-                                          conversation.my_role === "AGENCY" &&
-                                          !requestTargetEmployee
-                                        ) {
-                                          Alert.alert(
-                                            "Missing Employee",
-                                            "No assigned agency employee was found for this skip-day request.",
-                                          );
-                                          return;
-                                        }
-
-                                        requestDailySkipDayMutation.mutate({
-                                          jobId: conversation.job.id,
-                                          request_date:
-                                            conversation.effective_work_date ||
-                                            new Date().toISOString().slice(0, 10),
-                                          ...(conversation.my_role === "AGENCY" &&
-                                          requestTargetEmployee
-                                            ? {
-                                                target_employee_id:
-                                                  requestTargetEmployee.employeeId,
-                                              }
-                                            : {}),
-                                        });
-                                      },
-                                    },
-                                  ],
-                                )
-                              }
-                              disabled={
-                                requestDailySkipDayMutation.isPending ||
-                                (conversation.my_role === "AGENCY" &&
-                                  !requestTargetEmployee)
-                              }
-                            >
-                              {requestDailySkipDayMutation.isPending ? (
-                                <ActivityIndicator size="small" color={Colors.white} />
-                              ) : (
-                                <Text style={styles.clientSkipApproveText}>Request Skip Day</Text>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      );
-                    })()}
-
-                  {/* Client View: Skip Day Request Review (DAILY-only) */}
-                  {conversation.my_role === "CLIENT" &&
-                    conversation.job?.payment_model === "DAILY" &&
-                    (() => {
-                      if (!dailySkipRequestsToday.length) return null;
-
-                      return dailySkipRequestsToday.map((todaySkipRequest) => {
-                        const targetName =
-                          todaySkipRequest?.target_name || "Worker";
-                        const requestDate =
-                          todaySkipRequest?.request_date ||
-                          conversation.effective_work_date ||
-                          new Date().toISOString().slice(0, 10);
-
-                        if (todaySkipRequest.status === "PENDING") {
-                          return (
-                            <View
-                              key={`skip-pending-${todaySkipRequest.skip_request_id}`}
-                              style={styles.clientSkipDayCard}
-                            >
-                              <Text style={styles.clientSkipDayTitle}>
-                                Skip Day Request
-                              </Text>
-                              <Text style={styles.clientSkipDayText}>
-                                {targetName} requested to skip today.
-                              </Text>
-                              <View style={styles.clientSkipDayActions}>
-                                <TouchableOpacity
-                                  style={styles.clientSkipApproveButton}
-                                  onPress={() =>
-                                    Alert.alert(
-                                      "Approve Skip Day",
-                                      `Approve ${targetName}'s skip-day request?`,
-                                      [
-                                        {
-                                          text: "Cancel",
-                                          style: "cancel",
-                                        },
-                                        {
-                                          text: "Approve",
-                                          onPress: () =>
-                                            clientReviewDailySkipDayMutation.mutate(
-                                              {
-                                                jobId: conversation.job.id,
-                                                skipRequestId:
-                                                  todaySkipRequest.skip_request_id,
-                                                approve: true,
-                                              },
-                                              {
-                                                onSuccess: () => {
-                                                  promptExtendAfterSkipApproval(
-                                                    requestDate,
-                                                  );
-                                                },
-                                              },
-                                            ),
-                                        },
-                                      ],
-                                    )
-                                  }
-                                  disabled={
-                                    clientReviewDailySkipDayMutation.isPending
-                                  }
-                                >
-                                  <Text style={styles.clientSkipApproveText}>
-                                    Approve
-                                  </Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                  style={styles.clientSkipRejectButton}
-                                  onPress={() =>
-                                    Alert.alert(
-                                      "Reject Skip Day",
-                                      `Reject ${targetName}'s skip-day request?`,
-                                      [
-                                        {
-                                          text: "Cancel",
-                                          style: "cancel",
-                                        },
-                                        {
-                                          text: "Reject",
-                                          style: "destructive",
-                                          onPress: () =>
-                                            clientReviewDailySkipDayMutation.mutate(
-                                              {
-                                                jobId: conversation.job.id,
-                                                skipRequestId:
-                                                  todaySkipRequest.skip_request_id,
-                                                approve: false,
-                                                reason:
-                                                  "Client declined skip day request.",
-                                              },
-                                            ),
-                                        },
-                                      ],
-                                    )
-                                  }
-                                  disabled={
-                                    clientReviewDailySkipDayMutation.isPending
-                                  }
-                                >
-                                  <Text style={styles.clientSkipRejectText}>
-                                    Reject
-                                  </Text>
-                                </TouchableOpacity>
-                              </View>
-                            </View>
-                          );
-                        }
-
-                        return (
-                          <View
-                            key={`skip-reviewed-${todaySkipRequest.skip_request_id}`}
-                            style={
-                              todaySkipRequest.status === "APPROVED"
-                                ? styles.skipDayStatusApproved
-                                : styles.skipDayStatusRejected
-                            }
-                          >
-                            <Text style={styles.skipDayStatusTitle}>
-                              {todaySkipRequest.status === "APPROVED"
-                                ? `Skip day approved for ${targetName}`
-                                : `Skip day rejected for ${targetName}`}
-                            </Text>
-                            {todaySkipRequest.status === "REJECTED" && (
-                              <Text style={styles.skipDayStatusText}>
-                                {todaySkipRequest.client_rejection_reason ||
-                                  "Request was declined."}
-                              </Text>
-                            )}
-                          </View>
-                        );
-                      });
-                    })()}
-
                   {showDailyEndActions && (
                     <View style={styles.dailyEndActionsCard}>
                       <Text style={styles.dailyEndActionsTitle}>
@@ -6616,6 +6326,296 @@ export default function ChatScreen() {
                     )}
                 </View>
               )}
+
+              {/* Worker/Agency View: Skip Day Request (DAILY team hybrid/merged) */}
+              {conversation.job?.payment_model === "DAILY" &&
+                isScopedTeamDailyFlow &&
+                conversation.my_role !== "CLIENT" &&
+                (() => {
+                  const todaySkipForMe = dailySkipRequestsToday.find((request) => {
+                    const targetType = String(request?.target_type || "").toUpperCase();
+                    if (targetType === "EMPLOYEE") {
+                      return Boolean(request?.my_worker_requested);
+                    }
+                    return Boolean(request?.my_worker_requested);
+                  });
+
+                  if (todaySkipForMe) {
+                    return (
+                      <View
+                        style={
+                          todaySkipForMe.status === "APPROVED"
+                            ? styles.skipDayStatusApproved
+                            : todaySkipForMe.status === "REJECTED"
+                              ? styles.skipDayStatusRejected
+                              : styles.clientSkipDayCard
+                        }
+                      >
+                        <Text style={styles.skipDayStatusTitle}>
+                          {todaySkipForMe.status === "PENDING"
+                            ? "Skip day request pending"
+                            : todaySkipForMe.status === "APPROVED"
+                              ? "Skip day approved"
+                              : "Skip day rejected"}
+                        </Text>
+                        {todaySkipForMe.status === "REJECTED" && (
+                          <Text style={styles.skipDayStatusText}>
+                            {todaySkipForMe.client_rejection_reason ||
+                              "Client declined your skip day request."}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  }
+
+                  if (
+                    Boolean(myWorkerAttendanceToday?.time_in) ||
+                    Boolean(myWorkerAttendanceToday?.client_confirmed)
+                  ) {
+                    return null;
+                  }
+
+                  const requestTargetEmployee =
+                    conversation.my_role === "AGENCY"
+                      ? (() => {
+                          const candidates = (
+                            conversation.team_agency_employees || []
+                          )
+                            .map((employee: any) => {
+                              const employeeId = Number(
+                                employee?.id ?? employee?.employee_id,
+                              );
+                              if (!Number.isFinite(employeeId)) {
+                                return null;
+                              }
+
+                              return {
+                                employeeId,
+                                name:
+                                  String(employee?.name || "").trim() ||
+                                  "Agency Employee",
+                                isPrimaryContact: Boolean(
+                                  employee?.isPrimaryContact,
+                                ),
+                              };
+                            })
+                            .filter(Boolean) as {
+                            employeeId: number;
+                            name: string;
+                            isPrimaryContact: boolean;
+                          }[];
+
+                          if (!candidates.length) {
+                            return null;
+                          }
+
+                          return (
+                            candidates.find(
+                              (candidate) => candidate.isPrimaryContact,
+                            ) || candidates[0]
+                          );
+                        })()
+                      : null;
+
+                  return (
+                    <View style={styles.clientSkipDayCard}>
+                      <Text style={styles.clientSkipDayTitle}>Request Skip Day</Text>
+                      <Text style={styles.clientSkipDayText}>
+                        Ask client approval to skip today for your assigned work.
+                      </Text>
+                      <View style={styles.clientSkipDayActions}>
+                        <TouchableOpacity
+                          style={styles.clientSkipApproveButton}
+                          onPress={() =>
+                            Alert.alert(
+                              "Request Skip Day",
+                              "Submit a skip-day request for today? Client approval is required.",
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                {
+                                  text: "Submit Request",
+                                  onPress: () => {
+                                    if (
+                                      conversation.my_role === "AGENCY" &&
+                                      !requestTargetEmployee
+                                    ) {
+                                      Alert.alert(
+                                        "Missing Employee",
+                                        "No assigned agency employee was found for this skip-day request.",
+                                      );
+                                      return;
+                                    }
+
+                                    requestDailySkipDayMutation.mutate({
+                                      jobId: conversation.job.id,
+                                      request_date:
+                                        conversation.effective_work_date ||
+                                        new Date().toISOString().slice(0, 10),
+                                      ...(conversation.my_role === "AGENCY" &&
+                                      requestTargetEmployee
+                                        ? {
+                                            target_employee_id:
+                                              requestTargetEmployee.employeeId,
+                                          }
+                                        : {}),
+                                    });
+                                  },
+                                },
+                              ],
+                            )
+                          }
+                          disabled={
+                            requestDailySkipDayMutation.isPending ||
+                            (conversation.my_role === "AGENCY" &&
+                              !requestTargetEmployee)
+                          }
+                        >
+                          {requestDailySkipDayMutation.isPending ? (
+                            <ActivityIndicator size="small" color={Colors.white} />
+                          ) : (
+                            <Text style={styles.clientSkipApproveText}>Request Skip Day</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })()}
+
+              {/* Client View: Skip Day Request Review (DAILY-only) */}
+              {conversation.my_role === "CLIENT" &&
+                conversation.job?.payment_model === "DAILY" &&
+                (() => {
+                  if (!dailySkipRequestsToday.length) return null;
+
+                  return dailySkipRequestsToday.map((todaySkipRequest) => {
+                    const targetName =
+                      todaySkipRequest?.target_name || "Worker";
+                    const requestDate =
+                      todaySkipRequest?.request_date ||
+                      conversation.effective_work_date ||
+                      new Date().toISOString().slice(0, 10);
+
+                    if (todaySkipRequest.status === "PENDING") {
+                      return (
+                        <View
+                          key={`skip-pending-${todaySkipRequest.skip_request_id}`}
+                          style={styles.clientSkipDayCard}
+                        >
+                          <Text style={styles.clientSkipDayTitle}>
+                            Skip Day Request
+                          </Text>
+                          <Text style={styles.clientSkipDayText}>
+                            {targetName} requested to skip today.
+                          </Text>
+                          <View style={styles.clientSkipDayActions}>
+                            <TouchableOpacity
+                              style={styles.clientSkipApproveButton}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Approve Skip Day",
+                                  `Approve ${targetName}'s skip-day request?`,
+                                  [
+                                    {
+                                      text: "Cancel",
+                                      style: "cancel",
+                                    },
+                                    {
+                                      text: "Approve",
+                                      onPress: () =>
+                                        clientReviewDailySkipDayMutation.mutate(
+                                          {
+                                            jobId: conversation.job.id,
+                                            skipRequestId:
+                                              todaySkipRequest.skip_request_id,
+                                            approve: true,
+                                          },
+                                          {
+                                            onSuccess: () => {
+                                              promptExtendAfterSkipApproval(
+                                                requestDate,
+                                              );
+                                            },
+                                          },
+                                        ),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={
+                                clientReviewDailySkipDayMutation.isPending
+                              }
+                            >
+                              <Text style={styles.clientSkipApproveText}>
+                                Approve
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.clientSkipRejectButton}
+                              onPress={() =>
+                                Alert.alert(
+                                  "Reject Skip Day",
+                                  `Reject ${targetName}'s skip-day request?`,
+                                  [
+                                    {
+                                      text: "Cancel",
+                                      style: "cancel",
+                                    },
+                                    {
+                                      text: "Reject",
+                                      style: "destructive",
+                                      onPress: () =>
+                                        clientReviewDailySkipDayMutation.mutate(
+                                          {
+                                            jobId: conversation.job.id,
+                                            skipRequestId:
+                                              todaySkipRequest.skip_request_id,
+                                            approve: false,
+                                            reason:
+                                              "Client declined skip day request.",
+                                          },
+                                        ),
+                                    },
+                                  ],
+                                )
+                              }
+                              disabled={
+                                clientReviewDailySkipDayMutation.isPending
+                              }
+                            >
+                              <Text style={styles.clientSkipRejectText}>
+                                Reject
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      );
+                    }
+
+                    return (
+                      <View
+                        key={`skip-reviewed-${todaySkipRequest.skip_request_id}`}
+                        style={
+                          todaySkipRequest.status === "APPROVED"
+                            ? styles.skipDayStatusApproved
+                            : styles.skipDayStatusRejected
+                        }
+                      >
+                        <Text style={styles.skipDayStatusTitle}>
+                          {todaySkipRequest.status === "APPROVED"
+                            ? `Skip day approved for ${targetName}`
+                            : `Skip day rejected for ${targetName}`}
+                        </Text>
+                        {todaySkipRequest.status === "REJECTED" && (
+                          <Text style={styles.skipDayStatusText}>
+                            {todaySkipRequest.client_rejection_reason ||
+                              "Request was declined."}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  });
+                })()}
 
               {/* Unified Arrival Status for all client flows */}
               {conversation.my_role === "CLIENT" &&
