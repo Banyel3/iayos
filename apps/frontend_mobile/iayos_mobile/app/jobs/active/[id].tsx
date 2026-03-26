@@ -1482,6 +1482,7 @@ export default function ActiveJobDetailScreen() {
 
                 {/* Client: Approve All Workers Button */}
                 {!isWorker &&
+                  !isTeamDaily &&
                   allWorkersComplete &&
                   !job.client_marked_complete && (
                     <TouchableOpacity
@@ -1500,9 +1501,7 @@ export default function ActiveJobDetailScreen() {
                             color={Colors.white}
                           />
                           <Text style={styles.approveAllText}>
-                            {isTeamDaily
-                              ? "Approve and Pay"
-                              : "Approve All & Complete Job"}
+                            Approve All & Complete Job
                           </Text>
                         </>
                       )}
@@ -1510,16 +1509,44 @@ export default function ActiveJobDetailScreen() {
                   )}
 
                 {isTeamDaily &&
-                  (job.duration_days ?? 0) > 1 &&
                   !job.client_marked_complete && (
-                    <Text style={styles.dailyHelperText}>
-                      Workers paid for today. Come back tomorrow to proceed with
-                      the next work day.
-                    </Text>
+                    <View style={styles.waitingMessage}>
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={20}
+                        color={Colors.primary}
+                      />
+                      <Text style={styles.waitingMessageText}>
+                        Team DAILY approve/pay actions are handled in the
+                        conversation thread. Open the conversation to continue
+                        the flow.
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.assignmentActionButton, { marginTop: 8 }]}
+                        onPress={handleViewChat}
+                        disabled={isOpeningChat}
+                        activeOpacity={0.8}
+                      >
+                        {isOpeningChat ? (
+                          <ActivityIndicator color={Colors.white} size="small" />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="chatbubble-outline"
+                              size={16}
+                              color={Colors.white}
+                            />
+                            <Text style={styles.assignmentActionText}>
+                              Open Conversation
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   )}
 
                 {/* Client waiting message */}
-                {!isWorker && !allWorkersComplete && (
+                {!isWorker && !isTeamDaily && !allWorkersComplete && (
                   <View style={styles.waitingMessage}>
                     <Ionicons
                       name="time-outline"
@@ -1722,6 +1749,7 @@ export default function ActiveJobDetailScreen() {
       )}
 
       {!isWorker &&
+        !job.is_team_job &&
         job.worker_marked_complete &&
         !job.client_marked_complete && (
           <View style={styles.actionContainer}>

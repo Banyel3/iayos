@@ -1839,7 +1839,7 @@ export default function ChatScreen() {
             if (!employee) return false;
 
             const employeeId = Number(
-              employee?.id ?? employee?.employee_id ?? employee?.worker_id,
+              employee?.id ?? (employee as any)?.employee_id,
             );
 
             const blockedByAbsentAttendance =
@@ -7377,6 +7377,89 @@ export default function ChatScreen() {
                 conversation.team_worker_assignments &&
                 conversation.team_worker_assignments.length > 0 &&
                 (() => {
+                  const isTeamDailyAttendanceFlow =
+                    shouldChargePerAttendance &&
+                    conversation.job?.payment_model === "DAILY";
+
+                  const dailyResolvedAssignments = isTeamDailyAttendanceFlow
+                    ? clientArrivalAssignments.filter(
+                        (assignment) => assignment.arrived || assignment.absent,
+                      )
+                    : [];
+
+                  const dailyPendingResolutionCount = isTeamDailyAttendanceFlow
+                    ? clientArrivalAssignments.filter(
+                        (assignment) => !assignment.arrived && !assignment.absent,
+                      ).length
+                    : 0;
+
+                  const hasUnpaidPayableAttendanceRowForAssignment = (
+                    assignment: UnifiedClientArrivalAssignment,
+                  ) => {
+                    return attendanceRows.some((row: any) => {
+                      const status = String(row?.status || "").toUpperCase();
+                      const isPayableStatus =
+                        status === "PRESENT" || status === "HALF_DAY";
+
+                      if (!isPayableStatus || Boolean(row?.payment_processed)) {
+                        return false;
+                      }
+
+                      const rowAssignmentId = Number(row?.assignment_id);
+                      const assignmentId = Number(assignment.assignment_id);
+                      if (
+                        Number.isFinite(rowAssignmentId) &&
+                        Number.isFinite(assignmentId) &&
+                        rowAssignmentId === assignmentId
+                      ) {
+                        return true;
+                      }
+
+                      const rowWorkerId = Number(row?.worker_id);
+                      const assignmentWorkerId = Number(
+                        assignment.worker_id ?? assignment.employee_id,
+                      );
+                      if (
+                        Number.isFinite(rowWorkerId) &&
+                        Number.isFinite(assignmentWorkerId) &&
+                        rowWorkerId === assignmentWorkerId
+                      ) {
+                        return true;
+                      }
+
+                      return false;
+                    });
+                  };
+
+                  const dailyCompletionRequiredAssignments =
+                    isTeamDailyAttendanceFlow
+                      ? dailyResolvedAssignments.filter(
+                          (assignment) =>
+                            assignment.arrived &&
+                            hasUnpaidPayableAttendanceRowForAssignment(assignment),
+                        )
+                      : [];
+
+                  const allDailyCompletionRequiredComplete =
+                    !isTeamDailyAttendanceFlow ||
+                    dailyCompletionRequiredAssignments.every((assignment) =>
+                      Boolean(
+                        assignment.completed ||
+                          assignment.worker_marked_complete ||
+                          assignment.marked_complete ||
+                          assignment.early_completed,
+                      ),
+                    );
+
+                  const dailyPayableRows = isTeamDailyAttendanceFlow
+                    ? attendanceRows.filter((row: any) => {
+                        const status = String(row?.status || "").toUpperCase();
+                        const isPayableStatus =
+                          status === "PRESENT" || status === "HALF_DAY";
+                        return isPayableStatus && !Boolean(row?.payment_processed);
+                      })
+                    : [];
+
                   const uniqueWorkerUnits =
                     groupedTeamWorkerAssignments.length > 0
                       ? groupedTeamWorkerAssignments
@@ -7393,14 +7476,18 @@ export default function ChatScreen() {
                   // Treat job-level workerMarkedComplete as a fallback for all-complete
                   // in case individual assignment flags are not yet set.
                   const allWorkersComplete =
-                    conversation.job.workerMarkedComplete ||
+                    (isTeamDailyAttendanceFlow
+                      ? allDailyCompletionRequiredComplete
+                      : conversation.job.workerMarkedComplete) ||
                     uniqueWorkerUnits.every(
                       (a) => a.worker_marked_complete,
                     );
                   const allWorkersArrived =
-                    uniqueWorkerUnits.every(
-                      (a) => a.client_confirmed_arrival,
-                    );
+                    isTeamDailyAttendanceFlow
+                      ? dailyPendingResolutionCount === 0
+                      : uniqueWorkerUnits.every(
+                          (a) => a.client_confirmed_arrival,
+                        );
                   const allAssignmentsEarlyCompleted =
                     shouldChargePerAttendance &&
                     conversation.team_worker_assignments.length > 0 &&
@@ -7427,8 +7514,9 @@ export default function ChatScreen() {
                           color={Colors.textSecondary}
                         />
                         <Text style={styles.waitingButtonText}>
-                          Confirm all worker arrivals first ({arrivedCount} of{" "}
-                          {totalWorkerUnits} arrived)
+                          {isTeamDailyAttendanceFlow
+                            ? `Resolve all worker statuses first (${totalWorkerUnits - dailyPendingResolutionCount} of ${totalWorkerUnits} resolved)`
+                            : `Confirm all worker arrivals first (${arrivedCount} of ${totalWorkerUnits} arrived)`}
                         </Text>
                       </View>
                     );
@@ -7447,8 +7535,16 @@ export default function ChatScreen() {
                             color={Colors.textSecondary}
                           />
                           <Text style={styles.waitingButtonText}>
-                            {completedCount} of {totalWorkerUnits}{" "}
-                            workers marked complete...
+                            {isTeamDailyAttendanceFlow
+                              ? `${dailyCompletionRequiredAssignments.filter((assignment) =>
+                                  Boolean(
+                                    assignment.completed ||
+                                      assignment.worker_marked_complete ||
+                                      assignment.marked_complete ||
+                                      assignment.early_completed,
+                                  ),
+                                ).length} of ${dailyCompletionRequiredAssignments.length} arrived workers marked complete...`
+                              : `${completedCount} of ${totalWorkerUnits} workers marked complete...`}
                           </Text>
                         </View>
                         {/* Pay Now (Optional) — PROJECT team jobs only; not applicable for DAILY */}
@@ -7616,7 +7712,9 @@ export default function ChatScreen() {
                                   {shouldChargePerAttendance
                                     ? shouldFinishDailyTeamJob
                                       ? `Finish Team Job & Settle Remaining (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
-                                      : "Approve & Pay for Today"
+                                      : dailyPayableRows.length > 0
+                                        ? "Approve & Pay for Today"
+                                        : "No Payable Rows for Today"
                                     : conversation.job.remainingPaymentPaid ||
                                         allAssignmentsEarlyCompleted
                                       ? "Approve Team Completion"
