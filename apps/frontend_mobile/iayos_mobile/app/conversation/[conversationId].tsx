@@ -1763,15 +1763,31 @@ export default function ChatScreen() {
       ? conversation.team_worker_assignments
       : [];
 
-    const isDailyTeamJob = conversation.job.payment_model === "DAILY";
+    const attendanceRowsForPreflight = Array.isArray(
+      conversation.attendance_today,
+    )
+      ? conversation.attendance_today
+      : [];
 
-    // All valid worker assignment IDs
-    const workerAssignmentIds = Array.from(
-      new Set(
-        teamWorkerRows
-          .map((row: any) => Number(row?.assignment_id))
-          .filter((assignmentId: number) => Number.isFinite(assignmentId)),
-      ),
+    const absentAssignmentIds = new Set(
+      attendanceRowsForPreflight
+        .filter((row: any) => isAttendanceRowAbsent(row))
+        .map((row: any) => Number(row?.assignment_id))
+        .filter((assignmentId: number) => Number.isFinite(assignmentId)),
+    );
+
+    const absentWorkerIds = new Set(
+      attendanceRowsForPreflight
+        .filter((row: any) => isAttendanceRowAbsent(row))
+        .map((row: any) => Number(row?.worker_id))
+        .filter((workerId: number) => Number.isFinite(workerId)),
+    );
+
+    const absentWorkerAccountIds = new Set(
+      attendanceRowsForPreflight
+        .filter((row: any) => isAttendanceRowAbsent(row))
+        .map((row: any) => Number(row?.worker_account_id))
+        .filter((accountId: number) => Number.isFinite(accountId)),
     );
 
     // Pending-only worker assignment IDs
@@ -1781,22 +1797,32 @@ export default function ChatScreen() {
           .map((row: any) => Number(row?.assignment_id))
           .filter((assignmentId: number) => Number.isFinite(assignmentId))
           .filter(
-            (assignmentId: number) =>
-              !teamWorkerRows.some(
-                (row: any) =>
-                  Number(row?.assignment_id) === assignmentId &&
-                  Boolean(row?.client_confirmed_arrival),
-              ),
-          ),
-      ),
-    );
+            (assignmentId: number) => {
+              const scopedRows = teamWorkerRows.filter(
+                (row: any) => Number(row?.assignment_id) === assignmentId,
+              );
 
-    // All valid employee assignment IDs
-    const employeeAssignmentIds = Array.from(
-      new Set(
-        agencyAssignedEmployees
-          .map((employee: any) => Number(employee?.assignment_id))
-          .filter((assignmentId: number) => Number.isFinite(assignmentId)),
+              const alreadyArrived = scopedRows.some((row: any) =>
+                Boolean(row?.client_confirmed_arrival),
+              );
+
+              const blockedByAbsentAttendance =
+                absentAssignmentIds.has(assignmentId) ||
+                scopedRows.some((row: any) => {
+                  const rowWorkerId = Number(row?.worker_id);
+                  const rowAccountId = Number(row?.account_id);
+
+                  return (
+                    (Number.isFinite(rowWorkerId) &&
+                      absentWorkerIds.has(rowWorkerId)) ||
+                    (Number.isFinite(rowAccountId) &&
+                      absentWorkerAccountIds.has(rowAccountId))
+                  );
+                });
+
+              return !alreadyArrived && !blockedByAbsentAttendance;
+            },
+          ),
       ),
     );
 
@@ -1812,6 +1838,18 @@ export default function ChatScreen() {
             );
             if (!employee) return false;
 
+            const employeeId = Number(
+              employee?.id ?? employee?.employee_id ?? employee?.worker_id,
+            );
+
+            const blockedByAbsentAttendance =
+              absentAssignmentIds.has(assignmentId) ||
+              (Number.isFinite(employeeId) && absentWorkerIds.has(employeeId));
+
+            if (blockedByAbsentAttendance) {
+              return false;
+            }
+
             return !isAgencyStatusInCurrentBackjobCycle(
               getAgencyArrivedFlag(employee),
               getAgencyArrivedAt(employee),
@@ -1820,10 +1858,10 @@ export default function ChatScreen() {
       ),
     );
 
-    // For DAILY jobs: target all assignments (idempotent re-confirm)
-    // For non-DAILY: target only pending arrivals
-    const workerTargets = isDailyTeamJob ? workerAssignmentIds : pendingWorkerAssignmentIds;
-    const employeeTargets = isDailyTeamJob ? employeeAssignmentIds : pendingEmployeeAssignmentIds;
+    // Target only pending arrivals. Re-confirming all rows in DAILY mode can
+    // accidentally promote absent-intended rows into arrival-confirmed rows.
+    const workerTargets = pendingWorkerAssignmentIds;
+    const employeeTargets = pendingEmployeeAssignmentIds;
 
     if (
       workerTargets.length === 0 &&
@@ -1965,17 +2003,14 @@ export default function ChatScreen() {
   const handleApproveDailyTeamWorkday = async () => {
     if (!conversation) return;
 
-    const preflightConversation = await runApprovePayArrivalPreflight();
-    if (!preflightConversation) return;
-
-    const payableRows = (preflightConversation.attendance_today ?? []).filter((row: any) => {
+    const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
       const attendanceId = Number(row?.attendance_id ?? row?.id);
       const status = String(row?.status || "").toUpperCase();
-      const isDisputedRow = status === "DISPUTED";
+      const isPayableStatus = status === "PRESENT" || status === "HALF_DAY";
 
       return (
         Number.isFinite(attendanceId) &&
-        !isDisputedRow &&
+        isPayableStatus &&
         !Boolean(row?.payment_processed)
       );
     }).map((row: any) => ({
@@ -8620,22 +8655,34 @@ export default function ChatScreen() {
                     ),
                   );
 
-                  const allFreelancersComplete = !isDailyAgencyFlow
-                    ? true
-                    : (conversation.team_worker_assignments ?? []).every(
-                        (assignment: any) => {
-                          const status = String(assignment?.status || "").toUpperCase();
-                          return Boolean(
-                            assignment?.worker_marked_complete ||
-                              assignment?.marked_complete ||
-                              status === "COMPLETED",
-                          );
-                        },
-                      );
+                  const resolvedDailyAssignments = isDailyAgencyFlow
+                    ? clientArrivalAssignments.filter(
+                        (assignment) => assignment.arrived || assignment.absent,
+                      )
+                    : [];
+
+                  const arrivedNonAbsentAssignments = isDailyAgencyFlow
+                    ? resolvedDailyAssignments.filter(
+                        (assignment) => assignment.arrived && !assignment.absent,
+                      )
+                    : [];
+
+                  const allArrivedAssignmentsMarkedComplete = isDailyAgencyFlow
+                    ? arrivedNonAbsentAssignments.every((assignment) =>
+                        Boolean(
+                          assignment.completed ||
+                            assignment.worker_marked_complete ||
+                            assignment.marked_complete ||
+                            assignment.early_completed,
+                        ),
+                      )
+                    : true;
 
                   const dailyPayableRows = attendanceRows.filter((row: any) => {
                     const status = String(row?.status || "").toUpperCase();
-                    return status !== "DISPUTED" && !Boolean(row?.payment_processed);
+                    const isPayableStatus =
+                      status === "PRESENT" || status === "HALF_DAY";
+                    return isPayableStatus && !Boolean(row?.payment_processed);
                   });
 
                   const hasPendingDailyResolution =
@@ -8650,11 +8697,24 @@ export default function ChatScreen() {
                       (assignment) => assignment.active_workday,
                     );
 
+                  const hasArrivedWorkersPendingCompletion =
+                    isDailyAgencyFlow &&
+                    arrivedNonAbsentAssignments.some(
+                      (assignment) =>
+                        !Boolean(
+                          assignment.completed ||
+                            assignment.worker_marked_complete ||
+                            assignment.marked_complete ||
+                            assignment.early_completed,
+                        ),
+                    );
+
                   const dailyReadyForApprovePay =
                     isDailyAgencyFlow &&
                     dailyPayableRows.length > 0 &&
                     !hasPendingDailyResolution &&
-                    !hasActiveDailyWorkRows;
+                    !hasActiveDailyWorkRows &&
+                    allArrivedAssignmentsMarkedComplete;
 
                   const allWorkflowComplete =
                     (isDailyAgencyFlow
@@ -8663,7 +8723,7 @@ export default function ChatScreen() {
                         ? allArrived
                         : allDispatched && allArrived) &&
                     allComplete &&
-                    allFreelancersComplete;
+                    allArrivedAssignmentsMarkedComplete;
 
                   const showApprovePayButton = isDailyAgencyFlow
                     ? dailyReadyForApprovePay && !isTodayWorkdaySettled
@@ -8678,6 +8738,25 @@ export default function ChatScreen() {
 
                   return (
                     <>
+                      {isDailyAgencyFlow &&
+                        !showApprovePayButton &&
+                        !showFinalDailyFinishButton &&
+                        !isTodayWorkdaySettled &&
+                        !hasPendingDailyResolution &&
+                        !hasActiveDailyWorkRows &&
+                        hasArrivedWorkersPendingCompletion && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.waitingButtonText}>
+                              Waiting for all arrived workers to mark complete before approve & pay.
+                            </Text>
+                          </View>
+                        )}
+
                       {/* Single agency-level approve & pay button */}
                       {(showApprovePayButton || showFinalDailyFinishButton) &&
                         !conversation.job.clientMarkedComplete && (
