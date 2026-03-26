@@ -4252,7 +4252,7 @@ export default function ChatScreen() {
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
     conversation.job?.status === "IN_PROGRESS" &&
-    (!conversation.is_team_job || isScopedTeamDailyFlow) &&
+    (!conversation.is_team_job || isDailyTeamFlow) &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const attendanceRows = Array.isArray(conversation.attendance_today)
     ? conversation.attendance_today
@@ -4264,7 +4264,7 @@ export default function ChatScreen() {
     conversation.job?.payment_model === "PROJECT" &&
     (isProjectMultiDayJob || attendanceRows.length > 0);
   const shouldFinishDailyTeamJob =
-    isScopedTeamDailyFlow &&
+    conversation.is_team_job === true &&
     conversation.job?.payment_model === "DAILY" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const showProjectEndActions =
@@ -7479,7 +7479,7 @@ export default function ChatScreen() {
 
                   // Show approve button if all complete and not yet approved
                   if (!conversation.job.clientMarkedComplete) {
-                    if (shouldFinishDailyTeamJob && isScopedTeamDailyFlow) {
+                    if (shouldFinishDailyTeamJob) {
                       return null;
                     }
 
@@ -8589,106 +8589,115 @@ export default function ChatScreen() {
                     ? dailyReadyForApprovePay && !isTodayWorkdaySettled
                     : allWorkflowComplete;
 
+                  const showFinalDailyFinishButton =
+                    isTeamAgencyJob &&
+                    isDailyAgencyFlow &&
+                    shouldFinishDailyTeamJob &&
+                    !showDailyEndActions &&
+                    isTodayWorkdaySettled;
+
                   return (
                     <>
                       {/* Single agency-level approve & pay button */}
-                      {showApprovePayButton &&
+                      {(showApprovePayButton || showFinalDailyFinishButton) &&
                         !conversation.job.clientMarkedComplete && (
                           <View style={styles.employeeActionsSection}>
-                            <Text style={styles.actionSectionTitle}>
-                              {isTeamAgencyJob
-                                ? "Approve & Pay Team + Agency"
-                                : "Approve & Pay Agency"}
-                            </Text>
-                            <TouchableOpacity
-                              style={[
-                                styles.actionButton,
-                                styles.approveCompletionButton,
-                              ]}
-                              onPress={
-                                isTeamAgencyJob
-                                  ? isDailyAgencyFlow
-                                    ? handleApproveDailyTeamWorkday
-                                    : handleApproveTeamJobCompletion
-                                  : handleApproveCompletion
-                              }
-                              disabled={
-                                isTeamAgencyJob
-                                  ? isDailyAgencyFlow
-                                    ? isBulkDailySettlementInFlight
-                                    : approveTeamJobCompletionMutation.isPending ||
-                                      isApprovePayPreflightInFlight
-                                  : approveAgencyProjectJobMutation.isPending
-                              }
-                            >
-                              {(isTeamAgencyJob
-                                ? isDailyAgencyFlow
-                                  ? isBulkDailySettlementInFlight
-                                  : approveTeamJobCompletionMutation.isPending ||
-                                      isApprovePayPreflightInFlight
-                                : approveAgencyProjectJobMutation.isPending) ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="wallet"
-                                    size={20}
-                                    color={Colors.white}
-                                  />
-                                  <Text style={styles.actionButtonText}>
-                                    {isTeamAgencyJob
-                                      ? isDailyAgencyFlow
-                                        ? `Approve & Pay (For the Day)`
-                                        : `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
-                                      : `Approve & Pay Agency (₱${(
-                                          (conversation.job.remainingPayment ??
-                                            conversation.job.budget * 0.5) +
-                                          (conversation.job.materials_cost ?? 0)
-                                        ).toLocaleString()})`}
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-
-                            {isTeamAgencyJob &&
-                              isDailyAgencyFlow &&
-                              (reachedConfiguredDuration || reachedQaOffsetLimit) && (
+                            {showApprovePayButton && (
+                              <>
+                                <Text style={styles.actionSectionTitle}>
+                                  {isTeamAgencyJob
+                                    ? "Approve & Pay Team + Agency"
+                                    : "Approve & Pay Agency"}
+                                </Text>
                                 <TouchableOpacity
                                   style={[
                                     styles.actionButton,
-                                    styles.waitingButton,
-                                    { marginTop: 8 },
+                                    styles.approveCompletionButton,
                                   ]}
-                                  onPress={handleFinishDailyTeamJob}
-                                  disabled={dailyFinishJobMutation.isPending}
+                                  onPress={
+                                    isTeamAgencyJob
+                                      ? isDailyAgencyFlow
+                                        ? handleApproveDailyTeamWorkday
+                                        : handleApproveTeamJobCompletion
+                                      : handleApproveCompletion
+                                  }
+                                  disabled={
+                                    isTeamAgencyJob
+                                      ? isDailyAgencyFlow
+                                        ? isBulkDailySettlementInFlight
+                                        : approveTeamJobCompletionMutation.isPending ||
+                                          isApprovePayPreflightInFlight
+                                      : approveAgencyProjectJobMutation.isPending
+                                  }
                                 >
-                                  {dailyFinishJobMutation.isPending ? (
+                                  {(isTeamAgencyJob
+                                    ? isDailyAgencyFlow
+                                      ? isBulkDailySettlementInFlight
+                                      : approveTeamJobCompletionMutation.isPending ||
+                                        isApprovePayPreflightInFlight
+                                    : approveAgencyProjectJobMutation.isPending) ? (
                                     <ActivityIndicator
                                       size="small"
-                                      color={Colors.textPrimary}
+                                      color={Colors.white}
                                     />
                                   ) : (
                                     <>
                                       <Ionicons
-                                        name="flag"
+                                        name="wallet"
                                         size={20}
-                                        color={Colors.textPrimary}
+                                        color={Colors.white}
                                       />
-                                      <Text
-                                        style={[
-                                          styles.waitingButtonText,
-                                          { color: Colors.textPrimary },
-                                        ]}
-                                      >
-                                        Finish Entire Job
+                                      <Text style={styles.actionButtonText}>
+                                        {isTeamAgencyJob
+                                          ? isDailyAgencyFlow
+                                            ? `Approve & Pay (For the Day)`
+                                            : `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                          : `Approve & Pay Agency (₱${(
+                                              (conversation.job.remainingPayment ??
+                                                conversation.job.budget * 0.5) +
+                                              (conversation.job.materials_cost ?? 0)
+                                            ).toLocaleString()})`}
                                       </Text>
                                     </>
                                   )}
                                 </TouchableOpacity>
-                              )}
+                              </>
+                            )}
+
+                            {showFinalDailyFinishButton && (
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionButton,
+                                  styles.waitingButton,
+                                  { marginTop: 8 },
+                                ]}
+                                onPress={handleFinishDailyTeamJob}
+                                disabled={dailyFinishJobMutation.isPending}
+                              >
+                                {dailyFinishJobMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.textPrimary}
+                                  />
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="flag"
+                                      size={20}
+                                      color={Colors.textPrimary}
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.waitingButtonText,
+                                        { color: Colors.textPrimary },
+                                      ]}
+                                    >
+                                      Finish Entire Job
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            )}
                           </View>
                         )}
 
