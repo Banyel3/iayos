@@ -1506,6 +1506,8 @@ export default function JobDetailScreen() {
       setCounterOfferDays("");
       setCounterOfferAmount("");
       queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-job-applications", parseInt(id)] });
+      queryClient.invalidateQueries({ queryKey: ["team-job", parseInt(id)] });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -1528,6 +1530,8 @@ export default function JobDetailScreen() {
     onSuccess: () => {
       Alert.alert("Price rejected", "The worker has been notified. They may re-negotiate or withdraw.");
       queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-job-applications", parseInt(id)] });
+      queryClient.invalidateQueries({ queryKey: ["team-job", parseInt(id)] });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -1543,6 +1547,28 @@ export default function JobDetailScreen() {
       setCounterOfferAmount("");
     } else {
       setCounterOfferAmount(application.proposed_budget ? String(application.proposed_budget) : "");
+      setCounterOfferRate("");
+      setCounterOfferDays("");
+    }
+    setCounterOfferMessage("");
+  };
+
+  const handleCounterOfferForTeam = (application: any) => {
+    setCounterModalApplicationId(application.application_id);
+    if (job?.payment_model === "DAILY") {
+      setCounterOfferRate(
+        application.proposed_daily_rate
+          ? String(application.proposed_daily_rate)
+          : "",
+      );
+      setCounterOfferDays(
+        application.proposed_days ? String(application.proposed_days) : "",
+      );
+      setCounterOfferAmount("");
+    } else {
+      setCounterOfferAmount(
+        application.proposed_budget ? String(application.proposed_budget) : "",
+      );
       setCounterOfferRate("");
       setCounterOfferDays("");
     }
@@ -3606,19 +3632,73 @@ export default function JobDetailScreen() {
                 </View>
 
                 <View style={styles.applicationDetails}>
-                  <View style={styles.applicationDetailItem}>
-                    <Ionicons
-                      name="cash-outline"
-                      size={16}
-                      color={Colors.textSecondary}
-                    />
-                    <Text style={styles.applicationDetailText}>
-                      {app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
-                        ? `₱${app.proposed_daily_rate?.toLocaleString()}/day × ${app.proposed_days || "?"} days (₱${app.proposed_budget?.toLocaleString()} total)`
-                        : `₱${app.proposed_budget?.toLocaleString()}`}
-                    </Text>
-                  </View>
+                  {app.budget_option === "NEGOTIATE" ? (() => {
+                    const clientHasCountered =
+                      app.last_actor === "CLIENT" && !!app.client_counter_budget;
+                    const priceLabel = clientHasCountered
+                      ? job?.payment_model === "DAILY" &&
+                        app.client_counter_daily_rate &&
+                        app.client_counter_days
+                        ? `You Countered for: ₱${app.client_counter_daily_rate.toLocaleString()}/day × ${app.client_counter_days} days = ₱${(app.client_counter_daily_rate * app.client_counter_days).toLocaleString()}`
+                        : `You Countered for: ₱${(app.client_counter_budget || 0).toLocaleString()}`
+                      : app.proposed_daily_rate && app.proposed_days
+                        ? `Proposed: ₱${app.proposed_daily_rate.toLocaleString()}/day × ${app.proposed_days} days = ₱${(app.proposed_daily_rate * app.proposed_days).toLocaleString()}`
+                        : `Proposed: ₱${(app.proposed_budget || 0).toLocaleString()}`;
+
+                    return (
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Ionicons name="cash-outline" size={16} color="#00BAF1" />
+                          <Text style={[styles.applicationDetailText, { color: "#00BAF1", fontWeight: "600" }]}>
+                            {priceLabel}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }} />
+                        {app.status === "PENDING" &&
+                          !clientHasCountered &&
+                          (app.negotiation_count ?? 0) < 3 && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 24 }}>
+                              <TouchableOpacity
+                                onPress={() => handleRejectPrice(app.application_id, app.worker_name)}
+                                disabled={rejectPriceMutation.isPending}
+                              >
+                                {rejectPriceMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.textSecondary} />
+                                ) : (
+                                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Reject Price</Text>
+                                )}
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={{ borderWidth: 1, borderColor: Colors.textSecondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: Colors.white }}
+                                onPress={() => handleCounterOfferForTeam(app)}
+                              >
+                                <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Counter</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                      </View>
+                    );
+                  })() : (
+                    <View style={styles.applicationDetailItem}>
+                      <Ionicons
+                        name="cash-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.applicationDetailText}>
+                        ₱{(app.proposed_budget || 0).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
                 </View>
+
+                {app.budget_option === "NEGOTIATE" &&
+                  (app.negotiation_count ?? 0) > 0 && (
+                    <ClientNegotiationThread
+                      applicationId={app.application_id}
+                      paymentModel={job?.payment_model}
+                    />
+                  )}
 
                 {app.status === "PENDING" &&
                   !acceptedWorkerSlotKeys.has(getWorkerSlotKey(app) || "") && (

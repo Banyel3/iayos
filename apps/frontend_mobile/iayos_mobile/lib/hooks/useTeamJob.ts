@@ -131,6 +131,14 @@ export interface TeamJobApplication {
   estimated_duration: string | null;
   proposed_daily_rate: number | null;
   proposed_days: number | null;
+  negotiation_count?: number;
+  last_actor?: "WORKER" | "CLIENT" | null;
+  has_pending_counter?: boolean;
+  client_counter_budget?: number | null;
+  client_counter_daily_rate?: number | null;
+  client_counter_days?: number | null;
+  response_message?: string | null;
+  client_rejection_reason?: string | null;
   status: "PENDING" | "ACCEPTED" | "REJECTED";
   applied_at: string;
 }
