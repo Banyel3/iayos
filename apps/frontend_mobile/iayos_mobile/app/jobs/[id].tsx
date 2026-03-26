@@ -1492,9 +1492,13 @@ export default function JobDetailScreen() {
         ENDPOINTS.NEGOTIATION_COUNTER(applicationId),
         { method: "POST", body: JSON.stringify(body) },
       );
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        detail?: unknown;
+        message?: unknown;
+      };
       if (!response.ok) {
-        throw new Error(String((data as any)?.error || (data as any)?.detail || "Failed to send counter-offer"));
+        throw new Error(getErrorMessage(data, "Failed to send counter-offer"));
       }
       return data;
     },
@@ -1506,6 +1510,8 @@ export default function JobDetailScreen() {
       setCounterOfferDays("");
       setCounterOfferAmount("");
       queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-job-applications", parseInt(id)] });
+      queryClient.invalidateQueries({ queryKey: ["team-job", parseInt(id)] });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -1519,15 +1525,21 @@ export default function JobDetailScreen() {
         ENDPOINTS.NEGOTIATION_REJECT_PRICE(applicationId),
         { method: "POST", body: JSON.stringify({ message: "Price rejected by client." }) },
       );
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        detail?: unknown;
+        message?: unknown;
+      };
       if (!response.ok) {
-        throw new Error(String((data as any)?.error || (data as any)?.detail || "Failed to reject price"));
+        throw new Error(getErrorMessage(data, "Failed to reject price"));
       }
       return data;
     },
     onSuccess: () => {
       Alert.alert("Price rejected", "The worker has been notified. They may re-negotiate or withdraw.");
       queryClient.invalidateQueries({ queryKey: ["job-applications", id] });
+      queryClient.invalidateQueries({ queryKey: ["team-job-applications", parseInt(id)] });
+      queryClient.invalidateQueries({ queryKey: ["team-job", parseInt(id)] });
     },
     onError: (error: Error) => {
       Alert.alert("Error", error.message);
@@ -1549,6 +1561,28 @@ export default function JobDetailScreen() {
     setCounterOfferMessage("");
   };
 
+  const handleCounterOfferForTeam = (application: any) => {
+    setCounterModalApplicationId(application.application_id);
+    if (job?.payment_model === "DAILY") {
+      setCounterOfferRate(
+        application.proposed_daily_rate
+          ? String(application.proposed_daily_rate)
+          : "",
+      );
+      setCounterOfferDays(
+        application.proposed_days ? String(application.proposed_days) : "",
+      );
+      setCounterOfferAmount("");
+    } else {
+      setCounterOfferAmount(
+        application.proposed_budget ? String(application.proposed_budget) : "",
+      );
+      setCounterOfferRate("");
+      setCounterOfferDays("");
+    }
+    setCounterOfferMessage("");
+  };
+
   const handleSubmitCounterOffer = () => {
     if (!counterModalApplicationId) return;
     const msg = counterOfferMessage.trim();
@@ -1563,9 +1597,11 @@ export default function JobDetailScreen() {
         Alert.alert("Missing fields", "Enter both daily rate and number of days.");
         return;
       }
+      const totalBudget = rate * days;
       counterOfferMutation.mutate({
         applicationId: counterModalApplicationId,
         message: msg,
+        proposed_budget: totalBudget,
         proposed_daily_rate: rate,
         proposed_days: days,
       });
@@ -2052,7 +2088,7 @@ export default function JobDetailScreen() {
                 setProposedDailyRate("");
                 setProposedDays("");
               }
-              if (job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY") {
+              if (job?.shift_type && job.shift_type !== "ANY") {
                 setAppliedShift(job.shift_type as "MORNING" | "NIGHT");
               } else {
                 setAppliedShift(null);
@@ -2079,7 +2115,7 @@ export default function JobDetailScreen() {
       setProposedDays("");
     }
     // Reset shift selection; auto-set if job has a fixed shift
-    if (job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY") {
+    if (job?.shift_type && job.shift_type !== "ANY") {
       setAppliedShift(job.shift_type as "MORNING" | "NIGHT");
     } else {
       setAppliedShift(null);
@@ -2123,8 +2159,8 @@ export default function JobDetailScreen() {
       return;
     }
 
-    // Validate shift selection for ANY-shift DAILY jobs
-    if (isDailyJob && (!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
+    // Validate shift selection for ANY-shift team jobs.
+    if ((!job?.shift_type || job.shift_type === "ANY") && !appliedShift) {
       Alert.alert("Error", "Please select a shift (Day Shift or Night Shift)");
       return;
     }
@@ -2167,9 +2203,10 @@ export default function JobDetailScreen() {
         estimatedDuration: estimatedDuration || undefined,
         proposedDailyRate: isDailyJob && budgetOption === "NEGOTIATE" ? parseFloat(proposedDailyRate) : undefined,
         proposedDays: isDailyJob && budgetOption === "NEGOTIATE" ? parseInt(proposedDays) : undefined,
-        appliedShift: isDailyJob
-          ? (job?.shift_type && job.shift_type !== "ANY" ? job.shift_type as "MORNING" | "NIGHT" : appliedShift) ?? undefined
-          : undefined,
+        appliedShift:
+          (job?.shift_type && job.shift_type !== "ANY"
+            ? (job.shift_type as "MORNING" | "NIGHT")
+            : appliedShift) ?? undefined,
       },
       {
         onSuccess: () => {
@@ -3605,19 +3642,73 @@ export default function JobDetailScreen() {
                 </View>
 
                 <View style={styles.applicationDetails}>
-                  <View style={styles.applicationDetailItem}>
-                    <Ionicons
-                      name="cash-outline"
-                      size={16}
-                      color={Colors.textSecondary}
-                    />
-                    <Text style={styles.applicationDetailText}>
-                      {app.proposed_daily_rate && app.budget_option === "NEGOTIATE"
-                        ? `₱${app.proposed_daily_rate?.toLocaleString()}/day × ${app.proposed_days || "?"} days (₱${app.proposed_budget?.toLocaleString()} total)`
-                        : `₱${app.proposed_budget?.toLocaleString()}`}
-                    </Text>
-                  </View>
+                  {app.budget_option === "NEGOTIATE" ? (() => {
+                    const clientHasCountered =
+                      app.last_actor === "CLIENT" && !!app.client_counter_budget;
+                    const priceLabel = clientHasCountered
+                      ? job?.payment_model === "DAILY" &&
+                        app.client_counter_daily_rate &&
+                        app.client_counter_days
+                        ? `You Countered for: ₱${app.client_counter_daily_rate.toLocaleString()}/day × ${app.client_counter_days} days = ₱${(app.client_counter_daily_rate * app.client_counter_days).toLocaleString()}`
+                        : `You Countered for: ₱${(app.client_counter_budget || 0).toLocaleString()}`
+                      : app.proposed_daily_rate && app.proposed_days
+                        ? `Proposed: ₱${app.proposed_daily_rate.toLocaleString()}/day × ${app.proposed_days} days = ₱${(app.proposed_daily_rate * app.proposed_days).toLocaleString()}`
+                        : `Proposed: ₱${(app.proposed_budget || 0).toLocaleString()}`;
+
+                    return (
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Ionicons name="cash-outline" size={16} color="#00BAF1" />
+                          <Text style={[styles.applicationDetailText, { color: "#00BAF1", fontWeight: "600" }]}>
+                            {priceLabel}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }} />
+                        {app.status === "PENDING" &&
+                          !clientHasCountered &&
+                          (app.negotiation_count ?? 0) < 3 && (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 24 }}>
+                              <TouchableOpacity
+                                onPress={() => handleRejectPrice(app.application_id, app.worker_name)}
+                                disabled={rejectPriceMutation.isPending}
+                              >
+                                {rejectPriceMutation.isPending ? (
+                                  <ActivityIndicator size="small" color={Colors.textSecondary} />
+                                ) : (
+                                  <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Reject Price</Text>
+                                )}
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={{ borderWidth: 1, borderColor: Colors.textSecondary, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: Colors.white }}
+                                onPress={() => handleCounterOfferForTeam(app)}
+                              >
+                                <Text style={{ color: Colors.textSecondary, fontSize: 12, fontWeight: "600" }}>Counter</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                      </View>
+                    );
+                  })() : (
+                    <View style={styles.applicationDetailItem}>
+                      <Ionicons
+                        name="cash-outline"
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.applicationDetailText}>
+                        ₱{(app.proposed_budget || 0).toLocaleString()}
+                      </Text>
+                    </View>
+                  )}
                 </View>
+
+                {app.budget_option === "NEGOTIATE" &&
+                  (app.negotiation_count ?? 0) > 0 && (
+                    <ClientNegotiationThread
+                      applicationId={app.application_id}
+                      paymentModel={job?.payment_model}
+                    />
+                  )}
 
                 {app.status === "PENDING" &&
                   !acceptedWorkerSlotKeys.has(getWorkerSlotKey(app) || "") && (
@@ -5700,8 +5791,8 @@ export default function JobDetailScreen() {
               )
             )}
 
-            {/* Shift picker for DAILY ANY-shift jobs */}
-            {job?.payment_model === "DAILY" && (!job?.shift_type || job.shift_type === "ANY") && (
+            {/* Shift picker for ANY-shift team jobs */}
+            {(!job?.shift_type || job.shift_type === "ANY") && (
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Shift *</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
@@ -5736,8 +5827,8 @@ export default function JobDetailScreen() {
                 </View>
               </View>
             )}
-            {/* Shift banner for fixed-shift DAILY jobs */}
-            {job?.payment_model === "DAILY" && job?.shift_type && job.shift_type !== "ANY" && (
+            {/* Shift banner for fixed-shift jobs */}
+            {job?.shift_type && job.shift_type !== "ANY" && (
               <View style={[styles.inputGroup, { backgroundColor: Colors.backgroundSecondary, padding: 12, borderRadius: 8 }]}> 
                 <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
                   Shift:{" "}

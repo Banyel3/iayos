@@ -280,10 +280,10 @@ export default function JobsScreen() {
   });
 
   const applications = applicationsData?.applications || [];
-
-  // Exclude anything already represented in In Progress/Past lists to avoid cross-tab duplication.
-  const inProgressJobIds = new Set(inProgressJobsList.map((job) => job.job_id));
-  const pastJobIds = new Set(pastJobsList.map((job) => job.job_id));
+  const applicationsErrorMessage =
+    applicationsError instanceof Error
+      ? applicationsError.message
+      : "Failed to load applications. Pull to refresh or tap retry.";
 
   const normalizeJobStatus = (status?: string) =>
     String(status || "")
@@ -323,12 +323,7 @@ export default function JobsScreen() {
         applicationStatus === "REJECTED" ||
         (applicationStatus === "ACCEPTED" && jobStatus === "ACTIVE");
 
-      return (
-        shouldShowInApplied &&
-      !inProgressJobIds.has(app.job_id) &&
-      !pastJobIds.has(app.job_id) &&
-        !isApplicationPastOrMovedForward(app)
-      );
+      return shouldShowInApplied && !isApplicationPastOrMovedForward(app);
     },
   );
 
@@ -1249,8 +1244,17 @@ export default function JobsScreen() {
                 color={Colors.textSecondary}
               />
               <Text style={styles.emptyStateText}>
-                No applications available yet.
+                Failed to load applications
               </Text>
+              <Text style={styles.emptyStateSubtext}>{applicationsErrorMessage}</Text>
+              <TouchableOpacity
+                style={styles.createJobButton}
+                onPress={() => refetchApplications()}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={20} color={Colors.white} />
+                <Text style={styles.createJobButtonText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : filteredApplications.length === 0 ? (
             <View style={styles.emptyState}>

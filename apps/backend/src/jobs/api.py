@@ -10924,11 +10924,44 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
         if skill_slot_id:
             applications = applications.filter(applied_skill_slot_id=skill_slot_id)
 
+        from accounts.models import PriceNegotiation
+
+        app_ids = [app.applicationID for app in applications]
+        latest_negotiation_by_app = {}
+        if app_ids:
+            latest_negotiations = (
+                PriceNegotiation.objects.filter(application_id__in=app_ids)
+                .order_by("application_id", "-createdAt")
+            )
+            for negotiation in latest_negotiations:
+                if negotiation.application_id not in latest_negotiation_by_app:
+                    latest_negotiation_by_app[negotiation.application_id] = negotiation
+
         result = []
         for app in applications:
             slot = app.applied_skill_slot
             worker = app.workerID
             profile = worker.profileID if worker else None
+            last_negotiation = latest_negotiation_by_app.get(app.applicationID)
+            last_actor = getattr(last_negotiation, "actor", None)
+            has_pending_counter = bool(
+                last_negotiation
+                and last_negotiation.actor == PriceNegotiation.Actor.CLIENT
+                and last_negotiation.status == PriceNegotiation.NegotiationStatus.PENDING
+            )
+            client_counter_budget = (
+                float(last_negotiation.proposed_budget)
+                if has_pending_counter and last_negotiation.proposed_budget is not None
+                else None
+            )
+            client_counter_daily_rate = (
+                float(last_negotiation.proposed_daily_rate)
+                if has_pending_counter and last_negotiation.proposed_daily_rate is not None
+                else None
+            )
+            client_counter_days = (
+                last_negotiation.proposed_days if has_pending_counter else None
+            )
 
             result.append(
                 {
@@ -10954,6 +10987,14 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                     if app.proposed_daily_rate
                     else None,
                     "proposed_days": app.proposed_days,
+                    "negotiation_count": app.negotiation_count or 0,
+                    "last_actor": last_actor,
+                    "has_pending_counter": has_pending_counter,
+                    "client_counter_budget": client_counter_budget,
+                    "client_counter_daily_rate": client_counter_daily_rate,
+                    "client_counter_days": client_counter_days,
+                    "response_message": app.clientRejectionReason,
+                    "client_rejection_reason": app.clientRejectionReason,
                     "status": app.status,
                     "created_at": app.createdAt.isoformat(),
                 }

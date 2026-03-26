@@ -1505,7 +1505,7 @@ export default function ChatScreen() {
     }
   }, [conversation?.messages.length]);
 
-  // Handle confirm work started (CLIENT only)
+  // Handle confirm worker arrival (CLIENT only)
   const handleConfirmWorkStarted = () => {
     if (!conversation) return;
 
@@ -1516,8 +1516,8 @@ export default function ChatScreen() {
       "the worker";
 
     Alert.alert(
-      "Confirm Work Started",
-      `Are you sure ${workerName} has arrived and started working?`,
+      "Confirm Worker Arrival",
+      `Has ${workerName} arrived at the job site?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -1763,15 +1763,31 @@ export default function ChatScreen() {
       ? conversation.team_worker_assignments
       : [];
 
-    const isDailyTeamJob = conversation.job.payment_model === "DAILY";
+    const attendanceRowsForPreflight = Array.isArray(
+      conversation.attendance_today,
+    )
+      ? conversation.attendance_today
+      : [];
 
-    // All valid worker assignment IDs
-    const workerAssignmentIds = Array.from(
-      new Set(
-        teamWorkerRows
-          .map((row: any) => Number(row?.assignment_id))
-          .filter((assignmentId: number) => Number.isFinite(assignmentId)),
-      ),
+    const absentAssignmentIds = new Set(
+      attendanceRowsForPreflight
+        .filter((row: any) => isAttendanceRowAbsent(row))
+        .map((row: any) => Number(row?.assignment_id))
+        .filter((assignmentId: number) => Number.isFinite(assignmentId)),
+    );
+
+    const absentWorkerIds = new Set(
+      attendanceRowsForPreflight
+        .filter((row: any) => isAttendanceRowAbsent(row))
+        .map((row: any) => Number(row?.worker_id))
+        .filter((workerId: number) => Number.isFinite(workerId)),
+    );
+
+    const absentWorkerAccountIds = new Set(
+      attendanceRowsForPreflight
+        .filter((row: any) => isAttendanceRowAbsent(row))
+        .map((row: any) => Number(row?.worker_account_id))
+        .filter((accountId: number) => Number.isFinite(accountId)),
     );
 
     // Pending-only worker assignment IDs
@@ -1781,22 +1797,32 @@ export default function ChatScreen() {
           .map((row: any) => Number(row?.assignment_id))
           .filter((assignmentId: number) => Number.isFinite(assignmentId))
           .filter(
-            (assignmentId: number) =>
-              !teamWorkerRows.some(
-                (row: any) =>
-                  Number(row?.assignment_id) === assignmentId &&
-                  Boolean(row?.client_confirmed_arrival),
-              ),
-          ),
-      ),
-    );
+            (assignmentId: number) => {
+              const scopedRows = teamWorkerRows.filter(
+                (row: any) => Number(row?.assignment_id) === assignmentId,
+              );
 
-    // All valid employee assignment IDs
-    const employeeAssignmentIds = Array.from(
-      new Set(
-        agencyAssignedEmployees
-          .map((employee: any) => Number(employee?.assignment_id))
-          .filter((assignmentId: number) => Number.isFinite(assignmentId)),
+              const alreadyArrived = scopedRows.some((row: any) =>
+                Boolean(row?.client_confirmed_arrival),
+              );
+
+              const blockedByAbsentAttendance =
+                absentAssignmentIds.has(assignmentId) ||
+                scopedRows.some((row: any) => {
+                  const rowWorkerId = Number(row?.worker_id);
+                  const rowAccountId = Number(row?.account_id);
+
+                  return (
+                    (Number.isFinite(rowWorkerId) &&
+                      absentWorkerIds.has(rowWorkerId)) ||
+                    (Number.isFinite(rowAccountId) &&
+                      absentWorkerAccountIds.has(rowAccountId))
+                  );
+                });
+
+              return !alreadyArrived && !blockedByAbsentAttendance;
+            },
+          ),
       ),
     );
 
@@ -1812,6 +1838,18 @@ export default function ChatScreen() {
             );
             if (!employee) return false;
 
+            const employeeId = Number(
+              employee?.id ?? employee?.employee_id ?? employee?.worker_id,
+            );
+
+            const blockedByAbsentAttendance =
+              absentAssignmentIds.has(assignmentId) ||
+              (Number.isFinite(employeeId) && absentWorkerIds.has(employeeId));
+
+            if (blockedByAbsentAttendance) {
+              return false;
+            }
+
             return !isAgencyStatusInCurrentBackjobCycle(
               getAgencyArrivedFlag(employee),
               getAgencyArrivedAt(employee),
@@ -1820,10 +1858,10 @@ export default function ChatScreen() {
       ),
     );
 
-    // For DAILY jobs: target all assignments (idempotent re-confirm)
-    // For non-DAILY: target only pending arrivals
-    const workerTargets = isDailyTeamJob ? workerAssignmentIds : pendingWorkerAssignmentIds;
-    const employeeTargets = isDailyTeamJob ? employeeAssignmentIds : pendingEmployeeAssignmentIds;
+    // Target only pending arrivals. Re-confirming all rows in DAILY mode can
+    // accidentally promote absent-intended rows into arrival-confirmed rows.
+    const workerTargets = pendingWorkerAssignmentIds;
+    const employeeTargets = pendingEmployeeAssignmentIds;
 
     if (
       workerTargets.length === 0 &&
@@ -1965,17 +2003,14 @@ export default function ChatScreen() {
   const handleApproveDailyTeamWorkday = async () => {
     if (!conversation) return;
 
-    const preflightConversation = await runApprovePayArrivalPreflight();
-    if (!preflightConversation) return;
-
-    const payableRows = (preflightConversation.attendance_today ?? []).filter((row: any) => {
+    const payableRows = (conversation.attendance_today ?? []).filter((row: any) => {
       const attendanceId = Number(row?.attendance_id ?? row?.id);
       const status = String(row?.status || "").toUpperCase();
-      const isDisputedRow = status === "DISPUTED";
+      const isPayableStatus = status === "PRESENT" || status === "HALF_DAY";
 
       return (
         Number.isFinite(attendanceId) &&
-        !isDisputedRow &&
+        isPayableStatus &&
         !Boolean(row?.payment_processed)
       );
     }).map((row: any) => ({
@@ -4252,7 +4287,7 @@ export default function ChatScreen() {
     conversation.my_role === "CLIENT" &&
     conversation.job?.payment_model === "DAILY" &&
     conversation.job?.status === "IN_PROGRESS" &&
-    (!conversation.is_team_job || isScopedTeamDailyFlow) &&
+    (!conversation.is_team_job || isDailyTeamFlow) &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const attendanceRows = Array.isArray(conversation.attendance_today)
     ? conversation.attendance_today
@@ -4264,7 +4299,7 @@ export default function ChatScreen() {
     conversation.job?.payment_model === "PROJECT" &&
     (isProjectMultiDayJob || attendanceRows.length > 0);
   const shouldFinishDailyTeamJob =
-    isScopedTeamDailyFlow &&
+    conversation.is_team_job === true &&
     conversation.job?.payment_model === "DAILY" &&
     (reachedConfiguredDuration || reachedQaOffsetLimit);
   const showProjectEndActions =
@@ -4283,12 +4318,13 @@ export default function ChatScreen() {
     conversation.my_role === "CLIENT" &&
     !conversation.is_team_job &&
     !isTeamProjectAttendance &&
+    !conversation.job?.clientConfirmedWorkStarted &&
     !hasAnyCheckedInToday &&
     !hasAnyClientConfirmedToday;
-  const canShowWorkerOnTheWayQuickAction =
-    isWorkerSideRole &&
+  const isSoloDailyFlow =
     conversation.job?.payment_model === "DAILY" &&
-    !conversation.is_team_job;
+    !conversation.is_team_job &&
+    !conversation.is_agency_job;
   const isWorkerAlreadyCheckedIn = Boolean(
     myWorkerAttendanceToday?.time_in ||
       myWorkerAttendanceToday?.worker_confirmed_at,
@@ -5140,7 +5176,9 @@ export default function ChatScreen() {
                     <View style={styles.attendanceActionRight}>
                       {conversation.my_role !== "CLIENT" &&
                       conversation.my_role !== "AGENCY" ? (
-                        hasNoWorkMarkedToday ? (
+                        isSoloDailyFlow ? (
+                          <View style={styles.attendanceClientRightSpacer} />
+                        ) : hasNoWorkMarkedToday ? (
                           <>
                             <Text style={styles.workerOnTheWayHelperText}>
                               Attendance for today
@@ -7479,7 +7517,7 @@ export default function ChatScreen() {
 
                   // Show approve button if all complete and not yet approved
                   if (!conversation.job.clientMarkedComplete) {
-                    if (shouldFinishDailyTeamJob && isScopedTeamDailyFlow) {
+                    if (shouldFinishDailyTeamJob) {
                       return null;
                     }
 
@@ -7909,6 +7947,38 @@ export default function ChatScreen() {
                   </TouchableOpacity>
                 )}
 
+              {/* CLIENT: Confirm Worker Arrival (Solo DAILY, hybrid-style arrival-first flow) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isSoloDailyFlow &&
+                conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionButton,
+                      styles.confirmWorkStartedButton,
+                    ]}
+                    onPress={handleConfirmWorkStarted}
+                    disabled={confirmWorkStartedMutation.isPending}
+                  >
+                    {confirmWorkStartedMutation.isPending ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={Colors.white}
+                        />
+                        <Text style={styles.actionButtonText}>
+                          Confirm Worker Has Arrived
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
               {/* CLIENT: Waiting for Worker to Complete (Regular Jobs Only) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
@@ -7929,10 +7999,55 @@ export default function ChatScreen() {
                   </View>
                 )}
 
+              {/* CLIENT: Waiting for Worker to Complete (Solo DAILY) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isSoloDailyFlow &&
+                conversation.my_role === "CLIENT" &&
+                canUseRegularProjectActions &&
+                conversation.job.clientConfirmedWorkStarted &&
+                !conversation.job.workerMarkedComplete && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.waitingButtonText}>
+                      Waiting for worker to complete job...
+                    </Text>
+                  </View>
+                )}
+
               {/* WORKER: Waiting for Client Confirmation (Regular Jobs Only, simplified flow) */}
               {!conversation.is_team_job &&
                 !conversation.is_agency_job &&
                 isLegacySingleProjectFlow &&
+                conversation.my_role === "WORKER" &&
+                canUseRegularProjectActions &&
+                !conversation.job.clientConfirmedWorkStarted && (
+                  <View style={[styles.actionButton, styles.waitingButton]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={24}
+                      color={Colors.textSecondary}
+                    />
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text
+                        style={styles.waitingButtonText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                      >
+                        Waiting for client to confirm worker arrival...
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+              {/* WORKER: Waiting for Client Confirmation (Solo DAILY) */}
+              {!conversation.is_team_job &&
+                !conversation.is_agency_job &&
+                isSoloDailyFlow &&
                 conversation.my_role === "WORKER" &&
                 canUseRegularProjectActions &&
                 !conversation.job.clientConfirmedWorkStarted && (
@@ -8540,22 +8655,74 @@ export default function ChatScreen() {
                     ),
                   );
 
-                  const allFreelancersComplete = !isDailyAgencyFlow
-                    ? true
-                    : (conversation.team_worker_assignments ?? []).every(
-                        (assignment: any) => {
-                          const status = String(assignment?.status || "").toUpperCase();
-                          return Boolean(
-                            assignment?.worker_marked_complete ||
-                              assignment?.marked_complete ||
-                              status === "COMPLETED",
-                          );
-                        },
+                  const resolvedDailyAssignments = isDailyAgencyFlow
+                    ? clientArrivalAssignments.filter(
+                        (assignment) => assignment.arrived || assignment.absent,
+                      )
+                    : [];
+
+                  const assignmentHasUnpaidPayableRow = (
+                    assignment: UnifiedClientArrivalAssignment,
+                  ) => {
+                    return attendanceRows.some((row: any) => {
+                      const status = String(row?.status || "").toUpperCase();
+                      const isPayableStatus =
+                        status === "PRESENT" || status === "HALF_DAY";
+
+                      if (!isPayableStatus || Boolean(row?.payment_processed)) {
+                        return false;
+                      }
+
+                      const rowAssignmentId = Number(row?.assignment_id);
+                      if (
+                        Number.isFinite(rowAssignmentId) &&
+                        Number.isFinite(assignment.assignment_id) &&
+                        rowAssignmentId === Number(assignment.assignment_id)
+                      ) {
+                        return true;
+                      }
+
+                      const rowWorkerId = Number(row?.worker_id);
+                      const assignmentWorkerId = Number(
+                        assignment.worker_id ?? assignment.employee_id,
                       );
+
+                      if (
+                        Number.isFinite(rowWorkerId) &&
+                        Number.isFinite(assignmentWorkerId) &&
+                        rowWorkerId === assignmentWorkerId
+                      ) {
+                        return true;
+                      }
+
+                      return false;
+                    });
+                  };
+
+                  const arrivedAssignmentsRequiringCompletion = isDailyAgencyFlow
+                    ? resolvedDailyAssignments.filter(
+                        (assignment) =>
+                          assignment.arrived &&
+                          assignmentHasUnpaidPayableRow(assignment),
+                      )
+                    : [];
+
+                  const allArrivedAssignmentsMarkedComplete = isDailyAgencyFlow
+                    ? arrivedAssignmentsRequiringCompletion.every((assignment) =>
+                        Boolean(
+                          assignment.completed ||
+                            assignment.worker_marked_complete ||
+                            assignment.marked_complete ||
+                            assignment.early_completed,
+                        ),
+                      )
+                    : true;
 
                   const dailyPayableRows = attendanceRows.filter((row: any) => {
                     const status = String(row?.status || "").toUpperCase();
-                    return status !== "DISPUTED" && !Boolean(row?.payment_processed);
+                    const isPayableStatus =
+                      status === "PRESENT" || status === "HALF_DAY";
+                    return isPayableStatus && !Boolean(row?.payment_processed);
                   });
 
                   const hasPendingDailyResolution =
@@ -8570,11 +8737,24 @@ export default function ChatScreen() {
                       (assignment) => assignment.active_workday,
                     );
 
+                  const hasArrivedWorkersPendingCompletion =
+                    isDailyAgencyFlow &&
+                    arrivedAssignmentsRequiringCompletion.some(
+                      (assignment) =>
+                        !Boolean(
+                          assignment.completed ||
+                            assignment.worker_marked_complete ||
+                            assignment.marked_complete ||
+                            assignment.early_completed,
+                        ),
+                    );
+
                   const dailyReadyForApprovePay =
                     isDailyAgencyFlow &&
                     dailyPayableRows.length > 0 &&
                     !hasPendingDailyResolution &&
-                    !hasActiveDailyWorkRows;
+                    !hasActiveDailyWorkRows &&
+                    allArrivedAssignmentsMarkedComplete;
 
                   const allWorkflowComplete =
                     (isDailyAgencyFlow
@@ -8583,112 +8763,140 @@ export default function ChatScreen() {
                         ? allArrived
                         : allDispatched && allArrived) &&
                     allComplete &&
-                    allFreelancersComplete;
+                    allArrivedAssignmentsMarkedComplete;
 
                   const showApprovePayButton = isDailyAgencyFlow
                     ? dailyReadyForApprovePay && !isTodayWorkdaySettled
                     : allWorkflowComplete;
 
+                  const showFinalDailyFinishButton =
+                    isTeamAgencyJob &&
+                    isDailyAgencyFlow &&
+                    shouldFinishDailyTeamJob &&
+                    !showDailyEndActions &&
+                    isTodayWorkdaySettled;
+
                   return (
                     <>
+                      {isDailyAgencyFlow &&
+                        !showApprovePayButton &&
+                        !showFinalDailyFinishButton &&
+                        !isTodayWorkdaySettled &&
+                        !hasPendingDailyResolution &&
+                        !hasActiveDailyWorkRows &&
+                        hasArrivedWorkersPendingCompletion && (
+                          <View style={[styles.actionButton, styles.waitingButton]}>
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.waitingButtonText}>
+                              Waiting for all arrived workers to mark complete before approve & pay.
+                            </Text>
+                          </View>
+                        )}
+
                       {/* Single agency-level approve & pay button */}
-                      {showApprovePayButton &&
+                      {(showApprovePayButton || showFinalDailyFinishButton) &&
                         !conversation.job.clientMarkedComplete && (
                           <View style={styles.employeeActionsSection}>
-                            <Text style={styles.actionSectionTitle}>
-                              {isTeamAgencyJob
-                                ? "Approve & Pay Team + Agency"
-                                : "Approve & Pay Agency"}
-                            </Text>
-                            <TouchableOpacity
-                              style={[
-                                styles.actionButton,
-                                styles.approveCompletionButton,
-                              ]}
-                              onPress={
-                                isTeamAgencyJob
-                                  ? isDailyAgencyFlow
-                                    ? handleApproveDailyTeamWorkday
-                                    : handleApproveTeamJobCompletion
-                                  : handleApproveCompletion
-                              }
-                              disabled={
-                                isTeamAgencyJob
-                                  ? isDailyAgencyFlow
-                                    ? isBulkDailySettlementInFlight
-                                    : approveTeamJobCompletionMutation.isPending ||
-                                      isApprovePayPreflightInFlight
-                                  : approveAgencyProjectJobMutation.isPending
-                              }
-                            >
-                              {(isTeamAgencyJob
-                                ? isDailyAgencyFlow
-                                  ? isBulkDailySettlementInFlight
-                                  : approveTeamJobCompletionMutation.isPending ||
-                                      isApprovePayPreflightInFlight
-                                : approveAgencyProjectJobMutation.isPending) ? (
-                                <ActivityIndicator
-                                  size="small"
-                                  color={Colors.white}
-                                />
-                              ) : (
-                                <>
-                                  <Ionicons
-                                    name="wallet"
-                                    size={20}
-                                    color={Colors.white}
-                                  />
-                                  <Text style={styles.actionButtonText}>
-                                    {isTeamAgencyJob
-                                      ? isDailyAgencyFlow
-                                        ? `Approve & Pay (For the Day)`
-                                        : `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
-                                      : `Approve & Pay Agency (₱${(
-                                          (conversation.job.remainingPayment ??
-                                            conversation.job.budget * 0.5) +
-                                          (conversation.job.materials_cost ?? 0)
-                                        ).toLocaleString()})`}
-                                  </Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-
-                            {isTeamAgencyJob &&
-                              isDailyAgencyFlow &&
-                              (reachedConfiguredDuration || reachedQaOffsetLimit) && (
+                            {showApprovePayButton && (
+                              <>
+                                <Text style={styles.actionSectionTitle}>
+                                  {isTeamAgencyJob
+                                    ? "Approve & Pay Team + Agency"
+                                    : "Approve & Pay Agency"}
+                                </Text>
                                 <TouchableOpacity
                                   style={[
                                     styles.actionButton,
-                                    styles.waitingButton,
-                                    { marginTop: 8 },
+                                    styles.approveCompletionButton,
                                   ]}
-                                  onPress={handleFinishDailyTeamJob}
-                                  disabled={dailyFinishJobMutation.isPending}
+                                  onPress={
+                                    isTeamAgencyJob
+                                      ? isDailyAgencyFlow
+                                        ? handleApproveDailyTeamWorkday
+                                        : handleApproveTeamJobCompletion
+                                      : handleApproveCompletion
+                                  }
+                                  disabled={
+                                    isTeamAgencyJob
+                                      ? isDailyAgencyFlow
+                                        ? isBulkDailySettlementInFlight
+                                        : approveTeamJobCompletionMutation.isPending ||
+                                          isApprovePayPreflightInFlight
+                                      : approveAgencyProjectJobMutation.isPending
+                                  }
                                 >
-                                  {dailyFinishJobMutation.isPending ? (
+                                  {(isTeamAgencyJob
+                                    ? isDailyAgencyFlow
+                                      ? isBulkDailySettlementInFlight
+                                      : approveTeamJobCompletionMutation.isPending ||
+                                        isApprovePayPreflightInFlight
+                                    : approveAgencyProjectJobMutation.isPending) ? (
                                     <ActivityIndicator
                                       size="small"
-                                      color={Colors.textPrimary}
+                                      color={Colors.white}
                                     />
                                   ) : (
                                     <>
                                       <Ionicons
-                                        name="flag"
+                                        name="wallet"
                                         size={20}
-                                        color={Colors.textPrimary}
+                                        color={Colors.white}
                                       />
-                                      <Text
-                                        style={[
-                                          styles.waitingButtonText,
-                                          { color: Colors.textPrimary },
-                                        ]}
-                                      >
-                                        Finish Entire Job
+                                      <Text style={styles.actionButtonText}>
+                                        {isTeamAgencyJob
+                                          ? isDailyAgencyFlow
+                                            ? `Approve & Pay (For the Day)`
+                                            : `Approve & Pay All (₱${Number(conversation.job.remainingPayment ?? 0).toLocaleString()})`
+                                          : `Approve & Pay Agency (₱${(
+                                              (conversation.job.remainingPayment ??
+                                                conversation.job.budget * 0.5) +
+                                              (conversation.job.materials_cost ?? 0)
+                                            ).toLocaleString()})`}
                                       </Text>
                                     </>
                                   )}
                                 </TouchableOpacity>
-                              )}
+                              </>
+                            )}
+
+                            {showFinalDailyFinishButton && (
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionButton,
+                                  styles.waitingButton,
+                                  { marginTop: 8 },
+                                ]}
+                                onPress={handleFinishDailyTeamJob}
+                                disabled={dailyFinishJobMutation.isPending}
+                              >
+                                {dailyFinishJobMutation.isPending ? (
+                                  <ActivityIndicator
+                                    size="small"
+                                    color={Colors.textPrimary}
+                                  />
+                                ) : (
+                                  <>
+                                    <Ionicons
+                                      name="flag"
+                                      size={20}
+                                      color={Colors.textPrimary}
+                                    />
+                                    <Text
+                                      style={[
+                                        styles.waitingButtonText,
+                                        { color: Colors.textPrimary },
+                                      ]}
+                                    >
+                                      Finish Entire Job
+                                    </Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            )}
                           </View>
                         )}
 
