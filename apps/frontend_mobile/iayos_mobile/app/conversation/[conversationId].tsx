@@ -5187,6 +5187,27 @@ export default function ChatScreen() {
                       conversation.my_role !== "AGENCY" ? (
                         isSoloDailyFlow ? (
                           <View style={styles.attendanceClientRightSpacer} />
+                        ) : isDailyTeamFlow ? (
+                          <>
+                            <Text style={styles.workerOnTheWayHelperText}>
+                              Waiting for client confirmation
+                            </Text>
+                            <View
+                              style={[
+                                styles.workerOnTheWayQuickButton,
+                                styles.workerOnTheWayQuickButtonDisabled,
+                              ]}
+                            >
+                              <Ionicons
+                                name="hourglass-outline"
+                                size={16}
+                                color={Colors.white}
+                              />
+                              <Text style={styles.workerOnTheWayQuickButtonText}>
+                                Client confirms arrival first
+                              </Text>
+                            </View>
+                          </>
                         ) : hasNoWorkMarkedToday ? (
                           <>
                             <Text style={styles.workerOnTheWayHelperText}>
@@ -14649,4 +14670,3 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
 });
-

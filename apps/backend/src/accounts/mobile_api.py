@@ -8969,6 +8969,18 @@ def worker_check_in(request, job_id: int):
                 status=400,
             )
 
+        payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+        if job.is_team_job and payment_model == "DAILY":
+            return Response(
+                {
+                    "error": (
+                        "Team daily jobs use client-first arrival confirmation. "
+                        "Please wait for the client to confirm your arrival."
+                    )
+                },
+                status=400,
+            )
+
         # Backward compatibility: some existing backjob cycles keep base job status
         # as COMPLETED while rework is active. Allow check-in if there is an active,
         # worker-confirmed backjob cycle that is not finalized yet.
