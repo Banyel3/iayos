@@ -6353,8 +6353,9 @@ export default function ChatScreen() {
                       Project Duration Reached
                     </Text>
                     <Text style={styles.projectEndActionsText}>
-                      Worked {effectiveWorkedDays}/{effectiveDurationDays} day(s).
-                      You can extend this project by 1 day or finish the job now.
+                      {reachedConfiguredDuration
+                        ? `Worked ${effectiveWorkedDays}/${effectiveDurationDays} day(s). You can extend this project by 1 day or finish the job now.`
+                        : `Effective duration reached in QA mode (${effectiveWorkedDays}/${effectiveDurationDays} displayed). You can extend this project by 1 day or finish the job now.`}
                     </Text>
 
                     <View style={styles.projectEndActionsButtons}>

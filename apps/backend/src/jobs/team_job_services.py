@@ -770,6 +770,180 @@ def _project_multi_day_gate_error(job: Job):
     }
 
 
+def _sync_project_multiday_day_progress_from_team_completion(job: Job) -> dict:
+    """Sync PROJECT multi-day day progress from assignment-completion signals.
+
+    For team PROJECT multi-day flows, worker completion is day-driven. Once all
+    active team assignments are settled for the effective day (completed or
+    client-marked absent), auto-confirm that day's attendance rows and sync
+    `job.total_days_worked` from distinct confirmed dates.
+    """
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    required_days = _get_required_project_days(job)
+    if payment_model != "PROJECT" or required_days <= 1:
+        return {
+            "applied": False,
+            "day_settled": False,
+            "total_days_worked": int(getattr(job, "total_days_worked", 0) or 0),
+        }
+
+    effective_day = _get_effective_work_date(job)
+    now = timezone.now()
+
+    worker_rows = list(
+        JobWorkerAssignment.objects.filter(
+            jobID=job,
+            assignment_status="ACTIVE",
+        )
+    )
+    employee_rows = list(
+        JobEmployeeAssignment.objects.filter(
+            job=job,
+            skill_slot__isnull=False,
+            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+        )
+    )
+
+    if not worker_rows and not employee_rows:
+        return {
+            "applied": False,
+            "day_settled": False,
+            "total_days_worked": int(getattr(job, "total_days_worked", 0) or 0),
+        }
+
+    day_rows_qs = DailyAttendance.objects.filter(
+        jobID=job,
+        date=effective_day,
+    ).exclude(status="DISPUTED")
+
+    absent_assignment_ids = set(
+        day_rows_qs.filter(
+            client_confirmed=True,
+            status=DailyAttendance.AttendanceStatus.ABSENT,
+            assignmentID__isnull=False,
+        ).values_list("assignmentID_id", flat=True)
+    )
+    absent_worker_ids = set(
+        day_rows_qs.filter(
+            client_confirmed=True,
+            status=DailyAttendance.AttendanceStatus.ABSENT,
+            workerID__isnull=False,
+        ).values_list("workerID_id", flat=True)
+    )
+    absent_employee_ids = set(
+        day_rows_qs.filter(
+            client_confirmed=True,
+            status=DailyAttendance.AttendanceStatus.ABSENT,
+            employeeID__isnull=False,
+        ).values_list("employeeID_id", flat=True)
+    )
+
+    def _worker_settled(row: JobWorkerAssignment) -> bool:
+        if (
+            bool(getattr(row, "worker_marked_complete", False))
+            or bool(getattr(row, "early_completed", False))
+            or str(getattr(row, "assignment_status", "")).upper() == "COMPLETED"
+        ):
+            return True
+        if row.assignmentID in absent_assignment_ids:
+            return True
+        worker_id = getattr(row, "workerID_id", None)
+        return bool(worker_id and worker_id in absent_worker_ids)
+
+    def _employee_settled(row: JobEmployeeAssignment) -> bool:
+        if (
+            bool(getattr(row, "agencyMarkedComplete", False))
+            or bool(getattr(row, "early_completed", False))
+            or str(getattr(row, "status", "")).upper() == "COMPLETED"
+        ):
+            return True
+        if row.assignmentID in absent_assignment_ids:
+            return True
+        employee_id = getattr(row, "employee_id", None)
+        return bool(employee_id and employee_id in absent_employee_ids)
+
+    all_workers_settled = all(_worker_settled(row) for row in worker_rows)
+    all_employees_settled = all(_employee_settled(row) for row in employee_rows)
+    day_settled = all_workers_settled and all_employees_settled
+
+    if not day_settled:
+        return {
+            "applied": False,
+            "day_settled": False,
+            "total_days_worked": int(getattr(job, "total_days_worked", 0) or 0),
+        }
+
+    for row in worker_rows:
+        _ensure_daily_attendance_row_for_team_member(
+            job,
+            worker_assignment=row,
+            happened_at=now,
+        )
+
+    for row in employee_rows:
+        _ensure_daily_attendance_row_for_team_member(
+            job,
+            employee_assignment=row,
+            happened_at=now,
+        )
+
+    auto_confirmed_rows = 0
+    for attendance in DailyAttendance.objects.filter(
+        jobID=job,
+        date=effective_day,
+    ).exclude(status="DISPUTED"):
+        changed_fields = []
+
+        if attendance.status == "DISPATCHED":
+            attendance.status = DailyAttendance.AttendanceStatus.PENDING
+            changed_fields.append("status")
+
+        if not attendance.client_confirmed:
+            attendance.client_confirmed = True
+            changed_fields.append("client_confirmed")
+
+        if attendance.client_confirmed_at is None:
+            attendance.client_confirmed_at = now
+            changed_fields.append("client_confirmed_at")
+
+        if not attendance.payment_processed:
+            attendance.payment_processed = True
+            changed_fields.append("payment_processed")
+
+        if attendance.payment_processed_at is None:
+            attendance.payment_processed_at = now
+            changed_fields.append("payment_processed_at")
+
+        if changed_fields:
+            if "updatedAt" not in changed_fields:
+                changed_fields.append("updatedAt")
+            attendance.save(update_fields=list(dict.fromkeys(changed_fields)))
+            auto_confirmed_rows += 1
+
+    confirmed_days = (
+        DailyAttendance.objects.filter(jobID=job, client_confirmed=True)
+        .exclude(status="DISPUTED")
+        .values("date")
+        .distinct()
+        .count()
+    )
+
+    current_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
+    synced_days_worked = max(current_days_worked, int(confirmed_days or 0))
+    if synced_days_worked != current_days_worked:
+        job.total_days_worked = synced_days_worked
+        job.save(update_fields=["total_days_worked", "updatedAt"])
+
+    return {
+        "applied": True,
+        "day_settled": True,
+        "effective_day": str(effective_day),
+        "auto_confirmed_rows": int(auto_confirmed_rows),
+        "confirmed_days": int(confirmed_days),
+        "total_days_worked": int(synced_days_worked),
+    }
+
+
 def _self_heal_team_assignment_completion_flags(job: Job) -> int:
     """
     Backward-compatibility self-heal for legacy/inconsistent assignment states.
@@ -3020,6 +3194,14 @@ def worker_complete_team_assignment(
                 happened_at=completion_ts,
             )
 
+    day_progress_sync = {
+        "applied": False,
+        "day_settled": False,
+        "total_days_worked": int(getattr(job, "total_days_worked", 0) or 0),
+    }
+    if not is_daily_job:
+        day_progress_sync = _sync_project_multiday_day_progress_from_team_completion(job)
+
     if not updated_assignment_ids:
         # Defensive fallback in case state changed between reads.
         updated_assignment_ids = [a.assignmentID for a in worker_assignments]
@@ -3052,6 +3234,7 @@ def worker_complete_team_assignment(
         "updated_count": len(updated_assignment_ids),
         "all_workers_complete": all_complete,
         "completed_at": completed_at.isoformat() if completed_at else None,
+        "day_progress_sync": day_progress_sync,
         "message": "Marked your assigned work as complete",
     }
 
