@@ -7361,7 +7361,9 @@ export default function ChatScreen() {
                         color={Colors.textSecondary}
                       />
                       <Text style={styles.waitingButtonText}>
-                        ✓ All assigned roles complete. Waiting for client approval...
+                        {isTeamProjectAttendance && isProjectMultiDayJob
+                          ? "✓ Day work complete on all assigned roles. Waiting for next workday cycle..."
+                          : "✓ All assigned roles complete. Waiting for client approval..."}
                       </Text>
                     </View>
                   );

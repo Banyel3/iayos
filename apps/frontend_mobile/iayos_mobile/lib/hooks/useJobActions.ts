@@ -155,6 +155,32 @@ function patchConversationTeamAgencyEmployeesState(
   );
 }
 
+function getConversationJobSnapshot(
+  queryClient: ReturnType<typeof useQueryClient>,
+  jobId: number,
+): Record<string, any> | null {
+  const messageQueries = queryClient.getQueriesData({
+    predicate: (query) =>
+      Array.isArray(query.queryKey) && query.queryKey[0] === "messages",
+  });
+
+  for (const [, payload] of messageQueries) {
+    const data = payload as any;
+    if (data?.job?.id === jobId) {
+      return data.job;
+    }
+  }
+
+  return null;
+}
+
+function isProjectMultiDayJobFromSnapshot(job: Record<string, any> | null): boolean {
+  if (!job) return false;
+  const paymentModel = String(job.payment_model || "").toUpperCase();
+  const durationDays = Number(job.duration_days || 0);
+  return paymentModel === "PROJECT" && durationDays > 1;
+}
+
 function patchTeamJobAgencyAssignmentsState(
   queryClient: ReturnType<typeof useQueryClient>,
   jobId: number,
@@ -829,6 +855,8 @@ export function useMarkTeamAssignmentComplete() {
             .map((id: unknown) => Number(id))
             .filter((id: number) => Number.isFinite(id))
         : [assignmentId];
+      const conversationJob = getConversationJobSnapshot(queryClient, jobId);
+      const isProjectMultiDay = isProjectMultiDayJobFromSnapshot(conversationJob);
 
       patchConversationTeamAssignmentsState(
         queryClient,
@@ -847,7 +875,9 @@ export function useMarkTeamAssignmentComplete() {
           : "Assignment Marked Complete",
         text2: data?.already_processed
           ? "Your completion was already recorded"
-          : "Client will review your work",
+          : isProjectMultiDay
+            ? "Today's work is complete. Waiting for next workday cycle"
+            : "Client will review your work",
       });
 
       // Invalidate messages to refetch with updated completion status
