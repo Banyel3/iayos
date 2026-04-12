@@ -5165,7 +5165,8 @@ export default function ChatScreen() {
                 !conversation.is_team_job) ||
                 isTeamProjectAttendance ||
                 isProjectMultiDayJob ||
-                isDirectHireAgencyJob) && (
+                isDirectHireAgencyJob) &&
+                !isTeamSingleDayProjectAttendanceFlow && (
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.attendanceTopRow}>
                     <View style={styles.attendanceHeaderTop}>
