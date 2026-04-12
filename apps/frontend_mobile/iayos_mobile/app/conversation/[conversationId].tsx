@@ -10212,12 +10212,55 @@ export default function ChatScreen() {
                                 worker_id: null,
                                 employee_id:
                                   employee.employee_id || employee.id || null,
-                              }),
+                                }),
                             ),
                           ];
-                          const totalWorkers = allWorkers.length || 1;
-                          const reviewedCount =
-                            totalWorkers - pendingWorkers.length;
+
+                          const getReviewTargetKey = (
+                            target: any,
+                            fallback: string | number,
+                          ) => {
+                            const targetType = String(
+                              target?.target_type ||
+                                (target?.employee_id ? "EMPLOYEE" : "WORKER"),
+                            ).toUpperCase();
+
+                            const targetId =
+                              targetType === "EMPLOYEE"
+                                ? (target?.employee_id ??
+                                  target?.id ??
+                                  target?.assignment_id ??
+                                  fallback)
+                                : (target?.account_id ??
+                                  target?.worker_id ??
+                                  target?.assignment_id ??
+                                  fallback);
+
+                            return `${targetType}-${targetId}`;
+                          };
+
+                          const uniqueReviewTargets = Array.from(
+                            new Map(
+                              allWorkers.map((worker: any, index: number) => [
+                                getReviewTargetKey(worker, index),
+                                worker,
+                              ]),
+                            ).values(),
+                          );
+
+                          const pendingTargetKeys = new Set(
+                            pendingWorkers.map((worker: any, index: number) =>
+                              getReviewTargetKey(worker, `pending-${index}`),
+                            ),
+                          );
+
+                          const totalWorkers = uniqueReviewTargets.length || 1;
+                          const reviewedCount = uniqueReviewTargets.filter(
+                            (worker: any, index: number) =>
+                              !pendingTargetKeys.has(
+                                getReviewTargetKey(worker, index),
+                              ),
+                          ).length;
 
                           // Get current worker being reviewed
                           const currentWorker = pendingWorkers[0];
@@ -10267,43 +10310,20 @@ export default function ChatScreen() {
 
                                   {/* Mini worker checklist in modal */}
                                   <View style={styles.teamReviewModalChecklist}>
-                                    {allWorkers.map((w: any, i: number) => {
-                                      const targetType = String(
-                                        w?.target_type ||
-                                          (w?.employee_id ? "EMPLOYEE" : "WORKER"),
-                                      ).toUpperCase();
-                                      const targetId =
-                                        w?.worker_id ??
-                                        w?.employee_id ??
-                                        w?.assignment_id ??
-                                        i;
-                                      const workerKey = `${targetType}-${targetId}`;
+                                    {uniqueReviewTargets.map((w: any, i: number) => {
+                                      const workerKey = getReviewTargetKey(w, i);
                                       const isWorkerPending = pendingWorkers.some(
-                                        (pw: any) => {
-                                          const pendingTargetType = String(
-                                            pw?.target_type ||
-                                              (pw?.employee_id
-                                                ? "EMPLOYEE"
-                                                : "WORKER"),
-                                          ).toUpperCase();
-                                          const pendingTargetId =
-                                            pw?.worker_id ??
-                                            pw?.employee_id ??
-                                            pw?.assignment_id ??
-                                            "x";
-                                          return (
-                                            `${pendingTargetType}-${pendingTargetId}` ===
-                                            workerKey
-                                          );
-                                        },
+                                        (pw: any, pendingIndex: number) =>
+                                          getReviewTargetKey(
+                                            pw,
+                                            `pending-${pendingIndex}`,
+                                          ) === workerKey,
                                       );
                                       const isCurrent =
-                                        `${String(
-                                          pendingWorkers[0]?.target_type ||
-                                            (pendingWorkers[0]?.employee_id
-                                              ? "EMPLOYEE"
-                                              : "WORKER"),
-                                        ).toUpperCase()}-${pendingWorkers[0]?.worker_id ?? pendingWorkers[0]?.employee_id ?? pendingWorkers[0]?.assignment_id ?? "x"}` ===
+                                        getReviewTargetKey(
+                                          pendingWorkers[0],
+                                          "current",
+                                        ) ===
                                         workerKey;
                                       const isReviewed = !isWorkerPending;
 
