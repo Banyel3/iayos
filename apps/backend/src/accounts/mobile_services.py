@@ -19,7 +19,19 @@ from .models import (
     JobWorkerAssignment,
     JobLog,
 )
-from django.db.models import Q, Count, Avg, Prefetch, Sum, Exists, OuterRef
+from django.db.models import (
+    Q,
+    Count,
+    Avg,
+    Prefetch,
+    Sum,
+    Exists,
+    OuterRef,
+    Case,
+    When,
+    Value,
+    IntegerField,
+)
 from django.utils import timezone
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
@@ -703,22 +715,87 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             pass
 
         if user_worker_profile:
-            try:
-                application = JobApplication.objects.get(
-                    jobID=job, workerID=user_worker_profile
+            applications_qs = (
+                JobApplication.objects.filter(jobID=job, workerID=user_worker_profile)
+                .select_related("applied_skill_slot__specializationID")
+                .order_by(
+                    Case(
+                        When(
+                            status=JobApplication.ApplicationStatus.ACCEPTED,
+                            then=Value(0),
+                        ),
+                        When(
+                            status=JobApplication.ApplicationStatus.PENDING,
+                            then=Value(1),
+                        ),
+                        When(
+                            status=JobApplication.ApplicationStatus.REJECTED,
+                            then=Value(2),
+                        ),
+                        When(
+                            status=JobApplication.ApplicationStatus.WITHDRAWN,
+                            then=Value(3),
+                        ),
+                        default=Value(4),
+                        output_field=IntegerField(),
+                    ),
+                    "-updatedAt",
+                    "-createdAt",
                 )
+            )
+
+            applications = list(applications_qs)
+            if applications:
                 has_applied = True
+                primary_application = applications[0]
                 user_application = {
-                    "applicationID": application.applicationID,
-                    "status": application.status,
-                    "proposal_message": application.proposalMessage,
-                    "proposed_budget": float(application.proposedBudget)
-                    if application.proposedBudget
+                    "applicationID": primary_application.applicationID,
+                    "status": primary_application.status,
+                    "proposal_message": primary_application.proposalMessage,
+                    "proposed_budget": float(primary_application.proposedBudget)
+                    if primary_application.proposedBudget
                     else float(job.budget),
-                    "created_at": application.createdAt.isoformat(),
+                    "created_at": primary_application.createdAt.isoformat(),
                 }
-            except JobApplication.DoesNotExist:
-                pass
+
+                if job.is_team_job:
+                    user_application["applied_skill_slot_id"] = (
+                        primary_application.applied_skill_slot_id
+                    )
+                    user_application["applied_skill_slot_name"] = (
+                        primary_application.applied_skill_slot.specializationID.specializationName
+                        if primary_application.applied_skill_slot
+                        and primary_application.applied_skill_slot.specializationID
+                        else None
+                    )
+
+                    user_applications = []
+                    for app in applications:
+                        user_applications.append(
+                            {
+                                "applicationID": app.applicationID,
+                                "status": app.status,
+                                "proposal_message": app.proposalMessage,
+                                "proposed_budget": float(app.proposedBudget)
+                                if app.proposedBudget
+                                else float(job.budget),
+                                "created_at": app.createdAt.isoformat(),
+                                "updated_at": app.updatedAt.isoformat(),
+                                "applied_skill_slot_id": app.applied_skill_slot_id,
+                                "applied_skill_slot_name": (
+                                    app.applied_skill_slot.specializationID.specializationName
+                                    if app.applied_skill_slot
+                                    and app.applied_skill_slot.specializationID
+                                    else None
+                                ),
+                            }
+                        )
+                else:
+                    user_applications = []
+            else:
+                user_applications = []
+        else:
+            user_applications = []
 
         # Get applications count
         applications_count = JobApplication.objects.filter(jobID=job).count()
@@ -996,6 +1073,7 @@ def get_mobile_job_detail(job_id: int, user: Accounts) -> Dict[str, Any]:
             "applications_count": applications_count,
             "is_applied": has_applied,
             "user_application": user_application,
+            "user_applications": user_applications,
             "escrow_paid": job.escrowPaid,
             "remaining_payment_paid": job.remainingPaymentPaid,
             "downpayment_amount": float(job.budget * Decimal("0.5")),
