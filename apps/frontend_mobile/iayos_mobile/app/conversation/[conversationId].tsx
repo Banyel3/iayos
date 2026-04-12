@@ -10268,14 +10268,42 @@ export default function ChatScreen() {
                                   {/* Mini worker checklist in modal */}
                                   <View style={styles.teamReviewModalChecklist}>
                                     {allWorkers.map((w: any, i: number) => {
-                                      const workerKey = `${String(w?.target_type || w?.employee_id ? "EMPLOYEE" : "WORKER").toUpperCase()}-${w?.worker_id ?? w?.employee_id ?? w?.assignment_id ?? i}`;
+                                      const targetType = String(
+                                        w?.target_type ||
+                                          (w?.employee_id ? "EMPLOYEE" : "WORKER"),
+                                      ).toUpperCase();
+                                      const targetId =
+                                        w?.worker_id ??
+                                        w?.employee_id ??
+                                        w?.assignment_id ??
+                                        i;
+                                      const workerKey = `${targetType}-${targetId}`;
                                       const isWorkerPending = pendingWorkers.some(
-                                        (pw: any) =>
-                                          `${String(pw?.target_type || pw?.employee_id ? "EMPLOYEE" : "WORKER").toUpperCase()}-${pw?.worker_id ?? pw?.employee_id ?? pw?.assignment_id ?? "x"}` ===
-                                          workerKey,
+                                        (pw: any) => {
+                                          const pendingTargetType = String(
+                                            pw?.target_type ||
+                                              (pw?.employee_id
+                                                ? "EMPLOYEE"
+                                                : "WORKER"),
+                                          ).toUpperCase();
+                                          const pendingTargetId =
+                                            pw?.worker_id ??
+                                            pw?.employee_id ??
+                                            pw?.assignment_id ??
+                                            "x";
+                                          return (
+                                            `${pendingTargetType}-${pendingTargetId}` ===
+                                            workerKey
+                                          );
+                                        },
                                       );
                                       const isCurrent =
-                                        `${String(pendingWorkers[0]?.target_type || pendingWorkers[0]?.employee_id ? "EMPLOYEE" : "WORKER").toUpperCase()}-${pendingWorkers[0]?.worker_id ?? pendingWorkers[0]?.employee_id ?? pendingWorkers[0]?.assignment_id ?? "x"}` ===
+                                        `${String(
+                                          pendingWorkers[0]?.target_type ||
+                                            (pendingWorkers[0]?.employee_id
+                                              ? "EMPLOYEE"
+                                              : "WORKER"),
+                                        ).toUpperCase()}-${pendingWorkers[0]?.worker_id ?? pendingWorkers[0]?.employee_id ?? pendingWorkers[0]?.assignment_id ?? "x"}` ===
                                         workerKey;
                                       const isReviewed = !isWorkerPending;
 
