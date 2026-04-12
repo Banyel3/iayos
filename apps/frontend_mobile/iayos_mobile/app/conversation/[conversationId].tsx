@@ -6343,6 +6343,96 @@ export default function ChatScreen() {
                   </View>
                 )}
 
+              {conversation.my_role === "CLIENT" &&
+                conversation.is_team_job &&
+                isProjectMultiDayFlow &&
+                (reachedConfiguredDuration || reachedQaOffsetLimit) &&
+                !conversation.job.clientMarkedComplete && (
+                  <View style={styles.projectEndActionsCard}>
+                    <Text style={styles.projectEndActionsTitle}>
+                      Project Duration Reached
+                    </Text>
+                    <Text style={styles.projectEndActionsText}>
+                      Worked {effectiveWorkedDays}/{effectiveDurationDays} day(s).
+                      You can extend this project by 1 day or finish the job now.
+                    </Text>
+
+                    <View style={styles.projectEndActionsButtons}>
+                      <TouchableOpacity
+                        style={styles.projectExtendButton}
+                        onPress={() =>
+                          Alert.alert(
+                            "Extend Project by 1 Day",
+                            "Add one more day to this PROJECT job?",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Extend +1 Day",
+                                onPress: () =>
+                                  projectExtendOneDayMutation.mutate({
+                                    jobId: conversation.job.id,
+                                  }),
+                              },
+                            ],
+                          )
+                        }
+                        disabled={projectExtendOneDayMutation.isPending}
+                      >
+                        {projectExtendOneDayMutation.isPending ? (
+                          <ActivityIndicator size="small" color="#00BAF1" />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="add-circle"
+                              size={16}
+                              color="#00BAF1"
+                            />
+                            <Text style={styles.projectExtendButtonText}>
+                              Extend +1 Day
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.projectFinishButton}
+                        onPress={() => {
+                          Alert.alert(
+                            "Approve Team Completion & Pay",
+                            "All team assignments are complete. Continue to choose payment method (Wallet or Cash) for final payment.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Continue",
+                                onPress: () => handleApproveTeamJobCompletion(),
+                              },
+                            ],
+                          );
+                        }}
+                        disabled={
+                          approveTeamJobCompletionMutation.isPending ||
+                          projectExtendOneDayMutation.isPending
+                        }
+                      >
+                        {approveTeamJobCompletionMutation.isPending ? (
+                          <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="card"
+                              size={16}
+                              color={Colors.white}
+                            />
+                            <Text style={styles.projectFinishButtonText}>
+                              Approve & Pay Team
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
               {/* Worker/Agency View: Skip Day Request (DAILY team hybrid/merged) */}
               {conversation.job?.payment_model === "DAILY" &&
                 isScopedTeamDailyFlow &&
@@ -7069,6 +7159,7 @@ export default function ChatScreen() {
 
                               {conversation.is_team_job &&
                                 isAnyMultiDayFlow &&
+                                !showProjectEndActions &&
                                 !(
                                   conversation.job?.payment_model === "DAILY" &&
                                   isTodayWorkdaySettled
