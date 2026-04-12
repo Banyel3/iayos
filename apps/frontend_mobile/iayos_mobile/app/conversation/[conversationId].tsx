@@ -6227,62 +6227,6 @@ export default function ChatScreen() {
                     </View>
                   )}
 
-                  {/* Client attendance cards were replaced by the unified Team Arrival Status panel. */}
-
-                  {conversation.my_role === "CLIENT" &&
-                    isTeamSingleDayProjectAttendanceFlow &&
-                    allTeamProjectAssignmentsCompletedForFinish &&
-                    !conversation.job.clientMarkedComplete && (
-                      <View style={styles.projectEndActionsCard}>
-                        <Text style={styles.projectEndActionsTitle}>
-                          Team Project Workday Completed
-                        </Text>
-                        <Text style={styles.projectEndActionsText}>
-                          All team members have marked work complete. Finish the
-                          entire team PROJECT job and settle final payment.
-                        </Text>
-
-                        <View style={styles.projectEndActionsButtons}>
-                          <TouchableOpacity
-                            style={styles.projectFinishButton}
-                            onPress={() => {
-                              Alert.alert(
-                                "Approve Team Completion & Pay",
-                                "All team members are marked complete for this workday. Continue to choose payment method (Wallet or Cash) for final team payment.",
-                                [
-                                  { text: "Cancel", style: "cancel" },
-                                  {
-                                    text: "Continue",
-                                    onPress: () =>
-                                      handleApproveTeamJobCompletion(),
-                                  },
-                                ],
-                              );
-                            }}
-                            disabled={approveTeamJobCompletionMutation.isPending}
-                          >
-                            {approveTeamJobCompletionMutation.isPending ? (
-                              <ActivityIndicator
-                                size="small"
-                                color={Colors.white}
-                              />
-                            ) : (
-                              <>
-                                <Ionicons
-                                  name="card"
-                                  size={16}
-                                  color={Colors.white}
-                                />
-                                <Text style={styles.projectFinishButtonText}>
-                                  Approve & Pay Team
-                                </Text>
-                              </>
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    )}
-
                   {/* Daily rate info (DAILY-only) */}
                   {isAttendanceExpanded &&
                     conversation.job?.payment_model === "DAILY" && (
@@ -6357,6 +6301,52 @@ export default function ChatScreen() {
                     )}
                 </View>
               )}
+
+              {conversation.my_role === "CLIENT" &&
+                isTeamSingleDayProjectAttendanceFlow &&
+                allTeamProjectAssignmentsCompletedForFinish &&
+                !conversation.job.clientMarkedComplete && (
+                  <View style={styles.projectEndActionsCard}>
+                    <Text style={styles.projectEndActionsTitle}>
+                      Team Project Workday Completed
+                    </Text>
+                    <Text style={styles.projectEndActionsText}>
+                      All team members have marked work complete. Finish the
+                      entire team PROJECT job and settle final payment.
+                    </Text>
+
+                    <View style={styles.projectEndActionsButtons}>
+                      <TouchableOpacity
+                        style={styles.projectFinishButton}
+                        onPress={() => {
+                          Alert.alert(
+                            "Approve Team Completion & Pay",
+                            "All team members are marked complete for this workday. Continue to choose payment method (Wallet or Cash) for final team payment.",
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              {
+                                text: "Continue",
+                                onPress: () => handleApproveTeamJobCompletion(),
+                              },
+                            ],
+                          );
+                        }}
+                        disabled={approveTeamJobCompletionMutation.isPending}
+                      >
+                        {approveTeamJobCompletionMutation.isPending ? (
+                          <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                          <>
+                            <Ionicons name="card" size={16} color={Colors.white} />
+                            <Text style={styles.projectFinishButtonText}>
+                              Approve & Pay Team
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
 
               {/* Worker/Agency View: Skip Day Request (DAILY team hybrid/merged) */}
               {conversation.job?.payment_model === "DAILY" &&
