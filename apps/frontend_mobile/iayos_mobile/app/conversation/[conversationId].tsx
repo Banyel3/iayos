@@ -7214,12 +7214,13 @@ export default function ChatScreen() {
               {/* TEAM JOB PHASE 2: Worker Marks Assignment Complete */}
               {/* Applies to both DAILY and PROJECT team jobs (simplified flow). */}
               {conversation.is_team_job &&
-                !isTeamProjectAttendance &&
-                !isProjectMultiDayJob &&
-                !hasTeamProjectAttendanceSignals &&
                 !conversation.is_agency_job &&
                 conversation.my_role === "WORKER" &&
                 user &&
+                ((!isTeamProjectAttendance &&
+                  !isProjectMultiDayJob &&
+                  !hasTeamProjectAttendanceSignals) ||
+                  isTeamSingleDayProjectAttendanceFlow) &&
                 (() => {
                   // Find all worker's own assignments and unify state/actions.
                   const myAssignments = groupedTeamWorkerAssignments.filter(
@@ -7298,6 +7299,7 @@ export default function ChatScreen() {
                   // client_confirmed on attendance is normal and should NOT blank the screen.
                   if (
                     isTeamProjectAttendance &&
+                    !isTeamSingleDayProjectAttendanceFlow &&
                     myWorkerAttendanceToday &&
                     (Boolean(myWorkerAttendanceToday.is_dispatched) ||
                       Boolean(myWorkerAttendanceToday.time_in) ||
