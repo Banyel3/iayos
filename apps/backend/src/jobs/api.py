@@ -14377,10 +14377,14 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         job_changed_fields = ["qa_day_offset", "updatedAt"]
         reset_next_day_attendance_rows = 0
 
-        # DAILY team QA skip should advance to a fresh effective day. Reset
+        # Team QA skip should advance to a fresh effective day. Reset
         # non-early-completed per-assignment completion flags so the next day
         # does not inherit stale "completed" UI state.
-        if is_daily and job.is_team_job and not job.clientMarkedComplete:
+        if (
+            (is_daily or is_project_multiday)
+            and job.is_team_job
+            and not job.clientMarkedComplete
+        ):
             from accounts.models import DailyAttendance
 
             JobWorkerAssignment.objects.filter(

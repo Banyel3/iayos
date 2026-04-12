@@ -4311,10 +4311,6 @@ export default function ChatScreen() {
     : [];
   const isProjectMultiDayFlow =
     conversation.job?.payment_model === "PROJECT" && effectiveDurationDays > 1;
-  const hasTeamProjectAttendanceSignals =
-    conversation.is_team_job &&
-    conversation.job?.payment_model === "PROJECT" &&
-    (isProjectMultiDayJob || attendanceRows.length > 0);
   const shouldFinishDailyTeamJob =
     conversation.is_team_job === true &&
     conversation.job?.payment_model === "DAILY" &&
@@ -5163,8 +5159,7 @@ export default function ChatScreen() {
               {/* Attendance Tracking Section (DAILY + TEAM PROJECT) */}
               {((conversation.job?.payment_model === "DAILY" &&
                 !conversation.is_team_job) ||
-                isTeamProjectAttendance ||
-                isProjectMultiDayJob ||
+                (isProjectMultiDayJob && !conversation.is_team_job) ||
                 isDirectHireAgencyJob) &&
                 !isTeamSingleDayProjectAttendanceFlow && (
                 <View style={styles.dailyAttendanceSection}>
@@ -7207,10 +7202,8 @@ export default function ChatScreen() {
                 !conversation.is_agency_job &&
                 conversation.my_role === "WORKER" &&
                 user &&
-                ((!isTeamProjectAttendance &&
-                  !isProjectMultiDayJob &&
-                  !hasTeamProjectAttendanceSignals) ||
-                  isTeamSingleDayProjectAttendanceFlow) &&
+                (conversation.job?.payment_model === "DAILY" ||
+                  isTeamProjectAttendance) &&
                 (() => {
                   // Find all worker's own assignments and unify state/actions.
                   const myAssignments = groupedTeamWorkerAssignments.filter(
@@ -7287,18 +7280,6 @@ export default function ChatScreen() {
                   // Only hide the legacy "Mark My Assignment Complete" UI when this is a
                   // team PROJECT (attendance-driven) flow — not team DAILY. For team DAILY,
                   // client_confirmed on attendance is normal and should NOT blank the screen.
-                  if (
-                    isTeamProjectAttendance &&
-                    !isTeamSingleDayProjectAttendanceFlow &&
-                    myWorkerAttendanceToday &&
-                    (Boolean(myWorkerAttendanceToday.is_dispatched) ||
-                      Boolean(myWorkerAttendanceToday.time_in) ||
-                      Boolean(myWorkerAttendanceToday.time_out) ||
-                      Boolean(myWorkerAttendanceToday.client_confirmed))
-                  ) {
-                    return null;
-                  }
-
                   // Check if arrival was confirmed
                   if (!allArrived) {
                     return (
