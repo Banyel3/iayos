@@ -11148,10 +11148,6 @@ def worker_mark_team_complete(
     except JobPosting.DoesNotExist:
         return Response({"error": "Job not found"}, status=404)
 
-    project_gate_error = _project_multi_day_gate_error(job)
-    if project_gate_error:
-        return Response(project_gate_error, status=400)
-
     result = worker_complete_team_assignment(
         assignment_id=assignment_id, worker_user=request.auth, notes=notes
     )

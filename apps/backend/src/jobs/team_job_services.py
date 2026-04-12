@@ -2982,10 +2982,6 @@ def worker_complete_team_assignment(
             ),
         }
 
-    project_gate_error = _project_multi_day_gate_error(job)
-    if project_gate_error:
-        return project_gate_error
-
     # Unified completion across all active assignments for this worker on this job.
     completion_ts = timezone.now()
     updated_assignment_ids = []
