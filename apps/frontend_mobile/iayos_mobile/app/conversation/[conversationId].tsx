@@ -8440,6 +8440,7 @@ export default function ChatScreen() {
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
                 conversation.job.payment_model === "PROJECT" &&
+                (conversation.assigned_employees?.length ?? 0) <= 1 &&
                 conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete &&

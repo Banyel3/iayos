@@ -5733,6 +5733,16 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
         if not getattr(job, "assignedAgencyFK", None):
             return {"success": False, "error": "Could not determine assigned agency"}
 
+        assignments = JobEmployeeAssignment.objects.filter(job=job).exclude(
+            status="CANCELLED"
+        )
+        assignment_count = assignments.count()
+        if assignment_count != 1:
+            return {
+                "success": False,
+                "error": "Early finish for agency multi-employee jobs is not supported in this endpoint",
+            }
+
         assignment = (
             JobEmployeeAssignment.objects.filter(job=job)
             .exclude(status="CANCELLED")

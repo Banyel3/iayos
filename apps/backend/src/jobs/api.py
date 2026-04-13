@@ -5489,6 +5489,43 @@ def worker_mark_job_complete(request, job_id: int):
                     },
                     status=400,
                 )
+
+            active_agency_assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            ).exclude(status="REMOVED")
+
+            if active_agency_assignments.count() > 1:
+                incomplete_workers = []
+                for assignment in active_agency_assignments:
+                    is_dispatched, is_arrived, is_completed = (
+                        _resolve_agency_project_assignment_workflow(job, assignment)
+                    )
+                    if not (is_dispatched and is_arrived and is_completed):
+                        employee_name = (
+                            assignment.employee.fullName
+                            if assignment.employee_id
+                            else f"Employee #{assignment.employee_id}"
+                        )
+                        if not is_dispatched:
+                            incomplete_workers.append(f"{employee_name}: not dispatched")
+                        elif not is_arrived:
+                            incomplete_workers.append(
+                                f"{employee_name}: arrival not confirmed"
+                            )
+                        else:
+                            incomplete_workers.append(
+                                f"{employee_name}: agency completion pending"
+                            )
+
+                if incomplete_workers:
+                    return Response(
+                        {
+                            "error": "Cannot mark job complete until all assigned employees finish the workflow",
+                            "incomplete_workers": incomplete_workers,
+                        },
+                        status=400,
+                    )
         else:
             is_project_multiday = (
                 getattr(job, "payment_model", None) == "PROJECT"
@@ -5558,26 +5595,26 @@ def worker_mark_job_complete(request, job_id: int):
         job.workerMarkedCompleteAt = timezone.now()
         job.save()
 
-        # Agency web currently uses this generic endpoint. For agency jobs,
-        # also sync per-employee completion flags so mobile client UI can switch
-        # from "employees working on site" to approve/pay actions.
+        # Agency web currently uses this generic endpoint. For single-employee
+        # agency jobs, also sync per-employee completion flags so mobile client
+        # UI can switch from "employees working on site" to approve/pay actions.
         if is_agency_job:
             from accounts.models import JobEmployeeAssignment
+            active_assignments = JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            ).exclude(status="REMOVED")
 
-            synced_count = (
-                JobEmployeeAssignment.objects.filter(
-                    job=job,
-                    agencyMarkedComplete=False,
-                )
-                .exclude(status="REMOVED")
-                .update(
+            if active_assignments.count() <= 1:
+                synced_count = active_assignments.filter(
+                    agencyMarkedComplete=False
+                ).update(
                     agencyMarkedComplete=True,
                     agencyMarkedCompleteAt=timezone.now(),
                 )
-            )
-            print(
-                f"✅ Synced agencyMarkedComplete=True for {synced_count} assignment(s) on job #{job_id}"
-            )
+                print(
+                    f"✅ Synced agencyMarkedComplete=True for {synced_count} assignment(s) on job #{job_id}"
+                )
 
         print(
             f"✅ Job {job_id} marked as complete by {worker_name}. Waiting for client approval."

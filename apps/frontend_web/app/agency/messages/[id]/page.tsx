@@ -22,6 +22,7 @@ import {
   useAgencyDailyAttendance,
   useDispatchEmployee,
   useDispatchProjectEmployee,
+  useMarkProjectEmployeeComplete,
   useAgencyRequestSkipDay,
 } from "@/lib/hooks/useAgencyDailyAttendance";
 import {
@@ -157,6 +158,7 @@ export default function AgencyChatScreen() {
   );
   const dispatchEmployeeMutation = useDispatchEmployee();
   const dispatchProjectMutation = useDispatchProjectEmployee();
+  const markProjectEmployeeCompleteMutation = useMarkProjectEmployeeComplete();
   const requestSkipDayMutation = useAgencyRequestSkipDay();
 
   // WebSocket connection state
@@ -863,6 +865,10 @@ export default function AgencyChatScreen() {
     job.payment_model === "PROJECT" && effectiveDurationDays > 1;
   const projectDurationReached =
     effectiveDurationDays > 0 && totalDaysWorked >= effectiveDurationDays;
+  const isAgencyMultiEmployeeProjectFlow =
+    !isTeamConversation &&
+    job.payment_model === "PROJECT" &&
+    (effectiveAgencyAssignments?.length ?? 0) > 1;
 
   const backjobCycleStartMs =
     hasActiveBackjobCycle && conversation.backjob?.worker_schedule_confirmed_at
@@ -1436,14 +1442,13 @@ export default function AgencyChatScreen() {
               !job.clientMarkedComplete &&
               (() => {
                 const totalCount = effectiveAgencyAssignments.length;
+                const isEmployeeResolved = (e: AssignedEmployee) =>
+                  isStatusInActiveBackjobCycle(
+                    e.clientConfirmedArrival,
+                    e.clientConfirmedArrivalAt,
+                  ) || dailyAttendanceAbsentIds.has(e.employeeId);
                 const resolvedCount = effectiveAgencyAssignments.filter(
-                  (e: AssignedEmployee) =>
-                    isStatusInActiveBackjobCycle(
-                      e.clientConfirmedArrival,
-                      e.clientConfirmedArrivalAt,
-                    ) ||
-                    dailyAttendanceResolvedIds.has(e.employeeId) ||
-                    projectAttendanceArrivedIds.has(e.employeeId),
+                  (e: AssignedEmployee) => isEmployeeResolved(e),
                 ).length;
                 const absentCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) => dailyAttendanceAbsentIds.has(e.employeeId),
@@ -1458,6 +1463,15 @@ export default function AgencyChatScreen() {
                 );
                 const agencyMarkedComplete =
                   allComplete || (job.workerMarkedComplete && !hasActiveBackjobCycle);
+                const pendingEmployeeCompletions = effectiveAgencyAssignments.filter(
+                  (e: AssignedEmployee) =>
+                    isEmployeeResolved(e) &&
+                    !dailyAttendanceAbsentIds.has(e.employeeId) &&
+                    !isStatusInActiveBackjobCycle(
+                      e.agencyMarkedComplete,
+                      e.agencyMarkedCompleteAt,
+                    ),
+                );
 
                 return (
                   <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
@@ -1485,6 +1499,47 @@ export default function AgencyChatScreen() {
                         <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 font-medium">
                           Waiting for client approval and payment
                         </div>
+                      ) : isAgencyMultiEmployeeProjectFlow &&
+                        pendingEmployeeCompletions.length > 0 ? (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-2">
+                          <div className="text-xs font-bold text-black">
+                            Mark Work Complete ({pendingEmployeeCompletions.length} on site)
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {pendingEmployeeCompletions.map((employee: AssignedEmployee) => (
+                              <div
+                                key={`project-one-day-complete-${employee.employeeId}`}
+                                className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200"
+                              >
+                                <span>{employee.name}</span>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      await markProjectEmployeeCompleteMutation.mutateAsync({
+                                        jobId: job.id,
+                                        employeeId: employee.employeeId,
+                                        conversationId,
+                                      });
+                                      refetch();
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Failed to mark employee complete",
+                                      );
+                                    }
+                                  }}
+                                  disabled={markProjectEmployeeCompleteMutation.isPending}
+                                >
+                                  Mark Complete
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       ) : allResolved ? (
                         <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
                           <span className="text-xs font-bold text-black">
@@ -1511,14 +1566,13 @@ export default function AgencyChatScreen() {
               !job.clientMarkedComplete &&
               (() => {
                 const totalCount = effectiveAgencyAssignments.length;
+                const isEmployeeResolved = (e: AssignedEmployee) =>
+                  isStatusInActiveBackjobCycle(
+                    e.clientConfirmedArrival,
+                    e.clientConfirmedArrivalAt,
+                  ) || dailyAttendanceAbsentIds.has(e.employeeId);
                 const resolvedCount = effectiveAgencyAssignments.filter(
-                  (e: AssignedEmployee) =>
-                    isStatusInActiveBackjobCycle(
-                      e.clientConfirmedArrival,
-                      e.clientConfirmedArrivalAt,
-                    ) ||
-                    dailyAttendanceResolvedIds.has(e.employeeId) ||
-                    projectAttendanceArrivedIds.has(e.employeeId),
+                  (e: AssignedEmployee) => isEmployeeResolved(e),
                 ).length;
                 const absentCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) => dailyAttendanceAbsentIds.has(e.employeeId),
@@ -1533,6 +1587,15 @@ export default function AgencyChatScreen() {
                 );
                 const agencyMarkedComplete =
                   allComplete || (job.workerMarkedComplete && !hasActiveBackjobCycle);
+                const pendingEmployeeCompletions = effectiveAgencyAssignments.filter(
+                  (e: AssignedEmployee) =>
+                    isEmployeeResolved(e) &&
+                    !dailyAttendanceAbsentIds.has(e.employeeId) &&
+                    !isStatusInActiveBackjobCycle(
+                      e.agencyMarkedComplete,
+                      e.agencyMarkedCompleteAt,
+                    ),
+                );
 
                 return (
                   <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
@@ -1566,6 +1629,49 @@ export default function AgencyChatScreen() {
                       {agencyMarkedComplete ? (
                         <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 font-medium">
                           Waiting for client approval and payment
+                        </div>
+                      ) : isAgencyMultiEmployeeProjectFlow &&
+                        allResolved &&
+                        projectDurationReached &&
+                        pendingEmployeeCompletions.length > 0 ? (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-2">
+                          <div className="text-xs font-bold text-black">
+                            Mark Work Complete ({pendingEmployeeCompletions.length} on site)
+                          </div>
+                          <div className="space-y-1.5 text-xs">
+                            {pendingEmployeeCompletions.map((employee: AssignedEmployee) => (
+                              <div
+                                key={`project-multi-day-complete-${employee.employeeId}`}
+                                className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-200"
+                              >
+                                <span>{employee.name}</span>
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-3 bg-[#00BAF1] text-[10px]"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      await markProjectEmployeeCompleteMutation.mutateAsync({
+                                        jobId: job.id,
+                                        employeeId: employee.employeeId,
+                                        conversationId,
+                                      });
+                                      refetch();
+                                    } catch (error) {
+                                      toast.error(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "Failed to mark employee complete",
+                                      );
+                                    }
+                                  }}
+                                  disabled={markProjectEmployeeCompleteMutation.isPending}
+                                >
+                                  Mark Complete
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ) : allResolved && projectDurationReached ? (
                         <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">

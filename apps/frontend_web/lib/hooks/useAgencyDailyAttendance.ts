@@ -153,6 +153,57 @@ export function useDispatchProjectEmployee() {
 }
 
 /**
+ * Mark a specific agency employee as complete for PROJECT jobs.
+ */
+export function useMarkProjectEmployeeComplete() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    {
+      success: boolean;
+      message: string;
+      employee_name: string;
+      all_complete: boolean;
+      completed_count: number;
+      total_count: number;
+    },
+    Error,
+    { jobId: number; employeeId: number; notes?: string; conversationId?: number }
+  >({
+    mutationFn: async ({ jobId, employeeId, notes }) => {
+      const response = await fetch(
+        `${API_BASE}/api/agency/jobs/${jobId}/employees/${employeeId}/mark-complete-project`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: notes || "" }),
+        },
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "Failed to mark employee complete");
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      if (variables.conversationId) {
+        queryClient.invalidateQueries({
+          queryKey: ["agency-messages", variables.conversationId],
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["agency-conversations"] });
+      toast.success(data.message || `${data.employee_name} marked complete`);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+/**
  * @deprecated Client now marks checkout instead of agency
  * Kept for backward compatibility - will return error from backend
  */
