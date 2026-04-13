@@ -1424,6 +1424,44 @@ export default function AgencyChatScreen() {
                 return null;
               })()}
 
+            {isAgencyOneDayProjectArrivalFirstFlow &&
+              !job.clientMarkedComplete &&
+              (() => {
+                const totalCount = effectiveAgencyAssignments.length;
+                const resolvedCount = effectiveAgencyAssignments.filter(
+                  (e: AssignedEmployee) =>
+                    dailyAttendanceResolvedIds.has(e.employeeId) ||
+                    projectAttendanceArrivedIds.has(e.employeeId),
+                ).length;
+                const absentCount = effectiveAgencyAssignments.filter(
+                  (e: AssignedEmployee) => dailyAttendanceAbsentIds.has(e.employeeId),
+                ).length;
+
+                return (
+                  <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                          Client-First Arrival Flow
+                        </span>
+                        <Badge className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px]">
+                          Resolved {resolvedCount}/{totalCount}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-blue-800 font-medium">
+                        Client confirms arrival or marks absent for one-day project jobs.
+                      </p>
+                      <p className="text-[11px] text-blue-700">
+                        Waiting for client attendance actions before completion.
+                        {absentCount > 0
+                          ? ` ${absentCount} marked absent today.`
+                          : ""}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
             {shouldShowDailyWorkflow &&
               (() => {
                 const totalCount = effectiveAgencyAssignments.length;
@@ -1671,7 +1709,7 @@ export default function AgencyChatScreen() {
             {!isConnected && !isConversationClosed && (
               <div className="px-4 pt-3 text-xs text-amber-700 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
                 <WifiOff className="h-3.5 w-3.5" />
-                Live updates reconnecting. You can still send messages.
+                Live socket reconnecting. Messages still sync via auto-refresh.
               </div>
             )}
 
