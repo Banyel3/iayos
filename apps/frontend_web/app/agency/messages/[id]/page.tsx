@@ -1441,6 +1441,15 @@ export default function AgencyChatScreen() {
                   (e: AssignedEmployee) => dailyAttendanceAbsentIds.has(e.employeeId),
                 ).length;
                 const allResolved = totalCount > 0 && resolvedCount >= totalCount;
+                const allComplete = effectiveAgencyAssignments.every(
+                  (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(
+                      e.agencyMarkedComplete,
+                      e.agencyMarkedCompleteAt,
+                    ),
+                );
+                const agencyMarkedComplete =
+                  allComplete || (job.workerMarkedComplete && !hasActiveBackjobCycle);
 
                 return (
                   <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
@@ -1464,6 +1473,27 @@ export default function AgencyChatScreen() {
                           ? ` ${absentCount} marked absent today.`
                           : ""}
                       </p>
+                      {agencyMarkedComplete ? (
+                        <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 font-medium">
+                          Waiting for client approval and payment
+                        </div>
+                      ) : allResolved ? (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span className="text-xs font-bold text-black">
+                            Ready to complete
+                          </span>
+                          <Button
+                            size="sm"
+                            className="bg-[#00BAF1] hover:bg-[#00a8d8] px-3 h-7 text-[10px]"
+                            onClick={handleMarkComplete}
+                            disabled={markCompleteMutation.isPending}
+                          >
+                            {markCompleteMutation.isPending
+                              ? "Completing..."
+                              : "Complete Job"}
+                          </Button>
+                        </div>
+                      ) : null}
                     </CardContent>
                   </Card>
                 );
