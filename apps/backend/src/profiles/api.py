@@ -1576,6 +1576,7 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
         if is_client and job.is_team_job:
             try:
                 from jobs.team_job_services import (
+                    autoheal_team_project_all_early_completed,
                     autoheal_hybrid_daily_all_early_completed,
                 )
 
@@ -1585,6 +1586,15 @@ def get_conversation_by_job(request, job_id: int, reopen: bool = False):
                 if heal_result.get("success") and heal_result.get("healed"):
                     print(
                         f"[get_conversation_by_job] Auto-healed fully early-completed team DAILY job {job.jobID}"
+                    )
+                    job.refresh_from_db()
+
+                project_heal_result = autoheal_team_project_all_early_completed(
+                    job, request.user
+                )
+                if project_heal_result.get("success") and project_heal_result.get("healed"):
+                    print(
+                        f"[get_conversation_by_job] Auto-healed fully early-completed team PROJECT job {job.jobID}"
                     )
                     job.refresh_from_db()
             except Exception as heal_err:
@@ -1987,6 +1997,7 @@ def get_conversation_messages(request, conversation_id: int):
             # early-completed but remained in-progress should be finalized.
             try:
                 from jobs.team_job_services import (
+                    autoheal_team_project_all_early_completed,
                     autoheal_hybrid_daily_all_early_completed,
                 )
 
@@ -1996,6 +2007,15 @@ def get_conversation_messages(request, conversation_id: int):
                 if heal_result.get("success") and heal_result.get("healed"):
                     print(
                         f"[get_conversation_messages] Auto-healed fully early-completed DAILY team job {job_ref.jobID}"
+                    )
+                    job_ref.refresh_from_db()
+
+                project_heal_result = autoheal_team_project_all_early_completed(
+                    job_ref, request.auth
+                )
+                if project_heal_result.get("success") and project_heal_result.get("healed"):
+                    print(
+                        f"[get_conversation_messages] Auto-healed fully early-completed PROJECT team job {job_ref.jobID}"
                     )
                     job_ref.refresh_from_db()
             except Exception as heal_err:

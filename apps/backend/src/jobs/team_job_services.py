@@ -408,6 +408,99 @@ def autoheal_hybrid_daily_all_early_completed(job: Job, changed_by=None) -> dict
     return {"success": True, "job_id": job.jobID, "healed": True}
 
 
+@transaction.atomic
+def autoheal_team_project_all_early_completed(job: Job, changed_by=None) -> dict:
+    """Auto-heal team PROJECT jobs that are fully early-completed but stuck.
+
+    This finalizes lifecycle flags without re-running payout distribution.
+    """
+    if not job or not job.is_team_job:
+        return {"success": False, "reason": "not_team_job"}
+
+    payment_model = str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper()
+    if payment_model != "PROJECT":
+        return {"success": False, "reason": "not_project"}
+
+    if str(getattr(job, "status", "")).upper() == "COMPLETED":
+        return {"success": True, "already_done": True, "job_id": job.jobID}
+
+    if not _are_all_team_assignments_early_completed(job):
+        return {"success": False, "reason": "not_all_early_completed"}
+
+    now = timezone.now()
+    old_status = job.status
+
+    job.status = "COMPLETED"
+    job.clientMarkedComplete = True
+    job.clientMarkedCompleteAt = job.clientMarkedCompleteAt or now
+    job.workerMarkedComplete = True
+    job.workerMarkedCompleteAt = job.workerMarkedCompleteAt or now
+    job.remainingPaymentPaid = True
+    job.remainingPaymentPaidAt = job.remainingPaymentPaidAt or now
+    job.is_early_completed = True
+    job.early_completed_at = job.early_completed_at or now
+    if not job.finalPaymentMethod:
+        job.finalPaymentMethod = "WALLET"
+    job.paymentMethodSelectedAt = job.paymentMethodSelectedAt or now
+    job.save(
+        update_fields=[
+            "status",
+            "clientMarkedComplete",
+            "clientMarkedCompleteAt",
+            "workerMarkedComplete",
+            "workerMarkedCompleteAt",
+            "remainingPaymentPaid",
+            "remainingPaymentPaidAt",
+            "is_early_completed",
+            "early_completed_at",
+            "finalPaymentMethod",
+            "paymentMethodSelectedAt",
+            "updatedAt",
+        ]
+    )
+
+    JobWorkerAssignment.objects.filter(
+        jobID=job,
+        assignment_status="ACTIVE",
+    ).update(
+        assignment_status="COMPLETED",
+        worker_marked_complete=True,
+        worker_marked_complete_at=now,
+    )
+
+    JobEmployeeAssignment.objects.filter(
+        job=job,
+        skill_slot__isnull=False,
+        status__in=["ASSIGNED", "IN_PROGRESS"],
+    ).update(
+        status="COMPLETED",
+        agencyMarkedComplete=True,
+        agencyMarkedCompleteAt=now,
+        clientApproved=True,
+        clientApprovedAt=now,
+    )
+
+    try:
+        from accounts.models import JobLog
+
+        JobLog.objects.create(
+            jobID=job,
+            notes=(
+                f"[{now.strftime('%Y-%m-%d %I:%M:%S %p')}] Auto-healed team PROJECT job "
+                "to COMPLETED after all assignments were early-completed."
+            ),
+            changedBy=changed_by
+            if changed_by is not None
+            else job.clientID.profileID.accountFK,
+            oldStatus=old_status,
+            newStatus="COMPLETED",
+        )
+    except Exception:
+        pass
+
+    return {"success": True, "job_id": job.jobID, "healed": True}
+
+
 def _build_agency_fallback_slots(skill_slots_data: list, payment_model: str) -> list:
     """Return slots with no qualified freelancers and no agency invite."""
     fallback_slots = []
@@ -3805,6 +3898,27 @@ def client_approve_team_job(
     if project_gate_error:
         return project_gate_error
 
+    # If every team assignment was already early-completed via per-member
+    # actions, finalize lifecycle flags without re-running payout settlement.
+    if not is_daily_job and _are_all_team_assignments_early_completed(job):
+        finalize_result = autoheal_team_project_all_early_completed(job, client_user)
+        if finalize_result.get("success"):
+            return {
+                "success": True,
+                "job_id": job_id,
+                "amount_paid": 0.0,
+                "pending_payout_total": 0.0,
+                "pending_recipients_count": 0,
+                "payment_buffer_days": 0,
+                "worker_payment_pending": False,
+                "worker_payment_release_date": None,
+                "worker_payment_release_date_formatted": None,
+                "workers_completed": int(job.total_workers_assigned or 0),
+                "healed_assignments": 0,
+                "message": "Team job finalized from early-completed assignments.",
+                "job_finalized_from_early_complete": True,
+            }
+
     # Self-heal legacy assignment completion flags before enforcing gate.
     healed_assignments = _self_heal_team_assignment_completion_flags(job)
 
@@ -5124,6 +5238,7 @@ def early_complete_team_worker_project(
 
     if not worker_assignments:
         if assignment.early_completed:
+            autoheal_result = autoheal_team_project_all_early_completed(job, client_user)
             all_complete = (
                 not JobWorkerAssignment.objects.filter(
                     jobID=job, assignment_status="ACTIVE"
@@ -5142,6 +5257,10 @@ def early_complete_team_worker_project(
                 "updated_count": 0,
                 "payout": 0.0,
                 "all_workers_complete": all_complete,
+                "job_auto_finalized": bool(
+                    autoheal_result.get("healed")
+                    or autoheal_result.get("already_done")
+                ),
                 "message": "Worker was already early-completed",
             }
         return {
@@ -5201,6 +5320,7 @@ def early_complete_team_worker_project(
         updated_assignment_ids.append(row.assignmentID)
 
     if not updated_assignment_ids:
+        autoheal_result = autoheal_team_project_all_early_completed(job, client_user)
         all_complete = (
             not JobWorkerAssignment.objects.filter(
                 jobID=job, assignment_status="ACTIVE"
@@ -5219,6 +5339,10 @@ def early_complete_team_worker_project(
             "updated_count": 0,
             "payout": 0.0,
             "all_workers_complete": all_complete,
+            "job_auto_finalized": bool(
+                autoheal_result.get("healed")
+                or autoheal_result.get("already_done")
+            ),
             "message": "Worker was already early-completed",
         }
 
@@ -5275,6 +5399,7 @@ def early_complete_team_worker_project(
             job=job, skill_slot__isnull=False, status__in=["ASSIGNED", "IN_PROGRESS"]
         ).exists()
     )
+    autoheal_result = autoheal_team_project_all_early_completed(job, client_user)
 
     return {
         "success": True,
@@ -5284,6 +5409,9 @@ def early_complete_team_worker_project(
         "worker_name": worker_name,
         "payout": float(payout),
         "all_workers_complete": all_complete,
+        "job_auto_finalized": bool(
+            autoheal_result.get("healed") or autoheal_result.get("already_done")
+        ),
         "message": (
             f"{worker_name} early-completed with full PROJECT share of "
             f"PHP {float(payout):,.2f} across {len(updated_assignment_ids)} slot(s)"
@@ -5351,10 +5479,17 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
         return {"success": False, "error": f"Assignment status is {assignment.status}"}
 
     if assignment.early_completed:
+        autoheal_result = None
+        if str(getattr(job, "payment_model", "PROJECT") or "PROJECT").upper() == "PROJECT":
+            autoheal_result = autoheal_team_project_all_early_completed(job, client_user)
         return {
             "success": True,
             "already_done": True,
             "assignment_id": assignment.assignmentID,
+            "job_auto_finalized": bool(
+                autoheal_result
+                and (autoheal_result.get("healed") or autoheal_result.get("already_done"))
+            ),
             "message": "Employee was already early-completed",
         }
 
@@ -5493,6 +5628,9 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
             job=job, skill_slot__isnull=False, status__in=["ASSIGNED", "IN_PROGRESS"]
         ).exists()
     )
+    autoheal_result = None
+    if payment_model == "PROJECT":
+        autoheal_result = autoheal_team_project_all_early_completed(job, client_user)
 
     return {
         "success": True,
@@ -5503,6 +5641,10 @@ def early_complete_team_employee(job_id: int, assignment_id: int, client_user) -
         "already_credited": float(already_credited),
         "payment_model": payment_model,
         "all_team_complete": all_complete,
+        "job_auto_finalized": bool(
+            autoheal_result
+            and (autoheal_result.get("healed") or autoheal_result.get("already_done"))
+        ),
         "message": f"{employee_name} early-completed. PHP {float(payout):,.2f} to agency pending earnings.",
     }
 
