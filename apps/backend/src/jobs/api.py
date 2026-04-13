@@ -735,6 +735,37 @@ def _project_multi_day_gate_error(job: JobPosting):
     if required_days <= 1:
         return None
 
+    # Team PROJECT early-finish support:
+    # if client already early-completed every active/completed team assignment,
+    # allow final approve/pay before planned duration day.
+    if bool(getattr(job, "is_team_job", False)):
+        has_team_members = (
+            JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+            ).exists()
+            or JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot__isnull=False,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            ).exists()
+        )
+
+        if has_team_members:
+            pending_worker_early = JobWorkerAssignment.objects.filter(
+                jobID=job,
+                assignment_status__in=["ACTIVE", "COMPLETED"],
+            ).exclude(early_completed=True)
+
+            pending_employee_early = JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot__isnull=False,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            ).exclude(early_completed=True)
+
+            if not pending_worker_early.exists() and not pending_employee_early.exists():
+                return None
+
     elapsed_days = _get_elapsed_project_days(job)
     if elapsed_days >= required_days:
         return None
