@@ -4405,7 +4405,7 @@ export default function ChatScreen() {
   ) => {
     Alert.alert(
       "Mark Absent",
-      `Mark ${workerName} as absent for today?\n\nWarning: Incorrectly marking a worker absent can lead to account suspension and penalties.",
+      `Mark ${workerName} as absent for today?\n\nWarning: Incorrectly marking a worker absent can lead to account suspension and penalties.`,
       [
         {
           text: "Cancel",
