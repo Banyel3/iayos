@@ -105,6 +105,7 @@ export default function AgencyChatScreen() {
     clientReview: null,
   });
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showMarkCompleteModal, setShowMarkCompleteModal] = useState(false);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [receiptData, setReceiptData] = useState<any | null>(null);
@@ -332,14 +333,13 @@ export default function AgencyChatScreen() {
     router.back();
   };
 
-  // Handle mark job as complete with a direct confirmation prompt
-  const handleMarkComplete = async () => {
-    if (!conversation?.job.id) return;
+  // Open custom confirmation modal for mark complete action
+  const handleMarkComplete = () => {
+    setShowMarkCompleteModal(true);
+  };
 
-    const confirmed = window.confirm(
-      `Are you sure you want to mark \"${conversation.job.title}\" as completed?`,
-    );
-    if (!confirmed) return;
+  const handleConfirmMarkComplete = async () => {
+    if (!conversation?.job.id) return;
 
     try {
       await markCompleteMutation.mutateAsync({
@@ -347,6 +347,7 @@ export default function AgencyChatScreen() {
         completionNotes: "",
       });
 
+      setShowMarkCompleteModal(false);
       refetch();
       toast.success("Job marked as complete");
     } catch (error) {
@@ -2504,6 +2505,46 @@ export default function AgencyChatScreen() {
               >
                 Close
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {showMarkCompleteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-sm rounded-3xl shadow-2xl border-none">
+            <CardHeader className="pt-8 text-center">
+              <div className="mx-auto w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
+                <CheckCircle className="h-6 w-6 text-[#00BAF1]" />
+              </div>
+              <h3 className="text-lg font-bold">Mark Job as Complete?</h3>
+              <p className="text-sm text-gray-500 font-medium">
+                This confirms "{conversation?.job?.title || "this job"}" is done
+                and moves it to client approval and payment.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4 px-8 pb-10">
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-2xl h-12"
+                  onClick={() => setShowMarkCompleteModal(false)}
+                  disabled={markCompleteMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-[#00BAF1] hover:bg-[#00a8d8] rounded-2xl h-12"
+                  onClick={handleConfirmMarkComplete}
+                  disabled={markCompleteMutation.isPending}
+                >
+                  {markCompleteMutation.isPending ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    "Mark Complete"
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
