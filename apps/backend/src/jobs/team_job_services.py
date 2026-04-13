@@ -5725,29 +5725,77 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
     materials_cost = Decimal(str(getattr(job, "materialsCost", None) or "0.00"))
     payout = budget + materials_cost
 
-    worker_account = None
-    if job.assignedWorkerID and job.assignedWorkerID.profileID:
-        worker_account = job.assignedWorkerID.profileID.accountFK
+    payout_account = None
+    payout_target_label = "worker"
+    payout_target_name = "Worker"
 
-    if not worker_account:
-        return {"success": False, "error": "Could not determine worker account"}
+    if getattr(job, "is_agency_job", False):
+        if not getattr(job, "assignedAgencyFK", None):
+            return {"success": False, "error": "Could not determine assigned agency"}
+
+        assignment = (
+            JobEmployeeAssignment.objects.filter(job=job)
+            .exclude(status="CANCELLED")
+            .order_by("createdAt")
+            .first()
+        )
+        if not assignment:
+            return {
+                "success": False,
+                "error": "No active agency employee assignment found",
+            }
+
+        arrived = bool(getattr(assignment, "clientConfirmedArrival", False))
+        if not arrived:
+            # Fallback for legacy rows where assignment arrival flags are missing.
+            arrived = DailyAttendance.objects.filter(
+                jobID=job,
+                employeeID=assignment.employee,
+                time_in__isnull=False,
+            ).exists()
+
+        if not arrived:
+            return {
+                "success": False,
+                "error": "Client must confirm worker arrival first",
+            }
+
+        payout_account = job.assignedAgencyFK.accountFK
+        payout_target_label = "agency"
+        payout_target_name = (
+            getattr(job.assignedAgencyFK, "businessName", None) or "Agency"
+        )
+    else:
+        if job.assignedWorkerID and job.assignedWorkerID.profileID:
+            payout_account = job.assignedWorkerID.profileID.accountFK
+            payout_target_name = (
+                f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}"
+            )
+
+    if not payout_account:
+        return {
+            "success": False,
+            "error": "Could not determine payout account for this job",
+        }
 
     now = timezone.now()
 
     if payout > Decimal("0.00"):
-        worker_wallet, _ = Wallet.objects.select_for_update().get_or_create(
-            accountFK=worker_account
+        payout_wallet, _ = Wallet.objects.select_for_update().get_or_create(
+            accountFK=payout_account
         )
-        worker_wallet.pendingEarnings += payout
-        worker_wallet.save()
+        payout_wallet.pendingEarnings += payout
+        payout_wallet.save()
 
         Transaction.objects.create(
-            walletID=worker_wallet,
+            walletID=payout_wallet,
             transactionType="PENDING_EARNING",
             amount=payout,
-            balanceAfter=worker_wallet.balance,
+            balanceAfter=payout_wallet.balance,
             status="PENDING",
-            description=f"Early completion payout (PROJECT full share) - Job #{job.jobID}",
+            description=(
+                f"Early completion payout (PROJECT full share to {payout_target_label}) - Job #{job.jobID}"
+            ),
             relatedJobPosting=job,
             paymentMethod="WALLET",
         )
@@ -5775,9 +5823,8 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
         newStatus="COMPLETED",
     )
 
-    worker_name = f"{job.assignedWorkerID.profileID.firstName} {job.assignedWorkerID.profileID.lastName}"
     Notification.objects.create(
-        accountFK=worker_account,
+        accountFK=payout_account,
         notificationType="JOB_COMPLETED",
         title="Job Completed — Full Pay",
         message=(
@@ -5801,8 +5848,11 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
     return {
         "success": True,
         "job_id": job.jobID,
-        "worker_name": worker_name,
+        "worker_name": payout_target_name,
+        "payout_target": payout_target_label,
         "payout": float(payout),
         "status": job.status,
-        "message": f"PROJECT job early-completed. PHP {float(payout):,.2f} added to worker pending earnings.",
+        "message": (
+            f"PROJECT job early-completed. PHP {float(payout):,.2f} added to {payout_target_label} pending earnings."
+        ),
     }

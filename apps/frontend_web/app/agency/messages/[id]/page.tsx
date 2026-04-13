@@ -846,9 +846,14 @@ export default function AgencyChatScreen() {
     !isTeamConversation &&
     job.payment_model === "PROJECT" &&
     effectiveDurationDays <= 1;
+  const isAgencyMultiDayProjectArrivalFirstFlow =
+    !isTeamConversation &&
+    job.payment_model === "PROJECT" &&
+    effectiveDurationDays > 1;
   // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
   const shouldShowDispatchWorkflow =
     !isAgencyOneDayProjectArrivalFirstFlow &&
+    !isAgencyMultiDayProjectArrivalFirstFlow &&
     (shouldShowProjectWorkflow ||
       (hasReadyBackjobDispatchCycle &&
         (effectiveAgencyAssignments?.length ?? 0) > 0 &&
@@ -856,6 +861,8 @@ export default function AgencyChatScreen() {
   const totalDaysWorked = Math.max(0, Number(job.total_days_worked || 0));
   const isProjectMultiDayFlow =
     job.payment_model === "PROJECT" && effectiveDurationDays > 1;
+  const projectDurationReached =
+    effectiveDurationDays > 0 && totalDaysWorked >= effectiveDurationDays;
 
   const backjobCycleStartMs =
     hasActiveBackjobCycle && conversation.backjob?.worker_schedule_confirmed_at
@@ -1479,6 +1486,88 @@ export default function AgencyChatScreen() {
                           Waiting for client approval and payment
                         </div>
                       ) : allResolved ? (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span className="text-xs font-bold text-black">
+                            Ready to complete
+                          </span>
+                          <Button
+                            size="sm"
+                            className="bg-[#00BAF1] hover:bg-[#00a8d8] px-3 h-7 text-[10px]"
+                            onClick={handleMarkComplete}
+                            disabled={markCompleteMutation.isPending}
+                          >
+                            {markCompleteMutation.isPending
+                              ? "Completing..."
+                              : "Complete Job"}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+            {isAgencyMultiDayProjectArrivalFirstFlow &&
+              !job.clientMarkedComplete &&
+              (() => {
+                const totalCount = effectiveAgencyAssignments.length;
+                const resolvedCount = effectiveAgencyAssignments.filter(
+                  (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(
+                      e.clientConfirmedArrival,
+                      e.clientConfirmedArrivalAt,
+                    ) ||
+                    dailyAttendanceResolvedIds.has(e.employeeId) ||
+                    projectAttendanceArrivedIds.has(e.employeeId),
+                ).length;
+                const absentCount = effectiveAgencyAssignments.filter(
+                  (e: AssignedEmployee) => dailyAttendanceAbsentIds.has(e.employeeId),
+                ).length;
+                const allResolved = totalCount > 0 && resolvedCount >= totalCount;
+                const allComplete = effectiveAgencyAssignments.every(
+                  (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(
+                      e.agencyMarkedComplete,
+                      e.agencyMarkedCompleteAt,
+                    ),
+                );
+                const agencyMarkedComplete =
+                  allComplete || (job.workerMarkedComplete && !hasActiveBackjobCycle);
+
+                return (
+                  <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                          Client-First Arrival Flow
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px]">
+                            Worked {totalDaysWorked}/{effectiveDurationDays}
+                          </Badge>
+                          <Badge className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px]">
+                            Resolved {resolvedCount}/{totalCount}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-xs text-blue-800 font-medium">
+                        Client confirms arrival or marks absent each workday for multi-day project jobs.
+                      </p>
+                      <p className="text-[11px] text-blue-700">
+                        {allResolved
+                          ? projectDurationReached
+                            ? "Project duration reached. You can mark this job complete."
+                            : "All arrivals resolved for today. Waiting for next workday cycle."
+                          : "Waiting for client attendance actions before completion."}
+                        {absentCount > 0
+                          ? ` ${absentCount} marked absent today.`
+                          : ""}
+                      </p>
+                      {agencyMarkedComplete ? (
+                        <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-800 font-medium">
+                          Waiting for client approval and payment
+                        </div>
+                      ) : allResolved && projectDurationReached ? (
                         <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
                           <span className="text-xs font-bold text-black">
                             Ready to complete

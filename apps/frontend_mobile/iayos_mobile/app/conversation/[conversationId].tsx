@@ -8436,12 +8436,10 @@ export default function ChatScreen() {
 
               {/* CLIENT: Finish Early & Pay (Solo multi-day flow) — full budget released now */}
               {!conversation.is_team_job &&
-                !conversation.is_agency_job &&
                 isAnyMultiDayFlow &&
                 conversation.my_role === "CLIENT" &&
                 canUseRegularProjectActions &&
-                (conversation.job.payment_model === "DAILY" ||
-                  isLegacySingleProjectFlow) &&
+                conversation.job.payment_model === "PROJECT" &&
                 conversation.job.clientConfirmedWorkStarted &&
                 !conversation.job.workerMarkedComplete &&
                 !conversation.job.clientMarkedComplete &&
@@ -8455,7 +8453,7 @@ export default function ChatScreen() {
                       ).toLocaleString();
                       Alert.alert(
                         "Finish Early & Pay Full Amount",
-                        `This will release ₱${budget} to the worker immediately and complete the job. This cannot be undone.`,
+                        `This will release ₱${budget} immediately and complete the job. This cannot be undone.`,
                         [
                           { text: "Cancel", style: "cancel" },
                           {
