@@ -837,17 +837,21 @@ export default function AgencyChatScreen() {
     effectiveAgencyAssignments?.length > 0 &&
     supportsAgencyDispatchWorkflow;
 
-  // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
-  const shouldShowDispatchWorkflow =
-    shouldShowProjectWorkflow ||
-    (hasReadyBackjobDispatchCycle &&
-      (effectiveAgencyAssignments?.length ?? 0) > 0 &&
-      supportsAgencyDispatchWorkflow);
-
   const configuredDurationDays = Number(job.duration_days || 0);
   const fallbackDurationDays = parseExpectedDurationDays(job.expectedDuration);
   const effectiveDurationDays =
     configuredDurationDays > 0 ? configuredDurationDays : fallbackDurationDays;
+  const isAgencyOneDayProjectArrivalFirstFlow =
+    !isTeamConversation &&
+    job.payment_model === "PROJECT" &&
+    effectiveDurationDays <= 1;
+  // Dispatch workflow: PROJECT jobs with progress OR any backjob with confirmed schedule
+  const shouldShowDispatchWorkflow =
+    !isAgencyOneDayProjectArrivalFirstFlow &&
+    (shouldShowProjectWorkflow ||
+      (hasReadyBackjobDispatchCycle &&
+        (effectiveAgencyAssignments?.length ?? 0) > 0 &&
+        supportsAgencyDispatchWorkflow));
   const totalDaysWorked = Math.max(0, Number(job.total_days_worked || 0));
   const isProjectMultiDayFlow =
     job.payment_model === "PROJECT" && effectiveDurationDays > 1;
@@ -2477,4 +2481,3 @@ export default function AgencyChatScreen() {
     </div>
   );
 }
-

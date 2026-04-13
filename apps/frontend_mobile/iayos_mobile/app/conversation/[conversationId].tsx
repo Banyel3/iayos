@@ -4300,6 +4300,10 @@ export default function ChatScreen() {
     isTeamProjectAttendance && !isProjectMultiDayJob;
   const isDirectHireAgencyJob =
     conversation.is_agency_job === true && conversation.is_team_job !== true;
+  const isAgencyOneDayProjectArrivalFirstFlow =
+    isDirectHireAgencyJob &&
+    conversation.job?.payment_model === "PROJECT" &&
+    !isProjectMultiDayJob;
   const shouldChargePerAttendance = conversation.job?.payment_model === "DAILY";
   const canShowQASkipNextDay =
     conversation.my_role === "CLIENT" &&
@@ -5170,7 +5174,8 @@ export default function ChatScreen() {
               {((conversation.job?.payment_model === "DAILY" &&
                 !conversation.is_team_job) ||
                 (isProjectMultiDayJob && !conversation.is_team_job) ||
-                isDirectHireAgencyJob) &&
+                (isDirectHireAgencyJob &&
+                  !isAgencyOneDayProjectArrivalFirstFlow)) &&
                 !isTeamSingleDayProjectAttendanceFlow && (
                 <View style={styles.dailyAttendanceSection}>
                   <View style={styles.attendanceTopRow}>
