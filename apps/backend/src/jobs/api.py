@@ -705,13 +705,6 @@ def _get_elapsed_project_days(job: JobPosting) -> int:
     if total_days_worked > 0:
         elapsed = max(elapsed, total_days_worked)
 
-    # Honor QA fast-forward offset when present on environments that have it.
-    qa_day_offset = getattr(job, "qa_day_offset", 0) or 0
-    try:
-        elapsed += int(qa_day_offset)
-    except (TypeError, ValueError):
-        pass
-
     return max(0, elapsed)
 
 

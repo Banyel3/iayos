@@ -4253,6 +4253,12 @@ export default function ChatScreen() {
     effectiveDurationDays > 0 ? Math.max(effectiveDurationDays - 1, 0) : 0;
   const reachedConfiguredDuration =
     effectiveDurationDays > 0 && effectiveWorkedDays >= effectiveDurationDays;
+  const projectWorkedDays =
+    effectiveDurationDays > 0
+      ? Math.min(effectiveDurationDays, Math.max(0, totalDaysWorked))
+      : Math.max(0, totalDaysWorked);
+  const reachedProjectDurationByWorkdays =
+    effectiveDurationDays > 0 && projectWorkedDays >= effectiveDurationDays;
   const reachedQaOffsetLimit =
     isTestingModeEnabled &&
     effectiveDurationDays > 0 &&
@@ -4319,12 +4325,12 @@ export default function ChatScreen() {
     conversation.my_role === "CLIENT" &&
     conversation.job?.status === "IN_PROGRESS" &&
     isProjectMultiDayFlow &&
-    (reachedConfiguredDuration || reachedQaOffsetLimit);
+    reachedProjectDurationByWorkdays;
   const showProjectWorkerWaitingInfo =
     conversation.my_role === "WORKER" &&
     conversation.job?.status === "IN_PROGRESS" &&
     isProjectMultiDayFlow &&
-    (reachedConfiguredDuration || reachedQaOffsetLimit);
+    reachedProjectDurationByWorkdays;
   const isLegacySingleProjectFlow =
     conversation.job?.payment_model !== "DAILY" && !isProjectMultiDayJob;
   const canShowNoWorkQuickAction =
@@ -5859,8 +5865,7 @@ export default function ChatScreen() {
                                       </View>
                                     </View>
                                     <Text style={styles.awaitingConfirmText}>
-                                      {reachedConfiguredDuration ||
-                                      reachedQaOffsetLimit
+                                      {reachedProjectDurationByWorkdays
                                         ? "Job duration has been reached. Waiting for client to either extend the project or finish the job and pay."
                                         : "Workday confirmed. Wait for the next workday schedule from your client."}
                                     </Text>
@@ -5930,8 +5935,7 @@ export default function ChatScreen() {
                                   </View>
                                   <Text style={styles.awaitingConfirmText}>
                                     {isProjectMultiDayJob &&
-                                    (reachedConfiguredDuration ||
-                                      reachedQaOffsetLimit)
+                                    reachedProjectDurationByWorkdays
                                       ? "Today is logged. Job duration has been reached - waiting for client to either extend the project or finish and pay."
                                       : isProjectMultiDayJob
                                         ? "Today is logged. Waiting for client to confirm this workday."
@@ -6350,16 +6354,14 @@ export default function ChatScreen() {
               {conversation.my_role === "CLIENT" &&
                 conversation.is_team_job &&
                 isProjectMultiDayFlow &&
-                (reachedConfiguredDuration || reachedQaOffsetLimit) &&
+                reachedProjectDurationByWorkdays &&
                 !conversation.job.clientMarkedComplete && (
                   <View style={styles.projectEndActionsCard}>
                     <Text style={styles.projectEndActionsTitle}>
                       Project Duration Reached
                     </Text>
                     <Text style={styles.projectEndActionsText}>
-                      {reachedConfiguredDuration
-                        ? `Worked ${effectiveWorkedDays}/${effectiveDurationDays} day(s). You can extend this project by 1 day or finish the job now.`
-                        : `Effective duration reached in QA mode (${effectiveWorkedDays}/${effectiveDurationDays} displayed). You can extend this project by 1 day or finish the job now.`}
+                      {`Worked ${projectWorkedDays}/${effectiveDurationDays} day(s). You can extend this project by 1 day or finish the job now.`}
                     </Text>
 
                     <View style={styles.projectEndActionsButtons}>
@@ -7487,7 +7489,7 @@ export default function ChatScreen() {
                       <Text style={styles.waitingButtonText}>
                         {isTeamProjectAttendance &&
                         isProjectMultiDayJob &&
-                        (reachedConfiguredDuration || reachedQaOffsetLimit)
+                        reachedProjectDurationByWorkdays
                           ? "✓ Project duration reached. Waiting for client approval and final payment."
                           : isTeamProjectAttendance && isProjectMultiDayJob
                             ? "✓ Day work complete on all assigned roles. Waiting for next workday cycle..."

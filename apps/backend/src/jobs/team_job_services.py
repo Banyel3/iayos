@@ -821,20 +821,19 @@ def _get_required_project_days(job: Job) -> int:
 
 
 def _get_elapsed_project_days(job: Job) -> int:
-    qa_offset = int(getattr(job, "qa_day_offset", 0) or 0)
     total_days_worked = int(getattr(job, "total_days_worked", 0) or 0)
 
     if total_days_worked > 0:
-        return max(0, total_days_worked + qa_offset)
+        return max(0, total_days_worked)
 
     started_at = getattr(job, "clientConfirmedWorkStartedAt", None)
     if not started_at:
-        return max(0, qa_offset)
+        return 0
 
     start_date = timezone.localtime(started_at).date()
     today = timezone.localdate()
     elapsed = (today - start_date).days + 1
-    return max(0, elapsed + qa_offset)
+    return max(0, elapsed)
 
 
 def _project_multi_day_gate_error(job: Job):
