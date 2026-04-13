@@ -3280,6 +3280,23 @@ def worker_complete_team_assignment(
             ),
         }
 
+    effective_day = _get_effective_work_date(job)
+    marked_absent_today = DailyAttendance.objects.filter(
+        jobID=job,
+        date=effective_day,
+        status=DailyAttendance.AttendanceStatus.ABSENT,
+        client_confirmed=True,
+        workerID=assignment.workerID,
+    ).exists()
+    if marked_absent_today:
+        return {
+            "success": False,
+            "error": (
+                "Client marked you absent for today. "
+                "Please wait for the next workday cycle."
+            ),
+        }
+
     # Unified completion across all active assignments for this worker on this job.
     completion_ts = timezone.now()
     updated_assignment_ids = []

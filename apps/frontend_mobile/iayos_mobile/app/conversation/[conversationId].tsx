@@ -4403,17 +4403,21 @@ export default function ChatScreen() {
     workerName: string,
     onConfirm: () => void,
   ) => {
-    Alert.alert("Mark Absent", `Mark ${workerName} as absent for today?`, [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Mark Absent",
-        style: "destructive",
-        onPress: onConfirm,
-      },
-    ]);
+    Alert.alert(
+      "Mark Absent",
+      `Mark ${workerName} as absent for today?\n\nWarning: Incorrectly marking a worker absent can lead to account suspension and penalties.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Mark Absent",
+          style: "destructive",
+          onPress: onConfirm,
+        },
+      ],
+    );
   };
 
   interface UnifiedClientArrivalAssignment {
@@ -6767,6 +6771,16 @@ export default function ChatScreen() {
                           ? ` ${completedCount}/${assignments.length} completed.`
                           : ""}
                       </Text>
+                      <View style={styles.teamAbsentWarningBanner}>
+                        <Ionicons
+                          name="warning-outline"
+                          size={14}
+                          color={Colors.warning}
+                        />
+                        <Text style={styles.teamAbsentWarningText}>
+                          Incorrectly marking absent can lead to account suspension and penalties.
+                        </Text>
+                      </View>
 
                       <View style={styles.teamProjectArrivalList}>
                         {assignments.map((assignment) => {
@@ -7367,6 +7381,9 @@ export default function ChatScreen() {
                   const allCompleted = myAssignments.every(
                     (a) => a.worker_marked_complete,
                   );
+                  const isMarkedAbsentToday = myAttendanceRows.some((row: any) =>
+                    isAttendanceRowAbsent(row),
+                  );
 
                   // Attendance-driven team project flow supersedes legacy assignment phases.
                   // Only hide the legacy "Mark My Assignment Complete" UI when this is a
@@ -7383,6 +7400,21 @@ export default function ChatScreen() {
                         />
                         <Text style={styles.waitingButtonText}>
                           Waiting for client to confirm your arrival or mark absent on all assigned slots...
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  if (isMarkedAbsentToday) {
+                    return (
+                      <View style={[styles.actionButton, styles.waitingButton]}>
+                        <Ionicons
+                          name="warning-outline"
+                          size={20}
+                          color={Colors.warning}
+                        />
+                        <Text style={styles.waitingButtonText}>
+                          Client marked you absent for today. Waiting for next workday cycle...
                         </Text>
                       </View>
                     );
@@ -12502,6 +12534,23 @@ const styles = StyleSheet.create({
   teamProjectArrivalSubtext: {
     ...Typography.body.small,
     color: Colors.textSecondary,
+  },
+  teamAbsentWarningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.warning + "14",
+    borderWidth: 1,
+    borderColor: Colors.warning + "44",
+    borderRadius: BorderRadius.small,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 6,
+  },
+  teamAbsentWarningText: {
+    ...Typography.body.small,
+    color: Colors.warning,
+    fontWeight: "600",
+    flex: 1,
   },
   teamProjectArrivalList: {
     gap: Spacing.xs,
