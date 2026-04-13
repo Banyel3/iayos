@@ -1430,12 +1430,17 @@ export default function AgencyChatScreen() {
                 const totalCount = effectiveAgencyAssignments.length;
                 const resolvedCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) =>
+                    isStatusInActiveBackjobCycle(
+                      e.clientConfirmedArrival,
+                      e.clientConfirmedArrivalAt,
+                    ) ||
                     dailyAttendanceResolvedIds.has(e.employeeId) ||
                     projectAttendanceArrivedIds.has(e.employeeId),
                 ).length;
                 const absentCount = effectiveAgencyAssignments.filter(
                   (e: AssignedEmployee) => dailyAttendanceAbsentIds.has(e.employeeId),
                 ).length;
+                const allResolved = totalCount > 0 && resolvedCount >= totalCount;
 
                 return (
                   <Card className="border-blue-100 bg-blue-50/50 rounded-xl overflow-hidden shadow-sm">
@@ -1452,7 +1457,9 @@ export default function AgencyChatScreen() {
                         Client confirms arrival or marks absent for one-day project jobs.
                       </p>
                       <p className="text-[11px] text-blue-700">
-                        Waiting for client attendance actions before completion.
+                        {allResolved
+                          ? "All arrivals resolved. Work can begin."
+                          : "Waiting for client attendance actions before completion."}
                         {absentCount > 0
                           ? ` ${absentCount} marked absent today.`
                           : ""}
