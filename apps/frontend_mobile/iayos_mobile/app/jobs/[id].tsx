@@ -175,6 +175,7 @@ interface JobDetail {
 
 interface JobApplication {
   id: number;
+  applied_shift?: "MORNING" | "NIGHT" | "ANY" | null;
   worker: {
     id: number;
     name: string;
@@ -3642,6 +3643,25 @@ export default function JobDetailScreen() {
                 </View>
 
                 <View style={styles.applicationDetails}>
+                  {app.applied_shift && app.applied_shift !== "ANY" && (
+                    <View style={styles.applicationDetailItem}>
+                      <Ionicons
+                        name={
+                          app.applied_shift === "MORNING"
+                            ? "sunny-outline"
+                            : "moon-outline"
+                        }
+                        size={16}
+                        color={Colors.textSecondary}
+                      />
+                      <Text style={styles.applicationDetailText}>
+                        {app.applied_shift === "MORNING"
+                          ? "Day Shift"
+                          : "Night Shift"}
+                      </Text>
+                    </View>
+                  )}
+
                   {app.budget_option === "NEGOTIATE" ? (() => {
                     const clientHasCountered =
                       app.last_actor === "CLIENT" && !!app.client_counter_budget;
@@ -4209,6 +4229,26 @@ export default function JobDetailScreen() {
                     )}
 
                     <View style={styles.applicationDetails}>
+                      {application.applied_shift &&
+                        application.applied_shift !== "ANY" && (
+                          <View style={styles.applicationDetailItem}>
+                            <Ionicons
+                              name={
+                                application.applied_shift === "MORNING"
+                                  ? "sunny-outline"
+                                  : "moon-outline"
+                              }
+                              size={16}
+                              color={Colors.textSecondary}
+                            />
+                            <Text style={styles.applicationDetailText}>
+                              {application.applied_shift === "MORNING"
+                                ? "Day Shift"
+                                : "Night Shift"}
+                            </Text>
+                          </View>
+                        )}
+
                       {application.budget_option === "NEGOTIATE" && (() => {
                         const clientHasCountered = application.last_actor === "CLIENT" && !!application.client_counter_budget;
                         const priceLabel = clientHasCountered

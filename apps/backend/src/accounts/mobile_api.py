@@ -2794,6 +2794,9 @@ def mobile_get_job_applications(request, job_id: int):
                     "proposed_budget": float(app.proposedBudget)
                     if app.proposedBudget
                     else 0.0,
+                    "applied_shift": (
+                        str(getattr(app, "applied_shift", "") or "").upper() or None
+                    ),
                     "estimated_duration": app.estimatedDuration or "",
                     "budget_option": app.budgetOption,
                     "status": app.status,

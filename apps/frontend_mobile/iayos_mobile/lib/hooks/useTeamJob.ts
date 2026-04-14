@@ -123,6 +123,7 @@ export interface TeamJobApplication {
   worker_name: string;
   worker_avatar: string | null;
   worker_rating: number | null;
+  applied_shift?: "MORNING" | "NIGHT" | "ANY" | null;
   skill_slot_id: number;
   specialization_name: string;
   proposal_message: string;

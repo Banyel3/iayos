@@ -3430,6 +3430,9 @@ def get_job_applications(request, job_id: int):
                     },
                     "proposal_message": app.proposalMessage,
                     "proposed_budget": float(app.proposedBudget),
+                    "applied_shift": (
+                        str(getattr(app, "applied_shift", "") or "").upper() or None
+                    ),
                     "estimated_duration": app.estimatedDuration,
                     "budget_option": app.budgetOption,
                     "status": app.status,
@@ -11044,6 +11047,9 @@ def get_team_job_applications_endpoint(request, job_id: int, skill_slot_id: int 
                     "proposal_message": app.proposalMessage,
                     "proposed_budget": float(app.proposedBudget),
                     "budget_option": app.budgetOption,
+                    "applied_shift": (
+                        str(getattr(app, "applied_shift", "") or "").upper() or None
+                    ),
                     "proposed_daily_rate": float(app.proposed_daily_rate)
                     if app.proposed_daily_rate
                     else None,
