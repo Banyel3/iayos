@@ -1,6 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/vercel.json",
   "framework": "nextjs",
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "*": false
+    }
+  },
   "regions": ["sin1"],
   "functions": {
     "app/api/**/*.ts": {
