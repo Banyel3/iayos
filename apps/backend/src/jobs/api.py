@@ -11669,6 +11669,7 @@ def get_job_receipt(request, job_id: int):
         pending_earning_amount_from_transactions = Decimal("0.00")
         platform_fee_retained = Decimal("0.00")
         has_platform_fee_transaction = False
+        has_final_payment_transaction = False
         try:
             # Get all transactions related to this job (from any wallet)
             from accounts.models import Transaction, Profile
@@ -11788,6 +11789,15 @@ def get_job_receipt(request, job_id: int):
                     }
                 )
 
+                if txn.transactionType == Transaction.TransactionType.PAYMENT:
+                    desc_lower = str(getattr(txn, "description", "") or "").lower()
+                    if (
+                        "final payment" in desc_lower
+                        or "remaining payment" in desc_lower
+                        or "cash payment for job" in desc_lower
+                    ):
+                        has_final_payment_transaction = True
+
                 # Track what was actually credited to worker/agency from transaction history.
                 # For cancelled jobs this is the source of truth for "actual earnings".
                 if affected_role in ["WORKER", "AGENCY"]:
@@ -11840,6 +11850,47 @@ def get_job_receipt(request, job_id: int):
                         "completed_at": fee_created_at,
                     }
                 )
+
+            # Some flows settle final payment from already-held escrow and do not
+            # always create an explicit final PAYMENT row. Backfill a synthetic
+            # receipt line item so transaction history always shows final settlement.
+            if (
+                not is_cancelled_job
+                and bool(job.remainingPaymentPaid)
+                and not has_final_payment_transaction
+            ):
+                final_settlement_amount = max(
+                    Decimal("0.00"), actual_client_paid - escrow_amount - platform_fee
+                )
+                if final_settlement_amount > Decimal("0.00"):
+                    final_settlement_at = (
+                        job.remainingPaymentPaidAt.isoformat()
+                        if job.remainingPaymentPaidAt
+                        else (
+                            job.clientMarkedCompleteAt.isoformat()
+                            if job.clientMarkedCompleteAt
+                            else (job.updatedAt.isoformat() if job.updatedAt else None)
+                        )
+                    )
+                    transactions.append(
+                        {
+                            "id": -9002,
+                            "type": "PAYMENT",
+                            "amount": float(final_settlement_amount),
+                            "status": "COMPLETED",
+                            "description": "Final payment settlement (synthetic row for escrow-settled flows)",
+                            "reference_number": None,
+                            "payment_method": job.finalPaymentMethod or "WALLET",
+                            "affected_account_id": job.clientID.profileID.accountFK.accountID,
+                            "affected_role": "CLIENT",
+                            "affected_name": resolve_account_name(
+                                job.clientID.profileID.accountFK
+                            ),
+                            "impact": "DEBIT",
+                            "created_at": final_settlement_at,
+                            "completed_at": final_settlement_at,
+                        }
+                    )
 
             # Legacy fallback: synthesize receipt timeline rows for old cancelled jobs
             # when no linked transactions exist yet.
