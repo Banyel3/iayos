@@ -5940,9 +5940,10 @@ def mark_project_employee_complete(
                     status=400,
                 )
 
-        project_gate_error = _project_multi_day_gate_error(job)
-        if project_gate_error:
-            return Response(project_gate_error, status=400)
+        # NOTE: Per-employee agency completion is a day-cycle progression signal
+        # (arrived -> agency marked complete) and must remain available each
+        # effective workday for multi-day PROJECT jobs. Final duration gating is
+        # enforced on job-level completion/payment endpoints instead.
 
         # Verify job belongs to this agency
         if (

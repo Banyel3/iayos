@@ -438,8 +438,8 @@ This flow keeps final-only payout at agency level while using per-employee opera
 - Early-finish scope is now explicit for agency jobs.
   - `apps/backend/src/jobs/team_job_services.py`
   - `apps/frontend_mobile/iayos_mobile/app/conversation/[conversationId].tsx`
-  - Early-complete endpoint now rejects agency jobs with multiple active assignments (single-assignment only).
-  - Mobile early `Finish Early & Pay Full Amount` CTA is constrained to jobs with at most one assigned agency employee.
+  - Early-complete endpoint now supports agency jobs as a single settlement entity, including multi-employee assignments when arrivals are confirmed.
+  - Mobile early `Finish Early & Pay Full Amount` remains a single agency-level CTA (not per-employee pay controls).
 
 ### Guardrails for future changes in this flow
 
@@ -448,7 +448,12 @@ This flow keeps final-only payout at agency level while using per-employee opera
 - Do not use generic job-level mark-complete as a shortcut to mass-complete assignments when multi-employee assignments are still incomplete.
 - Resolve readiness by assignment identity (`JobEmployeeAssignment`) and current-cycle status, not by message text or job-level booleans alone.
 - Keep per-employee completion actions available in agency UI so progress can advance without forcing all-at-once completion.
-- Restrict early full-finish to single-assignment agency jobs unless a dedicated multi-employee early-settlement policy is implemented.
+- Early full-finish should remain a single bulk agency settlement action (never per-employee payout), and must require confirmed arrivals for active assignments.
+
+- Agency multi-day PROJECT day-cycle completion is operational (per day), not final-payment completion:
+  - `mark-complete-project` should remain available after arrival confirmation even before configured duration is reached.
+  - Final job close/payment gates stay in client final approval paths (`approve-agency-project` / final mark-complete gates).
+  - QA skip-next-day must reset agency assignment day-cycle flags for non-team agency multi-day flows to avoid stale "arrived/completed" carryover.
 
 ## rav task runner
 

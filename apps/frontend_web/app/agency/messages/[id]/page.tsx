@@ -1618,9 +1618,11 @@ export default function AgencyChatScreen() {
                       </p>
                       <p className="text-[11px] text-blue-700">
                         {allResolved
-                          ? projectDurationReached
-                            ? "Project duration reached. You can mark this job complete."
-                            : "All arrivals resolved for today. Waiting for next workday cycle."
+                          ? pendingEmployeeCompletions.length > 0
+                            ? "All arrivals resolved for today. Mark work complete to proceed with this day cycle."
+                            : projectDurationReached
+                              ? "Project duration reached. You can mark this job complete."
+                              : "All arrivals resolved for today. Waiting for next workday cycle."
                           : "Waiting for client attendance actions before completion."}
                         {absentCount > 0
                           ? ` ${absentCount} marked absent today.`
@@ -1632,7 +1634,6 @@ export default function AgencyChatScreen() {
                         </div>
                       ) : isAgencyMultiEmployeeProjectFlow &&
                         allResolved &&
-                        projectDurationReached &&
                         pendingEmployeeCompletions.length > 0 ? (
                         <div className="p-2 bg-white rounded-lg border border-slate-200 space-y-2">
                           <div className="text-xs font-bold text-black">
@@ -1672,6 +1673,41 @@ export default function AgencyChatScreen() {
                               </div>
                             ))}
                           </div>
+                        </div>
+                      ) : !isAgencyMultiEmployeeProjectFlow &&
+                        allResolved &&
+                        pendingEmployeeCompletions.length > 0 ? (
+                        <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                          <span className="text-xs font-bold text-black">
+                            Mark Work Complete (today)
+                          </span>
+                          <Button
+                            size="sm"
+                            className="bg-[#00BAF1] hover:bg-[#00a8d8] px-3 h-7 text-[10px]"
+                            onClick={async () => {
+                              const employee = pendingEmployeeCompletions[0];
+                              if (!employee) return;
+                              try {
+                                await markProjectEmployeeCompleteMutation.mutateAsync({
+                                  jobId: job.id,
+                                  employeeId: employee.employeeId,
+                                  conversationId,
+                                });
+                                refetch();
+                              } catch (error) {
+                                toast.error(
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Failed to mark employee complete",
+                                );
+                              }
+                            }}
+                            disabled={markProjectEmployeeCompleteMutation.isPending}
+                          >
+                            {markProjectEmployeeCompleteMutation.isPending
+                              ? "Saving..."
+                              : "Mark Complete"}
+                          </Button>
                         </div>
                       ) : allResolved && projectDurationReached ? (
                         <div className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between">

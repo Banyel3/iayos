@@ -14494,9 +14494,18 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
         # Team QA skip should advance to a fresh effective day. Reset
         # non-early-completed per-assignment completion flags so the next day
         # does not inherit stale "completed" UI state.
+        should_reset_team_or_agency_project_cycle = (
+            job.is_team_job
+            or (
+                is_project_multiday
+                and getattr(job, "is_agency_job", False)
+                and not getattr(job, "is_team_job", False)
+            )
+        )
+
         if (
             (is_daily or is_project_multiday)
-            and job.is_team_job
+            and should_reset_team_or_agency_project_cycle
             and not job.clientMarkedComplete
         ):
             from accounts.models import DailyAttendance
@@ -14542,6 +14551,26 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                 clientApprovedAt=None,
             )
 
+            # Non-team agency PROJECT multi-day jobs also need per-day cycle reset.
+            JobEmployeeAssignment.objects.filter(
+                job=job,
+                skill_slot__isnull=True,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                early_completed=False,
+            ).exclude(status="REMOVED").update(
+                status="ASSIGNED",
+                dispatched=False,
+                dispatchedAt=None,
+                clientConfirmedArrival=False,
+                clientConfirmedArrivalAt=None,
+                agencyMarkedComplete=False,
+                agencyMarkedCompleteAt=None,
+                employeeMarkedComplete=False,
+                employeeMarkedCompleteAt=None,
+                clientApproved=False,
+                clientApprovedAt=None,
+            )
+
             # If this effective date was already exercised in prior QA runs,
             # normalize existing attendance rows so the new cycle starts unpaid.
             active_worker_assignment_ids = list(
@@ -14566,6 +14595,20 @@ def qa_skip_to_next_day(request, job_id: int, data: QASkipNextDaySchema):
                     early_completed=False,
                 ).values_list("employee_id", flat=True)
             )
+
+            if is_project_multiday and getattr(job, "is_agency_job", False):
+                active_employee_ids.extend(
+                    list(
+                        JobEmployeeAssignment.objects.filter(
+                            job=job,
+                            skill_slot__isnull=True,
+                            status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+                            early_completed=False,
+                        )
+                        .exclude(status="REMOVED")
+                        .values_list("employee_id", flat=True)
+                    )
+                )
 
             stale_next_day_attendance = DailyAttendance.objects.filter(
                 jobID=job,

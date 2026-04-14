@@ -5733,41 +5733,44 @@ def early_complete_single_project_job(job_id: int, client_user) -> dict:
         if not getattr(job, "assignedAgencyFK", None):
             return {"success": False, "error": "Could not determine assigned agency"}
 
-        assignments = JobEmployeeAssignment.objects.filter(job=job).exclude(
-            status="CANCELLED"
-        )
-        assignment_count = assignments.count()
-        if assignment_count != 1:
-            return {
-                "success": False,
-                "error": "Early finish for agency multi-employee jobs is not supported in this endpoint",
-            }
-
-        assignment = (
-            JobEmployeeAssignment.objects.filter(job=job)
+        assignments = (
+            JobEmployeeAssignment.objects.filter(
+                job=job,
+                status__in=["ASSIGNED", "IN_PROGRESS", "COMPLETED"],
+            )
+            .exclude(status="REMOVED")
             .exclude(status="CANCELLED")
             .order_by("createdAt")
-            .first()
         )
-        if not assignment:
+        if not assignments.exists():
             return {
                 "success": False,
                 "error": "No active agency employee assignment found",
             }
 
-        arrived = bool(getattr(assignment, "clientConfirmedArrival", False))
-        if not arrived:
-            # Fallback for legacy rows where assignment arrival flags are missing.
-            arrived = DailyAttendance.objects.filter(
-                jobID=job,
-                employeeID=assignment.employee,
-                time_in__isnull=False,
-            ).exists()
+        unresolved_arrival_names = []
+        for assignment in assignments:
+            arrived = bool(getattr(assignment, "clientConfirmedArrival", False))
+            if not arrived:
+                # Fallback for legacy rows where assignment arrival flags are missing.
+                arrived = DailyAttendance.objects.filter(
+                    jobID=job,
+                    employeeID=assignment.employee,
+                    time_in__isnull=False,
+                ).exists()
 
-        if not arrived:
+            if not arrived:
+                unresolved_arrival_names.append(
+                    assignment.employee.fullName
+                    if getattr(assignment, "employee", None)
+                    else f"Employee #{assignment.employee_id}"
+                )
+
+        if unresolved_arrival_names:
             return {
                 "success": False,
-                "error": "Client must confirm worker arrival first",
+                "error": "Client must confirm all assigned employee arrivals first",
+                "pending_arrivals": unresolved_arrival_names,
             }
 
         payout_account = job.assignedAgencyFK.accountFK
