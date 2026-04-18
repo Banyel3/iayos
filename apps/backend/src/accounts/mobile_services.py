@@ -2832,6 +2832,8 @@ def get_job_categories_mobile(worker_id: Optional[int] = None, agency_id: Option
     If worker_id is provided, return only categories mapped to that worker's skills.
     If agency_id is provided, return global categories plus that agency's custom skills.
     """
+    from django.db.models import Q
+
     try:
         # Keep category feed global by default. Custom worker/agency entries are private.
         categories_qs = Specializations.objects.filter(
@@ -2841,7 +2843,6 @@ def get_job_categories_mobile(worker_id: Optional[int] = None, agency_id: Option
         )
 
         if agency_id:
-            from django.db.models import Q
             from .models import Agency
             try:
                 agency = Agency.objects.get(agencyId=agency_id)
